@@ -76,6 +76,50 @@
   }
   .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
   .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.approved{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.picking{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.packing{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
+  .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
+  .status-pill.received{background:#D9EEE0;color:var(--ok);}
+  .status-pill.backorder{background:#F6DCDC;color:var(--err);}
+
+  .priority-tag{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;}
+  .priority-tag.urgent{color:var(--err);}
+  .priority-tag.normal{color:var(--stone);}
+
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
 </style>
 </head>
 <body>
@@ -113,10 +157,48 @@
   </div>
 </div>
 
+<!-- New Spare Request modal -->
+<div class="modal-overlay" id="new-request-overlay">
+  <div class="modal">
+    <h3>New spare request</h3>
+    <form id="new-request-form">
+      <div class="form-row">
+        <label>Requesting Service Center</label>
+        <input type="text" id="req-center" placeholder="e.g. Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Part / item</label>
+        <input type="text" id="req-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="req-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Priority</label>
+        <select id="req-priority">
+          <option value="normal">Normal</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="req-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="new-request-error"></div>
+      <div class="modal-success" id="new-request-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-new-request">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-new-request">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -200,12 +282,25 @@
     });
   }
 
+  const SPARE_REQUEST_TABS = {
+    'requests-new': 'new',
+    'requests-approved': 'approved',
+    'requests-picking': 'picking',
+    'requests-packing': 'packing',
+    'requests-dispatch': 'dispatched',
+    'requests-transit': 'intransit',
+    'requests-backorder': 'backorder',
+  };
+
   function selectSection(id, label) {
     setActiveNav(id);
     pageTitle.textContent = label;
     if (id === 'dashboard') {
       pageSub.textContent = 'Welcome back';
       renderDashboard();
+    } else if (SPARE_REQUEST_TABS[id]) {
+      pageSub.textContent = 'Spare Requests & Dispatch';
+      renderSpareRequests(SPARE_REQUEST_TABS[id], label);
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -220,23 +315,23 @@
       </div>`;
   }
 
-  function renderDashboard() {
+  async function renderDashboard() {
     contentEl.innerHTML = `
       <div class="stat-grid">
         <div class="stat-card">
-          <div class="label">Status</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">New Requests</div>
+          <div class="value" id="stat-new">…</div>
+          <div class="hint">Awaiting approval</div>
         </div>
         <div class="stat-card">
-          <div class="label">Pending</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">Back Order</div>
+          <div class="value" id="stat-backorder">…</div>
+          <div class="hint">Stuck, needs attention</div>
         </div>
         <div class="stat-card">
-          <div class="label">This month</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">In Transit</div>
+          <div class="value" id="stat-transit">…</div>
+          <div class="hint">Currently dispatched</div>
         </div>
         <div class="stat-card">
           <div class="label">Alerts</div>
@@ -247,11 +342,201 @@
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
         <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This is the Head Office / Warehouse dashboard shell — signed in and role-verified. Sections in the
-          sidebar will fill in with working data module by module, same as the rest of the CRM.
+          <b style="color:var(--blue)">Spare Requests & Dispatch</b> is fully working — use the sidebar tabs to move requests
+          through New → Approved → Picking → Packing → Dispatch → In Transit, or mark them Back Order.
+          Other sections in the sidebar will fill in module by module.
         </div>
       </div>`;
+    try {
+      const [newSnap, backorderSnap, transitSnap] = await Promise.all([
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'backorder'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'intransit'))),
+      ]);
+      document.getElementById('stat-new').textContent = newSnap.size;
+      document.getElementById('stat-backorder').textContent = backorderSnap.size;
+      document.getElementById('stat-transit').textContent = transitSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
   }
+
+  // ---------------------------------------------------------------
+  // Spare Requests & Dispatch
+  // ---------------------------------------------------------------
+
+  const STATUS_LABELS = {
+    new: 'New', approved: 'Approved', picking: 'Picking', packing: 'Packing',
+    dispatched: 'Dispatched', intransit: 'In Transit', received: 'Received', backorder: 'Back Order'
+  };
+
+  // Each status's forward action(s) and, where relevant, a side action
+  // (e.g. flagging Back Order from New/Approved, or retrying from Back Order).
+  const STATUS_ACTIONS = {
+    new:        [{ label: 'Approve', next: 'approved' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    approved:   [{ label: 'Start Picking', next: 'picking' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    picking:    [{ label: 'Mark Packed', next: 'packing' }],
+    packing:    [{ label: 'Dispatch', next: 'dispatched' }],
+    dispatched: [{ label: 'Mark In Transit', next: 'intransit' }],
+    intransit:  [{ label: 'Mark Received', next: 'received' }],
+    backorder:  [{ label: 'Retry (back to New)', next: 'new' }],
+  };
+
+  async function renderSpareRequests(status, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-new-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Qty</th><th>Priority</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="requests-tbody">
+              <tr><td colspan="7" class="empty-row">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-new-request').addEventListener('click', openNewRequestModal);
+    loadSpareRequests(status);
+  }
+
+  async function loadSpareRequests(status) {
+    const tbody = document.getElementById('requests-tbody');
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'spareRequests'),
+        where('status', '==', status),
+        orderBy('createdAt', 'desc')
+      ));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No requests in this stage.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        const actions = (STATUS_ACTIONS[status] || []).map(a =>
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${docSnap.id}" data-next="${a.next}">${a.label}</button>`
+        ).join('');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
+          <td>${d.serviceCenter || '—'}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><span class="priority-tag ${d.priority || 'normal'}">${(d.priority || 'normal').toUpperCase()}</span></td>
+          <td><span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><div class="row-actions">${actions}</div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.action-btn').forEach(btn => {
+        btn.addEventListener('click', () => advanceRequest(btn.dataset.uid, btn.dataset.next, status));
+      });
+    } catch (err) {
+      console.error('Load spare requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceRequest(uid, nextStatus, currentTabStatus) {
+    try {
+      await updateDoc(doc(db, 'spareRequests', uid), {
+        status: nextStatus,
+        updatedAt: serverTimestamp()
+      });
+      loadSpareRequests(currentTabStatus);
+    } catch (err) {
+      console.error('Update request status failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // Request ID format matches the site's ticket convention:
+  // PE-SR-{YYYYMMDD}-{Serial}-{Mode}. Serial resets monthly via an
+  // atomic Firestore transaction (counters/sparerequest-{YYYYMM}),
+  // same collision-safe pattern used for public enquiry tickets.
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+  async function generateRequestId() {
+    const serial = await nextMonthlySerial(`sparerequest-${currentYYYYMM()}`);
+    return `PE-SR-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-Warehouse`;
+  }
+
+  const newRequestOverlay = document.getElementById('new-request-overlay');
+  const newRequestForm = document.getElementById('new-request-form');
+  const newRequestError = document.getElementById('new-request-error');
+  const newRequestSuccess = document.getElementById('new-request-success');
+  const newRequestSubmitBtn = document.getElementById('submit-new-request');
+
+  function openNewRequestModal() {
+    newRequestForm.reset();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = false;
+    newRequestSubmitBtn.textContent = 'Create request';
+    newRequestOverlay.classList.add('show');
+  }
+  function closeNewRequestModal() {
+    newRequestOverlay.classList.remove('show');
+  }
+  document.getElementById('cancel-new-request').addEventListener('click', closeNewRequestModal);
+  newRequestOverlay.addEventListener('click', (e) => { if (e.target === newRequestOverlay) closeNewRequestModal(); });
+
+  newRequestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = true;
+    newRequestSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: document.getElementById('req-center').value.trim(),
+        item: document.getElementById('req-item').value.trim(),
+        quantity: Number(document.getElementById('req-qty').value) || 1,
+        priority: document.getElementById('req-priority').value,
+        notes: document.getElementById('req-notes').value.trim(),
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      newRequestSuccess.textContent = `Created — ${requestId}`;
+      newRequestSuccess.classList.add('show');
+      newRequestSubmitBtn.textContent = 'Create request';
+      newRequestSubmitBtn.disabled = false;
+      // Refresh the currently open tab if it's the "New" tab
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && activeItem.dataset.id === 'requests-new') loadSpareRequests('new');
+      setTimeout(closeNewRequestModal, 1000);
+    } catch (err) {
+      console.error('Create request failed:', err);
+      newRequestError.textContent = 'Could not create request. Check console for details.';
+      newRequestError.classList.add('show');
+      newRequestSubmitBtn.disabled = false;
+      newRequestSubmitBtn.textContent = 'Create request';
+    }
+  });
 
   renderNav();
   setActiveNav('dashboard');

@@ -51,19 +51,18 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     // ---------------------------------------------------------------
-    // Monthly serial-number counters backing ticket IDs (e.g. the
-    // contactEnquiries counter, counters/enquiry-{YYYYMM}). Public
-    // clients may only create a counter at 1 or bump an existing one
-    // by exactly +1 — never set it to an arbitrary value — so the
-    // public form can safely mint sequential ticket numbers without
-    // opening the door to tampering.
+    // Monthly serial-number counters backing ticket/request IDs
+    // (e.g. counters/enquiry-{YYYYMM}, counters/sparerequest-{YYYYMM}).
+    // Callers may only create a counter at 1 or bump an existing one
+    // by exactly +1 — never set it to an arbitrary value — so IDs
+    // can be safely minted without opening the door to tampering.
     // ---------------------------------------------------------------
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if counterId.matches('^enquiry-[0-9]{6}$')
+      allow create: if counterId.matches('^(enquiry|sparerequest)-[0-9]{6}$')
         && request.resource.data.value == 1;
-      allow update: if counterId.matches('^enquiry-[0-9]{6}$')
+      allow update: if counterId.matches('^(enquiry|sparerequest)-[0-9]{6}$')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
