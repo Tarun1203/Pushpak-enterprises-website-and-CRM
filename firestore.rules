@@ -45,6 +45,12 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Contact enquiries from the public landing page form.
+    // Anyone can submit one; only admins can read or manage them
+    // (surfaces in CRM > Website Management > Contact Enquiries).
+    // ---------------------------------------------------------------
+
+    // ---------------------------------------------------------------
     // Monthly serial-number counters backing ticket IDs (e.g. the
     // contactEnquiries counter, counters/enquiry-{YYYYMM}). Public
     // clients may only create a counter at 1 or bump an existing one
@@ -61,12 +67,6 @@ service cloud.firestore {
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
-
-    // ---------------------------------------------------------------
-    // Contact enquiries from the public landing page form.
-    // Anyone can submit one; only admins can read or manage them
-    // (surfaces in CRM > Website Management > Contact Enquiries).
-    // ---------------------------------------------------------------
 
     match /contactEnquiries/{enquiryId} {
       allow create: if request.resource.data.keys().hasAll(['ticketId', 'name', 'phone', 'message', 'createdAt'])

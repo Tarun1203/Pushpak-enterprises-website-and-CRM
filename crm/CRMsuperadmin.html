@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin — Pushpak Enterprises CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14151A;--paper:#FAFAF8;--stone:#6B6D76;--hairline:#D4D4D0;
+    --err:#B3261E;--ok:#1C7A46;--sidebar-w:264px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+
+  /* ---------- Auth gate ---------- */
+  #gate{
+    position:fixed;inset:0;background:var(--paper);z-index:100;
+    display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--stone);
+  }
+  #app{display:none;}
+
+  /* ---------- Layout ---------- */
+  .layout{display:flex;min-height:100vh;}
+  .sidebar{
+    width:var(--sidebar-w);flex-shrink:0;background:var(--ink);color:var(--paper);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .sidebar-header{padding:22px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
+  .sidebar-header img{width:30px;height:30px;flex-shrink:0;}
+  .sidebar-header .name{font-size:13px;font-weight:700;}
+  .sidebar-header .role{font-size:11px;color:#9A9BA3;}
+  .nav-group{padding:14px 10px 4px;}
+  .nav-group-label{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#82838C;padding:6px 12px;text-transform:uppercase;}
+  .nav-item{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 12px;border-radius:3px;font-size:13px;font-weight:500;color:#D6D7DC;
+    cursor:pointer;transition:background .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.06);color:#fff;}
+  .nav-item.active{background:rgba(255,255,255,0.12);color:#fff;font-weight:600;}
+  .nav-badge{font-size:9.5px;background:rgba(255,255,255,0.1);color:#9A9BA3;padding:2px 6px;border-radius:20px;}
+  .sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,0.1);}
+  .sidebar-footer .email{font-size:11.5px;color:#9A9BA3;margin-bottom:10px;word-break:break-all;}
+  .logout-btn{
+    width:100%;background:transparent;border:1px solid rgba(255,255,255,0.2);color:#D6D7DC;
+    padding:9px;border-radius:3px;font-size:12.5px;font-weight:600;
+  }
+  .logout-btn:hover{background:rgba(255,255,255,0.08);}
+
+  .main{flex:1;min-width:0;}
+  .topbar{
+    padding:18px 32px;border-bottom:1px solid var(--hairline);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar h1{font-size:20px;font-weight:800;letter-spacing:-0.01em;}
+  .topbar .sub{font-size:13px;color:var(--stone);margin-top:2px;}
+  .content{padding:32px;}
+
+  /* ---------- Dashboard stat cards ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-bottom:32px;}
+  .stat-card{background:var(--paper);padding:22px 20px;}
+  .stat-card .label{font-size:12px;color:var(--stone);font-weight:600;margin-bottom:8px;}
+  .stat-card .value{font-size:28px;font-weight:800;letter-spacing:-0.01em;}
+  .stat-card .hint{font-size:11.5px;color:var(--stone);margin-top:4px;}
+  @media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .panel{border:1px solid var(--hairline);border-radius:2px;}
+  .panel-header{padding:18px 22px;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;}
+  .panel-header h2{font-size:15px;font-weight:700;}
+  .panel-body{padding:22px;}
+
+  /* ---------- Coming soon ---------- */
+  .coming-soon{
+    border:1px dashed var(--hairline);border-radius:2px;padding:60px 30px;text-align:center;color:var(--stone);
+  }
+  .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+  .coming-soon .small{font-size:13px;}
+
+  /* ---------- Users & Access ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);}
+  tr:last-child td{border-bottom:none;}
+  .role-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:#EDEDE8;color:var(--ink);}
+  .role-pill.superadmin,.role-pill.headoffice{background:#1C2B24;color:#F6F2E9;}
+
+  .btn-primary{background:var(--ink);color:var(--paper);font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:13px;padding:9px 16px;border-radius:2px;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:420px;border-radius:3px;padding:28px;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+</style>
+</head>
+<body>
+
+<div id="gate">Checking your session…</div>
+
+<div id="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../assets/logos/pushpak-enterprises-icon.png" alt="">
+        <div>
+          <div class="name">Pushpak Enterprises</div>
+          <div class="role">Super Admin</div>
+        </div>
+      </div>
+
+      <div id="nav-container"></div>
+
+      <div class="sidebar-footer">
+        <div class="email" id="user-email"></div>
+        <button class="logout-btn" id="logout-btn">Sign out</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Dashboard</h1>
+          <div class="sub" id="page-sub">Overview across brands and services</div>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add User modal -->
+<div class="modal-overlay" id="add-user-overlay">
+  <div class="modal">
+    <h3>Create CRM account</h3>
+    <form id="add-user-form">
+      <div class="form-row">
+        <label>Full name</label>
+        <input type="text" id="new-user-name" required>
+      </div>
+      <div class="form-row">
+        <label>Email</label>
+        <input type="email" id="new-user-email" required>
+      </div>
+      <div class="form-row">
+        <label>Temporary password (min 6 characters)</label>
+        <input type="text" id="new-user-password" required minlength="6">
+      </div>
+      <div class="form-row">
+        <label>Role</label>
+        <select id="new-user-role" required>
+          <option value="">Select a role…</option>
+          <option value="superadmin">Super Admin</option>
+          <option value="headoffice">Head Office</option>
+          <option value="areamanager">Area Manager</option>
+          <option value="servicecenter">Service Center</option>
+          <option value="technician">Technician</option>
+          <option value="dealer">Dealer</option>
+        </select>
+      </div>
+      <div class="modal-error" id="add-user-error"></div>
+      <div class="modal-success" id="add-user-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-add-user">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-add-user">Create account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const gate = document.getElementById('gate');
+  const appEl = document.getElementById('app');
+  const userEmailEl = document.getElementById('user-email');
+
+  // ---------------------------------------------------------------
+  // Auth gate — only a signed-in user with role === 'superadmin'
+  // may see this page. Everyone else is bounced back to login.
+  // ---------------------------------------------------------------
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = 'login.html';
+      return;
+    }
+    try {
+      const roleSnap = await getDoc(doc(db, 'users', user.uid));
+      if (!roleSnap.exists() || roleSnap.data().role !== 'superadmin') {
+        await signOut(auth);
+        window.location.href = 'login.html';
+        return;
+      }
+    } catch (err) {
+      console.error('Role check failed:', err);
+      window.location.href = 'login.html';
+      return;
+    }
+    userEmailEl.textContent = user.email;
+    gate.style.display = 'none';
+    appEl.style.display = 'block';
+    initDashboardStats();
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+
+  // ---------------------------------------------------------------
+  // Sidebar navigation — full Super Admin sitemap. Only Dashboard
+  // and Users & Access are wired up; everything else shows a
+  // "not built yet" placeholder until that module is built.
+  // ---------------------------------------------------------------
+  const NAV = [
+    { group: 'Overview', items: [
+      { id: 'dashboard', label: 'Dashboard', built: true },
+    ]},
+    { group: 'Customers & Sales', items: [
+      { id: 'customers', label: 'Customers' },
+      { id: 'brands', label: 'Brands' },
+      { id: 'products', label: 'Product Management' },
+      { id: 'serials', label: 'Serial & Registration' },
+      { id: 'warranty', label: 'Warranty' },
+      { id: 'dealers', label: 'Dealers' },
+    ]},
+    { group: 'Service Operations', items: [
+      { id: 'service', label: 'Service' },
+      { id: 'routing', label: 'Service Request Routing' },
+      { id: 'centers', label: 'Service Centers' },
+      { id: 'technicians', label: 'Technicians' },
+      { id: 'sla', label: 'SLA & Escalation' },
+    ]},
+    { group: 'Inventory & Logistics', items: [
+      { id: 'spareparts', label: 'Spare Parts' },
+      { id: 'inventory', label: 'Inventory' },
+      { id: 'stockmovement', label: 'Stock Movement' },
+      { id: 'sparerequest', label: 'Spare Request & Logistics' },
+      { id: 'localpurchase', label: 'Local Purchase' },
+    ]},
+    { group: 'Finance & Claims', items: [
+      { id: 'finance', label: 'Finance' },
+      { id: 'rma', label: 'RMA & Replacement' },
+      { id: 'approvals', label: 'Approvals' },
+    ]},
+    { group: 'Operations', items: [
+      { id: 'communication', label: 'Communication' },
+      { id: 'reports', label: 'Reports' },
+      { id: 'website', label: 'Website Management' },
+      { id: 'masterdata', label: 'Master Data' },
+    ]},
+    { group: 'System', items: [
+      { id: 'users', label: 'Users & Access', built: true },
+      { id: 'admin', label: 'Administration' },
+    ]},
+  ];
+
+  const navContainer = document.getElementById('nav-container');
+  const pageTitle = document.getElementById('page-title');
+  const pageSub = document.getElementById('page-sub');
+  const contentEl = document.getElementById('content');
+
+  function renderNav() {
+    navContainer.innerHTML = '';
+    NAV.forEach(group => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'nav-group';
+      const label = document.createElement('div');
+      label.className = 'nav-group-label';
+      label.textContent = group.group;
+      groupEl.appendChild(label);
+      group.items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'nav-item';
+        el.dataset.id = item.id;
+        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.addEventListener('click', () => selectSection(item.id, item.label, !!item.built));
+        groupEl.appendChild(el);
+      });
+      navContainer.appendChild(groupEl);
+    });
+  }
+
+  function setActiveNav(id) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+
+  function selectSection(id, label, built) {
+    setActiveNav(id);
+    pageTitle.textContent = label;
+    if (id === 'dashboard') {
+      pageSub.textContent = 'Overview across brands and services';
+      renderDashboard();
+    } else if (id === 'users') {
+      pageSub.textContent = 'Manage CRM accounts and roles';
+      renderUsers();
+    } else {
+      pageSub.textContent = 'Not built yet';
+      renderComingSoon(label);
+    }
+  }
+
+  function renderComingSoon(label) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">${label} isn't built yet</div>
+        <div class="small">This module is on the roadmap — it'll be built out next, module by module.</div>
+      </div>`;
+  }
+
+  renderNav();
+
+  // ---------------------------------------------------------------
+  // Dashboard — live counts pulled from Firestore.
+  // ---------------------------------------------------------------
+  let dashboardStatsCache = null;
+
+  async function initDashboardStats() {
+    try {
+      const [enquiriesSnap, brandsSnap, usersSnap] = await Promise.all([
+        getDocs(collection(db, 'contactEnquiries')),
+        getDocs(collection(db, 'brands')),
+        getDocs(collection(db, 'users')),
+      ]);
+      dashboardStatsCache = {
+        enquiries: enquiriesSnap.size,
+        brands: brandsSnap.size,
+        users: usersSnap.size,
+      };
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+      dashboardStatsCache = { enquiries: '—', brands: '—', users: '—' };
+    }
+    renderDashboard();
+  }
+
+  function renderDashboard() {
+    const s = dashboardStatsCache || { enquiries: '…', brands: '…', users: '…' };
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Contact Enquiries</div>
+          <div class="value">${s.enquiries}</div>
+          <div class="hint">From the public website form</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Brands</div>
+          <div class="value">${s.brands}</div>
+          <div class="hint">MakWell, Flyvision, Skevia</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">CRM Users</div>
+          <div class="value">${s.users}</div>
+          <div class="hint">Across all roles</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Service Requests</div>
+          <div class="value">—</div>
+          <div class="hint">Module not built yet</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Getting started</h2></div>
+        <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
+          This dashboard will fill in as each module is built. Right now, <b style="color:var(--ink)">Users & Access</b>
+          is fully working — use it to create accounts for Head Office, Area Managers, Service Centers,
+          Technicians, and Dealers instead of doing it manually in the Firebase Console.
+        </div>
+      </div>`;
+  }
+
+  // ---------------------------------------------------------------
+  // Users & Access — list existing accounts, create new ones.
+  // New-account creation uses an isolated secondary Firebase app
+  // instance so it doesn't sign the admin out of their own session
+  // (creating a user with the client SDK normally signs in as them).
+  // ---------------------------------------------------------------
+  async function renderUsers() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>CRM accounts</h2>
+          <button class="btn-primary" id="open-add-user">+ Create account</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>UID</th></tr></thead>
+            <tbody id="users-tbody">
+              <tr><td colspan="4" style="text-align:center;color:var(--stone);padding:28px;">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-user').addEventListener('click', openAddUserModal);
+    loadUsersTable();
+  }
+
+  async function loadUsersTable() {
+    const tbody = document.getElementById('users-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'users')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--stone);padding:28px;">No accounts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.email || '—'}</td>
+          <td><span class="role-pill ${d.role || ''}">${d.role || 'unknown'}</span></td>
+          <td style="color:var(--stone);font-size:12px;">${docSnap.id}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load users failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--err);padding:28px;">Couldn't load accounts. Check console for details.</td></tr>`;
+    }
+  }
+
+  const overlay = document.getElementById('add-user-overlay');
+  const addUserForm = document.getElementById('add-user-form');
+  const addUserError = document.getElementById('add-user-error');
+  const addUserSuccess = document.getElementById('add-user-success');
+  const submitBtn = document.getElementById('submit-add-user');
+
+  function openAddUserModal() {
+    addUserForm.reset();
+    addUserError.classList.remove('show');
+    addUserSuccess.classList.remove('show');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Create account';
+    overlay.classList.add('show');
+  }
+  function closeAddUserModal() {
+    overlay.classList.remove('show');
+  }
+  document.getElementById('cancel-add-user').addEventListener('click', closeAddUserModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAddUserModal(); });
+
+  addUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    addUserError.classList.remove('show');
+    addUserSuccess.classList.remove('show');
+
+    const name = document.getElementById('new-user-name').value.trim();
+    const email = document.getElementById('new-user-email').value.trim();
+    const password = document.getElementById('new-user-password').value;
+    const role = document.getElementById('new-user-role').value;
+
+    if (!role) {
+      addUserError.textContent = 'Select a role.';
+      addUserError.classList.add('show');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating…';
+
+    // Secondary, isolated app instance: creating a user with the
+    // client SDK signs in as that new user on whatever app instance
+    // did it. Using a throwaway secondary app keeps the admin's own
+    // session on the primary `app`/`auth` untouched.
+    const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
+    const secondaryAuth = getAuth(secondaryApp);
+
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const newUid = cred.user.uid;
+
+      // Write the role doc using the PRIMARY app's Firestore instance,
+      // authenticated as the admin — so it passes the isAdmin() rule.
+      await setDoc(doc(db, 'users', newUid), {
+        name, email, role, createdAt: new Date().toISOString()
+      });
+
+      await signOut(secondaryAuth);
+      await deleteApp(secondaryApp);
+
+      addUserSuccess.textContent = `Account created for ${email}.`;
+      addUserSuccess.classList.add('show');
+      submitBtn.textContent = 'Create account';
+      submitBtn.disabled = false;
+      loadUsersTable();
+      initDashboardStats();
+      setTimeout(closeAddUserModal, 1200);
+    } catch (err) {
+      console.error('Create user failed:', err);
+      let msg = 'Something went wrong. Please try again.';
+      if (err.code === 'auth/email-already-in-use') msg = 'That email is already registered.';
+      else if (err.code === 'auth/invalid-email') msg = 'Enter a valid email address.';
+      else if (err.code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
+      addUserError.textContent = msg;
+      addUserError.classList.add('show');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create account';
+      try { await deleteApp(secondaryApp); } catch (_) {}
+    }
+  });
+
+  // Default view once authenticated
+  setActiveNav('dashboard');
+</script>
+</body>
+</html>
