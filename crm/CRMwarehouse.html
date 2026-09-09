@@ -96,6 +96,9 @@
   .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
   .status-pill.received{background:#D9EEE0;color:var(--ok);}
   .status-pill.backorder{background:#F6DCDC;color:var(--err);}
+  .status-pill.ok{background:#D9EEE0;color:var(--ok);}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.out{background:#F6DCDC;color:var(--err);}
 
   .priority-tag{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;}
   .priority-tag.urgent{color:var(--err);}
@@ -195,10 +198,83 @@
   </div>
 </div>
 
+<!-- Add/Edit Spare Part modal -->
+<div class="modal-overlay" id="part-overlay">
+  <div class="modal">
+    <h3 id="part-modal-title">Add spare part</h3>
+    <form id="part-form">
+      <input type="hidden" id="part-editing-id">
+      <div class="form-row">
+        <label>Part name</label>
+        <input type="text" id="part-name" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Category</label>
+        <input type="text" id="part-category" placeholder="e.g. Thermostat, Heating Element, Valve">
+      </div>
+      <div class="form-row">
+        <label>Brand compatibility</label>
+        <select id="part-brand">
+          <option value="All">All brands</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Price (₹)</label>
+        <input type="number" id="part-price" min="0" step="0.01">
+      </div>
+      <div class="form-row">
+        <label>Reorder level</label>
+        <input type="number" id="part-reorder" min="0" value="5">
+      </div>
+      <div class="modal-error" id="part-error"></div>
+      <div class="modal-success" id="part-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-part">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-part">Save part</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Adjust Stock modal -->
+<div class="modal-overlay" id="adjust-overlay">
+  <div class="modal">
+    <h3>Adjust Head Office stock</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="adjust-part-label"></div>
+    <form id="adjust-form">
+      <input type="hidden" id="adjust-part-id">
+      <div class="form-row">
+        <label>Action</label>
+        <select id="adjust-type">
+          <option value="add">Add stock (received)</option>
+          <option value="remove">Remove stock (issued/used)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="adjust-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Reason / notes (optional)</label>
+        <input type="text" id="adjust-reason" placeholder="e.g. Purchased from supplier, or issued to SC-Hubli">
+      </div>
+      <div class="modal-error" id="adjust-error"></div>
+      <div class="modal-success" id="adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-adjust">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -301,10 +377,33 @@
     } else if (SPARE_REQUEST_TABS[id]) {
       pageSub.textContent = 'Spare Requests & Dispatch';
       renderSpareRequests(SPARE_REQUEST_TABS[id], label);
+    } else if (id === 'spareparts') {
+      pageSub.textContent = 'Part master list';
+      renderSpareParts();
+    } else if (id === 'inv-headoffice') {
+      pageSub.textContent = 'Current stock at Head Office';
+      renderInventory('headoffice');
+    } else if (id === 'inv-summary') {
+      pageSub.textContent = 'Stock across all parts';
+      renderInventory('summary');
+    } else if (id === 'inv-lowstock') {
+      pageSub.textContent = 'Parts at or below reorder level';
+      renderInventory('low');
+    } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
+      pageSub.textContent = 'Not populated yet';
+      renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
     }
+  }
+
+  function renderNoLocationData(label, portalName) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">No ${label.toLowerCase()} data yet</div>
+        <div class="small">This will populate automatically once the ${portalName} portal is built and starts tracking its own stock.</div>
+      </div>`;
   }
 
   function renderComingSoon(label) {
@@ -535,6 +634,302 @@
       newRequestError.classList.add('show');
       newRequestSubmitBtn.disabled = false;
       newRequestSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Spare Parts (master list)
+  // ---------------------------------------------------------------
+
+  async function generatePartCode() {
+    const counterRef = doc(db, 'counters', 'sparepart-master');
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `SP-${String(next).padStart(4, '0')}`;
+  }
+
+  async function renderSpareParts() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Spare parts master list</h2>
+          <button class="btn-primary" id="open-add-part">+ Add part</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="parts-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-part').addEventListener('click', () => openPartModal(null));
+    loadSpareParts();
+  }
+
+  let sparePartsCache = [];
+
+  async function loadSpareParts() {
+    const tbody = document.getElementById('parts-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
+      sparePartsCache = [];
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No parts yet — add your first one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        sparePartsCache.push(d);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
+          <td>${d.name || '—'}</td>
+          <td>${d.category || '—'}</td>
+          <td>${d.brandCompatibility || 'All'}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td>
+          <td>${d.reorderLevel ?? '—'}</td>
+          <td><button class="btn-secondary edit-part-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
+      });
+    } catch (err) {
+      console.error('Load spare parts failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
+    }
+  }
+
+  const partOverlay = document.getElementById('part-overlay');
+  const partForm = document.getElementById('part-form');
+  const partError = document.getElementById('part-error');
+  const partSuccess = document.getElementById('part-success');
+  const partSubmitBtn = document.getElementById('submit-part');
+  const partModalTitle = document.getElementById('part-modal-title');
+
+  function openPartModal(existing) {
+    partForm.reset();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = false;
+    if (existing) {
+      partModalTitle.textContent = `Edit ${existing.partCode || 'part'}`;
+      document.getElementById('part-editing-id').value = existing.id;
+      document.getElementById('part-name').value = existing.name || '';
+      document.getElementById('part-category').value = existing.category || '';
+      document.getElementById('part-brand').value = existing.brandCompatibility || 'All';
+      document.getElementById('part-price').value = existing.price ?? '';
+      document.getElementById('part-reorder').value = existing.reorderLevel ?? 5;
+      partSubmitBtn.textContent = 'Save changes';
+    } else {
+      partModalTitle.textContent = 'Add spare part';
+      document.getElementById('part-editing-id').value = '';
+      document.getElementById('part-reorder').value = 5;
+      partSubmitBtn.textContent = 'Save part';
+    }
+    partOverlay.classList.add('show');
+  }
+  function closePartModal() { partOverlay.classList.remove('show'); }
+  document.getElementById('cancel-part').addEventListener('click', closePartModal);
+  partOverlay.addEventListener('click', (e) => { if (e.target === partOverlay) closePartModal(); });
+
+  partForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = true;
+    partSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('part-editing-id').value;
+    const payload = {
+      name: document.getElementById('part-name').value.trim(),
+      category: document.getElementById('part-category').value.trim(),
+      brandCompatibility: document.getElementById('part-brand').value,
+      price: document.getElementById('part-price').value ? Number(document.getElementById('part-price').value) : null,
+      reorderLevel: Number(document.getElementById('part-reorder').value) || 0,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'spareParts', editingId), payload);
+      } else {
+        const partCode = await generatePartCode();
+        await addDoc(collection(db, 'spareParts'), { ...payload, partCode, createdAt: serverTimestamp() });
+      }
+      partSuccess.textContent = 'Saved.';
+      partSuccess.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+      loadSpareParts();
+      setTimeout(closePartModal, 800);
+    } catch (err) {
+      console.error('Save part failed:', err);
+      partError.textContent = 'Could not save this part. Check console for details.';
+      partError.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Inventory — Head Office stock, Stock Summary, Low/Out of Stock.
+  // One inventory doc per part at Head Office, id = `headoffice_{partId}`,
+  // so adjustments upsert cleanly. Each adjustment also logs a
+  // stockMovements entry — groundwork for the future Stock Movement /
+  // Movement History module.
+  // ---------------------------------------------------------------
+
+  async function getHeadOfficeInventoryMap() {
+    const snap = await getDocs(query(collection(db, 'inventory'), where('location', '==', 'headoffice')));
+    const map = {};
+    snap.forEach(d => { map[d.data().partId] = { id: d.id, ...d.data() }; });
+    return map;
+  }
+
+  function stockStatus(qty, reorderLevel) {
+    if (qty <= 0) return { cls: 'out', label: 'Out of stock' };
+    if (qty <= reorderLevel) return { cls: 'low', label: 'Low' };
+    return { cls: 'ok', label: 'OK' };
+  }
+
+  async function renderInventory(view) {
+    const titles = {
+      headoffice: 'Head Office stock',
+      summary: 'Stock summary',
+      low: 'Low / out of stock'
+    };
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${titles[view]}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Part</th><th>Category</th><th>Qty (HO)</th><th>Reorder Level</th><th>Status</th>${view === 'headoffice' ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="inventory-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadInventory(view);
+  }
+
+  async function loadInventory(view) {
+    const tbody = document.getElementById('inventory-tbody');
+    try {
+      const [partsSnap, invMap] = await Promise.all([
+        getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc'))),
+        getHeadOfficeInventoryMap()
+      ]);
+      let rows = [];
+      partsSnap.forEach(docSnap => {
+        const part = { id: docSnap.id, ...docSnap.data() };
+        const inv = invMap[part.id];
+        const qty = inv ? inv.quantity : 0;
+        rows.push({ part, qty });
+      });
+      if (view === 'low') {
+        rows = rows.filter(r => r.qty <= (r.part.reorderLevel || 0));
+      }
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${sparePartsCache.length === 0 && rows.length === 0 ? 'No parts in the master list yet — add parts first.' : 'Nothing to show here.'}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(({ part, qty }) => {
+        const status = stockStatus(qty, part.reorderLevel || 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${part.partCode || part.id}</td>
+          <td>${part.name || '—'}</td>
+          <td>${part.category || '—'}</td>
+          <td><b>${qty}</b></td>
+          <td>${part.reorderLevel ?? 0}</td>
+          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          ${view === 'headoffice' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
+        tbody.appendChild(tr);
+        if (view === 'headoffice') {
+          tr.querySelector('.adjust-btn').addEventListener('click', (e) => {
+            openAdjustModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.code);
+          });
+        }
+      });
+    } catch (err) {
+      console.error('Load inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load inventory. Check console for details.</td></tr>`;
+    }
+  }
+
+  const adjustOverlay = document.getElementById('adjust-overlay');
+  const adjustForm = document.getElementById('adjust-form');
+  const adjustError = document.getElementById('adjust-error');
+  const adjustSuccess = document.getElementById('adjust-success');
+  const adjustSubmitBtn = document.getElementById('submit-adjust');
+  const adjustPartLabel = document.getElementById('adjust-part-label');
+
+  function openAdjustModal(partId, partName, partCode) {
+    adjustForm.reset();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    adjustSubmitBtn.disabled = false;
+    adjustSubmitBtn.textContent = 'Save';
+    document.getElementById('adjust-part-id').value = partId;
+    adjustPartLabel.textContent = `${partCode ? partCode + ' — ' : ''}${partName}`;
+    adjustOverlay.classList.add('show');
+  }
+  function closeAdjustModal() { adjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-adjust').addEventListener('click', closeAdjustModal);
+  adjustOverlay.addEventListener('click', (e) => { if (e.target === adjustOverlay) closeAdjustModal(); });
+
+  adjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    const partId = document.getElementById('adjust-part-id').value;
+    const type = document.getElementById('adjust-type').value;
+    const qty = Number(document.getElementById('adjust-qty').value) || 0;
+    const reason = document.getElementById('adjust-reason').value.trim();
+    if (qty <= 0) {
+      adjustError.textContent = 'Enter a quantity greater than 0.';
+      adjustError.classList.add('show');
+      return;
+    }
+    adjustSubmitBtn.disabled = true;
+    adjustSubmitBtn.textContent = 'Saving…';
+    const invRef = doc(db, 'inventory', `headoffice_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const delta = type === 'add' ? qty : -qty;
+        const next = Math.max(0, current + delta);
+        transaction.set(invRef, {
+          partId, location: 'headoffice', quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: type === 'add' ? 'receive' : 'issue',
+        location: 'headoffice', quantity: qty, reason,
+        createdAt: serverTimestamp()
+      });
+      adjustSuccess.textContent = 'Stock updated.';
+      adjustSuccess.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+      const activeItem = document.querySelector('.nav-item.active');
+      const activeId = activeItem ? activeItem.dataset.id : null;
+      const viewMap = { 'inv-headoffice': 'headoffice', 'inv-summary': 'summary', 'inv-lowstock': 'low' };
+      if (activeId && viewMap[activeId]) loadInventory(viewMap[activeId]);
+      setTimeout(closeAdjustModal, 800);
+    } catch (err) {
+      console.error('Adjust stock failed:', err);
+      adjustError.textContent = 'Could not update stock. Check console for details.';
+      adjustError.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
     }
   });
 
