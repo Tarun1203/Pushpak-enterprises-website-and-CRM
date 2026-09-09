@@ -43,6 +43,8 @@
     display:flex;align-items:center;justify-content:space-between;
     padding:18px 32px;max-width:1180px;margin:0 auto;
   }
+  .brandmark-wrap{display:flex;align-items:center;gap:10px;}
+  .brandmark-icon{width:32px;height:32px;flex-shrink:0;}
   .brandmark{font-weight:800;font-size:17px;letter-spacing:-0.01em;}
   .brandmark span{color:var(--stone);font-weight:500;}
   nav{display:flex;gap:36px;}
@@ -204,7 +206,10 @@
 
 <header>
   <div class="header-inner">
-    <div class="brandmark">Pushpak Enterprises <span>· est. Karnataka</span></div>
+    <div class="brandmark-wrap">
+      <img src="assets/logos/pushpak-enterprises-icon.png" alt="Pushpak Enterprises" class="brandmark-icon">
+      <div class="brandmark">Pushpak Enterprises <span>· Building Brands. Delivering Trust.</span></div>
+    </div>
     <nav>
       <a href="#brands">Brands</a>
       <a href="#services">Customer Services</a>
@@ -218,7 +223,7 @@
 <section class="hero">
   <div class="wrap hero-grid">
     <div>
-      <div class="eyebrow">Home appliances, sold and serviced across Karnataka</div>
+      <div class="eyebrow">Building Brands. Delivering Trust.</div>
       <h1 id="hero-headline">Appliances built to last. Service that shows up.</h1>
       <div class="hero-rule"></div>
       <p id="hero-subcopy">Pushpak Enterprises brings together three appliance brands — MakWell, Flyvision and Skevia — backed by one service network of technicians and centers across the state.</p>
@@ -338,15 +343,15 @@
       <h2 style="margin-bottom:28px;">Get in touch</h2>
       <div class="contact-detail">
         <div class="label">Location</div>
-        <div class="value" id="contact-location">Raichur, Karnataka</div>
+        <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
       </div>
       <div class="contact-detail">
         <div class="label">Phone</div>
-        <div class="value" id="contact-phone">Loading…</div>
+        <div class="value" id="contact-phone">+91 99800 00515</div>
       </div>
       <div class="contact-detail">
         <div class="label">Email</div>
-        <div class="value" id="contact-email">Loading…</div>
+        <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
       </div>
     </div>
     <form id="enquiry-form">
@@ -421,11 +426,6 @@
     } catch (err) {
       console.warn('siteContent/landing not loaded, using defaults:', err.message);
     }
-    // Defaults for phone/email if Firestore has none yet
-    const phoneEl = document.getElementById('contact-phone');
-    const emailEl = document.getElementById('contact-email');
-    if (phoneEl && phoneEl.textContent === 'Loading…') phoneEl.textContent = 'Add number in siteContent/landing';
-    if (emailEl && emailEl.textContent === 'Loading…') emailEl.textContent = 'Add email in siteContent/landing';
   }
 
   async function loadBrand(brandId, tagId, descId) {
