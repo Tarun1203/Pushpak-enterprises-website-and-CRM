@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pushpak Enterprises CRM — Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#14151A;--paper:#FAFAF8;--stone:#6B6D76;--hairline:#D4D4D0;--err:#B3261E;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--ink);color:var(--paper);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;}
+  .card{background:var(--paper);color:var(--ink);width:100%;max-width:380px;padding:40px 36px;border-radius:2px;}
+  .logo-box{width:44px;margin-bottom:20px;}
+  .logo-box img{width:100%;}
+  .tag{font-size:12px;font-weight:600;color:var(--stone);letter-spacing:0.02em;margin-bottom:8px;}
+  h1{font-size:22px;font-weight:800;margin-bottom:28px;}
+  form{display:flex;flex-direction:column;gap:14px;}
+  input{border:1px solid var(--hairline);padding:13px 15px;font-family:inherit;font-size:14px;border-radius:2px;width:100%;}
+  input:focus{outline:2px solid var(--ink);outline-offset:1px;}
+  button{background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;padding:13px;border:none;border-radius:2px;cursor:pointer;margin-top:6px;}
+  button:disabled{opacity:0.6;cursor:default;}
+  .error-msg{font-size:13px;color:var(--err);display:none;padding:10px 12px;border:1px solid var(--err);border-radius:2px;}
+  .error-msg.show{display:block;}
+  .links-row{display:flex;justify-content:flex-end;margin-top:-4px;}
+  .links-row a{font-size:12.5px;color:var(--stone);font-weight:600;text-decoration:none;cursor:pointer;}
+  .links-row a:hover{color:var(--ink);}
+  .status-msg{font-size:12.5px;color:var(--stone);display:none;}
+  .status-msg.show{display:block;}
+  .back-link{display:block;text-align:center;margin-top:20px;font-size:12.5px;color:var(--stone);text-decoration:none;}
+  .back-link:hover{color:var(--ink);}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-box"><img src="../assets/logos/pushpak-enterprises-icon.png" alt="Pushpak Enterprises"></div>
+    <div class="tag">Pushpak Enterprises</div>
+    <h1>CRM login</h1>
+
+    <form id="login-form">
+      <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+      <div class="links-row"><a id="forgot-link">Forgot password?</a></div>
+      <div class="error-msg" id="error-msg"></div>
+      <div class="status-msg" id="status-msg"></div>
+      <button type="submit" id="login-btn">Sign in</button>
+    </form>
+    <a href="../index.html" class="back-link">← Back to Pushpak Enterprises</a>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Each role's landing dashboard. Update these paths to match the
+  // actual CRM page filenames once each dashboard is built — these
+  // follow the CRM<Role>.html naming already used elsewhere.
+  const ROLE_REDIRECTS = {
+    superadmin:   'CRMsuperadmin.html',
+    headoffice:   'CRMwarehouse.html',
+    areamanager:  'CRMareamanager.html',
+    servicecenter:'CRMservicecenter.html',
+    technician:   'CRMtechnician.html',
+    dealer:       'CRMdealer.html'
+  };
+
+  const form = document.getElementById('login-form');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const errorMsg = document.getElementById('error-msg');
+  const statusMsg = document.getElementById('status-msg');
+  const loginBtn = document.getElementById('login-btn');
+  const forgotLink = document.getElementById('forgot-link');
+
+  function showError(text) {
+    errorMsg.textContent = text;
+    errorMsg.classList.add('show');
+    statusMsg.classList.remove('show');
+  }
+  function clearError() {
+    errorMsg.classList.remove('show');
+  }
+  function showStatus(text) {
+    statusMsg.textContent = text;
+    statusMsg.classList.add('show');
+    errorMsg.classList.remove('show');
+  }
+
+  function friendlyAuthError(err) {
+    switch (err.code) {
+      case 'auth/invalid-email': return 'Enter a valid email address.';
+      case 'auth/user-disabled': return 'This account has been disabled. Contact your admin.';
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        return 'Incorrect email or password.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Please wait a few minutes and try again.';
+      case 'auth/network-request-failed':
+        return 'Network error — check your connection and try again.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  }
+
+  // Route a signed-in user to their role's dashboard, or show an
+  // error and sign them out if their account isn't fully set up.
+  async function routeAfterLogin(user) {
+    let roleSnap;
+    try {
+      roleSnap = await getDoc(doc(db, 'users', user.uid));
+    } catch (err) {
+      console.error('Role lookup failed:', err);
+      showError('Could not verify your account. Contact your admin.');
+      await auth.signOut();
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+      return;
+    }
+
+    if (!roleSnap.exists() || !roleSnap.data().role) {
+      showError('Your account has no role assigned yet. Contact your admin.');
+      await auth.signOut();
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+      return;
+    }
+
+    const role = roleSnap.data().role;
+    const destination = ROLE_REDIRECTS[role];
+    if (!destination) {
+      showError(`Unrecognized role "${role}". Contact your admin.`);
+      await auth.signOut();
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+      return;
+    }
+
+    showStatus('Signed in — redirecting…');
+    window.location.href = destination;
+  }
+
+  // If already signed in (e.g. returning to this tab), route straight
+  // through instead of asking to log in again.
+  onAuthStateChanged(auth, (user) => {
+    if (user) routeAfterLogin(user);
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Signing in…';
+    try {
+      const cred = await signInWithEmailAndPassword(auth, emailInput.value.trim(), passwordInput.value);
+      await routeAfterLogin(cred.user);
+    } catch (err) {
+      console.error('Login failed:', err);
+      showError(friendlyAuthError(err));
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+    }
+  });
+
+  forgotLink.addEventListener('click', async () => {
+    clearError();
+    const email = emailInput.value.trim();
+    if (!email) {
+      showError('Enter your email above first, then click "Forgot password?".');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showStatus('Password reset email sent — check your inbox.');
+    } catch (err) {
+      console.error('Password reset failed:', err);
+      showError(friendlyAuthError(err));
+    }
+  });
+</script>
+</body>
+</html>

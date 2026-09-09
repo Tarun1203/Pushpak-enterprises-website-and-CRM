@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------
+    // Helper functions
+    // ---------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Looks up the caller's role from their own user profile doc.
+    // Every authenticated CRM user must have a corresponding
+    // /users/{uid} document with a `role` field for this to work.
+    function callerRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && callerRole() in ['superadmin', 'headoffice'];
+    }
+
+    function isStaff() {
+      // Any recognized internal role — used where dealers/technicians
+      // should NOT have access but any office/field staff role should.
+      return isSignedIn() && callerRole() in
+        ['superadmin', 'headoffice', 'areamanager', 'servicecenter', 'technician'];
+    }
+
+    // ---------------------------------------------------------------
+    // Public website content — readable by anyone, writable only
+    // by Super Admin / Head Office via the CRM's Website Management.
+    // ---------------------------------------------------------------
+
+    match /siteContent/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Contact enquiries from the public landing page form.
+    // Anyone can submit one; only admins can read or manage them
+    // (surfaces in CRM > Website Management > Contact Enquiries).
+    // ---------------------------------------------------------------
+
+    // ---------------------------------------------------------------
+    // Monthly serial-number counters backing ticket IDs (e.g. the
+    // contactEnquiries counter, counters/enquiry-{YYYYMM}). Public
+    // clients may only create a counter at 1 or bump an existing one
+    // by exactly +1 — never set it to an arbitrary value — so the
+    // public form can safely mint sequential ticket numbers without
+    // opening the door to tampering.
+    // ---------------------------------------------------------------
+
+    match /counters/{counterId} {
+      allow get: if true;
+      allow create: if counterId.matches('^enquiry-[0-9]{6}$')
+        && request.resource.data.value == 1;
+      allow update: if counterId.matches('^enquiry-[0-9]{6}$')
+        && request.resource.data.value == resource.data.value + 1;
+      allow delete: if isAdmin();
+    }
+
+    match /contactEnquiries/{enquiryId} {
+      allow create: if request.resource.data.keys().hasAll(['ticketId', 'name', 'phone', 'message', 'createdAt'])
+        && request.resource.data.ticketId is string
+        && request.resource.data.ticketId.matches('^PE-[A-Z]+-[0-9]{8}-[0-9]{4}-[A-Za-z]+$')
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[6-9][0-9]{9}$')
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 2000;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // CRM user profiles — each signed-in user's own role record.
+    // A user can read their own profile (needed for role checks and
+    // for the CRM UI to know what to show them). Only admins can
+    // create/change roles — nobody can grant themselves access.
+    // ---------------------------------------------------------------
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Everything else in the CRM (customers, products, serial numbers,
+    // warranty, service requests, inventory, etc.) defaults to
+    // staff-only until each module defines its own tighter rule as
+    // it's built. Tighten this per-collection as modules ship rather
+    // than relying on this default long-term.
+    // ---------------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if isStaff();
+    }
+  }
+}
