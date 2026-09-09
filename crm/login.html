@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{--ink:#14151A;--paper:#FAFAF8;--stone:#6B6D76;--hairline:#D4D4D0;--err:#B3261E;}
+  :root{--ink:#25292E;--paper:#F5EFE0;--stone:#7A7565;--hairline:#E0D6BC;--blue:#1C6FBA;--blue-deep:#0F4C88;--err:#B3261E;}
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Inter',system-ui,sans-serif;background:var(--ink);color:var(--paper);
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--blue-deep);color:var(--paper);
     min-height:100vh;display:flex;align-items:center;justify-content:center;}
   .card{background:var(--paper);color:var(--ink);width:100%;max-width:380px;padding:40px 36px;border-radius:2px;}
   .logo-box{width:44px;margin-bottom:20px;}
@@ -18,18 +18,18 @@
   h1{font-size:22px;font-weight:800;margin-bottom:28px;}
   form{display:flex;flex-direction:column;gap:14px;}
   input{border:1px solid var(--hairline);padding:13px 15px;font-family:inherit;font-size:14px;border-radius:2px;width:100%;}
-  input:focus{outline:2px solid var(--ink);outline-offset:1px;}
-  button{background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;padding:13px;border:none;border-radius:2px;cursor:pointer;margin-top:6px;}
+  input:focus{outline:2px solid var(--blue);outline-offset:1px;}
+  button{background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px;border:none;border-radius:2px;cursor:pointer;margin-top:6px;}
   button:disabled{opacity:0.6;cursor:default;}
   .error-msg{font-size:13px;color:var(--err);display:none;padding:10px 12px;border:1px solid var(--err);border-radius:2px;}
   .error-msg.show{display:block;}
   .links-row{display:flex;justify-content:flex-end;margin-top:-4px;}
   .links-row a{font-size:12.5px;color:var(--stone);font-weight:600;text-decoration:none;cursor:pointer;}
-  .links-row a:hover{color:var(--ink);}
+  .links-row a:hover{color:var(--blue);}
   .status-msg{font-size:12.5px;color:var(--stone);display:none;}
   .status-msg.show{display:block;}
   .back-link{display:block;text-align:center;margin-top:20px;font-size:12.5px;color:var(--stone);text-decoration:none;}
-  .back-link:hover{color:var(--ink);}
+  .back-link:hover{color:var(--blue);}
 </style>
 </head>
 <body>

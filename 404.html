@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found — Pushpak Enterprises</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F5EFE0;
+    --cream-deep:#EDE3CC;
+    --blue:#1C6FBA;
+    --blue-deep:#0F4C88;
+    --ink:#25292E;
+    --stone:#7A7565;
+    --hairline:#E0D6BC;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;background:var(--cream);color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;
+    position:relative;
+  }
+  a{color:inherit;text-decoration:none;}
+
+  /* ---------- Background decoration ---------- */
+  .bg-circle{
+    position:absolute;border-radius:50%;pointer-events:none;
+  }
+  .bg-circle.c1{width:480px;height:480px;background:var(--cream-deep);top:-160px;right:-160px;
+    animation:float-slow 9s ease-in-out infinite;}
+  .bg-circle.c2{width:280px;height:280px;border:2px solid var(--blue);opacity:0.15;bottom:-80px;left:-100px;
+    animation:float-slow 11s ease-in-out infinite reverse;}
+  .bg-circle.c3{width:120px;height:120px;border:2px solid var(--blue);opacity:0.2;top:20%;left:6%;
+    animation:float-slow 7s ease-in-out infinite;}
+  @keyframes float-slow{
+    0%,100%{transform:translateY(0) translateX(0);}
+    50%{transform:translateY(-18px) translateX(10px);}
+  }
+
+  header{padding:20px 32px;display:flex;align-items:center;gap:10px;position:relative;z-index:2;}
+  header img{width:30px;height:30px;}
+  header .name{font-size:14px;font-weight:800;color:var(--ink);}
+
+  main{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    max-width:640px;margin:0 auto;padding:40px 32px 60px;text-align:center;width:100%;
+    position:relative;z-index:2;
+  }
+
+  .illustration{
+    width:220px;height:220px;margin-bottom:8px;
+    animation:bob 3.4s ease-in-out infinite;
+  }
+  @keyframes bob{
+    0%,100%{transform:translateY(0px) rotate(0deg);}
+    50%{transform:translateY(-14px) rotate(-2deg);}
+  }
+  .plug-spark{
+    animation:spark 1.6s ease-in-out infinite;
+    transform-origin:center;
+  }
+  @keyframes spark{
+    0%,100%{opacity:0.3;transform:scale(0.85);}
+    50%{opacity:1;transform:scale(1.15);}
+  }
+  .dash-line{
+    stroke-dasharray:6 6;
+    animation:dash-move 2.4s linear infinite;
+  }
+  @keyframes dash-move{
+    to{stroke-dashoffset:-24;}
+  }
+
+  .code{
+    font-size:15px;font-weight:800;color:var(--blue);letter-spacing:0.08em;margin-bottom:14px;
+    opacity:0;animation:rise-in 0.6s ease-out 0.15s forwards;
+  }
+  h1{
+    font-size:clamp(28px,4.4vw,42px);font-weight:800;letter-spacing:-0.02em;margin-bottom:16px;line-height:1.15;
+    opacity:0;animation:rise-in 0.6s ease-out 0.3s forwards;
+  }
+  h1 span{color:var(--blue);}
+  p{
+    font-size:15.5px;color:var(--stone);max-width:42ch;margin-bottom:32px;
+    opacity:0;animation:rise-in 0.6s ease-out 0.45s forwards;
+  }
+  @keyframes rise-in{
+    from{opacity:0;transform:translateY(10px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+
+  .actions{
+    display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+    opacity:0;animation:rise-in 0.6s ease-out 0.6s forwards;
+  }
+  .btn-primary{
+    background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border-radius:4px;
+    transition:background .2s, transform .2s;
+  }
+  .btn-primary:hover{background:var(--blue-deep);transform:translateY(-1px);}
+  .btn-secondary{
+    border:1.5px solid var(--blue);color:var(--blue);font-weight:600;font-size:14px;padding:13px 26px;border-radius:4px;
+    transition:background .2s, transform .2s;
+  }
+  .btn-secondary:hover{background:rgba(28,111,186,0.08);transform:translateY(-1px);}
+
+  footer{
+    padding:22px 32px;border-top:1px solid var(--hairline);font-size:12.5px;color:var(--stone);
+    text-align:center;position:relative;z-index:2;
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .illustration,.plug-spark,.dash-line,.bg-circle,.code,h1,p,.actions{animation:none;opacity:1;transform:none;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="bg-circle c1"></div>
+  <div class="bg-circle c2"></div>
+  <div class="bg-circle c3"></div>
+
+  <header>
+    <img src="/Pushpak-enterprises-website-and-CRM/assets/logos/pushpak-enterprises-icon.png" alt="Pushpak Enterprises" onerror="this.style.display='none'">
+    <div class="name">Pushpak Enterprises</div>
+  </header>
+
+  <main>
+    <svg class="illustration" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Appliance outline (geyser-ish) -->
+      <rect x="60" y="50" width="70" height="120" rx="20" stroke="#1C6FBA" stroke-width="4"/>
+      <circle cx="95" cy="90" r="16" stroke="#1C6FBA" stroke-width="3.5"/>
+      <circle cx="95" cy="90" r="3.5" fill="#1C6FBA"/>
+      <line class="dash-line" x1="72" y1="125" x2="118" y2="125" stroke="#1C6FBA" stroke-width="3.5" stroke-linecap="round"/>
+      <line class="dash-line" x1="72" y1="140" x2="110" y2="140" stroke="#1C6FBA" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- Disconnected cable -->
+      <path d="M60 175 C 40 180, 30 165, 35 150" stroke="#1C6FBA" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="35" cy="150" r="5" fill="#1C6FBA"/>
+      <!-- Spark / question mark bubble -->
+      <g class="plug-spark">
+        <circle cx="158" cy="55" r="22" fill="#F5EFE0" stroke="#1C6FBA" stroke-width="3"/>
+        <text x="158" y="64" font-family="Inter, sans-serif" font-size="26" font-weight="800" fill="#1C6FBA" text-anchor="middle">?</text>
+      </g>
+    </svg>
+
+    <div class="code">ERROR 404</div>
+    <h1>This page <span>doesn't exist</span> — or isn't built yet.</h1>
+    <p>The link you followed may be broken, or the page has moved. Try heading back to the homepage, or reach out if you were looking for something specific.</p>
+    <div class="actions">
+      <a href="/Pushpak-enterprises-website-and-CRM/" class="btn-primary">Go to homepage</a>
+      <a href="/Pushpak-enterprises-website-and-CRM/#contact" class="btn-secondary">Contact us</a>
+    </div>
+  </main>
+
+  <footer>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
