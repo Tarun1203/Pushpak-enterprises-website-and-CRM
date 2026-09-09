@@ -176,6 +176,11 @@
   }
   form input:focus,form textarea:focus{outline:2px solid var(--ink);outline-offset:1px;}
   form textarea{resize:vertical;min-height:100px;}
+  .field-error{font-size:12px;color:#B3261E;display:none;margin-top:-8px;}
+  .field-error.show{display:block;}
+  #enquiry-phone.invalid{border-color:#B3261E;}
+  .ticket-note{font-size:13px;color:var(--stone);margin-top:4px;}
+  .ticket-note b{color:var(--ink);}
   form button{
     background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;
     padding:14px 26px;border:none;border-radius:var(--radius);cursor:pointer;width:fit-content;
@@ -223,6 +228,7 @@
 <section class="hero">
   <div class="wrap hero-grid">
     <div>
+      <div class="eyebrow">Building Brands. Delivering Trust.</div>
       <h1 id="hero-headline">Appliances built to last. Service that shows up.</h1>
       <div class="hero-rule"></div>
       <p id="hero-subcopy">Pushpak Enterprises brings together three appliance brands — MakWell, Flyvision and Skevia — backed by one service network of technicians and centers across the state.</p>
@@ -355,10 +361,13 @@
     </div>
     <form id="enquiry-form">
       <input type="text" name="name" placeholder="Your name" required>
-      <input type="tel" name="phone" placeholder="Phone number" required>
+      <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)"
+        inputmode="numeric" maxlength="10" required>
+      <span id="phone-error" class="field-error"></span>
       <input type="text" name="subject" placeholder="What's this about?">
       <textarea name="message" placeholder="Message" required></textarea>
       <button type="submit">Send enquiry</button>
+      <div class="ticket-note" id="ticket-note"></div>
     </form>
   </div>
 </section>
@@ -444,25 +453,69 @@
   loadBrand('flyvision', 'flyvision-tag', 'flyvision-desc');
   loadBrand('skevia', 'skevia-tag', 'skevia-desc');
 
+  // Collision-resistant reference number for enquiries — timestamp +
+  // random, not a sequential counter (sequential counters reset per
+  // page load and can silently collide/overwrite in Firestore).
+  function generateTicketId() {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `PE-ENQ-${ts}-${rand}`;
+  }
+
+  // Accepts optional +91 / 91 prefix and spaces/dashes, normalizes to
+  // a bare 10-digit Indian mobile number, validates it starts 6-9.
+  function normalizePhone(raw) {
+    let digits = raw.replace(/[\s-]/g, '');
+    digits = digits.replace(/^(\+91|91)/, '');
+    return digits;
+  }
+  function isValidIndianMobile(digits) {
+    return /^[6-9]\d{9}$/.test(digits);
+  }
+
+  const phoneInput = document.getElementById('enquiry-phone');
+  const phoneError = document.getElementById('phone-error');
+
+  phoneInput.addEventListener('input', () => {
+    phoneInput.value = phoneInput.value.replace(/[^\d+\s-]/g, '');
+  });
+
   // Enquiry form -> writes to a `contactEnquiries` collection for CRM's
   // Website Management > Contact Enquiries module to pick up.
   document.getElementById('enquiry-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
     const btn = form.querySelector('button');
+    const ticketNote = document.getElementById('ticket-note');
+
+    const normalizedPhone = normalizePhone(phoneInput.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      phoneInput.classList.add('invalid');
+      phoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
+      phoneError.classList.add('show');
+      phoneInput.focus();
+      return;
+    }
+    phoneInput.classList.remove('invalid');
+    phoneError.classList.remove('show');
+
     const original = btn.textContent;
     btn.textContent = 'Sending…';
     btn.disabled = true;
+    ticketNote.textContent = '';
+    const ticketId = generateTicketId();
     try {
       await addDoc(collection(db, 'contactEnquiries'), {
+        ticketId,
         name: form.name.value.trim(),
-        phone: form.phone.value.trim(),
+        phone: normalizedPhone,
         subject: form.subject.value.trim(),
         message: form.message.value.trim(),
         source: 'landing-page',
         createdAt: serverTimestamp()
       });
       btn.textContent = 'Sent — thank you';
+      ticketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
       form.reset();
     } catch (err) {
       console.error('Enquiry submit failed:', err);
