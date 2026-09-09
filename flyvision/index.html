@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flyvision — Home Appliances</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#14151A;--paper:#FAFAF8;--stone:#6B6D76;--hairline:#D4D4D0;--brand:#E5262C;--navy:#1B1B3A;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--hairline);}
+  header a.back{font-size:13px;color:var(--stone);font-weight:600;}
+  .logo-box{padding:6px 0;max-width:150px;}
+  .logo-box img{width:100%;}
+  main{max-width:760px;margin:120px auto;padding:0 32px;text-align:left;}
+  .tag{font-size:13px;font-weight:600;color:var(--brand);margin-bottom:16px;}
+  h1{font-size:clamp(30px,4vw,44px);font-weight:800;letter-spacing:-0.02em;margin-bottom:18px;color:var(--navy);}
+  p{font-size:16px;color:var(--stone);max-width:52ch;}
+  .status{margin-top:36px;padding:16px 20px;border:1px solid var(--hairline);border-left:3px solid var(--brand);font-size:13px;color:var(--stone);max-width:52ch;}
+</style>
+</head>
+<body>
+<header>
+  <a href="../index.html" class="back">← Pushpak Enterprises</a>
+  <div class="logo-box"><img src="../assets/logos/flyvision-logo.jpeg" alt="Flyvision logo"></div>
+</header>
+<main>
+  <div class="tag">Precision in motion</div>
+  <h1>Flyvision home page — in progress</h1>
+  <p>This is where the full Flyvision brand site will live: Home, Products (Categories → Listing → Details), About, and Contact — pulling product data live from the CRM's Firestore product catalogue.</p>
+  <div class="status">Scaffolded 9 Sept 2026 — structure only, no product data wired yet.</div>
+</main>
+</body>
+</html>

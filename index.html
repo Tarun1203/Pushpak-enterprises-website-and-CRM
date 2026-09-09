@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pushpak Enterprises — MakWell, Flyvision, Skevia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14151A;
+    --paper:#FAFAF8;
+    --stone:#6B6D76;
+    --hairline:#D4D4D0;
+    --makwell:#8A3B94;
+    --flyvision:#E5262C;
+    --flyvision-navy:#1B1B3A;
+    --skevia:#1C7DC0;
+    --radius:2px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:rgba(250,250,248,0.92);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--hairline);
+  }
+  .header-inner{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 32px;max-width:1180px;margin:0 auto;
+  }
+  .brandmark{font-weight:800;font-size:17px;letter-spacing:-0.01em;}
+  .brandmark span{color:var(--stone);font-weight:500;}
+  nav{display:flex;gap:36px;}
+  nav a{font-size:14px;font-weight:500;color:var(--stone);transition:color .2s;}
+  nav a:hover{color:var(--ink);}
+  .nav-cta{
+    font-size:14px;font-weight:600;color:var(--ink);
+    border:1px solid var(--ink);padding:9px 20px;border-radius:var(--radius);
+    transition:background .2s, color .2s;
+  }
+  .nav-cta:hover{background:var(--ink);color:var(--paper);}
+  .nav-toggle{display:none;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    padding:96px 0 88px;
+    border-bottom:1px solid var(--hairline);
+  }
+  .hero-grid{
+    display:grid;grid-template-columns:1.1fr 0.9fr;gap:64px;align-items:center;
+  }
+  .eyebrow{
+    font-size:13px;color:var(--stone);margin-bottom:20px;font-weight:500;
+  }
+  h1{
+    font-size:clamp(36px,4.6vw,58px);
+    font-weight:800;
+    letter-spacing:-0.02em;
+    line-height:1.06;
+    max-width:11ch;
+  }
+  .hero-rule{
+    width:64px;height:3px;background:var(--ink);margin:28px 0 24px;
+    transform:scaleX(0);transform-origin:left;
+    animation:draw-in 0.9s cubic-bezier(.4,0,.2,1) 0.3s forwards;
+  }
+  @keyframes draw-in{to{transform:scaleX(1);}}
+  @media (prefers-reduced-motion:reduce){.hero-rule{animation:none;transform:scaleX(1);}}
+  .hero p{font-size:17px;color:var(--stone);max-width:46ch;}
+  .hero-actions{display:flex;gap:16px;margin-top:36px;}
+  .btn-primary{
+    background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;
+    padding:14px 26px;border-radius:var(--radius);
+  }
+  .btn-secondary{
+    border:1px solid var(--hairline);font-weight:600;font-size:14px;
+    padding:14px 26px;border-radius:var(--radius);
+  }
+  .hero-visual{
+    aspect-ratio:4/5;background:var(--ink);border-radius:var(--radius);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    position:relative;
+  }
+  .hero-visual .stat{
+    position:absolute;bottom:0;left:0;right:0;
+    background:linear-gradient(0deg,rgba(20,21,26,0.92),transparent);
+    color:var(--paper);padding:28px 24px 22px;
+  }
+  .hero-visual .stat b{display:block;font-size:28px;font-weight:800;}
+  .hero-visual .stat span{font-size:13px;color:#B9BAC0;}
+  .hero-visual svg{width:52%;opacity:0.9;}
+
+  /* ---------- Section shell ---------- */
+  section{padding:80px 0;border-bottom:1px solid var(--hairline);}
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:44px;gap:24px;}
+  h2{font-size:clamp(26px,2.6vw,34px);font-weight:800;letter-spacing:-0.015em;max-width:16ch;}
+  .section-head p{font-size:15px;color:var(--stone);max-width:36ch;text-align:right;}
+  @media (max-width:720px){.section-head{flex-direction:column;align-items:flex-start;}.section-head p{text-align:left;}}
+
+  /* ---------- Brands ---------- */
+  .brands{padding:0;border-bottom:1px solid var(--hairline);}
+  .brands .wrap{padding:0;max-width:none;}
+  .brand-intro{max-width:1180px;margin:0 auto;padding:80px 32px 44px;}
+  .brand-panels{display:grid;grid-template-columns:1.15fr 0.95fr 0.9fr;}
+  .brand-panel{
+    padding:56px 40px 48px;min-height:420px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    position:relative;overflow:hidden;
+  }
+  .brand-panel .logo-box{
+    background:#fff;padding:20px 24px;border-radius:var(--radius);
+    width:fit-content;max-width:220px;
+  }
+  .brand-panel .logo-box img{width:100%;height:auto;}
+  .brand-copy{margin-top:32px;}
+  .brand-copy .tag{font-size:13px;font-weight:600;letter-spacing:0.02em;margin-bottom:10px;opacity:0.85;}
+  .brand-copy p{font-size:14.5px;max-width:34ch;opacity:0.92;}
+  .brand-link{
+    margin-top:24px;display:inline-flex;align-items:center;gap:8px;
+    font-size:14px;font-weight:600;border-bottom:1px solid currentColor;padding-bottom:2px;width:fit-content;
+  }
+  .p-makwell{background:var(--makwell);color:#F3E9F5;}
+  .p-flyvision{background:var(--flyvision-navy);color:#FCE6E7;}
+  .p-flyvision .accent{color:var(--flyvision);}
+  .p-skevia{background:var(--skevia);color:#E7F3FB;}
+
+  /* ---------- Why choose us ---------- */
+  .why-list{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--hairline);}
+  .why-item{padding:32px 28px 32px 0;border-right:1px solid var(--hairline);}
+  .why-item:last-child{border-right:none;}
+  .why-item h3{font-size:17px;font-weight:700;margin-bottom:10px;}
+  .why-item p{font-size:14px;color:var(--stone);}
+  @media (max-width:860px){.why-list{grid-template-columns:1fr;}.why-item{border-right:none;border-bottom:1px solid var(--hairline);padding:28px 0;}}
+
+  /* ---------- Services ---------- */
+  .services-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
+  .service-card{background:var(--paper);padding:28px 22px;transition:background .2s;}
+  .service-card:hover{background:#F0EFEA;}
+  .service-card h3{font-size:15px;font-weight:700;margin-bottom:6px;}
+  .service-card p{font-size:13px;color:var(--stone);}
+  @media (max-width:860px){.services-grid{grid-template-columns:repeat(2,1fr);}}
+
+  /* ---------- About ---------- */
+  .about-grid{display:grid;grid-template-columns:0.8fr 1.2fr;gap:64px;}
+  .about-grid .num{font-size:15px;color:var(--stone);font-weight:600;}
+  .about-copy p{font-size:16px;color:#3A3B41;max-width:58ch;margin-bottom:18px;}
+  .about-copy p:last-child{margin-bottom:0;}
+  @media (max-width:860px){.about-grid{grid-template-columns:1fr;gap:20px;}}
+
+  /* ---------- Contact ---------- */
+  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;}
+  .contact-detail{margin-bottom:24px;}
+  .contact-detail .label{font-size:12px;color:var(--stone);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;}
+  .contact-detail .value{font-size:17px;font-weight:600;}
+  form{display:flex;flex-direction:column;gap:14px;}
+  form input,form textarea{
+    border:1px solid var(--hairline);padding:14px 16px;font-family:inherit;font-size:14px;
+    border-radius:var(--radius);background:#fff;
+  }
+  form input:focus,form textarea:focus{outline:2px solid var(--ink);outline-offset:1px;}
+  form textarea{resize:vertical;min-height:100px;}
+  form button{
+    background:var(--ink);color:var(--paper);font-weight:600;font-size:14px;
+    padding:14px 26px;border:none;border-radius:var(--radius);cursor:pointer;width:fit-content;
+  }
+  @media (max-width:860px){.contact-grid{grid-template-columns:1fr;gap:32px;}}
+
+  /* ---------- Footer ---------- */
+  footer{padding:36px 0;}
+  .footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--stone);}
+  @media (max-width:600px){.footer-inner{flex-direction:column;gap:10px;text-align:center;}}
+
+  @media (max-width:900px){
+    .hero-grid{grid-template-columns:1fr;}
+    .hero-visual{order:-1;aspect-ratio:16/9;}
+    .brand-panels{grid-template-columns:1fr;}
+    .about-grid{gap:24px;}
+  }
+  @media (max-width:640px){
+    .header-inner{padding:16px 20px;}
+    nav{display:none;}
+    .wrap,.brand-intro{padding-left:20px;padding-right:20px;}
+    section{padding:56px 0;}
+    .hero{padding:56px 0 48px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brandmark">Pushpak Enterprises <span>· est. Karnataka</span></div>
+    <nav>
+      <a href="#brands">Brands</a>
+      <a href="#services">Customer Services</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <a href="#contact" class="nav-cta">Book a Service</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Home appliances, sold and serviced across Karnataka</div>
+      <h1 id="hero-headline">Appliances built to last. Service that shows up.</h1>
+      <div class="hero-rule"></div>
+      <p id="hero-subcopy">Pushpak Enterprises brings together three appliance brands — MakWell, Flyvision and Skevia — backed by one service network of technicians and centers across the state.</p>
+      <div class="hero-actions">
+        <a href="#brands" class="btn-primary">Explore our brands</a>
+        <a href="#services" class="btn-secondary">Book a service</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <svg viewBox="0 0 120 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="10" width="100" height="140" rx="6" stroke="#4A4B54" stroke-width="2"/>
+        <circle cx="60" cy="55" r="26" stroke="#4A4B54" stroke-width="2"/>
+        <circle cx="60" cy="55" r="4" fill="#4A4B54"/>
+        <line x1="30" y1="105" x2="90" y2="105" stroke="#4A4B54" stroke-width="2"/>
+        <line x1="30" y1="118" x2="90" y2="118" stroke="#4A4B54" stroke-width="2"/>
+        <line x1="30" y1="131" x2="70" y2="131" stroke="#4A4B54" stroke-width="2"/>
+      </svg>
+      <div class="stat">
+        <b id="stat-number">3</b>
+        <span id="stat-label">appliance brands, one service promise</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="brands" id="brands">
+  <div class="brand-intro">
+    <div class="section-head">
+      <h2>Our brands</h2>
+      <p id="brands-intro">Each brand runs its own product line — all backed by the same Pushpak Enterprises service network.</p>
+    </div>
+  </div>
+  <div class="brand-panels">
+    <div class="brand-panel p-makwell">
+      <div class="logo-box"><img src="assets/logos/makwell-logo.jpeg" alt="MakWell logo"></div>
+      <div class="brand-copy">
+        <div class="tag" id="makwell-tag">Make it happen</div>
+        <p id="makwell-desc">Geysers, washing machines and home essentials — MakWell's own line, engineered for everyday reliability.</p>
+        <a href="#" class="brand-link">View MakWell products →</a>
+      </div>
+    </div>
+    <div class="brand-panel p-flyvision">
+      <div class="logo-box"><img src="assets/logos/flyvision-logo.jpeg" alt="Flyvision logo"></div>
+      <div class="brand-copy">
+        <div class="tag accent" id="flyvision-tag">Precision in motion</div>
+        <p id="flyvision-desc">Flyvision's appliance range, built for performance-minded households.</p>
+        <a href="#" class="brand-link">View Flyvision products →</a>
+      </div>
+    </div>
+    <div class="brand-panel p-skevia">
+      <div class="logo-box"><img src="assets/logos/skevia-logo.jpeg" alt="Skevia logo"></div>
+      <div class="brand-copy">
+        <div class="tag" id="skevia-tag">A new awakening</div>
+        <p id="skevia-desc">Skevia, a product by MakWell — a newer line exploring the next generation of home appliances.</p>
+        <a href="#" class="brand-link">View Skevia products →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Why choose Pushpak Enterprises</h2>
+      <p>One company standing behind every brand, every sale, every repair.</p>
+    </div>
+    <div class="why-list" id="why-list">
+      <div class="why-item">
+        <h3>One service network</h3>
+        <p>Technicians and service centers across Karnataka, shared across all three brands.</p>
+      </div>
+      <div class="why-item">
+        <h3>Registered warranty</h3>
+        <p>Every product can be registered and tracked from purchase through warranty and repair.</p>
+      </div>
+      <div class="why-item">
+        <h3>Local presence</h3>
+        <p>Built and run from Karnataka, with dealers and service partners across the state.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="services">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Customer services</h2>
+      <p>Everything you need after you've bought a MakWell, Flyvision or Skevia product.</p>
+    </div>
+    <div class="services-grid">
+      <div class="service-card"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></div>
+      <div class="service-card"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></div>
+      <div class="service-card"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></div>
+      <div class="service-card"><h3>Warranty status</h3><p>Check what's covered and until when.</p></div>
+      <div class="service-card"><h3>Manuals</h3><p>Download the manual for your product model.</p></div>
+      <div class="service-card"><h3>Brochures</h3><p>Browse the current product catalogue.</p></div>
+      <div class="service-card"><h3>Support</h3><p>Reach our team for anything not covered above.</p></div>
+      <div class="service-card"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="wrap about-grid">
+    <div class="num">01 / About</div>
+    <div class="about-copy">
+      <h2 style="margin-bottom:20px;">About Pushpak Enterprises</h2>
+      <p id="about-text-1">Pushpak Enterprises is a Karnataka-based home appliances distribution business, bringing together three brands — MakWell, Flyvision and Skevia — under one company and one service standard.</p>
+      <p id="about-text-2">From geysers and washing machines to newer product lines, every item we sell is backed by product registration, tracked warranty, and a service network built to reach customers directly — not just at the point of sale.</p>
+    </div>
+  </div>
+</section>
+
+<section id="contact" style="border-bottom:none;">
+  <div class="wrap contact-grid">
+    <div>
+      <h2 style="margin-bottom:28px;">Get in touch</h2>
+      <div class="contact-detail">
+        <div class="label">Location</div>
+        <div class="value" id="contact-location">Raichur, Karnataka</div>
+      </div>
+      <div class="contact-detail">
+        <div class="label">Phone</div>
+        <div class="value" id="contact-phone">Loading…</div>
+      </div>
+      <div class="contact-detail">
+        <div class="label">Email</div>
+        <div class="value" id="contact-email">Loading…</div>
+      </div>
+    </div>
+    <form id="enquiry-form">
+      <input type="text" name="name" placeholder="Your name" required>
+      <input type="tel" name="phone" placeholder="Phone number" required>
+      <input type="text" name="subject" placeholder="What's this about?">
+      <textarea name="message" placeholder="Message" required></textarea>
+      <button type="submit">Send enquiry</button>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-inner">
+    <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
+    <span>MakWell · Flyvision · Skevia</span>
+  </div>
+</footer>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  /*
+    Expected Firestore documents (all optional — page falls back to the
+    static copy already in the HTML if a document/field is missing):
+
+    siteContent/landing
+      { heroHeadline, heroSubcopy, brandsIntro,
+        aboutText1, aboutText2,
+        contactPhone, contactEmail, contactLocation }
+
+    brands/makwell   { tagline, description }
+    brands/flyvision { tagline, description }
+    brands/skevia    { tagline, description }
+  */
+
+  function setText(id, value) {
+    if (value === undefined || value === null || value === '') return;
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  async function loadSiteContent() {
+    try {
+      const snap = await getDoc(doc(db, 'siteContent', 'landing'));
+      if (!snap.exists()) return;
+      const d = snap.data();
+      setText('hero-headline', d.heroHeadline);
+      setText('hero-subcopy', d.heroSubcopy);
+      setText('brands-intro', d.brandsIntro);
+      setText('about-text-1', d.aboutText1);
+      setText('about-text-2', d.aboutText2);
+      setText('contact-phone', d.contactPhone);
+      setText('contact-email', d.contactEmail);
+      setText('contact-location', d.contactLocation);
+    } catch (err) {
+      console.warn('siteContent/landing not loaded, using defaults:', err.message);
+    }
+    // Defaults for phone/email if Firestore has none yet
+    const phoneEl = document.getElementById('contact-phone');
+    const emailEl = document.getElementById('contact-email');
+    if (phoneEl && phoneEl.textContent === 'Loading…') phoneEl.textContent = 'Add number in siteContent/landing';
+    if (emailEl && emailEl.textContent === 'Loading…') emailEl.textContent = 'Add email in siteContent/landing';
+  }
+
+  async function loadBrand(brandId, tagId, descId) {
+    try {
+      const snap = await getDoc(doc(db, 'brands', brandId));
+      if (!snap.exists()) return;
+      const d = snap.data();
+      setText(tagId, d.tagline);
+      setText(descId, d.description);
+    } catch (err) {
+      console.warn(`brands/${brandId} not loaded, using defaults:`, err.message);
+    }
+  }
+
+  loadSiteContent();
+  loadBrand('makwell', 'makwell-tag', 'makwell-desc');
+  loadBrand('flyvision', 'flyvision-tag', 'flyvision-desc');
+  loadBrand('skevia', 'skevia-tag', 'skevia-desc');
+
+  // Enquiry form -> writes to a `contactEnquiries` collection for CRM's
+  // Website Management > Contact Enquiries module to pick up.
+  document.getElementById('enquiry-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button');
+    const original = btn.textContent;
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+    try {
+      await addDoc(collection(db, 'contactEnquiries'), {
+        name: form.name.value.trim(),
+        phone: form.phone.value.trim(),
+        subject: form.subject.value.trim(),
+        message: form.message.value.trim(),
+        source: 'landing-page',
+        createdAt: serverTimestamp()
+      });
+      btn.textContent = 'Sent — thank you';
+      form.reset();
+    } catch (err) {
+      console.error('Enquiry submit failed:', err);
+      btn.textContent = 'Something went wrong — try again';
+      btn.disabled = false;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
+  });
+
+</script>
+
+</body>
+</html>
