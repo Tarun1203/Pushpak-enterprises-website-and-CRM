@@ -381,7 +381,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -453,13 +453,50 @@
   loadBrand('flyvision', 'flyvision-tag', 'flyvision-desc');
   loadBrand('skevia', 'skevia-tag', 'skevia-desc');
 
-  // Collision-resistant reference number for enquiries — timestamp +
-  // random, not a sequential counter (sequential counters reset per
-  // page load and can silently collide/overwrite in Firestore).
-  function generateTicketId() {
-    const ts = Date.now().toString(36).toUpperCase();
-    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `PE-ENQ-${ts}-${rand}`;
+  // Ticket ID format: PE-{PageType}-{YYYYMMDD}-{Serial}-{Mode}
+  //   PageType: which form/request type this is (ENQ = general enquiry)
+  //   Serial:   4-digit, resets monthly, assigned via an atomic Firestore
+  //             transaction against counters/enquiry-{YYYYMM} — safe
+  //             against concurrent submissions (unlike a page-load-scoped
+  //             counter, which silently collides across two visitors).
+  //   Mode:     which channel/portal generated it (CustomerSite, Dealer,
+  //             ServiceCenter, Technician) — this form is always CustomerSite.
+  function todayYYYYMMDD() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+
+  function currentYYYYMM() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}${m}`;
+  }
+
+  async function nextMonthlySerial(monthStr) {
+    const counterRef = doc(db, 'counters', `enquiry-${monthStr}`);
+    const newValue = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const current = snap.exists() ? snap.data().value : 0;
+      const next = current + 1;
+      if (snap.exists()) {
+        transaction.update(counterRef, { value: next });
+      } else {
+        transaction.set(counterRef, { value: next });
+      }
+      return next;
+    });
+    return newValue;
+  }
+
+  async function generateTicketId(pageType, mode) {
+    const dateStr = todayYYYYMMDD();
+    const serial = await nextMonthlySerial(currentYYYYMM());
+    const serialPadded = String(serial).padStart(4, '0');
+    return `PE-${pageType}-${dateStr}-${serialPadded}-${mode}`;
   }
 
   // Accepts optional +91 / 91 prefix and spaces/dashes, normalizes to
@@ -503,8 +540,9 @@
     btn.textContent = 'Sending…';
     btn.disabled = true;
     ticketNote.textContent = '';
-    const ticketId = generateTicketId();
+    let ticketId;
     try {
+      ticketId = await generateTicketId('ENQ', 'CustomerSite');
       await addDoc(collection(db, 'contactEnquiries'), {
         ticketId,
         name: form.name.value.trim(),
