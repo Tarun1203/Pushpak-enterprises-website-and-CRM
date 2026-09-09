@@ -185,13 +185,51 @@
   </div>
 </div>
 
+<!-- Edit User modal -->
+<div class="modal-overlay" id="edit-user-overlay">
+  <div class="modal">
+    <h3>Edit CRM account</h3>
+    <form id="edit-user-form">
+      <div class="form-row">
+        <label>Full name</label>
+        <input type="text" id="edit-user-name">
+      </div>
+      <div class="form-row">
+        <label>Email</label>
+        <input type="email" id="edit-user-email" disabled style="opacity:0.6;">
+        <span style="font-size:11.5px;color:var(--stone);">Email can't be changed here — it's tied to the login account.</span>
+      </div>
+      <div class="form-row">
+        <label>Role</label>
+        <select id="edit-user-role" required>
+          <option value="superadmin">Super Admin</option>
+          <option value="headoffice">Head Office</option>
+          <option value="areamanager">Area Manager</option>
+          <option value="servicecenter">Service Center</option>
+          <option value="technician">Technician</option>
+          <option value="dealer">Dealer</option>
+        </select>
+      </div>
+      <div class="modal-error" id="edit-user-error"></div>
+      <div class="modal-success" id="edit-user-success"></div>
+      <div class="modal-actions" style="justify-content:space-between;">
+        <button type="button" class="btn-secondary" id="reset-password-btn">Send password reset</button>
+        <div style="display:flex;gap:10px;">
+          <button type="button" class="btn-secondary" id="cancel-edit-user">Cancel</button>
+          <button type="submit" class="btn-primary" id="submit-edit-user">Save changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
-    getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword
+    getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy
+    getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, query, orderBy
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -423,9 +461,9 @@
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>UID</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>UID</th><th>Actions</th></tr></thead>
             <tbody id="users-tbody">
-              <tr><td colspan="4" style="text-align:center;color:var(--stone);padding:28px;">Loading…</td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--stone);padding:28px;">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -439,7 +477,7 @@
     try {
       const snap = await getDocs(query(collection(db, 'users')));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--stone);padding:28px;">No accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--stone);padding:28px;">No accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -450,12 +488,16 @@
           <td>${d.name || '—'}</td>
           <td>${d.email || '—'}</td>
           <td><span class="role-pill ${d.role || ''}">${d.role || 'unknown'}</span></td>
-          <td style="color:var(--stone);font-size:12px;">${docSnap.id}</td>`;
+          <td style="color:var(--stone);font-size:12px;">${docSnap.id}</td>
+          <td><button class="btn-secondary edit-user-btn" data-uid="${docSnap.id}">Edit</button></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.edit-user-btn').addEventListener('click', () => {
+          openEditUserModal(docSnap.id, d);
+        });
       });
     } catch (err) {
       console.error('Load users failed:', err);
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--err);padding:28px;">Couldn't load accounts. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--err);padding:28px;">Couldn't load accounts. Check console for details.</td></tr>`;
     }
   }
 
@@ -537,6 +579,97 @@
       submitBtn.textContent = 'Create account';
       try { await deleteApp(secondaryApp); } catch (_) {}
     }
+  });
+
+  // ---------------------------------------------------------------
+  // Edit User modal — update name/role in Firestore (allowed by the
+  // isAdmin() rule), plus a one-click password reset email. Email
+  // itself isn't editable here: changing another user's Auth email
+  // requires the Admin SDK (a Cloud Function), not the client SDK.
+  // ---------------------------------------------------------------
+  const editOverlay = document.getElementById('edit-user-overlay');
+  const editUserForm = document.getElementById('edit-user-form');
+  const editUserError = document.getElementById('edit-user-error');
+  const editUserSuccess = document.getElementById('edit-user-success');
+  const editSubmitBtn = document.getElementById('submit-edit-user');
+  const editNameInput = document.getElementById('edit-user-name');
+  const editEmailInput = document.getElementById('edit-user-email');
+  const editRoleSelect = document.getElementById('edit-user-role');
+  const resetPasswordBtn = document.getElementById('reset-password-btn');
+  let editingUid = null;
+  let editingEmail = null;
+
+  function openEditUserModal(uid, data) {
+    editingUid = uid;
+    editingEmail = data.email || '';
+    editNameInput.value = data.name || '';
+    editEmailInput.value = data.email || '(not on record)';
+    editRoleSelect.value = data.role || '';
+    editUserError.classList.remove('show');
+    editUserSuccess.classList.remove('show');
+    editSubmitBtn.disabled = false;
+    editSubmitBtn.textContent = 'Save changes';
+    editOverlay.classList.add('show');
+  }
+  function closeEditUserModal() {
+    editOverlay.classList.remove('show');
+  }
+  document.getElementById('cancel-edit-user').addEventListener('click', closeEditUserModal);
+  editOverlay.addEventListener('click', (e) => { if (e.target === editOverlay) closeEditUserModal(); });
+
+  editUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    editUserError.classList.remove('show');
+    editUserSuccess.classList.remove('show');
+    if (!editRoleSelect.value) {
+      editUserError.textContent = 'Select a role.';
+      editUserError.classList.add('show');
+      return;
+    }
+    editSubmitBtn.disabled = true;
+    editSubmitBtn.textContent = 'Saving…';
+    try {
+      await updateDoc(doc(db, 'users', editingUid), {
+        name: editNameInput.value.trim(),
+        role: editRoleSelect.value
+      });
+      editUserSuccess.textContent = 'Saved.';
+      editUserSuccess.classList.add('show');
+      editSubmitBtn.textContent = 'Save changes';
+      editSubmitBtn.disabled = false;
+      loadUsersTable();
+      setTimeout(closeEditUserModal, 900);
+    } catch (err) {
+      console.error('Update user failed:', err);
+      editUserError.textContent = 'Could not save changes. Check console for details.';
+      editUserError.classList.add('show');
+      editSubmitBtn.disabled = false;
+      editSubmitBtn.textContent = 'Save changes';
+    }
+  });
+
+  resetPasswordBtn.addEventListener('click', async () => {
+    editUserError.classList.remove('show');
+    editUserSuccess.classList.remove('show');
+    if (!editingEmail) {
+      editUserError.textContent = 'No email on record for this account — cannot send reset link.';
+      editUserError.classList.add('show');
+      return;
+    }
+    resetPasswordBtn.disabled = true;
+    const original = resetPasswordBtn.textContent;
+    resetPasswordBtn.textContent = 'Sending…';
+    try {
+      await sendPasswordResetEmail(auth, editingEmail);
+      editUserSuccess.textContent = `Password reset email sent to ${editingEmail}.`;
+      editUserSuccess.classList.add('show');
+    } catch (err) {
+      console.error('Password reset failed:', err);
+      editUserError.textContent = 'Could not send reset email. Check console for details.';
+      editUserError.classList.add('show');
+    }
+    resetPasswordBtn.disabled = false;
+    resetPasswordBtn.textContent = original;
   });
 
   // Default view once authenticated
