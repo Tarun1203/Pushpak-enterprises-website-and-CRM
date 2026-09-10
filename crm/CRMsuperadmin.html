@@ -296,12 +296,16 @@
     <form id="product-form">
       <input type="hidden" id="product-editing-id">
       <div class="form-row"><label>Name</label><input type="text" id="product-name" required></div>
-      <div class="form-row"><label>Category</label><input type="text" id="product-category" placeholder="e.g. LED TV, Geyser"></div>
       <div class="form-row"><label>Brand</label>
         <select id="product-brand">
           <option value="makwell">MakWell</option>
           <option value="flyvision">Flyvision</option>
           <option value="skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Category</label>
+        <select id="product-category-select">
+          <option value="">Select a brand first…</option>
         </select>
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
@@ -315,7 +319,39 @@
   </div>
 </div>
 
-<!-- New RMA modal -->
+<!-- Add/Edit Category modal -->
+<div class="modal-overlay" id="category-overlay">
+  <div class="modal">
+    <h3 id="category-modal-title">Add category</h3>
+    <form id="category-form">
+      <input type="hidden" id="category-editing-id">
+      <div class="form-row"><label>Category name</label><input type="text" id="category-name" placeholder="e.g. Television" required></div>
+      <div class="form-row"><label>Category code</label><input type="text" id="category-code" placeholder="e.g. TV" maxlength="10"></div>
+      <div class="form-row"><label>Brand</label>
+        <select id="category-brand" required>
+          <option value="makwell">MakWell</option>
+          <option value="flyvision">Flyvision</option>
+          <option value="skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Description</label><textarea id="category-description"></textarea></div>
+      <div class="form-row"><label>Icon <span class="hint">(emoji or short label, optional)</span></label><input type="text" id="category-icon" maxlength="4"></div>
+      <div class="form-row"><label>Display order</label><input type="number" id="category-order" min="0" value="0"></div>
+      <div class="form-row"><label>Status</label>
+        <select id="category-status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="modal-error" id="category-error"></div>
+      <div class="modal-success" id="category-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-category">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-category">Save category</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="modal-overlay" id="rma-overlay">
   <div class="modal">
     <h3>New RMA request</h3>
@@ -432,6 +468,7 @@
       { id: 'customers', label: 'Customers', built: true },
       { id: 'brands', label: 'Brands', built: true },
       { id: 'products', label: 'Product Management', built: true },
+      { id: 'categories', label: 'Categories', built: true },
       { id: 'serials', label: 'Serial & Registration', built: true },
       { id: 'warranty', label: 'Warranty', built: true },
       { id: 'dealers', label: 'Dealers', built: true },
@@ -517,6 +554,9 @@
     } else if (id === 'products') {
       pageSub.textContent = 'Sellable product catalog';
       renderProductManagement();
+    } else if (id === 'categories') {
+      pageSub.textContent = 'Category master, per brand';
+      renderCategories();
     } else if (id === 'serials') {
       pageSub.textContent = 'All product registrations';
       renderSerialsRegistrations();
@@ -1091,7 +1131,9 @@
   // PRODUCT MANAGEMENT — the sellable product catalog (distinct from
   // Warehouse's spareParts, which is repair parts). This is what
   // Dealer's Products tab reads from — currently empty until filled
-  // in here.
+  // in here. Category is now selected from the real Category Master
+  // (productCategories), filtered to the chosen brand, not typed as
+  // free text.
   // =================================================================
 
   async function renderProductManagement() {
@@ -1126,7 +1168,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${d.name || '—'}</td>
-          <td>${d.category || '—'}</td>
+          <td>${d.categoryName || d.category || '—'}</td>
           <td>${BRAND_LABELS[d.brandId] || d.brand || '—'}</td>
           <td>${d.price != null ? '₹' + d.price : '—'}</td>
           <td><button class="btn-secondary product-edit-btn" data-id="${d.id}">Edit</button></td>`;
@@ -1145,6 +1187,34 @@
   const productSuccess = document.getElementById('product-success');
   const productSubmitBtn = document.getElementById('submit-product');
   const productModalTitle = document.getElementById('product-modal-title');
+  const productBrandSelect = document.getElementById('product-brand');
+  const productCategorySelect = document.getElementById('product-category-select');
+
+  async function populateProductCategoryOptions(brandId, selectedCategoryId) {
+    productCategorySelect.innerHTML = '<option value="">Loading…</option>';
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'productCategories'),
+        where('brandId', '==', brandId),
+        where('status', '==', 'active')
+      ));
+      const cats = [];
+      snap.forEach(d => cats.push({ id: d.id, ...d.data() }));
+      cats.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      if (cats.length === 0) {
+        productCategorySelect.innerHTML = '<option value="">No categories yet for this brand — add one under Categories</option>';
+        return;
+      }
+      productCategorySelect.innerHTML = '<option value="">Select…</option>' +
+        cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      if (selectedCategoryId) productCategorySelect.value = selectedCategoryId;
+    } catch (err) {
+      console.error('Load categories for product form failed:', err);
+      productCategorySelect.innerHTML = '<option value="">Could not load categories</option>';
+    }
+  }
+
+  productBrandSelect.addEventListener('change', () => populateProductCategoryOptions(productBrandSelect.value, null));
 
   function openProductModal(existing) {
     productForm.reset();
@@ -1155,13 +1225,14 @@
       productModalTitle.textContent = 'Edit product';
       document.getElementById('product-editing-id').value = existing.id;
       document.getElementById('product-name').value = existing.name || '';
-      document.getElementById('product-category').value = existing.category || '';
-      document.getElementById('product-brand').value = existing.brandId || 'makwell';
+      productBrandSelect.value = existing.brandId || 'makwell';
       document.getElementById('product-price').value = existing.price ?? '';
+      populateProductCategoryOptions(productBrandSelect.value, existing.categoryId || null);
       productSubmitBtn.textContent = 'Save changes';
     } else {
       productModalTitle.textContent = 'Add product';
       document.getElementById('product-editing-id').value = '';
+      populateProductCategoryOptions(productBrandSelect.value, null);
       productSubmitBtn.textContent = 'Save product';
     }
     productOverlay.classList.add('show');
@@ -1177,11 +1248,14 @@
     productSubmitBtn.disabled = true;
     productSubmitBtn.textContent = 'Saving…';
     const editingId = document.getElementById('product-editing-id').value;
+    const categoryId = productCategorySelect.value;
+    const categoryName = categoryId ? productCategorySelect.options[productCategorySelect.selectedIndex].textContent : '';
     const payload = {
       name: document.getElementById('product-name').value.trim(),
-      category: document.getElementById('product-category').value.trim(),
-      brandId: document.getElementById('product-brand').value,
-      brand: BRAND_LABELS[document.getElementById('product-brand').value],
+      categoryId: categoryId || null,
+      categoryName: categoryName || null,
+      brandId: productBrandSelect.value,
+      brand: BRAND_LABELS[productBrandSelect.value],
       price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
     };
     try {
@@ -1202,6 +1276,199 @@
       productError.classList.add('show');
       productSubmitBtn.disabled = false;
       productSubmitBtn.textContent = editingId ? 'Save changes' : 'Save product';
+    }
+  });
+
+  // =================================================================
+  // CATEGORIES — the real Category Master (productCategories),
+  // brand-scoped. Replaces deriving categories from product text.
+  // Adding a category here makes it available on the matching brand's
+  // public site immediately (brand pages read this same collection).
+  // A lightweight per-category change log (categoryHistory) records
+  // each create/edit.
+  // =================================================================
+
+  let currentCategoryFilter = 'all';
+
+  async function renderCategories() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Categories</h2>
+          <button class="btn-primary" id="open-add-category">+ Add Category</button>
+        </div>
+        <div class="panel-body" style="padding-bottom:0;">
+          <div class="tab-toggle" id="category-tabs">
+            <button data-filter="all" class="active">All Categories</button>
+            <button data-filter="active">Active</button>
+            <button data-filter="inactive">Inactive</button>
+            <button data-filter="history">Category History</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead id="category-thead"><tr><th>Name</th><th>Code</th><th>Brand</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="category-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-category').addEventListener('click', () => openCategoryModal(null));
+    document.querySelectorAll('#category-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#category-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategoryFilter = btn.dataset.filter;
+        if (currentCategoryFilter === 'history') loadCategoryHistory();
+        else loadCategories(currentCategoryFilter);
+      });
+    });
+    currentCategoryFilter = 'all';
+    loadCategories('all');
+  }
+
+  async function loadCategories(filter) {
+    document.getElementById('category-thead').innerHTML =
+      '<tr><th>Name</th><th>Code</th><th>Brand</th><th>Order</th><th>Status</th><th>Actions</th></tr>';
+    const tbody = document.getElementById('category-tbody');
+    try {
+      const snap = await getDocs(collection(db, 'productCategories'));
+      let cats = [];
+      snap.forEach(d => cats.push({ id: d.id, ...d.data() }));
+      if (filter !== 'all') cats = cats.filter(c => (c.status || 'active') === filter);
+      cats.sort((a, b) => (BRAND_IDS.indexOf(a.brandId) - BRAND_IDS.indexOf(b.brandId)) || ((a.displayOrder || 0) - (b.displayOrder || 0)));
+      if (cats.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No categories here yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      cats.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${c.icon ? c.icon + ' ' : ''}${c.name || '—'}</td>
+          <td style="font-size:12px;color:var(--stone);">${c.code || '—'}</td>
+          <td>${BRAND_LABELS[c.brandId] || c.brandId || '—'}</td>
+          <td>${c.displayOrder ?? 0}</td>
+          <td><span class="status-pill ${(c.status || 'active') === 'active' ? 'ok' : 'out'}">${c.status || 'active'}</span></td>
+          <td><button class="btn-secondary category-edit-btn" data-id="${c.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.category-edit-btn').addEventListener('click', () => openCategoryModal(c));
+      });
+    } catch (err) {
+      console.error('Load categories failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load categories. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function loadCategoryHistory() {
+    document.getElementById('category-thead').innerHTML =
+      '<tr><th>Date</th><th>Category</th><th>Action</th><th>Changed By</th><th>Details</th></tr>';
+    const tbody = document.getElementById('category-tbody');
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Loading…</td></tr>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'categoryHistory'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No changes logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td>${d.categoryName || d.categoryId || '—'}</td>
+          <td><span class="status-pill ${d.action === 'created' ? 'ok' : 'low'}">${d.action}</span></td>
+          <td>${d.changedBy || '—'}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load category history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load history. Check console for details.</td></tr>`;
+    }
+  }
+
+  const categoryOverlay = document.getElementById('category-overlay');
+  const categoryForm = document.getElementById('category-form');
+  const categoryError = document.getElementById('category-error');
+  const categorySuccess = document.getElementById('category-success');
+  const categorySubmitBtn = document.getElementById('submit-category');
+  const categoryModalTitle = document.getElementById('category-modal-title');
+
+  function openCategoryModal(existing) {
+    categoryForm.reset();
+    categoryError.classList.remove('show');
+    categorySuccess.classList.remove('show');
+    categorySubmitBtn.disabled = false;
+    if (existing) {
+      categoryModalTitle.textContent = 'Edit category';
+      document.getElementById('category-editing-id').value = existing.id;
+      document.getElementById('category-name').value = existing.name || '';
+      document.getElementById('category-code').value = existing.code || '';
+      document.getElementById('category-brand').value = existing.brandId || 'makwell';
+      document.getElementById('category-description').value = existing.description || '';
+      document.getElementById('category-icon').value = existing.icon || '';
+      document.getElementById('category-order').value = existing.displayOrder ?? 0;
+      document.getElementById('category-status').value = existing.status || 'active';
+      categorySubmitBtn.textContent = 'Save changes';
+    } else {
+      categoryModalTitle.textContent = 'Add category';
+      document.getElementById('category-editing-id').value = '';
+      document.getElementById('category-order').value = 0;
+      categorySubmitBtn.textContent = 'Save category';
+    }
+    categoryOverlay.classList.add('show');
+  }
+  function closeCategoryModal() { categoryOverlay.classList.remove('show'); }
+  document.getElementById('cancel-category').addEventListener('click', closeCategoryModal);
+  categoryOverlay.addEventListener('click', (e) => { if (e.target === categoryOverlay) closeCategoryModal(); });
+
+  categoryForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    categoryError.classList.remove('show');
+    categorySuccess.classList.remove('show');
+    categorySubmitBtn.disabled = true;
+    categorySubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('category-editing-id').value;
+    const payload = {
+      name: document.getElementById('category-name').value.trim(),
+      code: document.getElementById('category-code').value.trim(),
+      brandId: document.getElementById('category-brand').value,
+      description: document.getElementById('category-description').value.trim(),
+      icon: document.getElementById('category-icon').value.trim(),
+      displayOrder: Number(document.getElementById('category-order').value) || 0,
+      status: document.getElementById('category-status').value,
+      updatedAt: serverTimestamp(),
+    };
+    try {
+      let categoryId = editingId;
+      if (editingId) {
+        await updateDoc(doc(db, 'productCategories', editingId), payload);
+      } else {
+        const ref = await addDoc(collection(db, 'productCategories'), { ...payload, createdAt: serverTimestamp() });
+        categoryId = ref.id;
+      }
+      await addDoc(collection(db, 'categoryHistory'), {
+        categoryId,
+        categoryName: payload.name,
+        action: editingId ? 'updated' : 'created',
+        changedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+        details: `${BRAND_LABELS[payload.brandId] || payload.brandId} — ${payload.status}`,
+        createdAt: serverTimestamp()
+      });
+      categorySuccess.textContent = 'Saved — live on the brand site.';
+      categorySuccess.classList.add('show');
+      categorySubmitBtn.disabled = false;
+      categorySubmitBtn.textContent = editingId ? 'Save changes' : 'Save category';
+      if (document.getElementById('category-tbody') && currentCategoryFilter !== 'history') loadCategories(currentCategoryFilter);
+      setTimeout(closeCategoryModal, 800);
+    } catch (err) {
+      console.error('Save category failed:', err);
+      categoryError.textContent = 'Could not save this category. Check console for details.';
+      categoryError.classList.add('show');
+      categorySubmitBtn.disabled = false;
+      categorySubmitBtn.textContent = editingId ? 'Save changes' : 'Save category';
     }
   });
 

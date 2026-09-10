@@ -231,14 +231,35 @@
   })();
 
   // Products — live from the shared `products` collection (Super
-  // Admin's Product Management), filtered to this brand.
+  // Admin's Product Management), filtered to this brand. Categories
+  // come from the real Category Master (productCategories) — not
+  // derived from product text — so Super Admin's Categories screen
+  // controls exactly what shows up here.
   let allProducts = [];
-  let activeCategory = 'all';
+  let allCategories = [];
+  let activeCategoryId = 'all';
+
+  async function loadCategories() {
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'productCategories'),
+        where('brandId', '==', BRAND_ID),
+        where('status', '==', 'active')
+      ));
+      allCategories = [];
+      snap.forEach(d => allCategories.push({ id: d.id, ...d.data() }));
+      allCategories.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    } catch (err) {
+      console.error('Load categories failed:', err);
+      allCategories = [];
+    }
+  }
 
   async function loadProducts() {
     const grid = document.getElementById('product-grid');
     grid.innerHTML = '<div class="empty-note">Loading products…</div>';
     try {
+      await loadCategories();
       const snap = await getDocs(query(collection(db, 'products'), where('brandId', '==', BRAND_ID)));
       allProducts = [];
       snap.forEach(d => allProducts.push(d.data()));
@@ -251,25 +272,25 @@
   }
 
   function renderCategoryPills() {
-    const categories = ['all', ...new Set(allProducts.map(p => p.category).filter(Boolean))];
     const container = document.getElementById('cat-pills');
     container.innerHTML = '';
-    categories.forEach(cat => {
+    const allBtn = document.createElement('button');
+    allBtn.className = 'cat-pill' + (activeCategoryId === 'all' ? ' active' : '');
+    allBtn.textContent = 'All';
+    allBtn.addEventListener('click', () => { activeCategoryId = 'all'; renderCategoryPills(); renderProductGrid(); });
+    container.appendChild(allBtn);
+    allCategories.forEach(cat => {
       const btn = document.createElement('button');
-      btn.className = 'cat-pill' + (cat === activeCategory ? ' active' : '');
-      btn.textContent = cat === 'all' ? 'All' : cat;
-      btn.addEventListener('click', () => {
-        activeCategory = cat;
-        renderCategoryPills();
-        renderProductGrid();
-      });
+      btn.className = 'cat-pill' + (cat.id === activeCategoryId ? ' active' : '');
+      btn.textContent = (cat.icon ? cat.icon + ' ' : '') + cat.name;
+      btn.addEventListener('click', () => { activeCategoryId = cat.id; renderCategoryPills(); renderProductGrid(); });
       container.appendChild(btn);
     });
   }
 
   function renderProductGrid() {
     const grid = document.getElementById('product-grid');
-    const filtered = activeCategory === 'all' ? allProducts : allProducts.filter(p => p.category === activeCategory);
+    const filtered = activeCategoryId === 'all' ? allProducts : allProducts.filter(p => p.categoryId === activeCategoryId);
     if (filtered.length === 0) {
       grid.style.display = 'block';
       grid.innerHTML = '<div class="empty-note">No products listed yet for ' + BRAND_NAME + ' — check back soon.</div>';
@@ -281,7 +302,7 @@
       const card = document.createElement('div');
       card.className = 'product-card';
       card.innerHTML = `
-        <div class="cat">${p.category || 'Product'}</div>
+        <div class="cat">${p.categoryName || 'Product'}</div>
         <h3>${p.name || 'Unnamed product'}</h3>
         <div class="price">${p.price != null ? '₹' + p.price : 'Price on request'}</div>`;
       grid.appendChild(card);

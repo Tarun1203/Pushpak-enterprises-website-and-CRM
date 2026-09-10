@@ -209,6 +209,26 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Product categories — the real Category Master. Public read
+    // (the brand microsites need this unauthenticated, same as
+    // brands/siteContent); only admins can create/edit. A lightweight
+    // per-category change log lives alongside it (categoryHistory) —
+    // scoped to this one feature, not the general cross-cutting audit
+    // log the project doesn't have yet.
+    // ---------------------------------------------------------------
+
+    match /productCategories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categoryHistory/{entryId} {
+      allow read: if isStaff();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
     // Claims — Warehouse (isAdmin) manages the full pipeline for
     // every claim. A technician or service center may create their
     // own claim and read only their own (matched by claimantUid) —
