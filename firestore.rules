@@ -90,7 +90,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, update, delete: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
     }
 
     // ---------------------------------------------------------------
@@ -107,6 +109,46 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Claims — Head Office (isAdmin) manages the full pipeline for
+    // every claim. A technician or service center may create their
+    // own claim and read only their own (matched by claimantUid) —
+    // they cannot verify/settle/reject their own claims.
+    // ---------------------------------------------------------------
+
+    match /claims/{claimId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.claimantUid == request.auth.uid);
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.claimantUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Inventory — any staff member may read (Head Office, Area
+    // Manager read-only views, future Service Center views, etc.).
+    // Writes to a 'technician'-location doc are restricted to that
+    // technician's own uid, or an admin; Head Office's own stock
+    // docs are effectively admin-only in practice already.
+    // ---------------------------------------------------------------
+
+    match /inventory/{invId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid);
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Technician availability — a technician sets only their own
+    // status; any staff member can read it (future dispatch use).
+    // ---------------------------------------------------------------
+
+    match /technicianAvailability/{uid} {
+      allow read: if isStaff();
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
     // ---------------------------------------------------------------

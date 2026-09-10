@@ -194,10 +194,73 @@
   </div>
 </div>
 
+<!-- Spare Bag adjust modal -->
+<div class="modal-overlay" id="bag-overlay">
+  <div class="modal">
+    <h3 id="bag-modal-title">Update spare bag</h3>
+    <form id="bag-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="bag-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Action</label>
+        <select id="bag-type">
+          <option value="add">Received from Head Office</option>
+          <option value="use">Used on a job</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="bag-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <input type="text" id="bag-notes" placeholder="e.g. job ID, or dispatch reference">
+      </div>
+      <div class="modal-error" id="bag-error"></div>
+      <div class="modal-success" id="bag-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-bag">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-bag">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Claim modal -->
+<div class="modal-overlay" id="tclaim-overlay">
+  <div class="modal">
+    <h3>Submit a claim</h3>
+    <form id="tclaim-form">
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="tclaim-description" placeholder="e.g. Travel expense for on-site repair" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="tclaim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="tclaim-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="tclaim-error"></div>
+      <div class="modal-success" id="tclaim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-tclaim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-tclaim">Submit claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -293,6 +356,30 @@
     } else if (id === 'jobs') {
       pageSub.textContent = 'Jobs assigned to you';
       renderMyJobs();
+    } else if (id === 'schedule') {
+      pageSub.textContent = 'Upcoming scheduled jobs';
+      renderSchedule();
+    } else if (id === 'availability') {
+      pageSub.textContent = 'Let dispatch know your status';
+      renderAvailability();
+    } else if (id === 'diagnosis') {
+      pageSub.textContent = 'Diagnosis notes on active jobs';
+      renderDiagnosis();
+    } else if (id === 'sparebag') {
+      pageSub.textContent = 'Parts you\'re currently carrying';
+      renderSpareBag();
+    } else if (id === 'claims') {
+      pageSub.textContent = 'Your reimbursement claims';
+      renderTechnicianClaims();
+    } else if (id === 'earnings') {
+      pageSub.textContent = 'Reimbursements received';
+      renderEarnings();
+    } else if (id === 'performance') {
+      pageSub.textContent = 'Your job completion stats';
+      renderPerformance();
+    } else if (id === 'profile') {
+      pageSub.textContent = 'Your account details';
+      renderProfile();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -530,6 +617,607 @@
       jobSubmitBtn.textContent = 'Save job';
     }
   });
+
+  // ---------------------------------------------------------------
+  // Schedule — upcoming active jobs that have a scheduled date,
+  // soonest first. Read-only view over the same serviceJobs data.
+  // ---------------------------------------------------------------
+
+  async function renderSchedule() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Upcoming schedule</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Job ID</th><th>Customer</th><th>Address</th><th>Status</th></tr></thead>
+            <tbody id="schedule-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('schedule-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'serviceJobs'),
+        where('technicianUid', '==', currentUser.uid),
+        where('status', 'in', ['assigned', 'in_progress'])
+      ));
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs = docs.filter(d => d.scheduledDate).sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No scheduled jobs yet — set a date when logging or editing a job.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${d.scheduledDate}</b></td>
+          <td style="font-size:12px;color:var(--stone);">${d.jobId || d.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.address || '—'}</td>
+          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load schedule failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load schedule. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Availability — a simple status flag other roles (future
+  // dispatch/routing) can read to know if this technician is free.
+  // ---------------------------------------------------------------
+
+  const AVAILABILITY_OPTIONS = [
+    { value: 'available', label: 'Available', desc: 'Free to take on new jobs right now.' },
+    { value: 'busy', label: 'Busy', desc: 'Currently on a job or otherwise occupied.' },
+    { value: 'off', label: 'Off', desc: 'Not working — day off or outside working hours.' },
+  ];
+
+  async function renderAvailability() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Your availability</h2></div>
+        <div class="panel-body">
+          <div id="availability-current" style="margin-bottom:20px;font-size:13.5px;color:var(--stone);">Loading…</div>
+          <div class="tab-toggle" id="availability-options"></div>
+        </div>
+      </div>`;
+    const optionsEl = document.getElementById('availability-options');
+    AVAILABILITY_OPTIONS.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.textContent = opt.label;
+      btn.dataset.value = opt.value;
+      btn.addEventListener('click', () => setAvailability(opt.value));
+      optionsEl.appendChild(btn);
+    });
+    loadAvailability();
+  }
+
+  async function loadAvailability() {
+    if (!currentUser) return;
+    try {
+      const snap = await getDoc(doc(db, 'technicianAvailability', currentUser.uid));
+      const current = snap.exists() ? snap.data().status : null;
+      document.getElementById('availability-current').innerHTML = current
+        ? `Current status: <span class="status-pill ${current === 'available' ? 'completed' : current === 'busy' ? 'in_progress' : 'cancelled'}">${AVAILABILITY_OPTIONS.find(o => o.value === current)?.label || current}</span>`
+        : 'You haven\'t set your availability yet.';
+      document.querySelectorAll('#availability-options button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.value === current);
+      });
+    } catch (err) {
+      console.error('Load availability failed:', err);
+    }
+  }
+
+  async function setAvailability(status) {
+    if (!currentUser) return;
+    try {
+      await setDoc(doc(db, 'technicianAvailability', currentUser.uid), {
+        status, technicianEmail: currentUser.email, updatedAt: serverTimestamp()
+      }, { merge: true });
+      loadAvailability();
+    } catch (err) {
+      console.error('Set availability failed:', err);
+      alert('Could not update availability. Check the console for details.');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Diagnosis — add/edit diagnosis notes and parts-needed directly
+  // on active jobs. Saves back onto the same serviceJobs document.
+  // ---------------------------------------------------------------
+
+  async function renderDiagnosis() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Diagnosis — active jobs</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Job ID</th><th>Customer</th><th>Issue</th><th>Diagnosis notes</th><th>Parts needed</th><th></th></tr></thead>
+            <tbody id="diagnosis-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('diagnosis-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'serviceJobs'),
+        where('technicianUid', '==', currentUser.uid),
+        where('status', 'in', ['assigned', 'in_progress'])
+      ));
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No active jobs to diagnose right now.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.jobId || d.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td style="max-width:160px;">${d.issue || '—'}</td>
+          <td><textarea class="diag-notes" data-id="${d.id}" style="width:100%;min-height:50px;border:1px solid var(--hairline);border-radius:2px;padding:6px 8px;font-family:inherit;font-size:12.5px;">${d.diagnosisNotes || ''}</textarea></td>
+          <td><input type="text" class="diag-parts" data-id="${d.id}" value="${(d.partsNeeded || '').replace(/"/g, '&quot;')}" style="width:100%;border:1px solid var(--hairline);border-radius:2px;padding:6px 8px;font-size:12.5px;"></td>
+          <td><button class="btn-secondary diag-save-btn" data-id="${d.id}">Save</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.diag-save-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const notes = tbody.querySelector(`.diag-notes[data-id="${id}"]`).value;
+          const parts = tbody.querySelector(`.diag-parts[data-id="${id}"]`).value;
+          btn.textContent = 'Saving…';
+          btn.disabled = true;
+          try {
+            await updateDoc(doc(db, 'serviceJobs', id), {
+              diagnosisNotes: notes, partsNeeded: parts, updatedAt: serverTimestamp()
+            });
+            btn.textContent = 'Saved';
+            setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 1200);
+          } catch (err) {
+            console.error('Save diagnosis failed:', err);
+            btn.textContent = 'Failed — retry';
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load diagnosis failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load jobs. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Spare Bag — parts this technician is personally carrying.
+  // Same `inventory` collection Head Office uses, scoped by
+  // technicianUid, doc id `technician_{uid}_{partId}` for clean upserts.
+  // ---------------------------------------------------------------
+
+  async function renderSpareBag() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My spare bag</h2>
+          <button class="btn-primary" id="open-bag-update">+ Update Spare Bag</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Code</th><th>Part</th><th>Quantity carried</th></tr></thead>
+            <tbody id="bag-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-bag-update').addEventListener('click', openBagModal);
+    loadSpareBag();
+  }
+
+  async function loadSpareBag() {
+    const tbody = document.getElementById('bag-tbody');
+    if (!currentUser) return;
+    try {
+      const [invSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'technician'), where('technicianUid', '==', currentUser.uid))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      const rows = [];
+      invSnap.forEach(d => rows.push(d.data()));
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">Your spare bag is empty — log parts as you receive them.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const part = partMap[r.partId];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${part ? part.partCode : r.partId}</td>
+          <td>${part ? part.name : '—'}</td>
+          <td><b>${r.quantity ?? 0}</b></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load spare bag failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load your spare bag. Check console for details.</td></tr>`;
+    }
+  }
+
+  const bagOverlay = document.getElementById('bag-overlay');
+  const bagForm = document.getElementById('bag-form');
+  const bagError = document.getElementById('bag-error');
+  const bagSuccess = document.getElementById('bag-success');
+  const bagSubmitBtn = document.getElementById('submit-bag');
+  const bagPartSelect = document.getElementById('bag-part-id');
+
+  async function populateBagPartOptions() {
+    if (bagPartSelect.dataset.loaded === 'true') return;
+    try {
+      const snap = await getDocs(collection(db, 'spareParts'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement('option');
+        opt.value = docSnap.id;
+        opt.textContent = `${d.partCode} — ${d.name}`;
+        bagPartSelect.appendChild(opt);
+      });
+      bagPartSelect.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Load parts for spare bag failed:', err);
+    }
+  }
+
+  function openBagModal() {
+    bagForm.reset();
+    bagError.classList.remove('show');
+    bagSuccess.classList.remove('show');
+    bagSubmitBtn.disabled = false;
+    bagSubmitBtn.textContent = 'Save';
+    populateBagPartOptions();
+    bagOverlay.classList.add('show');
+  }
+  function closeBagModal() { bagOverlay.classList.remove('show'); }
+  document.getElementById('cancel-bag').addEventListener('click', closeBagModal);
+  bagOverlay.addEventListener('click', (e) => { if (e.target === bagOverlay) closeBagModal(); });
+
+  bagForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    bagError.classList.remove('show');
+    bagSuccess.classList.remove('show');
+    if (!bagPartSelect.value || !currentUser) {
+      bagError.textContent = 'Select a part.';
+      bagError.classList.add('show');
+      return;
+    }
+    const partId = bagPartSelect.value;
+    const type = document.getElementById('bag-type').value;
+    const qty = Number(document.getElementById('bag-qty').value) || 0;
+    if (qty <= 0) {
+      bagError.textContent = 'Enter a quantity greater than 0.';
+      bagError.classList.add('show');
+      return;
+    }
+    bagSubmitBtn.disabled = true;
+    bagSubmitBtn.textContent = 'Saving…';
+    const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const delta = type === 'add' ? qty : -qty;
+        const next = Math.max(0, current + delta);
+        transaction.set(invRef, {
+          partId, location: 'technician', technicianUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: type === 'add' ? 'receive' : 'issue', location: 'technician',
+        technicianUid: currentUser.uid, quantity: qty,
+        reason: document.getElementById('bag-notes').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      bagSuccess.textContent = 'Spare bag updated.';
+      bagSuccess.classList.add('show');
+      bagSubmitBtn.disabled = false;
+      bagSubmitBtn.textContent = 'Save';
+      if (document.getElementById('bag-tbody')) loadSpareBag();
+      setTimeout(closeBagModal, 800);
+    } catch (err) {
+      console.error('Update spare bag failed:', err);
+      bagError.textContent = 'Could not update spare bag. Check console for details.';
+      bagError.classList.add('show');
+      bagSubmitBtn.disabled = false;
+      bagSubmitBtn.textContent = 'Save';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Claims — a technician's own reimbursement claims. Writes into
+  // the SAME `claims` collection Head Office's Claims module reads,
+  // tagged claimantType: 'technician' and scoped by claimantUid.
+  // ---------------------------------------------------------------
+
+  const CLAIM_STATUS_LABELS_T = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+
+  async function generateClaimId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `claim-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
+  }
+
+  async function renderTechnicianClaims() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My claims</h2>
+          <button class="btn-primary" id="open-tclaim">+ Submit Claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Claim ID</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="tclaims-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-tclaim').addEventListener('click', openTClaimModal);
+    loadTechnicianClaims();
+  }
+
+  async function loadTechnicianClaims() {
+    const tbody = document.getElementById('tclaims-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'claims'),
+        where('claimantUid', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      ));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">You haven't submitted any claims yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'assigned';
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+          <td>${d.description || '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_T[d.status] || d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load claims failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
+    }
+  }
+
+  const tclaimOverlay = document.getElementById('tclaim-overlay');
+  const tclaimForm = document.getElementById('tclaim-form');
+  const tclaimError = document.getElementById('tclaim-error');
+  const tclaimSuccess = document.getElementById('tclaim-success');
+  const tclaimSubmitBtn = document.getElementById('submit-tclaim');
+
+  function openTClaimModal() {
+    tclaimForm.reset();
+    tclaimError.classList.remove('show');
+    tclaimSuccess.classList.remove('show');
+    tclaimSubmitBtn.disabled = false;
+    tclaimSubmitBtn.textContent = 'Submit claim';
+    tclaimOverlay.classList.add('show');
+  }
+  function closeTClaimModal() { tclaimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-tclaim').addEventListener('click', closeTClaimModal);
+  tclaimOverlay.addEventListener('click', (e) => { if (e.target === tclaimOverlay) closeTClaimModal(); });
+
+  tclaimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    tclaimError.classList.remove('show');
+    tclaimSuccess.classList.remove('show');
+    if (!currentUser) return;
+    tclaimSubmitBtn.disabled = true;
+    tclaimSubmitBtn.textContent = 'Submitting…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: 'technician',
+        claimantUid: currentUser.uid,
+        claimantName: currentUser.email,
+        description: document.getElementById('tclaim-description').value.trim(),
+        amount: Number(document.getElementById('tclaim-amount').value) || 0,
+        notes: document.getElementById('tclaim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      tclaimSuccess.textContent = `Submitted — ${claimId}`;
+      tclaimSuccess.classList.add('show');
+      tclaimSubmitBtn.disabled = false;
+      tclaimSubmitBtn.textContent = 'Submit claim';
+      if (document.getElementById('tclaims-tbody')) loadTechnicianClaims();
+      setTimeout(closeTClaimModal, 1000);
+    } catch (err) {
+      console.error('Submit claim failed:', err);
+      tclaimError.textContent = 'Could not submit claim. Check console for details.';
+      tclaimError.classList.add('show');
+      tclaimSubmitBtn.disabled = false;
+      tclaimSubmitBtn.textContent = 'Submit claim';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Earnings — real total of settled reimbursement claims. Job-based
+  // commission isn't shown since no commission-rate configuration
+  // exists yet anywhere in the CRM — showing a made-up number here
+  // would be worse than admitting it's not calculated yet.
+  // ---------------------------------------------------------------
+
+  async function renderEarnings() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Reimbursements Received</div>
+          <div class="value" id="earnings-total">…</div>
+          <div class="hint">Sum of settled claims</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Job Commission</div>
+          <div class="value">—</div>
+          <div class="hint">Not set up yet</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Settled claims</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Claim ID</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody id="earnings-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('earnings-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'claims'),
+        where('claimantUid', '==', currentUser.uid),
+        where('status', '==', 'settled'),
+        orderBy('createdAt', 'desc')
+      ));
+      let total = 0;
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No settled claims yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = '';
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          total += Number(d.amount) || 0;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+            <td>${d.description || '—'}</td>
+            <td>₹${d.amount ?? '—'}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('earnings-total').textContent = '₹' + total;
+    } catch (err) {
+      console.error('Load earnings failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load earnings. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Performance — real stats computed from this technician's own
+  // serviceJobs history.
+  // ---------------------------------------------------------------
+
+  async function renderPerformance() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Completed</div><div class="value" id="perf-completed">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Cancelled</div><div class="value" id="perf-cancelled">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Completion Rate</div><div class="value" id="perf-rate">…</div><div class="hint">Completed vs. cancelled</div></div>
+        <div class="stat-card"><div class="label">Total Jobs</div><div class="value" id="perf-total">…</div><div class="hint">All time</div></div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid)));
+      let completed = 0, cancelled = 0, total = 0;
+      snap.forEach(d => {
+        total++;
+        if (d.data().status === 'completed') completed++;
+        if (d.data().status === 'cancelled') cancelled++;
+      });
+      const denom = completed + cancelled;
+      const rate = denom > 0 ? Math.round((completed / denom) * 100) + '%' : '—';
+      document.getElementById('perf-completed').textContent = completed;
+      document.getElementById('perf-cancelled').textContent = cancelled;
+      document.getElementById('perf-rate').textContent = rate;
+      document.getElementById('perf-total').textContent = total;
+    } catch (err) {
+      console.error('Load performance failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Profile — self-editable name/phone/skills/brand authorization,
+  // stored on the technician's own users/{uid} doc. Role itself is
+  // never editable here (rules enforce this server-side too).
+  // ---------------------------------------------------------------
+
+  async function renderProfile() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Your profile</h2></div>
+        <div class="panel-body">
+          <div class="form-row"><label>Name</label><input type="text" id="profile-name"></div>
+          <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
+          <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
+          <div class="form-row"><label>Skills</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
+          <div class="form-row"><label>Brand authorization</label><input type="text" id="profile-brands" placeholder="e.g. MakWell, Flyvision"></div>
+          <div class="modal-error" id="profile-error"></div>
+          <div class="modal-success" id="profile-success"></div>
+          <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
+        </div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const snap = await getDoc(doc(db, 'users', currentUser.uid));
+      const d = snap.exists() ? snap.data() : {};
+      document.getElementById('profile-name').value = d.name || '';
+      document.getElementById('profile-email').value = currentUser.email || '';
+      document.getElementById('profile-phone').value = d.phone || '';
+      document.getElementById('profile-skills').value = d.skills || '';
+      document.getElementById('profile-brands').value = d.brandAuthorization || '';
+    } catch (err) {
+      console.error('Load profile failed:', err);
+    }
+    document.getElementById('save-profile').addEventListener('click', async () => {
+      const btn = document.getElementById('save-profile');
+      const errEl = document.getElementById('profile-error');
+      const okEl = document.getElementById('profile-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          name: document.getElementById('profile-name').value.trim(),
+          phone: document.getElementById('profile-phone').value.trim(),
+          skills: document.getElementById('profile-skills').value.trim(),
+          brandAuthorization: document.getElementById('profile-brands').value.trim(),
+        }, { merge: true });
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save profile failed:', err);
+        errEl.textContent = 'Could not save your profile. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save changes';
+    });
+  }
 
   renderNav();
   setActiveNav('dashboard');
