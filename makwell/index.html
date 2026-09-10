@@ -3,35 +3,374 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MakWell — Home Appliances</title>
+<title>MakWell — Pushpak Enterprises</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{--ink:#25292E;--paper:#F5EFE0;--stone:#7A7565;--hairline:#E0D6BC;--brand:#8A3B94;}
+  :root{
+    --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
+    --brand:#8A3B94;--brand-deep:#5E2568;
+    --radius:2px;
+  }
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;}
   a{color:inherit;text-decoration:none;}
-  header{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--hairline);}
-  header a.back{font-size:13px;color:var(--stone);font-weight:600;}
-  .logo-box{padding:6px 0;max-width:150px;}
-  .logo-box img{width:100%;}
-  main{max-width:760px;margin:120px auto;padding:0 32px;text-align:left;}
-  .tag{font-size:13px;font-weight:600;color:var(--brand);margin-bottom:16px;}
-  h1{font-size:clamp(30px,4vw,44px);font-weight:800;letter-spacing:-0.02em;margin-bottom:18px;}
-  p{font-size:16px;color:var(--stone);max-width:52ch;}
-  .status{margin-top:36px;padding:16px 20px;border:1px solid var(--hairline);border-left:3px solid var(--brand);font-size:13px;color:var(--stone);max-width:52ch;}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(245,239,224,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--hairline);}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1180px;margin:0 auto;}
+  .header-inner .back{font-size:12.5px;color:var(--stone);font-weight:600;}
+  .header-inner .back:hover{color:var(--ink);}
+  .logo-box{height:34px;}
+  .logo-box img{height:100%;width:auto;}
+  nav{display:flex;gap:30px;}
+  nav a{font-size:13.5px;font-weight:500;color:var(--stone);}
+  nav a:hover{color:var(--ink);}
+  @media (max-width:720px){nav{display:none;}}
+
+  section{padding:72px 0;border-bottom:1px solid var(--hairline);}
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:36px;gap:24px;}
+  h2{font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-0.015em;}
+  .section-head p{font-size:14px;color:var(--stone);max-width:34ch;text-align:right;}
+  @media (max-width:720px){.section-head{flex-direction:column;align-items:flex-start;}.section-head p{text-align:left;}}
+
+  .hero{padding:88px 0 72px;}
+  .hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:56px;align-items:center;}
+  .eyebrow{font-size:13px;color:var(--brand);font-weight:700;margin-bottom:16px;}
+  h1{font-size:clamp(32px,4.2vw,50px);font-weight:800;letter-spacing:-0.02em;line-height:1.08;max-width:13ch;}
+  .hero-rule{width:56px;height:3px;background:var(--brand);margin:26px 0 22px;}
+  .hero p.sub{font-size:16px;color:var(--stone);max-width:46ch;}
+  .hero-actions{display:flex;gap:14px;margin-top:32px;flex-wrap:wrap;}
+  .btn-primary{background:var(--brand);color:#fff;font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);border:none;cursor:pointer;}
+  .btn-secondary{border:1px solid var(--hairline);font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);}
+  .hero-visual{background:var(--brand-deep);border-radius:var(--radius);aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;padding:36px;}
+  .hero-visual .logo-box{height:auto;width:70%;}
+  .hero-visual .logo-box img{width:100%;height:auto;}
+  @media (max-width:900px){.hero-grid{grid-template-columns:1fr;}.hero-visual{order:-1;aspect-ratio:16/9;}}
+
+  .cat-pills{display:flex;gap:10px;flex-wrap:wrap;}
+  .cat-pill{
+    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:13px;
+    padding:9px 18px;border-radius:20px;color:var(--stone);cursor:pointer;
+  }
+  .cat-pill.active{background:var(--brand);border-color:var(--brand);color:#fff;}
+
+  .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-top:24px;}
+  .product-card{background:var(--paper);padding:26px 22px;}
+  .product-card .cat{font-size:11.5px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
+  .product-card h3{font-size:16px;font-weight:700;margin-bottom:8px;}
+  .product-card .price{font-size:15px;color:var(--stone);}
+  @media (max-width:860px){.product-grid{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:600px){.product-grid{grid-template-columns:1fr;}}
+  .empty-note{color:var(--stone);font-size:13.5px;padding:24px 0;}
+
+  .why-list{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--hairline);}
+  .why-item{padding:28px 24px 28px 0;border-right:1px solid var(--hairline);}
+  .why-item:last-child{border-right:none;}
+  .why-item h3{font-size:16px;font-weight:700;margin-bottom:8px;}
+  .why-item p{font-size:13.5px;color:var(--stone);}
+  @media (max-width:860px){.why-list{grid-template-columns:1fr;}.why-item{border-right:none;border-bottom:1px solid var(--hairline);}}
+
+  .about-grid{display:grid;grid-template-columns:0.7fr 1.3fr;gap:56px;}
+  .about-grid .num{font-size:14px;color:var(--brand);font-weight:700;}
+  .about-copy p{font-size:15.5px;color:#3A3B41;max-width:60ch;margin-bottom:16px;}
+  .mission-list{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:24px;}
+  .mission-list div{font-size:13px;color:var(--stone);}
+  .mission-list b{display:block;color:var(--ink);font-size:14px;margin-bottom:6px;}
+  @media (max-width:860px){.about-grid{grid-template-columns:1fr;}.mission-list{grid-template-columns:1fr;}}
+
+  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;}
+  form{display:flex;flex-direction:column;gap:12px;}
+  form input,form textarea{border:1px solid var(--hairline);padding:13px 15px;font-family:inherit;font-size:14px;border-radius:var(--radius);background:#fff;}
+  form input:focus,form textarea:focus{outline:2px solid var(--brand);outline-offset:1px;}
+  form textarea{resize:vertical;min-height:100px;}
+  form button{background:var(--brand);color:#fff;font-weight:600;font-size:14px;padding:13px 24px;border:none;border-radius:var(--radius);cursor:pointer;width:fit-content;}
+  .field-error{font-size:12px;color:#B3261E;display:none;margin-top:-6px;}
+  .field-error.show{display:block;}
+  .ticket-note{font-size:12.5px;color:var(--stone);margin-top:4px;}
+  .ticket-note b{color:var(--brand);}
+  @media (max-width:860px){.contact-grid{grid-template-columns:1fr;gap:28px;}}
+
+  footer{padding:28px 0;}
+  .footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--stone);}
+  @media (max-width:600px){.footer-inner{flex-direction:column;gap:10px;text-align:center;}section{padding:52px 0;}.hero{padding:52px 0 44px;}}
 </style>
 </head>
 <body>
+
 <header>
-  <a href="../index.html" class="back">← Pushpak Enterprises</a>
-  <div class="logo-box"><img src="../assets/logos/makwell-logo.jpeg" alt="MakWell logo"></div>
+  <div class="header-inner">
+    <a href="../index.html" class="back">← Pushpak Enterprises</a>
+    <nav>
+      <a href="#products">Products</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="logo-box"><img src="../assets/logos/makwell-logo.jpeg" alt="MakWell"></div>
+  </div>
 </header>
-<main>
-  <div class="tag">Make it happen</div>
-  <h1>MakWell home page — in progress</h1>
-  <p>This is where the full MakWell brand site will live: Home, Products (Categories → Listing → Details), About, and Contact — pulling product data live from the CRM's Firestore product catalogue.</p>
-  <div class="status">Scaffolded 9 Sept 2026 — structure only, no product data wired yet.</div>
-</main>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow" id="brand-tagline">Make it happen</div>
+      <h1>Make it happen, every day.</h1>
+      <div class="hero-rule"></div>
+      <p class="sub" id="brand-description">MakWell's own line of home appliances — geysers, washing machines, and TVs engineered for everyday reliability.</p>
+      <div class="hero-actions">
+        <a href="#products" class="btn-primary">View Products</a>
+        <a href="#contact" class="btn-secondary">Contact Us</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="logo-box"><img src="../assets/logos/makwell-logo.jpeg" alt="MakWell"></div>
+    </div>
+  </div>
+</section>
+
+<section id="products">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Products</h2>
+      <p>Browse the current MakWell range.</p>
+    </div>
+    <div class="cat-pills" id="cat-pills"></div>
+    <div class="product-grid" id="product-grid"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Why MakWell</h2>
+      <p>What backs every product you buy.</p>
+    </div>
+    <div class="why-list">
+      <div class="why-item"><h3>Registered warranty</h3><p>Every product can be registered at the point of sale and tracked through its warranty period.</p></div>
+      <div class="why-item"><h3>Service network</h3><p>Backed by Pushpak Enterprises' technicians and service centers across Karnataka.</p></div>
+      <div class="why-item"><h3>Authorized dealers</h3><p>Sold through a growing network of authorized dealers across the state.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="wrap about-grid">
+    <div class="num">01 / About</div>
+    <div class="about-copy">
+      <h2 style="margin-bottom:18px;">About MakWell</h2>
+      <p>MakWell is Pushpak Enterprises' flagship home appliance brand — geysers, washing machines, and LED TVs designed for Indian households, built to a standard that holds up to daily use.</p>
+      <p>Every MakWell product sold through an authorized dealer can be registered for warranty and backed by Pushpak Enterprises' service network, so support doesn't end at the sale.</p>
+      <div class="mission-list">
+        <div><b>Vision</b>To be the home appliance brand Indian families trust first, for reliability and honest value.</div>
+        <div><b>Mission</b>Deliver dependable appliances at a fair price, backed by service that actually shows up.</div>
+        <div><b>Quality Commitment</b>A+ grade panels, rigorous quality checks, and warranty-backed manufacturing on every unit.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" style="border-bottom:none;">
+  <div class="wrap contact-grid">
+    <div>
+      <h2 style="margin-bottom:20px;">Get in touch</h2>
+      <p style="font-size:14px;color:var(--stone);max-width:40ch;">Questions about MakWell products, warranty, or becoming a dealer — send a message and Pushpak Enterprises will get back to you.</p>
+    </div>
+    <form id="enquiry-form">
+      <input type="text" name="name" placeholder="Your name" required>
+      <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)" inputmode="numeric" maxlength="10" required>
+      <span id="phone-error" class="field-error"></span>
+      <input type="text" name="subject" placeholder="What's this about?">
+      <textarea name="message" placeholder="Message" required></textarea>
+      <button type="submit">Send enquiry</button>
+      <div class="ticket-note" id="ticket-note"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-inner">
+    <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
+    <span>MakWell — a Pushpak Enterprises brand</span>
+  </div>
+</footer>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const BRAND_ID = 'makwell';
+  const BRAND_NAME = 'MakWell';
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // Brand tagline/description — live from Firestore, falls back to
+  // the static copy already in the HTML if the doc/field is missing.
+  (async function loadBrandCopy() {
+    try {
+      const snap = await getDoc(doc(db, 'brands', BRAND_ID));
+      if (!snap.exists()) return;
+      const d = snap.data();
+      if (d.tagline) document.getElementById('brand-tagline').textContent = d.tagline;
+      if (d.description) document.getElementById('brand-description').textContent = d.description;
+    } catch (err) {
+      console.warn('Brand copy not loaded, using defaults:', err.message);
+    }
+  })();
+
+  // Products — live from the shared `products` collection (Super
+  // Admin's Product Management), filtered to this brand.
+  let allProducts = [];
+  let activeCategory = 'all';
+
+  async function loadProducts() {
+    const grid = document.getElementById('product-grid');
+    grid.innerHTML = '<div class="empty-note">Loading products…</div>';
+    try {
+      const snap = await getDocs(query(collection(db, 'products'), where('brand', '==', BRAND_NAME)));
+      allProducts = [];
+      snap.forEach(d => allProducts.push(d.data()));
+      renderCategoryPills();
+      renderProductGrid();
+    } catch (err) {
+      console.error('Load products failed:', err);
+      grid.innerHTML = '<div class="empty-note">Could not load products right now.</div>';
+    }
+  }
+
+  function renderCategoryPills() {
+    const categories = ['all', ...new Set(allProducts.map(p => p.category).filter(Boolean))];
+    const container = document.getElementById('cat-pills');
+    container.innerHTML = '';
+    categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'cat-pill' + (cat === activeCategory ? ' active' : '');
+      btn.textContent = cat === 'all' ? 'All' : cat;
+      btn.addEventListener('click', () => {
+        activeCategory = cat;
+        renderCategoryPills();
+        renderProductGrid();
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function renderProductGrid() {
+    const grid = document.getElementById('product-grid');
+    const filtered = activeCategory === 'all' ? allProducts : allProducts.filter(p => p.category === activeCategory);
+    if (filtered.length === 0) {
+      grid.style.display = 'block';
+      grid.innerHTML = '<div class="empty-note">No products listed yet for ' + BRAND_NAME + ' — check back soon.</div>';
+      return;
+    }
+    grid.style.display = 'grid';
+    grid.innerHTML = '';
+    filtered.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.innerHTML = `
+        <div class="cat">${p.category || 'Product'}</div>
+        <h3>${p.name || 'Unnamed product'}</h3>
+        <div class="price">${p.price != null ? '₹' + p.price : 'Price on request'}</div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  loadProducts();
+
+  // Enquiry form — same ticket-ID convention as the main site,
+  // tagged with this brand and page as the source.
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+  async function generateTicketId() {
+    const serial = await nextMonthlySerial(`enquiry-${currentYYYYMM()}`);
+    return `PE-ENQ-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-MakWellPage`;
+  }
+
+  function normalizePhone(raw) {
+    let digits = raw.replace(/[\\s-]/g, '');
+    digits = digits.replace(/^(\\+91|91)/, '');
+    return digits;
+  }
+  function isValidIndianMobile(digits) { return /^[6-9]\\d{9}$/.test(digits); }
+
+  const phoneInput = document.getElementById('enquiry-phone');
+  const phoneError = document.getElementById('phone-error');
+  phoneInput.addEventListener('input', () => {
+    phoneInput.value = phoneInput.value.replace(/[^\\d+\\s-]/g, '');
+  });
+
+  document.getElementById('enquiry-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button');
+    const ticketNote = document.getElementById('ticket-note');
+
+    const normalizedPhone = normalizePhone(phoneInput.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      phoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
+      phoneError.classList.add('show');
+      phoneInput.focus();
+      return;
+    }
+    phoneError.classList.remove('show');
+
+    const original = btn.textContent;
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+    ticketNote.textContent = '';
+    let ticketId;
+    try {
+      ticketId = await generateTicketId();
+      await addDoc(collection(db, 'contactEnquiries'), {
+        ticketId,
+        name: form.name.value.trim(),
+        phone: normalizedPhone,
+        subject: form.subject.value.trim(),
+        message: form.message.value.trim(),
+        source: 'brand-page',
+        brand: BRAND_NAME,
+        createdAt: serverTimestamp()
+      });
+      btn.textContent = 'Sent — thank you';
+      ticketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
+      form.reset();
+    } catch (err) {
+      console.error('Enquiry submit failed:', err);
+      btn.textContent = 'Something went wrong — try again';
+      btn.disabled = false;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
+  });
+</script>
 </body>
 </html>
