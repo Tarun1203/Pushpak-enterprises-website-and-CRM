@@ -19,19 +19,19 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && callerRole() in ['superadmin', 'headoffice'];
+      return isSignedIn() && callerRole() in ['superadmin', 'warehouse'];
     }
 
     function isStaff() {
       // Any recognized internal role — used where dealers/technicians
       // should NOT have access but any office/field staff role should.
       return isSignedIn() && callerRole() in
-        ['superadmin', 'headoffice', 'areamanager', 'servicecenter', 'technician'];
+        ['superadmin', 'warehouse', 'servicecenter', 'technician'];
     }
 
     // ---------------------------------------------------------------
     // Public website content — readable by anyone, writable only
-    // by Super Admin / Head Office via the CRM's Website Management.
+    // by Super Admin / Warehouse via the CRM's Website Management.
     // ---------------------------------------------------------------
 
     match /siteContent/{docId} {
@@ -61,9 +61,9 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -164,8 +164,33 @@ service cloud.firestore {
       allow read, update: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid)
+        || (request.resource.data.source == 'public-site'
+            && request.resource.data.keys().hasAll(['registrationId', 'customerName', 'customerPhone', 'product', 'createdAt'])
+            && request.resource.data.customerPhone is string
+            && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$'));
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Public service requests (from the "Book a Service" flow).
+    // Document ID IS the requestId, so Track Service can do a direct
+    // get() by ticket number rather than an open query — `allow list`
+    // stays admin-only so nobody can enumerate the whole collection.
+    // A guessable low-serial ticket ID is a known residual limitation
+    // (see index.html comments) — no server-side phone verification
+    // is possible without a backend, so treat the ticket ID itself,
+    // not the phone, as the actual access boundary.
+    // ---------------------------------------------------------------
+
+    match /publicServiceRequests/{requestId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if requestId == request.resource.data.requestId
+        && request.resource.data.keys().hasAll(['requestId', 'customerName', 'customerPhone', 'status', 'createdAt'])
+        && request.resource.data.customerPhone is string
+        && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$');
+      allow update, delete: if isAdmin();
     }
 
     match /dealerEnquiries/{id} {
@@ -176,7 +201,7 @@ service cloud.firestore {
     }
 
     // Product catalog — readable by anyone signed in (dealers browse
-    // it), writable only by Head Office / Super Admin. Empty until
+    // it), writable only by Warehouse / Super Admin. Empty until
     // the Product Management module populates it.
     match /products/{id} {
       allow read: if isSignedIn();
@@ -184,7 +209,7 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // Claims — Head Office (isAdmin) manages the full pipeline for
+    // Claims — Warehouse (isAdmin) manages the full pipeline for
     // every claim. A technician or service center may create their
     // own claim and read only their own (matched by claimantUid) —
     // they cannot verify/settle/reject their own claims.
@@ -197,10 +222,10 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // Inventory — any staff member may read (Head Office, Area
+    // Inventory — any staff member may read (Warehouse, Area
     // Manager read-only views, future Service Center views, etc.).
     // Writes to a 'technician'-location doc are restricted to that
-    // technician's own uid, or an admin; Head Office's own stock
+    // technician's own uid, or an admin; Warehouse's own stock
     // docs are effectively admin-only in practice already.
     // ---------------------------------------------------------------
 
@@ -226,15 +251,70 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // Everything else in the CRM (customers, products, serial numbers,
-    // warranty, service requests, inventory, etc.) defaults to
-    // staff-only until each module defines its own tighter rule as
-    // it's built. Tighten this per-collection as modules ship rather
-    // than relying on this default long-term.
+    // Warehouse operational collections. Master data (spare parts) is
+    // staff-readable but admin-only to edit. Transactional collections
+    // (movements, requests, purchases, returns) are staff-readable for
+    // company-wide oversight, but writes are admin-only EXCEPT where a
+    // specific role creates its own tagged record (a technician's or
+    // service center's own stock movement, or a service center's own
+    // return) — those match the same owner-tag pattern used above.
+    // ---------------------------------------------------------------
+
+    match /spareParts/{partId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /stockMovements/{moveId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /spareRequests/{reqId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /localPurchases/{lpId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /returns/{returnId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /rmaRequests/{rmaId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /messageTemplates/{templateId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Deny by default. Every collection actually used by the app has
+    // an explicit rule above — this is a real security boundary, not
+    // a temporary placeholder. If a new collection is added later, it
+    // needs its own rule block; it will NOT fall through to broad
+    // staff access.
     // ---------------------------------------------------------------
 
     match /{document=**} {
-      allow read, write: if isStaff();
+      allow read, write: if false;
     }
   }
 }

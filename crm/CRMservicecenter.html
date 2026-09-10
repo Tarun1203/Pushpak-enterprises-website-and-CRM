@@ -1317,6 +1317,7 @@
         partId,
         quantity: qty,
         source: `Service Center - ${currentUser.email}`,
+        serviceCenterUid: currentUser.uid,
         reason: document.getElementById('sendback-reason').value.trim(),
         status: 'received',
         createdAt: serverTimestamp(),

@@ -239,7 +239,7 @@
     const grid = document.getElementById('product-grid');
     grid.innerHTML = '<div class="empty-note">Loading products…</div>';
     try {
-      const snap = await getDocs(query(collection(db, 'products'), where('brand', '==', BRAND_NAME)));
+      const snap = await getDocs(query(collection(db, 'products'), where('brandId', '==', BRAND_ID)));
       allProducts = [];
       snap.forEach(d => allProducts.push(d.data()));
       renderCategoryPills();

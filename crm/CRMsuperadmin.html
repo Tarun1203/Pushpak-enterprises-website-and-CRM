@@ -88,7 +88,7 @@
   td{padding:12px 14px;border-bottom:1px solid var(--hairline);}
   tr:last-child td{border-bottom:none;}
   .role-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;background:var(--paper-deep);color:var(--ink);}
-  .role-pill.superadmin,.role-pill.headoffice{background:var(--blue-deep);color:#F5EFE0;}
+  .role-pill.superadmin,.role-pill.warehouse{background:var(--blue-deep);color:#F5EFE0;}
 
   .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
   .btn-primary:disabled{opacity:0.6;cursor:default;}
@@ -186,8 +186,7 @@
         <select id="new-user-role" required>
           <option value="">Select a role…</option>
           <option value="superadmin">Super Admin</option>
-          <option value="headoffice">Head Office</option>
-          <option value="areamanager">Area Manager</option>
+          <option value="warehouse">Warehouse</option>
           <option value="servicecenter">Service Center</option>
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
@@ -221,8 +220,7 @@
         <label>Role</label>
         <select id="edit-user-role" required>
           <option value="superadmin">Super Admin</option>
-          <option value="headoffice">Head Office</option>
-          <option value="areamanager">Area Manager</option>
+          <option value="warehouse">Warehouse</option>
           <option value="servicecenter">Service Center</option>
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
@@ -270,6 +268,15 @@
     <h3 id="brand-modal-title">Edit brand</h3>
     <form id="brand-form">
       <input type="hidden" id="brand-editing-id">
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row"><label>Code</label><input type="text" id="brand-code" placeholder="e.g. MW" maxlength="6"></div>
+        <div class="form-row"><label>Status</label>
+          <select id="brand-status">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
       <div class="form-row"><label>Tagline</label><input type="text" id="brand-tagline"></div>
       <div class="form-row"><label>Description</label><textarea id="brand-description"></textarea></div>
       <div class="modal-error" id="brand-error"></div>
@@ -292,9 +299,9 @@
       <div class="form-row"><label>Category</label><input type="text" id="product-category" placeholder="e.g. LED TV, Geyser"></div>
       <div class="form-row"><label>Brand</label>
         <select id="product-brand">
-          <option value="MakWell">MakWell</option>
-          <option value="Flyvision">Flyvision</option>
-          <option value="Skevia">Skevia</option>
+          <option value="makwell">MakWell</option>
+          <option value="flyvision">Flyvision</option>
+          <option value="skevia">Skevia</option>
         </select>
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
@@ -529,7 +536,7 @@
       pageSub.textContent = 'All service activity, company-wide';
       renderServiceOverview();
     } else if (id === 'spareparts') {
-      pageSub.textContent = 'Master parts list (managed in Head Office)';
+      pageSub.textContent = 'Master parts list (managed in Warehouse)';
       renderSparePartsOverview();
     } else if (id === 'inventory') {
       pageSub.textContent = 'Stock across all locations';
@@ -642,7 +649,7 @@
         <div class="panel-header"><h2>Getting started</h2></div>
         <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
           This dashboard will fill in as each module is built. Right now, <b style="color:var(--blue)">Users & Access</b>
-          is fully working — use it to create accounts for Head Office, Area Managers, Service Centers,
+          is fully working — use it to create accounts for Warehouse, Area Managers, Service Centers,
           Technicians, and Dealers instead of doing it manually in the Firebase Console.
         </div>
       </div>`;
@@ -984,15 +991,16 @@
 
   const BRAND_IDS = ['makwell', 'flyvision', 'skevia'];
   const BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+  const BRAND_DEFAULT_CODES = { makwell: 'MW', flyvision: 'FV', skevia: 'SK' };
 
   async function renderBrandsAdmin() {
     contentEl.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>Brand copy</h2></div>
+        <div class="panel-header"><h2>Brand master</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Brand</th><th>Tagline</th><th>Description</th><th>Actions</th></tr></thead>
-            <tbody id="brands-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Brand</th><th>Code</th><th>Status</th><th>Tagline</th><th>Description</th><th>Actions</th></tr></thead>
+            <tbody id="brands-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -1013,8 +1021,10 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><b>${BRAND_LABELS[brandId]}</b></td>
+        <td style="font-size:12px;color:var(--stone);">${d.code || BRAND_DEFAULT_CODES[brandId]}</td>
+        <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
         <td>${d.tagline || '—'}</td>
-        <td style="max-width:280px;">${d.description || '—'}</td>
+        <td style="max-width:240px;">${d.description || '—'}</td>
         <td><button class="btn-secondary brand-edit-btn" data-id="${brandId}">Edit</button></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.brand-edit-btn').addEventListener('click', () => openBrandModal(brandId, d));
@@ -1036,6 +1046,8 @@
     brandSubmitBtn.textContent = 'Save changes';
     brandModalTitle.textContent = `Edit ${BRAND_LABELS[brandId]}`;
     document.getElementById('brand-editing-id').value = brandId;
+    document.getElementById('brand-code').value = data.code || BRAND_DEFAULT_CODES[brandId];
+    document.getElementById('brand-status').value = data.status || 'active';
     document.getElementById('brand-tagline').value = data.tagline || '';
     document.getElementById('brand-description').value = data.description || '';
     brandOverlay.classList.add('show');
@@ -1053,6 +1065,10 @@
     const brandId = document.getElementById('brand-editing-id').value;
     try {
       await setDoc(doc(db, 'brands', brandId), {
+        id: brandId,
+        name: BRAND_LABELS[brandId],
+        code: document.getElementById('brand-code').value.trim() || BRAND_DEFAULT_CODES[brandId],
+        status: document.getElementById('brand-status').value,
         tagline: document.getElementById('brand-tagline').value.trim(),
         description: document.getElementById('brand-description').value.trim(),
       }, { merge: true });
@@ -1073,7 +1089,7 @@
 
   // =================================================================
   // PRODUCT MANAGEMENT — the sellable product catalog (distinct from
-  // Head Office's spareParts, which is repair parts). This is what
+  // Warehouse's spareParts, which is repair parts). This is what
   // Dealer's Products tab reads from — currently empty until filled
   // in here.
   // =================================================================
@@ -1111,7 +1127,7 @@
         tr.innerHTML = `
           <td>${d.name || '—'}</td>
           <td>${d.category || '—'}</td>
-          <td>${d.brand || '—'}</td>
+          <td>${BRAND_LABELS[d.brandId] || d.brand || '—'}</td>
           <td>${d.price != null ? '₹' + d.price : '—'}</td>
           <td><button class="btn-secondary product-edit-btn" data-id="${d.id}">Edit</button></td>`;
         tbody.appendChild(tr);
@@ -1140,7 +1156,7 @@
       document.getElementById('product-editing-id').value = existing.id;
       document.getElementById('product-name').value = existing.name || '';
       document.getElementById('product-category').value = existing.category || '';
-      document.getElementById('product-brand').value = existing.brand || 'MakWell';
+      document.getElementById('product-brand').value = existing.brandId || 'makwell';
       document.getElementById('product-price').value = existing.price ?? '';
       productSubmitBtn.textContent = 'Save changes';
     } else {
@@ -1164,7 +1180,8 @@
     const payload = {
       name: document.getElementById('product-name').value.trim(),
       category: document.getElementById('product-category').value.trim(),
-      brand: document.getElementById('product-brand').value,
+      brandId: document.getElementById('product-brand').value,
+      brand: BRAND_LABELS[document.getElementById('product-brand').value],
       price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
     };
     try {
@@ -1458,7 +1475,7 @@
   // =================================================================
   // SPARE PARTS / INVENTORY / STOCK MOVEMENT / SPARE REQUEST /
   // LOCAL PURCHASE — company-wide read-only oversight, reusing the
-  // exact collections Head Office already manages day-to-day.
+  // exact collections Warehouse already manages day-to-day.
   // =================================================================
 
   async function renderSparePartsOverview() {
@@ -1476,7 +1493,7 @@
     try {
       const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No parts yet — managed from the Head Office portal.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No parts yet — managed from the Warehouse portal.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -1501,7 +1518,7 @@
         <div class="panel-header"><h2>Stock across all locations</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Part</th><th>Head Office</th><th>Service Centers (total)</th><th>Technicians (total)</th></tr></thead>
+            <thead><tr><th>Part</th><th>Warehouse</th><th>Service Centers (total)</th><th>Technicians (total)</th></tr></thead>
             <tbody id="inv-overview-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -1513,10 +1530,10 @@
         getDocs(collection(db, 'inventory')),
       ]);
       const totals = {};
-      partsSnap.forEach(d => { totals[d.id] = { name: d.data().name, headoffice: 0, servicecenter: 0, technician: 0 }; });
+      partsSnap.forEach(d => { totals[d.id] = { name: d.data().name, warehouse: 0, servicecenter: 0, technician: 0 }; });
       invSnap.forEach(d => {
         const inv = d.data();
-        if (!totals[inv.partId]) totals[inv.partId] = { name: inv.partId, headoffice: 0, servicecenter: 0, technician: 0 };
+        if (!totals[inv.partId]) totals[inv.partId] = { name: inv.partId, warehouse: 0, servicecenter: 0, technician: 0 };
         totals[inv.partId][inv.location] = (totals[inv.partId][inv.location] || 0) + (inv.quantity || 0);
       });
       const rows = Object.values(totals);
@@ -1527,7 +1544,7 @@
       tbody.innerHTML = '';
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.name}</td><td><b>${r.headoffice}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
+        tr.innerHTML = `<td>${r.name}</td><td><b>${r.warehouse}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -1683,7 +1700,7 @@
   // =================================================================
   // APPROVALS — everything awaiting a decision, in one place.
   // Read-only oversight; actioning still happens in the relevant
-  // portal (Head Office for claims/local purchase/spare requests).
+  // portal (Warehouse for claims/local purchase/spare requests).
   // =================================================================
 
   async function renderApprovalsOverview() {
@@ -1710,7 +1727,7 @@
         </div>
       </div>
       <div style="margin-top:16px;font-size:12.5px;color:var(--stone);">
-        This is a read-only overview — approve/verify/settle actions happen in the Head Office portal.
+        This is a read-only overview — approve/verify/settle actions happen in the Warehouse portal.
       </div>`;
 
     try {
@@ -1989,7 +2006,7 @@
   }
 
   // =================================================================
-  // RMA & REPLACEMENT — a new workflow, distinct from Head Office's
+  // RMA & REPLACEMENT — a new workflow, distinct from Warehouse's
   // spare-parts Returns & Defects. This is for a SOLD PRODUCT the
   // customer wants returned/replaced.
   // =================================================================
@@ -2319,11 +2336,14 @@
       importBtn.disabled = true;
       importBtn.textContent = 'Importing…';
       try {
+        const brandNameToId = { makwell: 'makwell', flyvision: 'flyvision', skevia: 'skevia' };
         for (const row of parsedRows) {
+          const brandId = brandNameToId[(row.brand || 'MakWell').toLowerCase()] || 'makwell';
           await addDoc(collection(db, 'products'), {
             name: row.name,
             category: row.category || '',
-            brand: row.brand || 'MakWell',
+            brandId,
+            brand: BRAND_LABELS[brandId],
             price: row.price ? Number(row.price) : null,
             createdAt: serverTimestamp()
           });

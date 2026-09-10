@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Head Office / Warehouse — Pushpak Enterprises CRM</title>
+<title>Warehouse / Warehouse — Pushpak Enterprises CRM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -136,7 +136,7 @@
         <img src="../assets/logos/pushpak-enterprises-icon.png" alt="">
         <div>
           <div class="name">Pushpak Enterprises</div>
-          <div class="role">Head Office / Warehouse</div>
+          <div class="role">Warehouse / Warehouse</div>
         </div>
       </div>
 
@@ -242,7 +242,7 @@
 <!-- Adjust Stock modal -->
 <div class="modal-overlay" id="adjust-overlay">
   <div class="modal">
-    <h3>Adjust Head Office stock</h3>
+    <h3>Adjust Warehouse stock</h3>
     <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="adjust-part-label"></div>
     <form id="adjust-form">
       <input type="hidden" id="adjust-part-id">
@@ -439,7 +439,7 @@
   const appEl = document.getElementById('app');
   const userEmailEl = document.getElementById('user-email');
 
-  const ALLOWED_ROLE = 'headoffice';
+  const ALLOWED_ROLE = 'warehouse';
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -469,7 +469,7 @@
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -525,9 +525,9 @@
     } else if (id === 'spareparts') {
       pageSub.textContent = 'Part master list';
       renderSpareParts();
-    } else if (id === 'inv-headoffice') {
-      pageSub.textContent = 'Current stock at Head Office';
-      renderInventory('headoffice');
+    } else if (id === 'inv-warehouse') {
+      pageSub.textContent = 'Current stock at Warehouse';
+      renderInventory('warehouse');
     } else if (id === 'inv-summary') {
       pageSub.textContent = 'Stock across all parts';
       renderInventory('summary');
@@ -541,10 +541,10 @@
       pageSub.textContent = 'Full log, all movement types';
       renderMovementHistory(null, label);
     } else if (id === 'move-receive') {
-      pageSub.textContent = 'Stock received into Head Office';
+      pageSub.textContent = 'Stock received into Warehouse';
       renderMovementHistory('receive', label);
     } else if (id === 'move-issue') {
-      pageSub.textContent = 'Stock issued out of Head Office';
+      pageSub.textContent = 'Stock issued out of Warehouse';
       renderMovementHistory('issue', label);
     } else if (LOCAL_PURCHASE_TABS[id]) {
       pageSub.textContent = 'Local Purchase';
@@ -939,15 +939,15 @@
   });
 
   // ---------------------------------------------------------------
-  // Inventory — Head Office stock, Stock Summary, Low/Out of Stock.
-  // One inventory doc per part at Head Office, id = `headoffice_{partId}`,
+  // Inventory — Warehouse stock, Stock Summary, Low/Out of Stock.
+  // One inventory doc per part at Warehouse, id = `warehouse_{partId}`,
   // so adjustments upsert cleanly. Each adjustment also logs a
   // stockMovements entry — groundwork for the future Stock Movement /
   // Movement History module.
   // ---------------------------------------------------------------
 
   async function getHeadOfficeInventoryMap() {
-    const snap = await getDocs(query(collection(db, 'inventory'), where('location', '==', 'headoffice')));
+    const snap = await getDocs(query(collection(db, 'inventory'), where('location', '==', 'warehouse')));
     const map = {};
     snap.forEach(d => { map[d.data().partId] = { id: d.id, ...d.data() }; });
     return map;
@@ -961,7 +961,7 @@
 
   async function renderInventory(view) {
     const titles = {
-      headoffice: 'Head Office stock',
+      warehouse: 'Warehouse stock',
       summary: 'Stock summary',
       low: 'Low / out of stock'
     };
@@ -971,7 +971,7 @@
         <div class="panel-body" style="padding:0;">
           <table>
             <thead>
-              <tr><th>Code</th><th>Part</th><th>Category</th><th>Qty (HO)</th><th>Reorder Level</th><th>Status</th>${view === 'headoffice' ? '<th>Actions</th>' : ''}</tr>
+              <tr><th>Code</th><th>Part</th><th>Category</th><th>Qty (WH)</th><th>Reorder Level</th><th>Status</th>${view === 'warehouse' ? '<th>Actions</th>' : ''}</tr>
             </thead>
             <tbody id="inventory-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
           </table>
@@ -1012,9 +1012,9 @@
           <td><b>${qty}</b></td>
           <td>${part.reorderLevel ?? 0}</td>
           <td><span class="status-pill ${status.cls}">${status.label}</span></td>
-          ${view === 'headoffice' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
+          ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
         tbody.appendChild(tr);
-        if (view === 'headoffice') {
+        if (view === 'warehouse') {
           tr.querySelector('.adjust-btn').addEventListener('click', (e) => {
             openAdjustModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.code);
           });
@@ -1062,7 +1062,7 @@
     }
     adjustSubmitBtn.disabled = true;
     adjustSubmitBtn.textContent = 'Saving…';
-    const invRef = doc(db, 'inventory', `headoffice_${partId}`);
+    const invRef = doc(db, 'inventory', `warehouse_${partId}`);
     try {
       await runTransaction(db, async (transaction) => {
         const snap = await transaction.get(invRef);
@@ -1070,12 +1070,12 @@
         const delta = type === 'add' ? qty : -qty;
         const next = Math.max(0, current + delta);
         transaction.set(invRef, {
-          partId, location: 'headoffice', quantity: next, updatedAt: serverTimestamp()
+          partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp()
         }, { merge: true });
       });
       await addDoc(collection(db, 'stockMovements'), {
         partId, type: type === 'add' ? 'receive' : 'issue',
-        location: 'headoffice', quantity: qty, reason,
+        location: 'warehouse', quantity: qty, reason,
         createdAt: serverTimestamp()
       });
       adjustSuccess.textContent = 'Stock updated.';
@@ -1084,7 +1084,7 @@
       adjustSubmitBtn.textContent = 'Save';
       const activeItem = document.querySelector('.nav-item.active');
       const activeId = activeItem ? activeItem.dataset.id : null;
-      const viewMap = { 'inv-headoffice': 'headoffice', 'inv-summary': 'summary', 'inv-lowstock': 'low' };
+      const viewMap = { 'inv-warehouse': 'warehouse', 'inv-summary': 'summary', 'inv-lowstock': 'low' };
       if (activeId && viewMap[activeId]) loadInventory(viewMap[activeId]);
       setTimeout(closeAdjustModal, 800);
     } catch (err) {
@@ -1099,7 +1099,7 @@
   // ---------------------------------------------------------------
   // Stock Movement — Movement History (plus Receive/Issue as
   // filtered views of the same log). Every adjustment made from
-  // Inventory > Head Office Stock already writes a stockMovements
+  // Inventory > Warehouse Stock already writes a stockMovements
   // entry, so this view is populated automatically — no separate
   // data-entry step needed for Receive/Issue.
   // ---------------------------------------------------------------
@@ -1670,20 +1670,20 @@
   }
 
   // "Return to Stock" both closes out the return AND adds the
-  // quantity back into Head Office inventory — same atomic pattern
+  // quantity back into Warehouse inventory — same atomic pattern
   // as Inventory's Adjust Stock, plus a stockMovements log entry.
   async function restockReturn(returnDocId, partId, qty, tabId) {
     try {
-      const invRef = doc(db, 'inventory', `headoffice_${partId}`);
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
       await runTransaction(db, async (transaction) => {
         const snap = await transaction.get(invRef);
         const current = snap.exists() ? (snap.data().quantity || 0) : 0;
         transaction.set(invRef, {
-          partId, location: 'headoffice', quantity: current + qty, updatedAt: serverTimestamp()
+          partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
         }, { merge: true });
       });
       await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'receive', location: 'headoffice', quantity: qty,
+        partId, type: 'receive', location: 'warehouse', quantity: qty,
         reason: 'Returned to stock (inspected, found OK)', createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, 'returns', returnDocId), { status: 'restocked', updatedAt: serverTimestamp() });

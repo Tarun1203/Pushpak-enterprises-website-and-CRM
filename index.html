@@ -158,7 +158,7 @@
 
   /* ---------- Services ---------- */
   .services-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
-  .service-card{background:var(--paper);padding:28px 22px;transition:background .2s;display:block;}
+  .service-card{background:var(--paper);padding:28px 22px;transition:background .2s;display:block;border:none;text-align:left;width:100%;cursor:pointer;font-family:inherit;}
   .service-card:hover{background:var(--paper-deep);}
   .service-card h3{font-size:15px;font-weight:700;margin-bottom:6px;}
   .service-card p{font-size:13px;color:var(--stone);}
@@ -173,6 +173,53 @@
 
   /* ---------- Contact ---------- */
   .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;}
+  .contact-cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
+  .contact-cat-card{
+    background:var(--paper);padding:24px 20px;text-align:left;border:none;cursor:pointer;font-family:inherit;
+    transition:background .2s;display:block;width:100%;
+  }
+  .contact-cat-card:hover{background:var(--paper-deep);}
+  .contact-cat-card.active{background:var(--blue);}
+  .contact-cat-card.active h3,.contact-cat-card.active p{color:#fff;}
+  .contact-cat-card h3{font-size:14.5px;font-weight:700;margin-bottom:6px;}
+  .contact-cat-card p{font-size:12.5px;color:var(--stone);}
+  @media (max-width:860px){.contact-cat-grid{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:560px){.contact-cat-grid{grid-template-columns:1fr;}}
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:100;padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:2px;padding:30px;max-height:90vh;overflow-y:auto;}
+  .modal h3{font-size:19px;font-weight:800;margin-bottom:4px;}
+  .modal .modal-sub{font-size:13px;color:var(--stone);margin-bottom:20px;}
+  .modal form{display:flex;flex-direction:column;gap:12px;}
+  .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;color:var(--stone);cursor:pointer;line-height:1;}
+  .modal{position:relative;}
+  .modal.modal-wide{max-width:640px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row .hint{font-size:11px;color:var(--stone);font-weight:400;}
+  .form-row input,.form-row select,.form-row textarea{
+    border:1px solid var(--hairline);padding:11px 13px;font-family:inherit;font-size:13.5px;
+    border-radius:var(--radius);background:#fff;width:100%;
+  }
+  .form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:2px solid var(--blue);outline-offset:1px;}
+  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:520px){.form-grid-2{grid-template-columns:1fr;}}
+  .checkbox-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;margin-bottom:14px;}
+  .checkbox-row input{width:auto;}
+  .search-result-card{
+    border:1px solid var(--hairline);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;
+    cursor:pointer;transition:background .15s;
+  }
+  .search-result-card:hover{background:var(--paper-deep);}
+  .search-result-card b{display:block;font-size:13.5px;margin-bottom:3px;}
+  .search-result-card span{font-size:12px;color:var(--stone);}
+  .step-hidden{display:none;}
+  .track-status-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:16px;}
+  .track-status-box .label{font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;margin-bottom:4px;}
+  .track-status-box .value{font-size:15px;font-weight:700;margin-bottom:12px;}
   .contact-detail{margin-bottom:24px;}
   .contact-detail .label{font-size:12px;color:var(--stone);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;}
   .contact-detail .value{font-size:17px;font-weight:600;}
@@ -320,14 +367,14 @@
       <p>Everything you need after you've bought a MakWell, Flyvision or Skevia product.</p>
     </div>
     <div class="services-grid">
-      <a href="#contact" class="service-card"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></a>
-      <a href="#contact" class="service-card"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></a>
-      <a href="#contact" class="service-card"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></a>
-      <a href="#contact" class="service-card"><h3>Warranty status</h3><p>Check what's covered and until when.</p></a>
-      <a href="#contact" class="service-card"><h3>Manuals</h3><p>Download the manual for your product model.</p></a>
-      <a href="#contact" class="service-card"><h3>Brochures</h3><p>Browse the current product catalogue.</p></a>
-      <a href="#contact" class="service-card"><h3>Support</h3><p>Reach our team for anything not covered above.</p></a>
-      <a href="#contact" class="service-card"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></a>
+      <button type="button" class="service-card" data-modal="register"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
+      <button type="button" class="service-card" data-modal="book"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
+      <button type="button" class="service-card" data-modal="track"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
+      <button type="button" class="service-card" data-category="Warranty Check"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
+      <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
+      <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
+      <button type="button" class="service-card" data-category="General Support"><h3>Support</h3><p>Reach our team for anything not covered above.</p></button>
+      <button type="button" class="service-card" data-category="FAQ / Question"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></button>
     </div>
   </div>
 </section>
@@ -344,32 +391,58 @@
 </section>
 
 <section id="contact" style="border-bottom:none;">
-  <div class="wrap contact-grid">
-    <div>
-      <h2 style="margin-bottom:28px;">Get in touch</h2>
-      <div class="contact-detail">
-        <div class="label">Location</div>
-        <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
-      </div>
-      <div class="contact-detail">
-        <div class="label">Phone</div>
-        <div class="value" id="contact-phone">+91 99800 00515</div>
-      </div>
-      <div class="contact-detail">
-        <div class="label">Email</div>
-        <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
-      </div>
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Get in touch</h2>
+      <p>Pick what you need — we'll route your message accordingly.</p>
     </div>
-    <form id="enquiry-form">
-      <input type="text" name="name" placeholder="Your name" required>
-      <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)"
-        inputmode="numeric" maxlength="10" required>
-      <span id="phone-error" class="field-error"></span>
-      <input type="text" name="subject" placeholder="What's this about?">
-      <textarea name="message" placeholder="Message" required></textarea>
-      <button type="submit">Send enquiry</button>
-      <div class="ticket-note" id="ticket-note"></div>
-    </form>
+    <div class="contact-cat-grid" id="contact-categories">
+      <button type="button" class="contact-cat-card" id="cat-register" data-category="Register a Product">
+        <h3>Register a Product</h3><p>Log your serial number to activate warranty cover.</p>
+      </button>
+      <button type="button" class="contact-cat-card" id="cat-installation" data-category="Installation / Demo Request">
+        <h3>Installation / Demo</h3><p>Request a home installation or product demo.</p>
+      </button>
+      <button type="button" class="contact-cat-card" id="cat-service" data-category="Service Request">
+        <h3>Service Request</h3><p>Raise a repair request and get matched to a technician.</p>
+      </button>
+      <button type="button" class="contact-cat-card" id="cat-track" data-category="Track a Service">
+        <h3>Track a Service</h3><p>Check the status of a request already raised.</p>
+      </button>
+      <button type="button" class="contact-cat-card" id="cat-warranty" data-category="Warranty Check">
+        <h3>Warranty Status</h3><p>Check what's covered on your product and until when.</p>
+      </button>
+      <button type="button" class="contact-cat-card" id="cat-support" data-category="General Support">
+        <h3>General Support</h3><p>Manuals, brochures, FAQs, or anything else.</p>
+      </button>
+    </div>
+
+    <div class="contact-grid" style="margin-top:40px;">
+      <div>
+        <div class="contact-detail">
+          <div class="label">Location</div>
+          <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
+        </div>
+        <div class="contact-detail">
+          <div class="label">Phone</div>
+          <div class="value" id="contact-phone">+91 99800 00515</div>
+        </div>
+        <div class="contact-detail">
+          <div class="label">Email</div>
+          <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
+        </div>
+      </div>
+      <form id="enquiry-form">
+        <input type="text" name="name" placeholder="Your name" required>
+        <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)"
+          inputmode="numeric" maxlength="10" required>
+        <span id="phone-error" class="field-error"></span>
+        <input type="text" name="subject" id="enquiry-subject" placeholder="What's this about?">
+        <textarea name="message" placeholder="Message" required></textarea>
+        <button type="submit">Send enquiry</button>
+        <div class="ticket-note" id="ticket-note"></div>
+      </form>
+    </div>
   </div>
 </section>
 
@@ -380,9 +453,182 @@
   </div>
 </footer>
 
+<!-- Customer service request modal -->
+<div class="modal-overlay" id="service-modal-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="service-modal-close">&times;</button>
+    <h3 id="service-modal-title">Register a Product</h3>
+    <div class="modal-sub">Fill in your details and we'll get back to you.</div>
+    <form id="service-modal-form">
+      <input type="text" name="name" placeholder="Your name" required>
+      <input type="tel" name="phone" id="service-modal-phone" placeholder="Phone number (10-digit mobile)"
+        inputmode="numeric" maxlength="10" required>
+      <span id="service-modal-phone-error" class="field-error"></span>
+      <textarea name="message" placeholder="Details (product, serial number, etc. if relevant)" required></textarea>
+      <button type="submit">Submit request</button>
+      <div class="ticket-note" id="service-modal-ticket-note"></div>
+    </form>
+  </div>
+</div>
+
+<!-- Register Product modal -->
+<div class="modal-overlay" id="register-overlay">
+  <div class="modal modal-wide">
+    <button type="button" class="modal-close" id="register-close">&times;</button>
+    <h3>Register a Product</h3>
+    <div class="modal-sub">Activate your warranty by registering your purchase.</div>
+    <form id="register-form">
+      <div class="form-grid-2">
+        <div class="form-row"><label>Name</label><input type="text" name="name" required></div>
+        <div class="form-row"><label>Mobile No</label><input type="tel" id="register-phone" inputmode="numeric" maxlength="10" required></div>
+      </div>
+      <div class="form-row"><label>Address</label><input type="text" name="address" required></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>City</label><input type="text" name="city" required></div>
+        <div class="form-row"><label>State</label><input type="text" name="state" required></div>
+      </div>
+      <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" required></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Brand</label>
+          <select name="brand" required>
+            <option value="">Select…</option>
+            <option value="MakWell">MakWell</option>
+            <option value="Flyvision">Flyvision</option>
+            <option value="Skevia">Skevia</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Product Category</label>
+          <select id="register-category" name="category" required>
+            <option value="">Select…</option>
+            <option value="LED TV">LED TV</option>
+            <option value="Washing Machine">Washing Machine</option>
+            <option value="Geyser">Geyser</option>
+            <option value="Solar Water Heater">Solar Water Heater</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Date of Purchase</label><input type="date" name="purchaseDate" required></div>
+        <div class="form-row"><label>Purchased From (Dealer Name)</label><input type="text" name="dealerName" required></div>
+      </div>
+      <div class="form-row"><label>Product Model No</label><input type="text" name="modelNo" required></div>
+      <div class="form-row"><label>Product Serial No <span class="hint">(not mandatory)</span></label><input type="text" name="serialNumber"></div>
+      <div class="form-row"><label>Invoice Copy <span class="hint">(not mandatory — online upload coming soon, we'll follow up if needed)</span></label><input type="file" name="invoice" disabled style="opacity:0.5;"></div>
+      <div class="checkbox-row step-hidden" id="register-installation-row">
+        <input type="checkbox" id="register-installation" name="installationRequired">
+        <label for="register-installation">Installation / Demo required for this product</label>
+      </div>
+      <span id="register-phone-error" class="field-error"></span>
+      <div class="modal-error" id="register-error"></div>
+      <div class="modal-success" id="register-success"></div>
+      <button type="submit">Register product</button>
+      <div class="ticket-note" id="register-ticket-note"></div>
+    </form>
+  </div>
+</div>
+
+<!-- Book Service modal -->
+<div class="modal-overlay" id="book-overlay">
+  <div class="modal modal-wide">
+    <button type="button" class="modal-close" id="book-close">&times;</button>
+
+    <div id="book-step-search">
+      <h3>Book a Service</h3>
+      <div class="modal-sub">Search by your mobile number to find a registered product, or continue without one.</div>
+      <div class="form-row"><label>Mobile No</label><input type="tel" id="book-search-phone" inputmode="numeric" maxlength="10"></div>
+      <span id="book-search-error" class="field-error"></span>
+      <button type="button" id="book-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Search</button>
+      <div id="book-search-results" style="margin-top:18px;"></div>
+      <button type="button" id="book-skip-search" class="btn-secondary" style="margin-top:10px;border:1px solid var(--hairline);background:none;font-weight:600;font-size:13px;padding:11px 20px;border-radius:var(--radius);cursor:pointer;">Continue without a registered product →</button>
+    </div>
+
+    <div id="book-step-form" class="step-hidden">
+      <h3>Service Details</h3>
+      <div class="modal-sub">Fill in the rest and we'll route your request.</div>
+      <form id="book-form">
+        <div class="form-grid-2">
+          <div class="form-row"><label>Name</label><input type="text" name="name" required></div>
+          <div class="form-row"><label>Mobile No</label><input type="tel" id="book-phone" inputmode="numeric" maxlength="10" required></div>
+        </div>
+        <div class="form-row"><label>Address</label><input type="text" name="address" required></div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>City</label><input type="text" name="city" required></div>
+          <div class="form-row"><label>State</label><input type="text" name="state" required></div>
+        </div>
+        <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" required></div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Brand</label>
+            <select name="brand" required>
+              <option value="">Select…</option>
+              <option value="MakWell">MakWell</option>
+              <option value="Flyvision">Flyvision</option>
+              <option value="Skevia">Skevia</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Product Category</label>
+            <select id="book-category" name="category" required>
+              <option value="">Select…</option>
+              <option value="LED TV">LED TV</option>
+              <option value="Washing Machine">Washing Machine</option>
+              <option value="Geyser">Geyser</option>
+              <option value="Solar Water Heater">Solar Water Heater</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Date of Purchase</label><input type="date" name="purchaseDate" required></div>
+          <div class="form-row"><label>Purchased From (Dealer Name)</label><input type="text" name="dealerName" required></div>
+        </div>
+        <div class="form-row"><label>Product Model No</label><input type="text" name="modelNo" required></div>
+        <div class="form-row"><label>Product Serial No <span class="hint">(not mandatory)</span></label><input type="text" name="serialNumber"></div>
+        <div class="form-row"><label>Invoice Copy <span class="hint">(not mandatory — online upload coming soon)</span></label><input type="file" disabled style="opacity:0.5;"></div>
+
+        <div class="form-row">
+          <label>Request Type</label>
+          <select id="book-request-type" required>
+            <option value="">Select…</option>
+            <option value="installation">Installation / Demo</option>
+            <option value="service">Service Request</option>
+          </select>
+        </div>
+        <div class="form-row step-hidden" id="book-issue-row">
+          <label>What's the issue?</label>
+          <select id="book-issue"></select>
+        </div>
+        <div class="form-row step-hidden" id="book-issue-fallback-row">
+          <label>Describe the issue</label>
+          <textarea id="book-issue-fallback"></textarea>
+        </div>
+
+        <span id="book-phone-error" class="field-error"></span>
+        <div class="modal-error" id="book-error"></div>
+        <div class="modal-success" id="book-success"></div>
+        <button type="submit">Submit request</button>
+        <div class="ticket-note" id="book-ticket-note"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Track Service modal -->
+<div class="modal-overlay" id="track-overlay">
+  <div class="modal">
+    <button type="button" class="modal-close" id="track-close">&times;</button>
+    <h3>Track a Service</h3>
+    <div class="modal-sub">Enter your request number and mobile number to check status.</div>
+    <div class="form-row"><label>Request / Ticket Number</label><input type="text" id="track-ticket" placeholder="e.g. PE-SVC-20260910-0001-CustomerSite"></div>
+    <div class="form-row"><label>Mobile No</label><input type="tel" id="track-phone" inputmode="numeric" maxlength="10"></div>
+    <span id="track-error" class="field-error"></span>
+    <button type="button" id="track-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Check status</button>
+    <div id="track-result"></div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -398,6 +644,488 @@
   const db = getFirestore(app);
 
   document.getElementById('year').textContent = new Date().getFullYear();
+
+  // Customer service cards — each opens this shared modal, pre-set
+  // to that card's category, and submits straight to contactEnquiries
+  // using the same ticket-ID scheme as the main enquiry form.
+  const serviceModalOverlay = document.getElementById('service-modal-overlay');
+  const serviceModalTitle = document.getElementById('service-modal-title');
+  const serviceModalForm = document.getElementById('service-modal-form');
+  const serviceModalPhone = document.getElementById('service-modal-phone');
+  const serviceModalPhoneError = document.getElementById('service-modal-phone-error');
+  const serviceModalTicketNote = document.getElementById('service-modal-ticket-note');
+  let currentServiceCategory = '';
+
+  document.querySelectorAll('.service-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const modalType = card.dataset.modal;
+      if (modalType === 'register') { openRegisterModal(); return; }
+      if (modalType === 'book') { openBookModal(); return; }
+      if (modalType === 'track') { openTrackModal(); return; }
+      currentServiceCategory = card.dataset.category;
+      serviceModalTitle.textContent = card.querySelector('h3').textContent;
+      serviceModalForm.reset();
+      serviceModalPhoneError.classList.remove('show');
+      serviceModalTicketNote.textContent = '';
+      serviceModalOverlay.classList.add('show');
+    });
+  });
+
+  function closeServiceModal() { serviceModalOverlay.classList.remove('show'); }
+  document.getElementById('service-modal-close').addEventListener('click', closeServiceModal);
+  serviceModalOverlay.addEventListener('click', (e) => { if (e.target === serviceModalOverlay) closeServiceModal(); });
+
+  serviceModalPhone.addEventListener('input', () => {
+    serviceModalPhone.value = serviceModalPhone.value.replace(/[^\d+\s-]/g, '');
+  });
+
+  serviceModalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button');
+
+    const normalizedPhone = normalizePhone(serviceModalPhone.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      serviceModalPhoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
+      serviceModalPhoneError.classList.add('show');
+      serviceModalPhone.focus();
+      return;
+    }
+    serviceModalPhoneError.classList.remove('show');
+
+    const original = btn.textContent;
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+    serviceModalTicketNote.textContent = '';
+    let ticketId;
+    try {
+      ticketId = await generateTicketId('ENQ', 'CustomerSite');
+      await addDoc(collection(db, 'contactEnquiries'), {
+        ticketId,
+        name: form.name.value.trim(),
+        phone: normalizedPhone,
+        subject: currentServiceCategory,
+        message: form.message.value.trim(),
+        source: 'landing-page-card',
+        createdAt: serverTimestamp()
+      });
+      btn.textContent = 'Sent — thank you';
+      serviceModalTicketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
+      form.reset();
+    } catch (err) {
+      console.error('Service request submit failed:', err);
+      btn.textContent = 'Something went wrong — try again';
+      btn.disabled = false;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
+  });
+
+  // =================================================================
+  // Shared helpers for the Register / Book / Track modals
+  // =================================================================
+
+  function wirePhoneSanitizer(input) {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^\d+\s-]/g, '');
+    });
+  }
+
+  const TV_ISSUES = ['No power', 'No Picture no sound', 'No Sound Only Picture', 'No Picture Only Sound', 'Sound Problem', 'Display Problem'];
+  const WM_ISSUES = ['No Power', 'Washing problem', 'Dryer problem', 'Switches/buttons Problem', 'Drain Problem'];
+
+  // =================================================================
+  // REGISTER A PRODUCT — writes to `productRegistrations`, same
+  // collection Dealers write to and Super Admin's Serial &
+  // Registration / Warranty views already read from.
+  // =================================================================
+
+  const registerOverlay = document.getElementById('register-overlay');
+  const registerForm = document.getElementById('register-form');
+  const registerPhone = document.getElementById('register-phone');
+  const registerPhoneError = document.getElementById('register-phone-error');
+  const registerError = document.getElementById('register-error');
+  const registerSuccess = document.getElementById('register-success');
+  const registerTicketNote = document.getElementById('register-ticket-note');
+  const registerCategory = document.getElementById('register-category');
+  const registerInstallationRow = document.getElementById('register-installation-row');
+  wirePhoneSanitizer(registerPhone);
+
+  function openRegisterModal() {
+    registerForm.reset();
+    registerPhoneError.classList.remove('show');
+    registerError.classList.remove('show');
+    registerSuccess.classList.remove('show');
+    registerTicketNote.textContent = '';
+    registerInstallationRow.classList.add('step-hidden');
+    registerOverlay.classList.add('show');
+  }
+  function closeRegisterModal() { registerOverlay.classList.remove('show'); }
+  document.getElementById('register-close').addEventListener('click', closeRegisterModal);
+  registerOverlay.addEventListener('click', (e) => { if (e.target === registerOverlay) closeRegisterModal(); });
+
+  registerCategory.addEventListener('change', () => {
+    const show = registerCategory.value === 'LED TV' || registerCategory.value === 'Washing Machine';
+    registerInstallationRow.classList.toggle('step-hidden', !show);
+  });
+
+  async function generateRegistrationId() {
+    const serial = await nextMonthlySerial(`productreg-${currentYYYYMM()}`);
+    return `PE-REG-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-CustomerSite`;
+  }
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    registerError.classList.remove('show');
+    registerSuccess.classList.remove('show');
+
+    const normalizedPhone = normalizePhone(registerPhone.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      registerPhoneError.textContent = 'Enter a valid 10-digit mobile number.';
+      registerPhoneError.classList.add('show');
+      registerPhone.focus();
+      return;
+    }
+    registerPhoneError.classList.remove('show');
+
+    const btn = registerForm.querySelector('button[type="submit"]');
+    const original = btn.textContent;
+    btn.textContent = 'Registering…';
+    btn.disabled = true;
+
+    const f = registerForm;
+    try {
+      const registrationId = await generateRegistrationId();
+      await addDoc(collection(db, 'productRegistrations'), {
+        registrationId,
+        customerName: f.name.value.trim(),
+        customerPhone: normalizedPhone,
+        address: f.address.value.trim(),
+        city: f.city.value.trim(),
+        state: f.state.value.trim(),
+        pincode: f.pincode.value.trim(),
+        brand: f.brand.value,
+        category: registerCategory.value,
+        modelNo: f.modelNo.value.trim(),
+        serialNumber: f.serialNumber.value.trim(),
+        product: `${f.brand.value} ${registerCategory.value} — ${f.modelNo.value.trim()}`,
+        purchaseDate: f.purchaseDate.value,
+        dealerName: f.dealerName.value.trim(),
+        installationRequired: document.getElementById('register-installation').checked,
+        warrantyMonths: 12,
+        status: 'active',
+        source: 'public-site',
+        createdAt: serverTimestamp()
+      });
+      btn.textContent = 'Registered';
+      registerSuccess.textContent = 'Product registered successfully.';
+      registerSuccess.classList.add('show');
+      registerTicketNote.innerHTML = `Your reference number: <b>${registrationId}</b> — save this for warranty follow-up.`;
+      f.reset();
+      registerInstallationRow.classList.add('step-hidden');
+    } catch (err) {
+      console.error('Register product failed:', err);
+      registerError.textContent = 'Could not register this product. Please try again.';
+      registerError.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
+  });
+
+  // =================================================================
+  // BOOK A SERVICE — search by mobile first (looks up existing
+  // productRegistrations), then a full request form. Writes to
+  // `publicServiceRequests`, keyed by its own ticket ID as the
+  // document ID (needed for the Track Service lookup below).
+  // =================================================================
+
+  const bookOverlay = document.getElementById('book-overlay');
+  const bookStepSearch = document.getElementById('book-step-search');
+  const bookStepForm = document.getElementById('book-step-form');
+  const bookSearchPhone = document.getElementById('book-search-phone');
+  const bookSearchError = document.getElementById('book-search-error');
+  const bookSearchResults = document.getElementById('book-search-results');
+  const bookForm = document.getElementById('book-form');
+  const bookPhone = document.getElementById('book-phone');
+  const bookPhoneError = document.getElementById('book-phone-error');
+  const bookError = document.getElementById('book-error');
+  const bookSuccess = document.getElementById('book-success');
+  const bookTicketNote = document.getElementById('book-ticket-note');
+  const bookCategory = document.getElementById('book-category');
+  const bookRequestType = document.getElementById('book-request-type');
+  const bookIssueRow = document.getElementById('book-issue-row');
+  const bookIssueSelect = document.getElementById('book-issue');
+  const bookIssueFallbackRow = document.getElementById('book-issue-fallback-row');
+  wirePhoneSanitizer(bookSearchPhone);
+  wirePhoneSanitizer(bookPhone);
+  let bookLinkedRegistrationId = null;
+
+  function openBookModal() {
+    bookStepSearch.classList.remove('step-hidden');
+    bookStepForm.classList.add('step-hidden');
+    bookSearchPhone.value = '';
+    bookSearchError.classList.remove('show');
+    bookSearchResults.innerHTML = '';
+    bookForm.reset();
+    bookPhoneError.classList.remove('show');
+    bookError.classList.remove('show');
+    bookSuccess.classList.remove('show');
+    bookTicketNote.textContent = '';
+    bookIssueRow.classList.add('step-hidden');
+    bookIssueFallbackRow.classList.add('step-hidden');
+    bookLinkedRegistrationId = null;
+    bookOverlay.classList.add('show');
+  }
+  function closeBookModal() { bookOverlay.classList.remove('show'); }
+  document.getElementById('book-close').addEventListener('click', closeBookModal);
+  bookOverlay.addEventListener('click', (e) => { if (e.target === bookOverlay) closeBookModal(); });
+
+  function goToBookForm(prefill) {
+    bookStepSearch.classList.add('step-hidden');
+    bookStepForm.classList.remove('step-hidden');
+    if (prefill) {
+      bookPhone.value = prefill.customerPhone || '';
+      bookForm.name.value = prefill.customerName || '';
+      bookForm.address.value = prefill.address || '';
+      bookForm.city.value = prefill.city || '';
+      bookForm.state.value = prefill.state || '';
+      bookForm.pincode.value = prefill.pincode || '';
+      bookForm.brand.value = prefill.brand || '';
+      bookCategory.value = prefill.category || '';
+      bookForm.purchaseDate.value = prefill.purchaseDate || '';
+      bookForm.dealerName.value = prefill.dealerName || '';
+      bookForm.modelNo.value = prefill.modelNo || '';
+      bookForm.serialNumber.value = prefill.serialNumber || '';
+      bookLinkedRegistrationId = prefill.registrationId || null;
+    } else if (bookSearchPhone.value.trim()) {
+      bookPhone.value = bookSearchPhone.value.trim();
+    }
+  }
+
+  document.getElementById('book-search-btn').addEventListener('click', async () => {
+    bookSearchError.classList.remove('show');
+    const normalizedPhone = normalizePhone(bookSearchPhone.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      bookSearchError.textContent = 'Enter a valid 10-digit mobile number to search.';
+      bookSearchError.classList.add('show');
+      return;
+    }
+    const searchBtn = document.getElementById('book-search-btn');
+    const original = searchBtn.textContent;
+    searchBtn.textContent = 'Searching…';
+    searchBtn.disabled = true;
+    try {
+      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone)));
+      bookSearchResults.innerHTML = '';
+      if (snap.empty) {
+        bookSearchResults.innerHTML = '<div style="font-size:13px;color:var(--stone);">No registered products found for this number — you can continue without one.</div>';
+      } else {
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const card = document.createElement('div');
+          card.className = 'search-result-card';
+          card.innerHTML = `<b>${d.product || (d.brand + ' ' + d.category)}</b><span>Model ${d.modelNo || '—'} · Purchased ${d.purchaseDate || '—'}</span>`;
+          card.addEventListener('click', () => goToBookForm(d));
+          bookSearchResults.appendChild(card);
+        });
+      }
+    } catch (err) {
+      console.error('Search registrations failed:', err);
+      bookSearchResults.innerHTML = '<div style="font-size:13px;color:#B3261E;">Search failed — please try again.</div>';
+    }
+    searchBtn.textContent = original;
+    searchBtn.disabled = false;
+  });
+
+  document.getElementById('book-skip-search').addEventListener('click', () => goToBookForm(null));
+
+  bookCategory.addEventListener('change', updateBookIssueOptions);
+  bookRequestType.addEventListener('change', updateBookIssueOptions);
+
+  function updateBookIssueOptions() {
+    if (bookRequestType.value !== 'service') {
+      bookIssueRow.classList.add('step-hidden');
+      bookIssueFallbackRow.classList.add('step-hidden');
+      return;
+    }
+    const cat = bookCategory.value;
+    let list = null;
+    if (cat === 'LED TV') list = TV_ISSUES;
+    else if (cat === 'Washing Machine') list = WM_ISSUES;
+    if (list) {
+      bookIssueSelect.innerHTML = list.map(i => `<option value="${i}">${i}</option>`).join('');
+      bookIssueRow.classList.remove('step-hidden');
+      bookIssueFallbackRow.classList.add('step-hidden');
+    } else {
+      bookIssueRow.classList.add('step-hidden');
+      bookIssueFallbackRow.classList.remove('step-hidden');
+    }
+  }
+
+  async function generateServiceRequestId() {
+    const serial = await nextMonthlySerial(`publicservice-${currentYYYYMM()}`);
+    return `PE-SVC-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-CustomerSite`;
+  }
+
+  bookForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    bookError.classList.remove('show');
+    bookSuccess.classList.remove('show');
+
+    const normalizedPhone = normalizePhone(bookPhone.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      bookPhoneError.textContent = 'Enter a valid 10-digit mobile number.';
+      bookPhoneError.classList.add('show');
+      bookPhone.focus();
+      return;
+    }
+    bookPhoneError.classList.remove('show');
+
+    const btn = bookForm.querySelector('button[type="submit"]');
+    const original = btn.textContent;
+    btn.textContent = 'Submitting…';
+    btn.disabled = true;
+
+    const f = bookForm;
+    const issueDescription = bookRequestType.value === 'service'
+      ? (bookIssueRow.classList.contains('step-hidden') ? document.getElementById('book-issue-fallback').value.trim() : bookIssueSelect.value)
+      : '';
+
+    try {
+      const requestId = await generateServiceRequestId();
+      await setDoc(doc(db, 'publicServiceRequests', requestId), {
+        requestId,
+        customerName: f.name.value.trim(),
+        customerPhone: normalizedPhone,
+        address: f.address.value.trim(),
+        city: f.city.value.trim(),
+        state: f.state.value.trim(),
+        pincode: f.pincode.value.trim(),
+        brand: f.brand.value,
+        category: bookCategory.value,
+        modelNo: f.modelNo.value.trim(),
+        serialNumber: f.serialNumber.value.trim(),
+        purchaseDate: f.purchaseDate.value,
+        dealerName: f.dealerName.value.trim(),
+        requestType: bookRequestType.value,
+        issueDescription,
+        linkedRegistrationId: bookLinkedRegistrationId,
+        status: 'new',
+        source: 'public-site',
+        createdAt: serverTimestamp()
+      });
+      btn.textContent = 'Submitted';
+      bookSuccess.textContent = 'Request submitted.';
+      bookSuccess.classList.add('show');
+      bookTicketNote.innerHTML = `Your reference number: <b>${requestId}</b> — save this to track your request.`;
+      f.reset();
+      bookIssueRow.classList.add('step-hidden');
+      bookIssueFallbackRow.classList.add('step-hidden');
+    } catch (err) {
+      console.error('Book service failed:', err);
+      bookError.textContent = 'Could not submit this request. Please try again.';
+      bookError.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
+  });
+
+  // =================================================================
+  // TRACK A SERVICE — looks up a single publicServiceRequests
+  // document by its exact ticket ID (the document ID). Only status-
+  // relevant fields are shown, even though the fetched document also
+  // contains the customer's name/address — deliberately not
+  // displayed, to limit what's exposed if a ticket ID is guessed.
+  // =================================================================
+
+  const trackOverlay = document.getElementById('track-overlay');
+  const trackTicket = document.getElementById('track-ticket');
+  const trackPhone = document.getElementById('track-phone');
+  const trackError = document.getElementById('track-error');
+  const trackResult = document.getElementById('track-result');
+  wirePhoneSanitizer(trackPhone);
+
+  function openTrackModal() {
+    trackTicket.value = '';
+    trackPhone.value = '';
+    trackError.classList.remove('show');
+    trackResult.innerHTML = '';
+    trackOverlay.classList.add('show');
+  }
+  function closeTrackModal() { trackOverlay.classList.remove('show'); }
+  document.getElementById('track-close').addEventListener('click', closeTrackModal);
+  trackOverlay.addEventListener('click', (e) => { if (e.target === trackOverlay) closeTrackModal(); });
+
+  document.getElementById('track-search-btn').addEventListener('click', async () => {
+    trackError.classList.remove('show');
+    trackResult.innerHTML = '';
+    const ticket = trackTicket.value.trim();
+    const normalizedPhone = normalizePhone(trackPhone.value.trim());
+    if (!ticket || !isValidIndianMobile(normalizedPhone)) {
+      trackError.textContent = 'Enter your request number and a valid 10-digit mobile number.';
+      trackError.classList.add('show');
+      return;
+    }
+    const btn = document.getElementById('track-search-btn');
+    const original = btn.textContent;
+    btn.textContent = 'Checking…';
+    btn.disabled = true;
+    try {
+      const snap = await getDoc(doc(db, 'publicServiceRequests', ticket));
+      if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
+        trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+      } else {
+        const d = snap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        trackResult.innerHTML = `
+          <div class="track-status-box">
+            <div class="label">Status</div>
+            <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
+            <div class="label">Request Type</div>
+            <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
+            <div class="label">Product</div>
+            <div class="value" style="font-size:13.5px;">${d.brand || ''} ${d.category || ''}</div>
+            <div class="label">Submitted</div>
+            <div class="value" style="font-size:13.5px;">${dateStr}</div>
+          </div>`;
+      }
+    } catch (err) {
+      console.error('Track service failed:', err);
+      trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">Could not check status right now. Please try again.</div></div>';
+    }
+    btn.textContent = original;
+    btn.disabled = false;
+  });
+
+  // Contact category cards — clicking (or arriving via a #cat-* link
+  // from the Customer Services cards) marks the card active and
+  // pre-fills the enquiry subject with that category.
+  const subjectInput = document.getElementById('enquiry-subject');
+  const catCards = document.querySelectorAll('.contact-cat-card');
+
+  function selectCategory(card) {
+    catCards.forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    subjectInput.value = card.dataset.category;
+  }
+
+  catCards.forEach(card => {
+    card.addEventListener('click', () => selectCategory(card));
+  });
+
+  function applyHashCategory() {
+    const hash = window.location.hash.replace('#', '');
+    const card = document.getElementById(hash);
+    if (card && card.classList.contains('contact-cat-card')) {
+      selectCategory(card);
+    }
+  }
+  window.addEventListener('hashchange', applyHashCategory);
+  applyHashCategory();
 
   /*
     Expected Firestore documents (all optional — page falls back to the
