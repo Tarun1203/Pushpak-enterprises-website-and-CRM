@@ -271,6 +271,76 @@
   </div>
 </div>
 
+<!-- New Local Purchase modal -->
+<div class="modal-overlay" id="lp-overlay">
+  <div class="modal">
+    <h3>New local purchase request</h3>
+    <form id="lp-form">
+      <div class="form-row">
+        <label>Item / part needed</label>
+        <input type="text" id="lp-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="lp-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Estimated amount (₹)</label>
+        <input type="number" id="lp-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Requested by</label>
+        <input type="text" id="lp-requestedby" placeholder="e.g. your name or center name" required>
+      </div>
+      <div class="form-row">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="lp-emergency-flag" style="width:auto;">
+          This is an emergency purchase
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="lp-notes" placeholder="Why this is needed, vendor info, etc."></textarea>
+      </div>
+      <div class="modal-error" id="lp-error"></div>
+      <div class="modal-success" id="lp-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Invoice submission modal -->
+<div class="modal-overlay" id="lp-invoice-overlay">
+  <div class="modal">
+    <h3>Submit invoice</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="lp-invoice-label"></div>
+    <form id="lp-invoice-form">
+      <input type="hidden" id="lp-invoice-doc-id">
+      <div class="form-row">
+        <label>Vendor name</label>
+        <input type="text" id="lp-vendor" required>
+      </div>
+      <div class="form-row">
+        <label>Invoice number</label>
+        <input type="text" id="lp-invoice-number" required>
+      </div>
+      <div class="form-row">
+        <label>Actual amount (₹)</label>
+        <input type="number" id="lp-actual-amount" min="0" step="0.01" required>
+      </div>
+      <div class="modal-error" id="lp-invoice-error"></div>
+      <div class="modal-success" id="lp-invoice-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp-invoice">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp-invoice">Submit invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -324,7 +394,7 @@
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "localpurchase", "label": "Local Purchase"}, {"id": "claims", "label": "Claims"}, {"id": "returns", "label": "Returns & Defects"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims", "label": "Claims"}, {"id": "returns", "label": "Returns & Defects"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -401,6 +471,9 @@
     } else if (id === 'move-issue') {
       pageSub.textContent = 'Stock issued out of Head Office';
       renderMovementHistory('issue', label);
+    } else if (LOCAL_PURCHASE_TABS[id]) {
+      pageSub.textContent = 'Local Purchase';
+      renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -1005,6 +1078,244 @@
       tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load movement history. Check console for details.</td></tr>`;
     }
   }
+
+  // ---------------------------------------------------------------
+  // Local Purchase — Requests → Invoice Submitted → Verified →
+  // Reimbursed, plus an Emergency cross-filter and a full History log.
+  // ---------------------------------------------------------------
+
+  const LOCAL_PURCHASE_TABS = {
+    'lp-new': 'requested',
+    'lp-emergency': 'EMERGENCY',
+    'lp-invoice': 'invoice_submitted',
+    'lp-claims': 'verified',
+    'lp-history': 'ALL',
+  };
+  const LP_STATUS_LABELS = {
+    requested: 'Requested', invoice_submitted: 'Invoice Submitted', verified: 'Verified', reimbursed: 'Reimbursed'
+  };
+  const LP_STATUS_PILL_CLASS = {
+    requested: 'new', invoice_submitted: 'low', verified: 'ok', reimbursed: 'ok'
+  };
+
+  async function generateLocalPurchaseId() {
+    const counterKey = `localpurchase-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-LP-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderLocalPurchase(filterValue, tabId, label) {
+    const showActions = tabId !== 'lp-history';
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-lp-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Item</th><th>Qty</th><th>Requested By</th><th>Amount</th><th>Emergency</th><th>Status</th>${showActions ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="lp-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-lp-request').addEventListener('click', openLpModal);
+    loadLocalPurchases(filterValue, tabId, showActions);
+  }
+
+  async function loadLocalPurchases(filterValue, tabId, showActions) {
+    const tbody = document.getElementById('lp-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'EMERGENCY') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('emergency', '==', true), orderBy('createdAt', 'desc')));
+      } else {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('status', '==', filterValue), orderBy('createdAt', 'desc')));
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (filterValue === 'EMERGENCY') {
+        docs = docs.filter(d => d.status !== 'reimbursed');
+      }
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (showActions) {
+          if (d.status === 'requested') {
+            actionHtml = `<button class="btn-secondary lp-invoice-btn" data-id="${d.id}" data-item="${(d.item || '').replace(/"/g, '&quot;')}" data-requestid="${d.requestId || ''}">Submit Invoice</button>`;
+          } else if (d.status === 'invoice_submitted') {
+            actionHtml = `<button class="btn-secondary lp-verify-btn" data-id="${d.id}">Verify Invoice</button>`;
+          } else if (d.status === 'verified') {
+            actionHtml = `<button class="btn-primary lp-reimburse-btn" data-id="${d.id}">Mark Reimbursed</button>`;
+          } else {
+            actionHtml = '—';
+          }
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.requestedBy || '—'}</td>
+          <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
+          <td>${d.emergency ? '<span class="priority-tag urgent">URGENT</span>' : '—'}</td>
+          <td><span class="status-pill ${LP_STATUS_PILL_CLASS[d.status] || ''}">${LP_STATUS_LABELS[d.status] || d.status}</span></td>
+          ${showActions ? `<td>${actionHtml}</td>` : ''}`;
+        tbody.appendChild(tr);
+      });
+      if (showActions) {
+        tbody.querySelectorAll('.lp-invoice-btn').forEach(btn => {
+          btn.addEventListener('click', () => openLpInvoiceModal(btn.dataset.id, btn.dataset.item, btn.dataset.requestid));
+        });
+        tbody.querySelectorAll('.lp-verify-btn').forEach(btn => {
+          btn.addEventListener('click', () => advanceLocalPurchase(btn.dataset.id, 'verified', tabId));
+        });
+        tbody.querySelectorAll('.lp-reimburse-btn').forEach(btn => {
+          btn.addEventListener('click', () => advanceLocalPurchase(btn.dataset.id, 'reimbursed', tabId));
+        });
+      }
+    } catch (err) {
+      console.error('Load local purchases failed:', err);
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceLocalPurchase(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'localPurchases', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
+    } catch (err) {
+      console.error('Update local purchase failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // New Local Purchase Request modal
+  const lpOverlay = document.getElementById('lp-overlay');
+  const lpForm = document.getElementById('lp-form');
+  const lpError = document.getElementById('lp-error');
+  const lpSuccess = document.getElementById('lp-success');
+  const lpSubmitBtn = document.getElementById('submit-lp');
+
+  function openLpModal() {
+    lpForm.reset();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = false;
+    lpSubmitBtn.textContent = 'Create request';
+    lpOverlay.classList.add('show');
+  }
+  function closeLpModal() { lpOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp').addEventListener('click', closeLpModal);
+  lpOverlay.addEventListener('click', (e) => { if (e.target === lpOverlay) closeLpModal(); });
+
+  lpForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = true;
+    lpSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateLocalPurchaseId();
+      await addDoc(collection(db, 'localPurchases'), {
+        requestId,
+        item: document.getElementById('lp-item').value.trim(),
+        quantity: Number(document.getElementById('lp-qty').value) || 1,
+        estimatedAmount: Number(document.getElementById('lp-amount').value) || 0,
+        requestedBy: document.getElementById('lp-requestedby').value.trim(),
+        emergency: document.getElementById('lp-emergency-flag').checked,
+        notes: document.getElementById('lp-notes').value.trim(),
+        status: 'requested',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      lpSuccess.textContent = `Created — ${requestId}`;
+      lpSuccess.classList.add('show');
+      lpSubmitBtn.textContent = 'Create request';
+      lpSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpModal, 1000);
+    } catch (err) {
+      console.error('Create local purchase failed:', err);
+      lpError.textContent = 'Could not create request. Check console for details.';
+      lpError.classList.add('show');
+      lpSubmitBtn.disabled = false;
+      lpSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // Invoice submission modal
+  const lpInvoiceOverlay = document.getElementById('lp-invoice-overlay');
+  const lpInvoiceForm = document.getElementById('lp-invoice-form');
+  const lpInvoiceError = document.getElementById('lp-invoice-error');
+  const lpInvoiceSuccess = document.getElementById('lp-invoice-success');
+  const lpInvoiceSubmitBtn = document.getElementById('submit-lp-invoice');
+  const lpInvoiceLabel = document.getElementById('lp-invoice-label');
+
+  function openLpInvoiceModal(docId, item, requestId) {
+    lpInvoiceForm.reset();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = false;
+    lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    document.getElementById('lp-invoice-doc-id').value = docId;
+    lpInvoiceLabel.textContent = `${requestId ? requestId + ' — ' : ''}${item}`;
+    lpInvoiceOverlay.classList.add('show');
+  }
+  function closeLpInvoiceModal() { lpInvoiceOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp-invoice').addEventListener('click', closeLpInvoiceModal);
+  lpInvoiceOverlay.addEventListener('click', (e) => { if (e.target === lpInvoiceOverlay) closeLpInvoiceModal(); });
+
+  lpInvoiceForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = true;
+    lpInvoiceSubmitBtn.textContent = 'Saving…';
+    const docId = document.getElementById('lp-invoice-doc-id').value;
+    try {
+      await updateDoc(doc(db, 'localPurchases', docId), {
+        status: 'invoice_submitted',
+        vendor: document.getElementById('lp-vendor').value.trim(),
+        invoiceNumber: document.getElementById('lp-invoice-number').value.trim(),
+        actualAmount: Number(document.getElementById('lp-actual-amount').value) || 0,
+        updatedAt: serverTimestamp()
+      });
+      lpInvoiceSuccess.textContent = 'Invoice submitted.';
+      lpInvoiceSuccess.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpInvoiceModal, 800);
+    } catch (err) {
+      console.error('Submit invoice failed:', err);
+      lpInvoiceError.textContent = 'Could not submit invoice. Check console for details.';
+      lpInvoiceError.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    }
+  });
 
   renderNav();
   setActiveNav('dashboard');
