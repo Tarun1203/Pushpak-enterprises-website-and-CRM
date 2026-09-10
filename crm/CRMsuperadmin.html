@@ -110,6 +110,10 @@
   .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
   .modal-success.show{display:block;}
   .form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;width:100%;resize:vertical;min-height:70px;}
+  .wplan-component-row{display:grid;grid-template-columns:1.2fr 0.8fr 1.5fr auto;gap:8px;margin-bottom:8px;align-items:start;}
+  .wplan-component-row input{border:1px solid var(--hairline);padding:9px 11px;font-size:13px;border-radius:2px;font-family:inherit;width:100%;}
+  .wplan-component-row button{background:transparent;border:1px solid var(--err);color:var(--err);border-radius:2px;font-size:12px;padding:9px 10px;cursor:pointer;}
+  @media (max-width:600px){.wplan-component-row{grid-template-columns:1fr;}}
   .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
   .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .empty-row{text-align:center;color:var(--stone);padding:32px;}
@@ -367,7 +371,11 @@
       <div class="form-row"><label>SKU</label><input type="text" id="model-sku" placeholder="e.g. MW-TV-43-A"></div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="model-price" min="0" step="0.01"></div>
       <div class="form-row"><label>Specifications <span class="hint">(free text for now)</span></label><textarea id="model-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
-      <div class="form-row"><label>Warranty Plan <span class="hint">(free text for now)</span></label><input type="text" id="model-warranty" placeholder="e.g. 1 Year Standard"></div>
+      <div class="form-row"><label>Warranty Plan</label>
+        <select id="model-warranty">
+          <option value="">No plan linked</option>
+        </select>
+      </div>
       <div class="form-row"><label>Status</label>
         <select id="model-status">
           <option value="active">Active</option>
@@ -379,6 +387,46 @@
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-model">Cancel</button>
         <button type="submit" class="btn-primary" id="submit-model">Save model</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Warranty Plan modal -->
+<div class="modal-overlay" id="wplan-overlay">
+  <div class="modal modal-wide">
+    <h3 id="wplan-modal-title">Add warranty plan</h3>
+    <form id="wplan-form">
+      <input type="hidden" id="wplan-editing-id">
+      <div class="form-row"><label>Plan name</label><input type="text" id="wplan-name" placeholder="e.g. MakWell Washing Machine Standard Warranty" required></div>
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row"><label>Brand</label>
+          <select id="wplan-brand" required>
+            <option value="makwell">MakWell</option>
+            <option value="flyvision">Flyvision</option>
+            <option value="skevia">Skevia</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Category <span class="hint">(optional)</span></label>
+          <select id="wplan-category"><option value="">Any category</option></select>
+        </div>
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select id="wplan-status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+
+      <label style="font-size:12px;font-weight:600;color:var(--stone);">Components covered</label>
+      <div id="wplan-components" style="margin:8px 0 12px;"></div>
+      <button type="button" id="wplan-add-component" class="btn-secondary" style="margin-bottom:16px;">+ Add Component</button>
+
+      <div class="modal-error" id="wplan-error"></div>
+      <div class="modal-success" id="wplan-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-wplan">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-wplan">Save plan</button>
       </div>
     </form>
   </div>
@@ -1588,12 +1636,39 @@
   const modelModalTitle = document.getElementById('model-modal-title');
   const modelProductSelect = document.getElementById('model-product');
 
+  const modelWarrantySelect = document.getElementById('model-warranty');
+
   async function populateModelProductOptions(selectedProductId) {
     const products = await getProductsCacheForModels(true);
     modelProductSelect.innerHTML = '<option value="">Select a product…</option>' +
       products.map(p => `<option value="${p.id}">${p.name} (${BRAND_LABELS[p.brandId] || p.brand || ''})</option>`).join('');
     if (selectedProductId) modelProductSelect.value = selectedProductId;
   }
+
+  async function populateModelWarrantyOptions(productId, selectedPlanId) {
+    modelWarrantySelect.innerHTML = '<option value="">No plan linked</option>';
+    const products = await getProductsCacheForModels(false);
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'warrantyPlans'),
+        where('brandId', '==', product.brandId),
+        where('status', '==', 'active')
+      ));
+      snap.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.data().name;
+        modelWarrantySelect.appendChild(opt);
+      });
+      if (selectedPlanId) modelWarrantySelect.value = selectedPlanId;
+    } catch (err) {
+      console.error('Load warranty plans for model failed:', err);
+    }
+  }
+
+  modelProductSelect.addEventListener('change', () => populateModelWarrantyOptions(modelProductSelect.value, null));
 
   function openModelModal(existing) {
     modelForm.reset();
@@ -1608,12 +1683,13 @@
       document.getElementById('model-sku').value = existing.sku || '';
       document.getElementById('model-price').value = existing.price ?? '';
       document.getElementById('model-specs').value = existing.specifications || '';
-      document.getElementById('model-warranty').value = existing.warrantyPlan || '';
+      populateModelWarrantyOptions(existing.productId, existing.warrantyPlanId || null);
       document.getElementById('model-status').value = existing.status || 'active';
       modelSubmitBtn.textContent = 'Save changes';
     } else {
       modelModalTitle.textContent = 'Add model';
       document.getElementById('model-editing-id').value = '';
+      modelWarrantySelect.innerHTML = '<option value="">Select a product first…</option>';
       modelSubmitBtn.textContent = 'Save model';
     }
     modelOverlay.classList.add('show');
@@ -1644,7 +1720,8 @@
       sku: document.getElementById('model-sku').value.trim(),
       price: document.getElementById('model-price').value ? Number(document.getElementById('model-price').value) : null,
       specifications: document.getElementById('model-specs').value.trim(),
-      warrantyPlan: document.getElementById('model-warranty').value.trim(),
+      warrantyPlanId: modelWarrantySelect.value || null,
+      warrantyPlanName: modelWarrantySelect.value ? modelWarrantySelect.options[modelWarrantySelect.selectedIndex].textContent : null,
       status: document.getElementById('model-status').value,
     };
     try {
@@ -1711,7 +1788,22 @@
         <button data-filter="active">Active</button>
         <button data-filter="low">Expiring Soon</button>
         <button data-filter="expired">Expired</button>
+        <button data-filter="plans">Warranty Plans</button>
       </div>
+      <div id="warranty-content"></div>`;
+    document.querySelectorAll('#warranty-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#warranty-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (btn.dataset.filter === 'plans') renderWarrantyPlans();
+        else renderWarrantyStatusTable(btn.dataset.filter);
+      });
+    });
+    renderWarrantyStatusTable('all');
+  }
+
+  function renderWarrantyStatusTable(filter) {
+    document.getElementById('warranty-content').innerHTML = `
       <div class="panel">
         <div class="panel-header"><h2>Warranty status</h2></div>
         <div class="panel-body" style="padding:0;">
@@ -1721,14 +1813,7 @@
           </table>
         </div>
       </div>`;
-    document.querySelectorAll('#warranty-tabs button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#warranty-tabs button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        loadAllRegistrations('warranty', btn.dataset.filter);
-      });
-    });
-    loadAllRegistrations('warranty', 'all');
+    loadAllRegistrations('warranty', filter);
   }
 
   async function loadAllRegistrations(mode, filter) {
@@ -1762,6 +1847,190 @@
       tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load registrations. Check console for details.</td></tr>`;
     }
   }
+
+  // =================================================================
+  // WARRANTY PLANS — data-driven, multi-component coverage (e.g. a
+  // Washing Machine plan can cover Full Product: 1yr, Spin Motor:
+  // 2yr, Wash Motor: 5yr as separate lines in one plan). Linked to
+  // Models via productModels.warrantyPlanId.
+  // =================================================================
+
+  let componentRowCount = 0;
+
+  function addComponentRow(existing) {
+    const container = document.getElementById('wplan-components');
+    const rowId = `wc-${componentRowCount++}`;
+    const row = document.createElement('div');
+    row.className = 'wplan-component-row';
+    row.dataset.rowId = rowId;
+    row.innerHTML = `
+      <input type="text" class="wc-name" placeholder="Component (e.g. Full Product)" value="${(existing && existing.componentName) || ''}">
+      <input type="number" class="wc-months" placeholder="Months" min="0" value="${(existing && existing.durationMonths) ?? ''}">
+      <input type="text" class="wc-coverage" placeholder="Coverage notes (optional)" value="${(existing && existing.coverage) || ''}">
+      <button type="button" class="wc-remove">Remove</button>`;
+    row.querySelector('.wc-remove').addEventListener('click', () => row.remove());
+    container.appendChild(row);
+  }
+
+  function collectComponentRows() {
+    return Array.from(document.querySelectorAll('#wplan-components .wplan-component-row')).map(row => ({
+      componentName: row.querySelector('.wc-name').value.trim(),
+      durationMonths: Number(row.querySelector('.wc-months').value) || 0,
+      coverage: row.querySelector('.wc-coverage').value.trim(),
+    })).filter(c => c.componentName);
+  }
+
+  async function renderWarrantyPlans() {
+    document.getElementById('warranty-content').innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Warranty plans</h2>
+          <button class="btn-primary" id="open-add-wplan">+ Add Plan</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Plan Name</th><th>Brand</th><th>Category</th><th>Components</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="wplans-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-wplan').addEventListener('click', () => openWplanModal(null));
+    loadWarrantyPlans();
+  }
+
+  async function loadWarrantyPlans() {
+    const tbody = document.getElementById('wplans-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'warrantyPlans'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No warranty plans yet — add your first one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        const componentsSummary = (d.components || []).map(c => `${c.componentName}: ${c.durationMonths}mo`).join(', ') || '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${d.name || '—'}</b></td>
+          <td>${BRAND_LABELS[d.brandId] || '—'}</td>
+          <td>${d.categoryName || 'Any'}</td>
+          <td style="max-width:260px;color:var(--stone);font-size:12.5px;">${componentsSummary}</td>
+          <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
+          <td><button class="btn-secondary wplan-edit-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.wplan-edit-btn').addEventListener('click', () => openWplanModal(d));
+      });
+    } catch (err) {
+      console.error('Load warranty plans failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load plans. Check console for details.</td></tr>`;
+    }
+  }
+
+  const wplanOverlay = document.getElementById('wplan-overlay');
+  const wplanForm = document.getElementById('wplan-form');
+  const wplanError = document.getElementById('wplan-error');
+  const wplanSuccess = document.getElementById('wplan-success');
+  const wplanSubmitBtn = document.getElementById('submit-wplan');
+  const wplanModalTitle = document.getElementById('wplan-modal-title');
+  const wplanBrandSelect = document.getElementById('wplan-brand');
+  const wplanCategorySelect = document.getElementById('wplan-category');
+
+  async function populateWplanCategoryOptions(brandId, selectedCategoryId) {
+    wplanCategorySelect.innerHTML = '<option value="">Any category</option>';
+    try {
+      const snap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
+      const cats = [];
+      snap.forEach(d => cats.push({ id: d.id, ...d.data() }));
+      cats.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        wplanCategorySelect.appendChild(opt);
+      });
+      if (selectedCategoryId) wplanCategorySelect.value = selectedCategoryId;
+    } catch (err) {
+      console.error('Load categories for warranty plan failed:', err);
+    }
+  }
+
+  wplanBrandSelect.addEventListener('change', () => populateWplanCategoryOptions(wplanBrandSelect.value, null));
+  document.getElementById('wplan-add-component').addEventListener('click', () => addComponentRow(null));
+
+  function openWplanModal(existing) {
+    wplanForm.reset();
+    wplanError.classList.remove('show');
+    wplanSuccess.classList.remove('show');
+    wplanSubmitBtn.disabled = false;
+    document.getElementById('wplan-components').innerHTML = '';
+    if (existing) {
+      wplanModalTitle.textContent = 'Edit warranty plan';
+      document.getElementById('wplan-editing-id').value = existing.id;
+      document.getElementById('wplan-name').value = existing.name || '';
+      wplanBrandSelect.value = existing.brandId || 'makwell';
+      populateWplanCategoryOptions(wplanBrandSelect.value, existing.categoryId || null);
+      document.getElementById('wplan-status').value = existing.status || 'active';
+      (existing.components || []).forEach(c => addComponentRow(c));
+      if (!existing.components || existing.components.length === 0) addComponentRow(null);
+      wplanSubmitBtn.textContent = 'Save changes';
+    } else {
+      wplanModalTitle.textContent = 'Add warranty plan';
+      document.getElementById('wplan-editing-id').value = '';
+      populateWplanCategoryOptions(wplanBrandSelect.value, null);
+      addComponentRow(null);
+      wplanSubmitBtn.textContent = 'Save plan';
+    }
+    wplanOverlay.classList.add('show');
+  }
+  function closeWplanModal() { wplanOverlay.classList.remove('show'); }
+  document.getElementById('cancel-wplan').addEventListener('click', closeWplanModal);
+  wplanOverlay.addEventListener('click', (e) => { if (e.target === wplanOverlay) closeWplanModal(); });
+
+  wplanForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    wplanError.classList.remove('show');
+    wplanSuccess.classList.remove('show');
+    const components = collectComponentRows();
+    if (components.length === 0) {
+      wplanError.textContent = 'Add at least one component (e.g. "Full Product", 12 months).';
+      wplanError.classList.add('show');
+      return;
+    }
+    wplanSubmitBtn.disabled = true;
+    wplanSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('wplan-editing-id').value;
+    const categoryName = wplanCategorySelect.value
+      ? wplanCategorySelect.options[wplanCategorySelect.selectedIndex].textContent
+      : null;
+    const payload = {
+      name: document.getElementById('wplan-name').value.trim(),
+      brandId: wplanBrandSelect.value,
+      categoryId: wplanCategorySelect.value || null,
+      categoryName,
+      status: document.getElementById('wplan-status').value,
+      components,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'warrantyPlans', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'warrantyPlans'), { ...payload, createdAt: serverTimestamp() });
+      }
+      wplanSuccess.textContent = 'Saved.';
+      wplanSuccess.classList.add('show');
+      wplanSubmitBtn.disabled = false;
+      wplanSubmitBtn.textContent = editingId ? 'Save changes' : 'Save plan';
+      if (document.getElementById('wplans-tbody')) loadWarrantyPlans();
+      setTimeout(closeWplanModal, 800);
+    } catch (err) {
+      console.error('Save warranty plan failed:', err);
+      wplanError.textContent = 'Could not save this plan. Check console for details.';
+      wplanError.classList.add('show');
+      wplanSubmitBtn.disabled = false;
+      wplanSubmitBtn.textContent = editingId ? 'Save changes' : 'Save plan';
+    }
+  });
 
   // =================================================================
   // DEALERS / SERVICE CENTERS / TECHNICIANS — account overviews.

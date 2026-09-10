@@ -233,6 +233,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------
+    // Warranty Plans — a plan can cover multiple components with
+    // different durations (e.g. Washing Machine: full product 1yr,
+    // spin motor 2yr, wash motor 5yr). Public read, admin write.
+    // ---------------------------------------------------------------
+
+    match /warrantyPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /categoryHistory/{entryId} {
       allow read: if isStaff();
       allow create: if isAdmin();
