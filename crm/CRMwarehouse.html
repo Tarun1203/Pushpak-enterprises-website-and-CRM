@@ -341,6 +341,44 @@
   </div>
 </div>
 
+<!-- New Claim modal -->
+<div class="modal-overlay" id="claim-overlay">
+  <div class="modal">
+    <h3>New claim</h3>
+    <form id="claim-form">
+      <div class="form-row">
+        <label>Claimant type</label>
+        <select id="claim-type" required>
+          <option value="technician">Technician</option>
+          <option value="servicecenter">Service Center</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Claimant name</label>
+        <input type="text" id="claim-name" placeholder="e.g. Ramesh K., or Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="claim-description" placeholder="e.g. Travel expense for on-site repair" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="claim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="claim-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="claim-error"></div>
+      <div class="modal-success" id="claim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-claim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-claim">Create claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -394,7 +432,7 @@
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims", "label": "Claims"}, {"id": "returns", "label": "Returns & Defects"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns", "label": "Returns & Defects"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -474,6 +512,9 @@
     } else if (LOCAL_PURCHASE_TABS[id]) {
       pageSub.textContent = 'Local Purchase';
       renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
+    } else if (CLAIMS_TABS[id]) {
+      pageSub.textContent = 'Claims';
+      renderClaims(CLAIMS_TABS[id], id, label);
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -1314,6 +1355,167 @@
       lpInvoiceError.classList.add('show');
       lpInvoiceSubmitBtn.disabled = false;
       lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Claims — Technician / Service Center reimbursement claims.
+  // Submitted → Verified → Settled, with Reject available from
+  // Submitted or Verified, and Reopen from Rejected.
+  // ---------------------------------------------------------------
+
+  const CLAIMS_TABS = {
+    'claims-technician': 'technician',
+    'claims-servicecenter': 'servicecenter',
+    'claims-verification': 'VERIFICATION',
+    'claims-history': 'ALL',
+  };
+  const CLAIM_STATUS_LABELS = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+  const CLAIM_STATUS_PILL_CLASS = { submitted: 'new', verified: 'low', settled: 'ok', rejected: 'backorder' };
+
+  async function generateClaimId() {
+    const counterKey = `claim-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderClaims(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-claim-request">+ New Claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="claims-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-claim-request').addEventListener('click', openClaimModal);
+    loadClaims(filterValue, tabId);
+  }
+
+  async function loadClaims(filterValue, tabId) {
+    const tbody = document.getElementById('claims-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'claims'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'VERIFICATION') {
+        snap = await getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted'), orderBy('createdAt', 'desc')));
+      } else {
+        snap = await getDocs(query(collection(db, 'claims'), where('claimantType', '==', filterValue), orderBy('createdAt', 'desc')));
+      }
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (d.status === 'submitted') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'verified') {
+          actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'rejected') {
+          actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+          <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
+          <td>${d.claimantName || '—'}</td>
+          <td>${d.description || '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'verified', tabId)));
+      tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'settled', tabId)));
+      tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'rejected', tabId)));
+      tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'submitted', tabId)));
+    } catch (err) {
+      console.error('Load claims failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceClaim(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'claims', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadClaims(CLAIMS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update claim failed:', err);
+      alert('Could not update this claim. Check the console for details.');
+    }
+  }
+
+  const claimOverlay = document.getElementById('claim-overlay');
+  const claimForm = document.getElementById('claim-form');
+  const claimError = document.getElementById('claim-error');
+  const claimSuccess = document.getElementById('claim-success');
+  const claimSubmitBtn = document.getElementById('submit-claim');
+
+  function openClaimModal() {
+    claimForm.reset();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = false;
+    claimSubmitBtn.textContent = 'Create claim';
+    claimOverlay.classList.add('show');
+  }
+  function closeClaimModal() { claimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-claim').addEventListener('click', closeClaimModal);
+  claimOverlay.addEventListener('click', (e) => { if (e.target === claimOverlay) closeClaimModal(); });
+
+  claimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = true;
+    claimSubmitBtn.textContent = 'Creating…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: document.getElementById('claim-type').value,
+        claimantName: document.getElementById('claim-name').value.trim(),
+        description: document.getElementById('claim-description').value.trim(),
+        amount: Number(document.getElementById('claim-amount').value) || 0,
+        notes: document.getElementById('claim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      claimSuccess.textContent = `Created — ${claimId}`;
+      claimSuccess.classList.add('show');
+      claimSubmitBtn.textContent = 'Create claim';
+      claimSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && CLAIMS_TABS[activeItem.dataset.id]) {
+        loadClaims(CLAIMS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeClaimModal, 1000);
+    } catch (err) {
+      console.error('Create claim failed:', err);
+      claimError.textContent = 'Could not create claim. Check console for details.';
+      claimError.classList.add('show');
+      claimSubmitBtn.disabled = false;
+      claimSubmitBtn.textContent = 'Create claim';
     }
   });
 
