@@ -222,6 +222,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------
+    // Product Models / SKUs — each model belongs to a parent product
+    // (productId) and carries brandId denormalized for easy querying.
+    // Public read (same reasoning as products/categories), admin write.
+    // ---------------------------------------------------------------
+
+    match /productModels/{modelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /categoryHistory/{entryId} {
       allow read: if isStaff();
       allow create: if isAdmin();
