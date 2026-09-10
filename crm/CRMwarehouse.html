@@ -392,6 +392,15 @@
     } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
       pageSub.textContent = 'Not populated yet';
       renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
+    } else if (id === 'move-history') {
+      pageSub.textContent = 'Full log, all movement types';
+      renderMovementHistory(null, label);
+    } else if (id === 'move-receive') {
+      pageSub.textContent = 'Stock received into Head Office';
+      renderMovementHistory('receive', label);
+    } else if (id === 'move-issue') {
+      pageSub.textContent = 'Stock issued out of Head Office';
+      renderMovementHistory('issue', label);
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -932,6 +941,70 @@
       adjustSubmitBtn.textContent = 'Save';
     }
   });
+
+  // ---------------------------------------------------------------
+  // Stock Movement — Movement History (plus Receive/Issue as
+  // filtered views of the same log). Every adjustment made from
+  // Inventory > Head Office Stock already writes a stockMovements
+  // entry, so this view is populated automatically — no separate
+  // data-entry step needed for Receive/Issue.
+  // ---------------------------------------------------------------
+
+  const MOVEMENT_TYPE_LABELS = { receive: 'Receive', issue: 'Issue', transfer: 'Transfer', adjustment: 'Adjustment' };
+
+  async function renderMovementHistory(typeFilter, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${label}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Part</th><th>Qty</th><th>Location</th><th>Reason / Notes</th></tr>
+            </thead>
+            <tbody id="movement-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadMovementHistory(typeFilter);
+  }
+
+  async function loadMovementHistory(typeFilter) {
+    const tbody = document.getElementById('movement-tbody');
+    try {
+      const baseQuery = typeFilter
+        ? query(collection(db, 'stockMovements'), where('type', '==', typeFilter), orderBy('createdAt', 'desc'))
+        : query(collection(db, 'stockMovements'), orderBy('createdAt', 'desc'));
+      const [movementsSnap, partsSnap] = await Promise.all([
+        getDocs(baseQuery),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (movementsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No movements recorded yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      movementsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${MOVEMENT_TYPE_LABELS[d.type] || d.type}</span></td>
+          <td>${part ? (part.partCode + ' — ' + part.name) : (d.partId || '—')}</td>
+          <td><b>${d.quantity ?? '—'}</b></td>
+          <td style="text-transform:capitalize;">${d.location || '—'}</td>
+          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load movement history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load movement history. Check console for details.</td></tr>`;
+    }
+  }
 
   renderNav();
   setActiveNav('dashboard');
