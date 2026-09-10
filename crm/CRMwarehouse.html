@@ -379,6 +379,43 @@
   </div>
 </div>
 
+<!-- New Return modal -->
+<div class="modal-overlay" id="return-overlay">
+  <div class="modal">
+    <h3>Log a return</h3>
+    <form id="return-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="return-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="return-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Returned from</label>
+        <input type="text" id="return-source" placeholder="e.g. Service Center - Hubli, or Technician - Ramesh" required>
+      </div>
+      <div class="form-row">
+        <label>Reason</label>
+        <input type="text" id="return-reason" placeholder="e.g. Damaged in transit, excess stock, wrong part" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="return-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="return-error"></div>
+      <div class="modal-success" id="return-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-return">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-return">Log return</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -432,7 +469,7 @@
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns", "label": "Returns & Defects"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-headoffice", "label": "Head Office Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -515,6 +552,9 @@
     } else if (CLAIMS_TABS[id]) {
       pageSub.textContent = 'Claims';
       renderClaims(CLAIMS_TABS[id], id, label);
+    } else if (RETURNS_TABS[id]) {
+      pageSub.textContent = 'Returns & Defects';
+      renderReturns(RETURNS_TABS[id], id, label);
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -1516,6 +1556,220 @@
       claimError.classList.add('show');
       claimSubmitBtn.disabled = false;
       claimSubmitBtn.textContent = 'Create claim';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Returns & Defects — intake → inspect (defective or restock) →
+  // for defective items, send to supplier or dispose.
+  // ---------------------------------------------------------------
+
+  const RETURNS_TABS = {
+    'returns-intake': 'received',
+    'returns-defective': 'defective',
+    'returns-supplier': 'supplier_return',
+    'returns-disposal': 'disposed',
+  };
+  const RETURN_STATUS_LABELS = {
+    received: 'Received', defective: 'Defective', supplier_return: 'Sent to Supplier',
+    disposed: 'Disposed', restocked: 'Restocked'
+  };
+  const RETURN_STATUS_PILL_CLASS = {
+    received: 'new', defective: 'backorder', supplier_return: 'low', disposed: 'out', restocked: 'ok'
+  };
+
+  async function generateReturnId() {
+    const counterKey = `return-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-RT-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderReturns(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-return-request">+ Log Return</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Return ID</th><th>Part</th><th>Qty</th><th>Source</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="returns-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-return-request').addEventListener('click', openReturnModal);
+    loadReturns(filterValue, tabId);
+  }
+
+  async function loadReturns(filterValue, tabId) {
+    const tbody = document.getElementById('returns-tbody');
+    try {
+      const [returnsSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', '==', filterValue), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (returnsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      returnsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const part = partMap[d.partId];
+        const partLabel = part ? `${part.partCode} — ${part.name}` : (d.partId || '—');
+        let actionHtml = '—';
+        if (d.status === 'received') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${docSnap.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${docSnap.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button></div>`;
+        } else if (d.status === 'defective') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-supplier-btn" data-id="${docSnap.id}">Send to Supplier</button><button class="btn-danger return-dispose-btn" data-id="${docSnap.id}">Dispose</button></div>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.returnId || docSnap.id}</td>
+          <td>${partLabel}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.source || '—'}</td>
+          <td>${d.reason || '—'}</td>
+          <td><span class="status-pill ${RETURN_STATUS_PILL_CLASS[d.status] || ''}">${RETURN_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.return-defective-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'defective', tabId)));
+      tbody.querySelectorAll('.return-supplier-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'supplier_return', tabId)));
+      tbody.querySelectorAll('.return-dispose-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'disposed', tabId)));
+      tbody.querySelectorAll('.return-restock-btn').forEach(btn => {
+        btn.addEventListener('click', () => restockReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+    } catch (err) {
+      console.error('Load returns failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load returns. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceReturn(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'returns', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update return failed:', err);
+      alert('Could not update this return. Check the console for details.');
+    }
+  }
+
+  // "Return to Stock" both closes out the return AND adds the
+  // quantity back into Head Office inventory — same atomic pattern
+  // as Inventory's Adjust Stock, plus a stockMovements log entry.
+  async function restockReturn(returnDocId, partId, qty, tabId) {
+    try {
+      const invRef = doc(db, 'inventory', `headoffice_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        transaction.set(invRef, {
+          partId, location: 'headoffice', quantity: current + qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'receive', location: 'headoffice', quantity: qty,
+        reason: 'Returned to stock (inspected, found OK)', createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'returns', returnDocId), { status: 'restocked', updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Restock return failed:', err);
+      alert('Could not restock this item. Check the console for details.');
+    }
+  }
+
+  const returnOverlay = document.getElementById('return-overlay');
+  const returnForm = document.getElementById('return-form');
+  const returnError = document.getElementById('return-error');
+  const returnSuccess = document.getElementById('return-success');
+  const returnSubmitBtn = document.getElementById('submit-return');
+  const returnPartSelect = document.getElementById('return-part-id');
+
+  async function populateReturnPartOptions() {
+    if (returnPartSelect.dataset.loaded === 'true') return;
+    try {
+      const snap = await getDocs(collection(db, 'spareParts'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement('option');
+        opt.value = docSnap.id;
+        opt.textContent = `${d.partCode} — ${d.name}`;
+        returnPartSelect.appendChild(opt);
+      });
+      returnPartSelect.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Load parts for return form failed:', err);
+    }
+  }
+
+  function openReturnModal() {
+    returnForm.reset();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    returnSubmitBtn.disabled = false;
+    returnSubmitBtn.textContent = 'Log return';
+    populateReturnPartOptions();
+    returnOverlay.classList.add('show');
+  }
+  function closeReturnModal() { returnOverlay.classList.remove('show'); }
+  document.getElementById('cancel-return').addEventListener('click', closeReturnModal);
+  returnOverlay.addEventListener('click', (e) => { if (e.target === returnOverlay) closeReturnModal(); });
+
+  returnForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    if (!returnPartSelect.value) {
+      returnError.textContent = 'Select a part.';
+      returnError.classList.add('show');
+      return;
+    }
+    returnSubmitBtn.disabled = true;
+    returnSubmitBtn.textContent = 'Saving…';
+    try {
+      const returnId = await generateReturnId();
+      await addDoc(collection(db, 'returns'), {
+        returnId,
+        partId: returnPartSelect.value,
+        quantity: Number(document.getElementById('return-qty').value) || 1,
+        source: document.getElementById('return-source').value.trim(),
+        reason: document.getElementById('return-reason').value.trim(),
+        notes: document.getElementById('return-notes').value.trim(),
+        status: 'received',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      returnSuccess.textContent = `Logged — ${returnId}`;
+      returnSuccess.classList.add('show');
+      returnSubmitBtn.textContent = 'Log return';
+      returnSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && RETURNS_TABS[activeItem.dataset.id]) {
+        loadReturns(RETURNS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeReturnModal, 1000);
+    } catch (err) {
+      console.error('Log return failed:', err);
+      returnError.textContent = 'Could not log this return. Check console for details.';
+      returnError.classList.add('show');
+      returnSubmitBtn.disabled = false;
+      returnSubmitBtn.textContent = 'Log return';
     }
   });
 

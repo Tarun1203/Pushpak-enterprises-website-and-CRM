@@ -76,6 +76,48 @@
   }
   .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
   .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.assigned{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.in_progress{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.completed{background:#D9EEE0;color:var(--ok);}
+  .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+
+  .tab-toggle{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tab-toggle button{
+    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:12.5px;
+    padding:8px 16px;border-radius:20px;color:var(--stone);
+  }
+  .tab-toggle button.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
 </style>
 </head>
 <body>
@@ -113,10 +155,49 @@
   </div>
 </div>
 
+<!-- New Job modal -->
+<div class="modal-overlay" id="job-overlay">
+  <div class="modal">
+    <h3>Log a new job</h3>
+    <form id="job-form">
+      <div class="form-row">
+        <label>Customer name</label>
+        <input type="text" id="job-customer-name" required>
+      </div>
+      <div class="form-row">
+        <label>Customer phone</label>
+        <input type="tel" id="job-customer-phone" required>
+      </div>
+      <div class="form-row">
+        <label>Address</label>
+        <input type="text" id="job-address" placeholder="e.g. area, city">
+      </div>
+      <div class="form-row">
+        <label>Product / brand</label>
+        <input type="text" id="job-product" placeholder="e.g. MakWell geyser 15L">
+      </div>
+      <div class="form-row">
+        <label>Issue description</label>
+        <textarea id="job-issue" placeholder="What's wrong / what's needed" required></textarea>
+      </div>
+      <div class="form-row">
+        <label>Scheduled date (optional)</label>
+        <input type="date" id="job-scheduled-date">
+      </div>
+      <div class="modal-error" id="job-error"></div>
+      <div class="modal-success" id="job-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-job">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-job">Save job</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -138,6 +219,8 @@
 
   const ALLOWED_ROLE = 'technician';
 
+  let currentUser = null;
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       window.location.href = 'login.html';
@@ -155,6 +238,7 @@
       window.location.href = 'login.html';
       return;
     }
+    currentUser = user;
     userEmailEl.textContent = user.email;
     gate.style.display = 'none';
     appEl.style.display = 'block';
@@ -206,6 +290,9 @@
     if (id === 'dashboard') {
       pageSub.textContent = 'Welcome back';
       renderDashboard();
+    } else if (id === 'jobs') {
+      pageSub.textContent = 'Jobs assigned to you';
+      renderMyJobs();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -220,23 +307,23 @@
       </div>`;
   }
 
-  function renderDashboard() {
+  async function renderDashboard() {
     contentEl.innerHTML = `
       <div class="stat-grid">
         <div class="stat-card">
-          <div class="label">Status</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">Assigned</div>
+          <div class="value" id="stat-assigned">…</div>
+          <div class="hint">Not yet started</div>
         </div>
         <div class="stat-card">
-          <div class="label">Pending</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">In Progress</div>
+          <div class="value" id="stat-inprogress">…</div>
+          <div class="hint">Currently working</div>
         </div>
         <div class="stat-card">
-          <div class="label">This month</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">Completed</div>
+          <div class="value" id="stat-completed">…</div>
+          <div class="hint">All time</div>
         </div>
         <div class="stat-card">
           <div class="label">Alerts</div>
@@ -247,11 +334,202 @@
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
         <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This is the Technician dashboard shell — signed in and role-verified. Sections in the
-          sidebar will fill in with working data module by module, same as the rest of the CRM.
+          <b style="color:var(--blue)">My Jobs</b> is fully working — log jobs as they come in and move them through
+          Assigned → In Progress → Completed. Other sections in the sidebar will fill in module by module.
         </div>
       </div>`;
+    if (!currentUser) return;
+    try {
+      const [assignedSnap, progressSnap, completedSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'assigned'))),
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'in_progress'))),
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'completed'))),
+      ]);
+      document.getElementById('stat-assigned').textContent = assignedSnap.size;
+      document.getElementById('stat-inprogress').textContent = progressSnap.size;
+      document.getElementById('stat-completed').textContent = completedSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
   }
+
+  // ---------------------------------------------------------------
+  // My Jobs — Assigned → In Progress → Completed (or Cancelled).
+  // Scoped to the signed-in technician's own uid — no dispatcher /
+  // routing module exists yet, so technicians log their own jobs
+  // for now; this collection is exactly what a future Routing
+  // module would also write into.
+  // ---------------------------------------------------------------
+
+  const JOB_STATUS_LABELS = { assigned: 'Assigned', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' };
+  let currentJobFilter = 'active'; // 'active' = assigned + in_progress
+
+  async function generateJobId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `servicejob-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-JOB-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
+  }
+
+  function renderMyJobs() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My Jobs</h2>
+          <button class="btn-primary" id="open-job-request">+ Log Job</button>
+        </div>
+        <div class="panel-body" style="padding-bottom:0;">
+          <div class="tab-toggle" id="job-tabs">
+            <button data-filter="active" class="active">Active</button>
+            <button data-filter="assigned">Assigned</button>
+            <button data-filter="in_progress">In Progress</button>
+            <button data-filter="completed">Completed</button>
+            <button data-filter="all">All</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Job ID</th><th>Customer</th><th>Phone</th><th>Product</th><th>Issue</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="jobs-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-job-request').addEventListener('click', openJobModal);
+    document.querySelectorAll('#job-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#job-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentJobFilter = btn.dataset.filter;
+        loadMyJobs();
+      });
+    });
+    currentJobFilter = 'active';
+    loadMyJobs();
+  }
+
+  async function loadMyJobs() {
+    const tbody = document.getElementById('jobs-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'serviceJobs'),
+        where('technicianUid', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      ));
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (currentJobFilter === 'active') {
+        docs = docs.filter(d => d.status === 'assigned' || d.status === 'in_progress');
+      } else if (currentJobFilter !== 'all') {
+        docs = docs.filter(d => d.status === currentJobFilter);
+      }
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No jobs here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        let actionHtml = '—';
+        if (d.status === 'assigned') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary job-start-btn" data-id="${d.id}">Start Job</button><button class="btn-danger job-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
+        } else if (d.status === 'in_progress') {
+          actionHtml = `<button class="btn-primary job-complete-btn" data-id="${d.id}">Mark Complete</button>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.jobId || d.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.customerPhone || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td style="max-width:220px;">${d.issue || '—'}</td>
+          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.job-start-btn').forEach(btn => btn.addEventListener('click', () => advanceJob(btn.dataset.id, 'in_progress')));
+      tbody.querySelectorAll('.job-complete-btn').forEach(btn => btn.addEventListener('click', () => advanceJob(btn.dataset.id, 'completed')));
+      tbody.querySelectorAll('.job-cancel-btn').forEach(btn => btn.addEventListener('click', () => advanceJob(btn.dataset.id, 'cancelled')));
+    } catch (err) {
+      console.error('Load jobs failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load jobs. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceJob(id, nextStatus) {
+    try {
+      await updateDoc(doc(db, 'serviceJobs', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadMyJobs();
+    } catch (err) {
+      console.error('Update job failed:', err);
+      alert('Could not update this job. Check the console for details.');
+    }
+  }
+
+  const jobOverlay = document.getElementById('job-overlay');
+  const jobForm = document.getElementById('job-form');
+  const jobError = document.getElementById('job-error');
+  const jobSuccess = document.getElementById('job-success');
+  const jobSubmitBtn = document.getElementById('submit-job');
+
+  function openJobModal() {
+    jobForm.reset();
+    jobError.classList.remove('show');
+    jobSuccess.classList.remove('show');
+    jobSubmitBtn.disabled = false;
+    jobSubmitBtn.textContent = 'Save job';
+    jobOverlay.classList.add('show');
+  }
+  function closeJobModal() { jobOverlay.classList.remove('show'); }
+  document.getElementById('cancel-job').addEventListener('click', closeJobModal);
+  jobOverlay.addEventListener('click', (e) => { if (e.target === jobOverlay) closeJobModal(); });
+
+  jobForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    jobError.classList.remove('show');
+    jobSuccess.classList.remove('show');
+    if (!currentUser) return;
+    jobSubmitBtn.disabled = true;
+    jobSubmitBtn.textContent = 'Saving…';
+    try {
+      const jobId = await generateJobId();
+      await addDoc(collection(db, 'serviceJobs'), {
+        jobId,
+        technicianUid: currentUser.uid,
+        technicianEmail: currentUser.email,
+        customerName: document.getElementById('job-customer-name').value.trim(),
+        customerPhone: document.getElementById('job-customer-phone').value.trim(),
+        address: document.getElementById('job-address').value.trim(),
+        product: document.getElementById('job-product').value.trim(),
+        issue: document.getElementById('job-issue').value.trim(),
+        scheduledDate: document.getElementById('job-scheduled-date').value || null,
+        status: 'assigned',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      jobSuccess.textContent = `Saved — ${jobId}`;
+      jobSuccess.classList.add('show');
+      jobSubmitBtn.textContent = 'Save job';
+      jobSubmitBtn.disabled = false;
+      if (document.getElementById('jobs-tbody')) loadMyJobs();
+      setTimeout(closeJobModal, 1000);
+    } catch (err) {
+      console.error('Save job failed:', err);
+      jobError.textContent = 'Could not save this job. Check console for details.';
+      jobError.classList.add('show');
+      jobSubmitBtn.disabled = false;
+      jobSubmitBtn.textContent = 'Save job';
+    }
+  });
 
   renderNav();
   setActiveNav('dashboard');
