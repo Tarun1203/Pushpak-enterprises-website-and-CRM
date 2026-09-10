@@ -76,6 +76,52 @@
   }
   .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
   .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.assigned{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.in_progress{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.completed{background:#D9EEE0;color:var(--ok);}
+  .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.out{background:#F6DCDC;color:var(--err);}
+  .status-pill.ok{background:#D9EEE0;color:var(--ok);}
+
+  .tab-toggle{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tab-toggle button{
+    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:12.5px;
+    padding:8px 16px;border-radius:20px;color:var(--stone);
+  }
+  .tab-toggle button.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
 </style>
 </head>
 <body>
@@ -113,10 +159,233 @@
   </div>
 </div>
 
+<!-- New Center Request modal -->
+<div class="modal-overlay" id="req-overlay">
+  <div class="modal">
+    <h3>Log a new request</h3>
+    <form id="req-form">
+      <div class="form-row">
+        <label>Request type</label>
+        <select id="req-type">
+          <option value="repair">Repair</option>
+          <option value="installation">Installation</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Customer name</label>
+        <input type="text" id="req-customer-name" required>
+      </div>
+      <div class="form-row">
+        <label>Customer phone</label>
+        <input type="tel" id="req-customer-phone" required>
+      </div>
+      <div class="form-row">
+        <label>Address</label>
+        <input type="text" id="req-address">
+      </div>
+      <div class="form-row">
+        <label>Product / brand</label>
+        <input type="text" id="req-product">
+      </div>
+      <div class="form-row">
+        <label>Issue / details</label>
+        <textarea id="req-issue" required></textarea>
+      </div>
+      <div class="form-row">
+        <label>Assign to technician (optional)</label>
+        <select id="req-technician">
+          <option value="">Unassigned</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Scheduled date (optional)</label>
+        <input type="date" id="req-scheduled-date">
+      </div>
+      <div class="modal-error" id="req-error"></div>
+      <div class="modal-success" id="req-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-req">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-req">Save request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Center Technician modal -->
+<div class="modal-overlay" id="tech-overlay">
+  <div class="modal">
+    <h3>Add technician to roster</h3>
+    <form id="tech-form">
+      <div class="form-row">
+        <label>Name</label>
+        <input type="text" id="tech-name" required>
+      </div>
+      <div class="form-row">
+        <label>Phone</label>
+        <input type="tel" id="tech-phone" required>
+      </div>
+      <div class="form-row">
+        <label>Skills (optional)</label>
+        <input type="text" id="tech-skills" placeholder="e.g. Geyser repair, installation">
+      </div>
+      <div class="modal-error" id="tech-error"></div>
+      <div class="modal-success" id="tech-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-tech">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-tech">Add technician</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Adjust Center Inventory modal -->
+<div class="modal-overlay" id="cinv-overlay">
+  <div class="modal">
+    <h3 id="cinv-modal-title">Adjust center stock</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="cinv-part-label"></div>
+    <form id="cinv-form">
+      <input type="hidden" id="cinv-part-id">
+      <div class="form-row">
+        <label>Action</label>
+        <select id="cinv-type">
+          <option value="add">Received from Head Office</option>
+          <option value="remove">Used / removed</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="cinv-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <input type="text" id="cinv-notes">
+      </div>
+      <div class="modal-error" id="cinv-error"></div>
+      <div class="modal-success" id="cinv-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-cinv">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-cinv">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add part to Center Inventory (first-time) modal -->
+<div class="modal-overlay" id="cinv-add-overlay">
+  <div class="modal">
+    <h3>Add part to center inventory</h3>
+    <form id="cinv-add-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="cinv-add-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Starting quantity</label>
+        <input type="number" id="cinv-add-qty" min="0" value="0" required>
+      </div>
+      <div class="modal-error" id="cinv-add-error"></div>
+      <div class="modal-success" id="cinv-add-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-cinv-add">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-cinv-add">Add part</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Spare Dispatch modal -->
+<div class="modal-overlay" id="dispatch-overlay">
+  <div class="modal">
+    <h3>Dispatch spare to technician</h3>
+    <form id="dispatch-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="dispatch-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="dispatch-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Technician</label>
+        <select id="dispatch-technician" required>
+          <option value="">Select from roster…</option>
+        </select>
+      </div>
+      <div class="modal-error" id="dispatch-error"></div>
+      <div class="modal-success" id="dispatch-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-dispatch">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-dispatch">Dispatch</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Send Back to Head Office modal -->
+<div class="modal-overlay" id="sendback-overlay">
+  <div class="modal">
+    <h3>Send back to Head Office</h3>
+    <form id="sendback-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="sendback-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="sendback-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Reason</label>
+        <input type="text" id="sendback-reason" placeholder="e.g. Defective, excess stock" required>
+      </div>
+      <div class="modal-error" id="sendback-error"></div>
+      <div class="modal-success" id="sendback-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sendback">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sendback">Send back</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Center Claim modal -->
+<div class="modal-overlay" id="cclaim-overlay">
+  <div class="modal">
+    <h3>Submit a claim</h3>
+    <form id="cclaim-form">
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="cclaim-description" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="cclaim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="cclaim-notes"></textarea>
+      </div>
+      <div class="modal-error" id="cclaim-error"></div>
+      <div class="modal-success" id="cclaim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-cclaim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-cclaim">Submit claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -138,6 +407,8 @@
 
   const ALLOWED_ROLE = 'servicecenter';
 
+  let currentUser = null;
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       window.location.href = 'login.html';
@@ -155,6 +426,7 @@
       window.location.href = 'login.html';
       return;
     }
+    currentUser = user;
     userEmailEl.textContent = user.email;
     gate.style.display = 'none';
     appEl.style.display = 'block';
@@ -206,6 +478,42 @@
     if (id === 'dashboard') {
       pageSub.textContent = 'Welcome back';
       renderDashboard();
+    } else if (id === 'requests') {
+      pageSub.textContent = 'All requests at this center';
+      renderCenterRequests('all', label);
+    } else if (id === 'installation') {
+      pageSub.textContent = 'Installation requests';
+      renderCenterRequests('installation', label);
+    } else if (id === 'technicians') {
+      pageSub.textContent = 'Your technician roster';
+      renderCenterTechnicians();
+    } else if (id === 'scheduling') {
+      pageSub.textContent = 'Upcoming scheduled requests';
+      renderScheduling();
+    } else if (id === 'stock') {
+      pageSub.textContent = 'Parts held at this center';
+      renderCenterInventory();
+    } else if (id === 'dispatch') {
+      pageSub.textContent = 'Send parts to your technicians';
+      renderSpareDispatch();
+    } else if (id === 'sendback') {
+      pageSub.textContent = 'Return parts to Head Office';
+      renderSendBack();
+    } else if (id === 'claims') {
+      pageSub.textContent = 'Your reimbursement claims';
+      renderCenterClaims();
+    } else if (id === 'payments') {
+      pageSub.textContent = 'Settled claims';
+      renderPaymentHistory();
+    } else if (id === 'performance') {
+      pageSub.textContent = 'Center completion stats';
+      renderPerformance();
+    } else if (id === 'reports') {
+      pageSub.textContent = 'Center summary';
+      renderReports();
+    } else if (id === 'profile') {
+      pageSub.textContent = 'Center account details';
+      renderProfile();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -220,37 +528,1078 @@
       </div>`;
   }
 
-  function renderDashboard() {
+  async function renderDashboard() {
     contentEl.innerHTML = `
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="label">Status</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Pending</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">This month</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Alerts</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
+        <div class="stat-card"><div class="label">New Requests</div><div class="value" id="stat-new">…</div><div class="hint">Awaiting assignment</div></div>
+        <div class="stat-card"><div class="label">In Progress</div><div class="value" id="stat-progress">…</div><div class="hint">Currently being worked</div></div>
+        <div class="stat-card"><div class="label">Technicians</div><div class="value" id="stat-techs">…</div><div class="hint">On your roster</div></div>
+        <div class="stat-card"><div class="label">Alerts</div><div class="value">—</div><div class="hint">Module not built yet</div></div>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
         <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This is the Service Center dashboard shell — signed in and role-verified. Sections in the
-          sidebar will fill in with working data module by module, same as the rest of the CRM.
+          Every section in the sidebar is fully working — log requests, build your technician roster,
+          manage center stock, dispatch parts, send returns to Head Office, and submit claims, all from here.
         </div>
       </div>`;
+    if (!currentUser) return;
+    try {
+      const [newSnap, progressSnap, techSnap] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', currentUser.uid), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', currentUser.uid), where('status', '==', 'in_progress'))),
+        getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid))),
+      ]);
+      document.getElementById('stat-new').textContent = newSnap.size;
+      document.getElementById('stat-progress').textContent = progressSnap.size;
+      document.getElementById('stat-techs').textContent = techSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Shared helpers
+  // ---------------------------------------------------------------
+
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+
+  const JOB_STATUS_LABELS = { new: 'New', assigned: 'Assigned', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' };
+
+  // ---------------------------------------------------------------
+  // Center Requests / Installation — this center's own request log.
+  // Assigning a technician just records the roster name against the
+  // request (no linked login account required for that roster entry).
+  // ---------------------------------------------------------------
+
+  async function generateRequestId() {
+    const next = await nextMonthlySerial(`centerrequest-${currentYYYYMM()}`);
+    return `PE-CR-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+  }
+
+  async function renderCenterRequests(typeFilter, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-req">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Type</th><th>Customer</th><th>Phone</th><th>Technician</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="req-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-req').addEventListener('click', openReqModal);
+    loadCenterRequests(typeFilter);
+  }
+
+  async function loadCenterRequests(typeFilter) {
+    const tbody = document.getElementById('req-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'centerRequests'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        orderBy('createdAt', 'desc')
+      ));
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (typeFilter !== 'all') docs = docs.filter(d => d.type === typeFilter);
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        let actionHtml = '—';
+        if (d.status === 'new') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
+        } else if (d.status === 'assigned') {
+          actionHtml = `<button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button>`;
+        } else if (d.status === 'in_progress') {
+          actionHtml = `<button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td style="text-transform:capitalize;">${d.type || 'repair'}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.customerPhone || '—'}</td>
+          <td>${d.technicianName || '—'}</td>
+          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.req-assign-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'assigned', typeFilter)));
+      tbody.querySelectorAll('.req-progress-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
+      tbody.querySelectorAll('.req-complete-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'completed', typeFilter)));
+      tbody.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'cancelled', typeFilter)));
+    } catch (err) {
+      console.error('Load center requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceRequest(id, nextStatus, typeFilter) {
+    try {
+      await updateDoc(doc(db, 'centerRequests', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadCenterRequests(typeFilter);
+    } catch (err) {
+      console.error('Update request failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  const reqOverlay = document.getElementById('req-overlay');
+  const reqForm = document.getElementById('req-form');
+  const reqError = document.getElementById('req-error');
+  const reqSuccess = document.getElementById('req-success');
+  const reqSubmitBtn = document.getElementById('submit-req');
+  const reqTechSelect = document.getElementById('req-technician');
+
+  async function populateReqTechnicianOptions() {
+    reqTechSelect.innerHTML = '<option value="">Unassigned</option>';
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
+      snap.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.data().name;
+        opt.textContent = d.data().name;
+        reqTechSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Load technicians for request form failed:', err);
+    }
+  }
+
+  function openReqModal() {
+    reqForm.reset();
+    reqError.classList.remove('show');
+    reqSuccess.classList.remove('show');
+    reqSubmitBtn.disabled = false;
+    reqSubmitBtn.textContent = 'Save request';
+    populateReqTechnicianOptions();
+    reqOverlay.classList.add('show');
+  }
+  function closeReqModal() { reqOverlay.classList.remove('show'); }
+  document.getElementById('cancel-req').addEventListener('click', closeReqModal);
+  reqOverlay.addEventListener('click', (e) => { if (e.target === reqOverlay) closeReqModal(); });
+
+  reqForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    reqError.classList.remove('show');
+    reqSuccess.classList.remove('show');
+    if (!currentUser) return;
+    reqSubmitBtn.disabled = true;
+    reqSubmitBtn.textContent = 'Saving…';
+    try {
+      const requestId = await generateRequestId();
+      const technicianName = reqTechSelect.value;
+      await addDoc(collection(db, 'centerRequests'), {
+        requestId,
+        serviceCenterUid: currentUser.uid,
+        type: document.getElementById('req-type').value,
+        customerName: document.getElementById('req-customer-name').value.trim(),
+        customerPhone: document.getElementById('req-customer-phone').value.trim(),
+        address: document.getElementById('req-address').value.trim(),
+        product: document.getElementById('req-product').value.trim(),
+        issue: document.getElementById('req-issue').value.trim(),
+        technicianName: technicianName || null,
+        scheduledDate: document.getElementById('req-scheduled-date').value || null,
+        status: technicianName ? 'assigned' : 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      reqSuccess.textContent = `Saved — ${requestId}`;
+      reqSuccess.classList.add('show');
+      reqSubmitBtn.disabled = false;
+      reqSubmitBtn.textContent = 'Save request';
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && document.getElementById('req-tbody')) {
+        loadCenterRequests(activeItem.dataset.id === 'installation' ? 'installation' : 'all');
+      }
+      setTimeout(closeReqModal, 1000);
+    } catch (err) {
+      console.error('Save request failed:', err);
+      reqError.textContent = 'Could not save this request. Check console for details.';
+      reqError.classList.add('show');
+      reqSubmitBtn.disabled = false;
+      reqSubmitBtn.textContent = 'Save request';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Center Technicians — this center's own roster/directory.
+  // ---------------------------------------------------------------
+
+  async function renderCenterTechnicians() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Center technicians</h2>
+          <button class="btn-primary" id="open-tech">+ Add Technician</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Skills</th></tr></thead>
+            <tbody id="tech-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-tech').addEventListener('click', openTechModal);
+    loadCenterTechnicians();
+  }
+
+  async function loadCenterTechnicians() {
+    const tbody = document.getElementById('tech-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No technicians on your roster yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.skills || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load technicians failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load roster. Check console for details.</td></tr>`;
+    }
+  }
+
+  const techOverlay = document.getElementById('tech-overlay');
+  const techForm = document.getElementById('tech-form');
+  const techError = document.getElementById('tech-error');
+  const techSuccess = document.getElementById('tech-success');
+  const techSubmitBtn = document.getElementById('submit-tech');
+
+  function openTechModal() {
+    techForm.reset();
+    techError.classList.remove('show');
+    techSuccess.classList.remove('show');
+    techSubmitBtn.disabled = false;
+    techSubmitBtn.textContent = 'Add technician';
+    techOverlay.classList.add('show');
+  }
+  function closeTechModal() { techOverlay.classList.remove('show'); }
+  document.getElementById('cancel-tech').addEventListener('click', closeTechModal);
+  techOverlay.addEventListener('click', (e) => { if (e.target === techOverlay) closeTechModal(); });
+
+  techForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    techError.classList.remove('show');
+    techSuccess.classList.remove('show');
+    if (!currentUser) return;
+    techSubmitBtn.disabled = true;
+    techSubmitBtn.textContent = 'Saving…';
+    try {
+      await addDoc(collection(db, 'centerTechnicians'), {
+        serviceCenterUid: currentUser.uid,
+        name: document.getElementById('tech-name').value.trim(),
+        phone: document.getElementById('tech-phone').value.trim(),
+        skills: document.getElementById('tech-skills').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      techSuccess.textContent = 'Added.';
+      techSuccess.classList.add('show');
+      techSubmitBtn.disabled = false;
+      techSubmitBtn.textContent = 'Add technician';
+      if (document.getElementById('tech-tbody')) loadCenterTechnicians();
+      setTimeout(closeTechModal, 800);
+    } catch (err) {
+      console.error('Add technician failed:', err);
+      techError.textContent = 'Could not add this technician. Check console for details.';
+      techError.classList.add('show');
+      techSubmitBtn.disabled = false;
+      techSubmitBtn.textContent = 'Add technician';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Scheduling — active requests with a scheduled date, soonest first.
+  // ---------------------------------------------------------------
+
+  async function renderScheduling() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Upcoming schedule</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Request ID</th><th>Customer</th><th>Technician</th><th>Status</th></tr></thead>
+            <tbody id="sched-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('sched-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'centerRequests'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        where('status', 'in', ['new', 'assigned', 'in_progress'])
+      ));
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs = docs.filter(d => d.scheduledDate).sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No scheduled requests yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${d.scheduledDate}</b></td>
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.technicianName || '—'}</td>
+          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load schedule failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load schedule. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Center Inventory — parts held at this center. Same `inventory`
+  // collection Head Office and Technician use, location='servicecenter'.
+  // ---------------------------------------------------------------
+
+  async function renderCenterInventory() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Center inventory</h2>
+          <button class="btn-primary" id="open-cinv-add">+ Add Part</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Code</th><th>Part</th><th>Quantity</th><th>Actions</th></tr></thead>
+            <tbody id="cinv-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-cinv-add').addEventListener('click', openCinvAddModal);
+    loadCenterInventory();
+  }
+
+  async function loadCenterInventory() {
+    const tbody = document.getElementById('cinv-tbody');
+    if (!currentUser) return;
+    try {
+      const [invSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'servicecenter'), where('serviceCenterUid', '==', currentUser.uid))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      const rows = [];
+      invSnap.forEach(d => rows.push(d.data()));
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No parts in center inventory yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const part = partMap[r.partId];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${part ? part.partCode : r.partId}</td>
+          <td>${part ? part.name : '—'}</td>
+          <td><b>${r.quantity ?? 0}</b></td>
+          <td><button class="btn-secondary cinv-adjust-btn" data-partid="${r.partId}" data-name="${part ? part.name.replace(/"/g,'&quot;') : ''}" data-code="${part ? part.partCode : ''}">Adjust</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.cinv-adjust-btn').addEventListener('click', (e) => {
+          openCinvAdjustModal(e.target.dataset.partid, e.target.dataset.name, e.target.dataset.code);
+        });
+      });
+    } catch (err) {
+      console.error('Load center inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load inventory. Check console for details.</td></tr>`;
+    }
+  }
+
+  const cinvOverlay = document.getElementById('cinv-overlay');
+  const cinvForm = document.getElementById('cinv-form');
+  const cinvError = document.getElementById('cinv-error');
+  const cinvSuccess = document.getElementById('cinv-success');
+  const cinvSubmitBtn = document.getElementById('submit-cinv');
+  const cinvPartLabel = document.getElementById('cinv-part-label');
+
+  function openCinvAdjustModal(partId, partName, partCode) {
+    cinvForm.reset();
+    cinvError.classList.remove('show');
+    cinvSuccess.classList.remove('show');
+    cinvSubmitBtn.disabled = false;
+    cinvSubmitBtn.textContent = 'Save';
+    document.getElementById('cinv-part-id').value = partId;
+    cinvPartLabel.textContent = `${partCode ? partCode + ' — ' : ''}${partName}`;
+    cinvOverlay.classList.add('show');
+  }
+  function closeCinvModal() { cinvOverlay.classList.remove('show'); }
+  document.getElementById('cancel-cinv').addEventListener('click', closeCinvModal);
+  cinvOverlay.addEventListener('click', (e) => { if (e.target === cinvOverlay) closeCinvModal(); });
+
+  cinvForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    cinvError.classList.remove('show');
+    cinvSuccess.classList.remove('show');
+    if (!currentUser) return;
+    const partId = document.getElementById('cinv-part-id').value;
+    const type = document.getElementById('cinv-type').value;
+    const qty = Number(document.getElementById('cinv-qty').value) || 0;
+    if (qty <= 0) {
+      cinvError.textContent = 'Enter a quantity greater than 0.';
+      cinvError.classList.add('show');
+      return;
+    }
+    cinvSubmitBtn.disabled = true;
+    cinvSubmitBtn.textContent = 'Saving…';
+    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const delta = type === 'add' ? qty : -qty;
+        const next = Math.max(0, current + delta);
+        transaction.set(invRef, {
+          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: type === 'add' ? 'receive' : 'issue', location: 'servicecenter',
+        serviceCenterUid: currentUser.uid, quantity: qty,
+        reason: document.getElementById('cinv-notes').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      cinvSuccess.textContent = 'Stock updated.';
+      cinvSuccess.classList.add('show');
+      cinvSubmitBtn.disabled = false;
+      cinvSubmitBtn.textContent = 'Save';
+      if (document.getElementById('cinv-tbody')) loadCenterInventory();
+      setTimeout(closeCinvModal, 800);
+    } catch (err) {
+      console.error('Adjust center stock failed:', err);
+      cinvError.textContent = 'Could not update stock. Check console for details.';
+      cinvError.classList.add('show');
+      cinvSubmitBtn.disabled = false;
+      cinvSubmitBtn.textContent = 'Save';
+    }
+  });
+
+  const cinvAddOverlay = document.getElementById('cinv-add-overlay');
+  const cinvAddForm = document.getElementById('cinv-add-form');
+  const cinvAddError = document.getElementById('cinv-add-error');
+  const cinvAddSuccess = document.getElementById('cinv-add-success');
+  const cinvAddSubmitBtn = document.getElementById('submit-cinv-add');
+  const cinvAddPartSelect = document.getElementById('cinv-add-part-id');
+
+  async function populatePartOptions(selectEl) {
+    if (selectEl.dataset.loaded === 'true') return;
+    try {
+      const snap = await getDocs(collection(db, 'spareParts'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement('option');
+        opt.value = docSnap.id;
+        opt.textContent = `${d.partCode} — ${d.name}`;
+        selectEl.appendChild(opt);
+      });
+      selectEl.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Load parts failed:', err);
+    }
+  }
+
+  function openCinvAddModal() {
+    cinvAddForm.reset();
+    cinvAddError.classList.remove('show');
+    cinvAddSuccess.classList.remove('show');
+    cinvAddSubmitBtn.disabled = false;
+    cinvAddSubmitBtn.textContent = 'Add part';
+    populatePartOptions(cinvAddPartSelect);
+    cinvAddOverlay.classList.add('show');
+  }
+  function closeCinvAddModal() { cinvAddOverlay.classList.remove('show'); }
+  document.getElementById('cancel-cinv-add').addEventListener('click', closeCinvAddModal);
+  cinvAddOverlay.addEventListener('click', (e) => { if (e.target === cinvAddOverlay) closeCinvAddModal(); });
+
+  cinvAddForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    cinvAddError.classList.remove('show');
+    cinvAddSuccess.classList.remove('show');
+    if (!cinvAddPartSelect.value || !currentUser) {
+      cinvAddError.textContent = 'Select a part.';
+      cinvAddError.classList.add('show');
+      return;
+    }
+    cinvAddSubmitBtn.disabled = true;
+    cinvAddSubmitBtn.textContent = 'Saving…';
+    const partId = cinvAddPartSelect.value;
+    try {
+      await setDoc(doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`), {
+        partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
+        quantity: Number(document.getElementById('cinv-add-qty').value) || 0,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      cinvAddSuccess.textContent = 'Added.';
+      cinvAddSuccess.classList.add('show');
+      cinvAddSubmitBtn.disabled = false;
+      cinvAddSubmitBtn.textContent = 'Add part';
+      if (document.getElementById('cinv-tbody')) loadCenterInventory();
+      setTimeout(closeCinvAddModal, 800);
+    } catch (err) {
+      console.error('Add part to inventory failed:', err);
+      cinvAddError.textContent = 'Could not add this part. Check console for details.';
+      cinvAddError.classList.add('show');
+      cinvAddSubmitBtn.disabled = false;
+      cinvAddSubmitBtn.textContent = 'Add part';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Spare Dispatch — deduct from center inventory, log who it went to.
+  // ---------------------------------------------------------------
+
+  async function renderSpareDispatch() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Dispatch to technician</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:20px;">
+            Send a part from your center's stock to one of your roster technicians. This deducts
+            from your Center Inventory and logs the movement.
+          </p>
+          <button class="btn-primary" id="open-dispatch">+ Dispatch Spare</button>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:24px;">
+        <div class="panel-header"><h2>Recent dispatches</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Part</th><th>Qty</th><th>To</th></tr></thead>
+            <tbody id="dispatch-log-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-dispatch').addEventListener('click', openDispatchModal);
+    loadDispatchLog();
+  }
+
+  async function loadDispatchLog() {
+    const tbody = document.getElementById('dispatch-log-tbody');
+    if (!currentUser) return;
+    try {
+      const [movSnap, partsSnap] = await Promise.all([
+        getDocs(query(
+          collection(db, 'stockMovements'),
+          where('serviceCenterUid', '==', currentUser.uid),
+          where('type', '==', 'issue'),
+          orderBy('createdAt', 'desc')
+        )),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      if (movSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No dispatches logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      movSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? part.name : d.partId}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load dispatch log failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load dispatch log. Check console for details.</td></tr>`;
+    }
+  }
+
+  const dispatchOverlay = document.getElementById('dispatch-overlay');
+  const dispatchForm = document.getElementById('dispatch-form');
+  const dispatchError = document.getElementById('dispatch-error');
+  const dispatchSuccess = document.getElementById('dispatch-success');
+  const dispatchSubmitBtn = document.getElementById('submit-dispatch');
+  const dispatchPartSelect = document.getElementById('dispatch-part-id');
+  const dispatchTechSelect = document.getElementById('dispatch-technician');
+
+  async function populateDispatchTechnicianOptions() {
+    dispatchTechSelect.innerHTML = '<option value="">Select from roster…</option>';
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
+      snap.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.data().name;
+        opt.textContent = d.data().name;
+        dispatchTechSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Load technicians for dispatch failed:', err);
+    }
+  }
+
+  function openDispatchModal() {
+    dispatchForm.reset();
+    dispatchError.classList.remove('show');
+    dispatchSuccess.classList.remove('show');
+    dispatchSubmitBtn.disabled = false;
+    dispatchSubmitBtn.textContent = 'Dispatch';
+    populatePartOptions(dispatchPartSelect);
+    populateDispatchTechnicianOptions();
+    dispatchOverlay.classList.add('show');
+  }
+  function closeDispatchModal() { dispatchOverlay.classList.remove('show'); }
+  document.getElementById('cancel-dispatch').addEventListener('click', closeDispatchModal);
+  dispatchOverlay.addEventListener('click', (e) => { if (e.target === dispatchOverlay) closeDispatchModal(); });
+
+  dispatchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    dispatchError.classList.remove('show');
+    dispatchSuccess.classList.remove('show');
+    if (!dispatchPartSelect.value || !dispatchTechSelect.value || !currentUser) {
+      dispatchError.textContent = 'Select a part and a technician.';
+      dispatchError.classList.add('show');
+      return;
+    }
+    const partId = dispatchPartSelect.value;
+    const qty = Number(document.getElementById('dispatch-qty').value) || 0;
+    if (qty <= 0) {
+      dispatchError.textContent = 'Enter a quantity greater than 0.';
+      dispatchError.classList.add('show');
+      return;
+    }
+    dispatchSubmitBtn.disabled = true;
+    dispatchSubmitBtn.textContent = 'Dispatching…';
+    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const next = Math.max(0, current - qty);
+        transaction.set(invRef, {
+          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'issue', location: 'servicecenter', serviceCenterUid: currentUser.uid,
+        quantity: qty, reason: `Dispatched to ${dispatchTechSelect.value}`,
+        createdAt: serverTimestamp()
+      });
+      dispatchSuccess.textContent = 'Dispatched.';
+      dispatchSuccess.classList.add('show');
+      dispatchSubmitBtn.disabled = false;
+      dispatchSubmitBtn.textContent = 'Dispatch';
+      if (document.getElementById('dispatch-log-tbody')) loadDispatchLog();
+      setTimeout(closeDispatchModal, 800);
+    } catch (err) {
+      console.error('Dispatch failed:', err);
+      dispatchError.textContent = 'Could not dispatch. Check console for details.';
+      dispatchError.classList.add('show');
+      dispatchSubmitBtn.disabled = false;
+      dispatchSubmitBtn.textContent = 'Dispatch';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Send Back to Head Office — deducts center inventory AND creates
+  // a `returns` doc, which shows up directly in Head Office's own
+  // Returns & Defects > Returns tab, ready for inspection.
+  // ---------------------------------------------------------------
+
+  async function generateReturnId() {
+    const next = await nextMonthlySerial(`return-${currentYYYYMM()}`);
+    return `PE-RT-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+  }
+
+  async function renderSendBack() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Send back to Head Office</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:20px;">
+            Logging a return here deducts the quantity from your Center Inventory and adds it to
+            Head Office's Returns queue for inspection.
+          </p>
+          <button class="btn-primary" id="open-sendback">+ Send Back</button>
+        </div>
+      </div>`;
+    document.getElementById('open-sendback').addEventListener('click', openSendBackModal);
+  }
+
+  const sendbackOverlay = document.getElementById('sendback-overlay');
+  const sendbackForm = document.getElementById('sendback-form');
+  const sendbackError = document.getElementById('sendback-error');
+  const sendbackSuccess = document.getElementById('sendback-success');
+  const sendbackSubmitBtn = document.getElementById('submit-sendback');
+  const sendbackPartSelect = document.getElementById('sendback-part-id');
+
+  function openSendBackModal() {
+    sendbackForm.reset();
+    sendbackError.classList.remove('show');
+    sendbackSuccess.classList.remove('show');
+    sendbackSubmitBtn.disabled = false;
+    sendbackSubmitBtn.textContent = 'Send back';
+    populatePartOptions(sendbackPartSelect);
+    sendbackOverlay.classList.add('show');
+  }
+  function closeSendBackModal() { sendbackOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sendback').addEventListener('click', closeSendBackModal);
+  sendbackOverlay.addEventListener('click', (e) => { if (e.target === sendbackOverlay) closeSendBackModal(); });
+
+  sendbackForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    sendbackError.classList.remove('show');
+    sendbackSuccess.classList.remove('show');
+    if (!sendbackPartSelect.value || !currentUser) {
+      sendbackError.textContent = 'Select a part.';
+      sendbackError.classList.add('show');
+      return;
+    }
+    const partId = sendbackPartSelect.value;
+    const qty = Number(document.getElementById('sendback-qty').value) || 0;
+    if (qty <= 0) {
+      sendbackError.textContent = 'Enter a quantity greater than 0.';
+      sendbackError.classList.add('show');
+      return;
+    }
+    sendbackSubmitBtn.disabled = true;
+    sendbackSubmitBtn.textContent = 'Sending…';
+    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const next = Math.max(0, current - qty);
+        transaction.set(invRef, {
+          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      const returnId = await generateReturnId();
+      await addDoc(collection(db, 'returns'), {
+        returnId,
+        partId,
+        quantity: qty,
+        source: `Service Center - ${currentUser.email}`,
+        reason: document.getElementById('sendback-reason').value.trim(),
+        status: 'received',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      sendbackSuccess.textContent = `Sent — ${returnId}`;
+      sendbackSuccess.classList.add('show');
+      sendbackSubmitBtn.disabled = false;
+      sendbackSubmitBtn.textContent = 'Send back';
+      setTimeout(closeSendBackModal, 1000);
+    } catch (err) {
+      console.error('Send back failed:', err);
+      sendbackError.textContent = 'Could not send this back. Check console for details.';
+      sendbackError.classList.add('show');
+      sendbackSubmitBtn.disabled = false;
+      sendbackSubmitBtn.textContent = 'Send back';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Center Claims & Payment History — writes into the SAME shared
+  // `claims` collection Head Office and Technician also use.
+  // ---------------------------------------------------------------
+
+  const CLAIM_STATUS_LABELS_C = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+
+  async function generateClaimId() {
+    const next = await nextMonthlySerial(`claim-${currentYYYYMM()}`);
+    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+  }
+
+  async function renderCenterClaims() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My claims</h2>
+          <button class="btn-primary" id="open-cclaim">+ Submit Claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Claim ID</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="cclaims-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-cclaim').addEventListener('click', openCClaimModal);
+    loadCenterClaims();
+  }
+
+  async function loadCenterClaims() {
+    const tbody = document.getElementById('cclaims-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'claims'), where('claimantUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No claims submitted yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'new';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+          <td>${d.description || '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load claims failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
+    }
+  }
+
+  const cclaimOverlay = document.getElementById('cclaim-overlay');
+  const cclaimForm = document.getElementById('cclaim-form');
+  const cclaimError = document.getElementById('cclaim-error');
+  const cclaimSuccess = document.getElementById('cclaim-success');
+  const cclaimSubmitBtn = document.getElementById('submit-cclaim');
+
+  function openCClaimModal() {
+    cclaimForm.reset();
+    cclaimError.classList.remove('show');
+    cclaimSuccess.classList.remove('show');
+    cclaimSubmitBtn.disabled = false;
+    cclaimSubmitBtn.textContent = 'Submit claim';
+    cclaimOverlay.classList.add('show');
+  }
+  function closeCClaimModal() { cclaimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-cclaim').addEventListener('click', closeCClaimModal);
+  cclaimOverlay.addEventListener('click', (e) => { if (e.target === cclaimOverlay) closeCClaimModal(); });
+
+  cclaimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    cclaimError.classList.remove('show');
+    cclaimSuccess.classList.remove('show');
+    if (!currentUser) return;
+    cclaimSubmitBtn.disabled = true;
+    cclaimSubmitBtn.textContent = 'Submitting…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: 'servicecenter',
+        claimantUid: currentUser.uid,
+        claimantName: currentUser.email,
+        description: document.getElementById('cclaim-description').value.trim(),
+        amount: Number(document.getElementById('cclaim-amount').value) || 0,
+        notes: document.getElementById('cclaim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      cclaimSuccess.textContent = `Submitted — ${claimId}`;
+      cclaimSuccess.classList.add('show');
+      cclaimSubmitBtn.disabled = false;
+      cclaimSubmitBtn.textContent = 'Submit claim';
+      if (document.getElementById('cclaims-tbody')) loadCenterClaims();
+      setTimeout(closeCClaimModal, 1000);
+    } catch (err) {
+      console.error('Submit claim failed:', err);
+      cclaimError.textContent = 'Could not submit claim. Check console for details.';
+      cclaimError.classList.add('show');
+      cclaimSubmitBtn.disabled = false;
+      cclaimSubmitBtn.textContent = 'Submit claim';
+    }
+  });
+
+  async function renderPaymentHistory() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Total Received</div><div class="value" id="payments-total">…</div><div class="hint">Sum of settled claims</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Settled claims</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Claim ID</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody id="payments-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('payments-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'claims'),
+        where('claimantUid', '==', currentUser.uid),
+        where('status', '==', 'settled'),
+        orderBy('createdAt', 'desc')
+      ));
+      let total = 0;
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No settled claims yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = '';
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          total += Number(d.amount) || 0;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td><td>${d.description || '—'}</td><td>₹${d.amount ?? '—'}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('payments-total').textContent = '₹' + total;
+    } catch (err) {
+      console.error('Load payment history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load payment history. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Performance & Reports — real computed stats, nothing fabricated.
+  // ---------------------------------------------------------------
+
+  async function renderPerformance() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Completed</div><div class="value" id="perf-completed">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Cancelled</div><div class="value" id="perf-cancelled">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Completion Rate</div><div class="value" id="perf-rate">…</div><div class="hint">Completed vs. cancelled</div></div>
+        <div class="stat-card"><div class="label">Total Requests</div><div class="value" id="perf-total">…</div><div class="hint">All time</div></div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', currentUser.uid)));
+      let completed = 0, cancelled = 0, total = 0;
+      snap.forEach(d => {
+        total++;
+        if (d.data().status === 'completed') completed++;
+        if (d.data().status === 'cancelled') cancelled++;
+      });
+      const denom = completed + cancelled;
+      document.getElementById('perf-completed').textContent = completed;
+      document.getElementById('perf-cancelled').textContent = cancelled;
+      document.getElementById('perf-rate').textContent = denom > 0 ? Math.round((completed / denom) * 100) + '%' : '—';
+      document.getElementById('perf-total').textContent = total;
+    } catch (err) {
+      console.error('Load performance failed:', err);
+    }
+  }
+
+  async function renderReports() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Center summary</h2></div>
+        <div class="panel-body" id="reports-body" style="font-size:13.5px;color:var(--stone);line-height:1.9;">Loading…</div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const [reqSnap, techSnap, claimsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'claims'), where('claimantUid', '==', currentUser.uid))),
+      ]);
+      let completed = 0, settledTotal = 0;
+      reqSnap.forEach(d => { if (d.data().status === 'completed') completed++; });
+      claimsSnap.forEach(d => { if (d.data().status === 'settled') settledTotal += Number(d.data().amount) || 0; });
+      document.getElementById('reports-body').innerHTML = `
+        <b style="color:var(--ink)">${reqSnap.size}</b> total requests logged, <b style="color:var(--ink)">${completed}</b> completed.<br>
+        <b style="color:var(--ink)">${techSnap.size}</b> technicians on your roster.<br>
+        <b style="color:var(--ink)">${claimsSnap.size}</b> claims submitted, <b style="color:var(--ink)">₹${settledTotal}</b> settled to date.`;
+    } catch (err) {
+      console.error('Load reports failed:', err);
+      document.getElementById('reports-body').innerHTML = 'Couldn\'t load the summary. Check console for details.';
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Profile — center's own self-editable details.
+  // ---------------------------------------------------------------
+
+  async function renderProfile() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Center profile</h2></div>
+        <div class="panel-body">
+          <div class="form-row"><label>Center name</label><input type="text" id="profile-name"></div>
+          <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
+          <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
+          <div class="form-row"><label>Address</label><input type="text" id="profile-address"></div>
+          <div class="modal-error" id="profile-error"></div>
+          <div class="modal-success" id="profile-success"></div>
+          <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
+        </div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const snap = await getDoc(doc(db, 'users', currentUser.uid));
+      const d = snap.exists() ? snap.data() : {};
+      document.getElementById('profile-name').value = d.name || '';
+      document.getElementById('profile-email').value = currentUser.email || '';
+      document.getElementById('profile-phone').value = d.phone || '';
+      document.getElementById('profile-address').value = d.address || '';
+    } catch (err) {
+      console.error('Load profile failed:', err);
+    }
+    document.getElementById('save-profile').addEventListener('click', async () => {
+      const btn = document.getElementById('save-profile');
+      const errEl = document.getElementById('profile-error');
+      const okEl = document.getElementById('profile-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          name: document.getElementById('profile-name').value.trim(),
+          phone: document.getElementById('profile-phone').value.trim(),
+          address: document.getElementById('profile-address').value.trim(),
+        }, { merge: true });
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save profile failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save changes';
+    });
   }
 
   renderNav();
