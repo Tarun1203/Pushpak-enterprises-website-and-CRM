@@ -109,6 +109,24 @@
   .modal-error.show{display:block;}
   .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
   .modal-success.show{display:block;}
+  .form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;width:100%;resize:vertical;min-height:70px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new,.status-pill.placed,.status-pill.assigned,.status-pill.submitted,.status-pill.requested{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.in_progress,.status-pill.picking,.status-pill.packing,.status-pill.dispatched,.status-pill.invoice_submitted,.status-pill.confirmed,.status-pill.verified,.status-pill.intransit,.status-pill.defective{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.completed,.status-pill.delivered,.status-pill.settled,.status-pill.active,.status-pill.received,.status-pill.restocked,.status-pill.converted,.status-pill.ok{background:#D9EEE0;color:var(--ok);}
+  .status-pill.cancelled,.status-pill.rejected,.status-pill.backorder,.status-pill.disposed,.status-pill.closed,.status-pill.out,.status-pill.expired{background:#F6DCDC;color:var(--err);}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+
+  .tab-toggle{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tab-toggle button{
+    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:12.5px;
+    padding:8px 16px;border-radius:20px;color:var(--stone);cursor:pointer;font-family:inherit;
+  }
+  .tab-toggle button.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 </style>
 </head>
 <body>
@@ -223,13 +241,80 @@
   </div>
 </div>
 
+<!-- Edit Site Content modal -->
+<div class="modal-overlay" id="sitecontent-overlay">
+  <div class="modal" style="max-width:520px;">
+    <h3>Edit landing page content</h3>
+    <form id="sitecontent-form">
+      <div class="form-row"><label>Hero headline</label><input type="text" id="sc-heroHeadline"></div>
+      <div class="form-row"><label>Hero subcopy</label><textarea id="sc-heroSubcopy"></textarea></div>
+      <div class="form-row"><label>Brands section intro</label><textarea id="sc-brandsIntro"></textarea></div>
+      <div class="form-row"><label>About text (paragraph 1)</label><textarea id="sc-aboutText1"></textarea></div>
+      <div class="form-row"><label>About text (paragraph 2)</label><textarea id="sc-aboutText2"></textarea></div>
+      <div class="form-row"><label>Contact phone</label><input type="text" id="sc-contactPhone"></div>
+      <div class="form-row"><label>Contact email</label><input type="text" id="sc-contactEmail"></div>
+      <div class="form-row"><label>Contact location</label><input type="text" id="sc-contactLocation"></div>
+      <div class="modal-error" id="sitecontent-error"></div>
+      <div class="modal-success" id="sitecontent-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sitecontent">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sitecontent">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Brand modal -->
+<div class="modal-overlay" id="brand-overlay">
+  <div class="modal">
+    <h3 id="brand-modal-title">Edit brand</h3>
+    <form id="brand-form">
+      <input type="hidden" id="brand-editing-id">
+      <div class="form-row"><label>Tagline</label><input type="text" id="brand-tagline"></div>
+      <div class="form-row"><label>Description</label><textarea id="brand-description"></textarea></div>
+      <div class="modal-error" id="brand-error"></div>
+      <div class="modal-success" id="brand-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-brand">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-brand">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Product modal -->
+<div class="modal-overlay" id="product-overlay">
+  <div class="modal">
+    <h3 id="product-modal-title">Add product</h3>
+    <form id="product-form">
+      <input type="hidden" id="product-editing-id">
+      <div class="form-row"><label>Name</label><input type="text" id="product-name" required></div>
+      <div class="form-row"><label>Category</label><input type="text" id="product-category" placeholder="e.g. LED TV, Geyser"></div>
+      <div class="form-row"><label>Brand</label>
+        <select id="product-brand">
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
+      <div class="modal-error" id="product-error"></div>
+      <div class="modal-success" id="product-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-product">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-product">Save product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, query, orderBy
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -292,36 +377,36 @@
       { id: 'dashboard', label: 'Dashboard', built: true },
     ]},
     { group: 'Customers & Sales', items: [
-      { id: 'customers', label: 'Customers' },
-      { id: 'brands', label: 'Brands' },
-      { id: 'products', label: 'Product Management' },
-      { id: 'serials', label: 'Serial & Registration' },
-      { id: 'warranty', label: 'Warranty' },
-      { id: 'dealers', label: 'Dealers' },
+      { id: 'customers', label: 'Customers', built: true },
+      { id: 'brands', label: 'Brands', built: true },
+      { id: 'products', label: 'Product Management', built: true },
+      { id: 'serials', label: 'Serial & Registration', built: true },
+      { id: 'warranty', label: 'Warranty', built: true },
+      { id: 'dealers', label: 'Dealers', built: true },
     ]},
     { group: 'Service Operations', items: [
-      { id: 'service', label: 'Service' },
+      { id: 'service', label: 'Service', built: true },
       { id: 'routing', label: 'Service Request Routing' },
-      { id: 'centers', label: 'Service Centers' },
-      { id: 'technicians', label: 'Technicians' },
+      { id: 'centers', label: 'Service Centers', built: true },
+      { id: 'technicians', label: 'Technicians', built: true },
       { id: 'sla', label: 'SLA & Escalation' },
     ]},
     { group: 'Inventory & Logistics', items: [
-      { id: 'spareparts', label: 'Spare Parts' },
-      { id: 'inventory', label: 'Inventory' },
-      { id: 'stockmovement', label: 'Stock Movement' },
-      { id: 'sparerequest', label: 'Spare Request & Logistics' },
-      { id: 'localpurchase', label: 'Local Purchase' },
+      { id: 'spareparts', label: 'Spare Parts', built: true },
+      { id: 'inventory', label: 'Inventory', built: true },
+      { id: 'stockmovement', label: 'Stock Movement', built: true },
+      { id: 'sparerequest', label: 'Spare Request & Logistics', built: true },
+      { id: 'localpurchase', label: 'Local Purchase', built: true },
     ]},
     { group: 'Finance & Claims', items: [
-      { id: 'finance', label: 'Finance' },
+      { id: 'finance', label: 'Finance', built: true },
       { id: 'rma', label: 'RMA & Replacement' },
-      { id: 'approvals', label: 'Approvals' },
+      { id: 'approvals', label: 'Approvals', built: true },
     ]},
     { group: 'Operations', items: [
       { id: 'communication', label: 'Communication' },
-      { id: 'reports', label: 'Reports' },
-      { id: 'website', label: 'Website Management' },
+      { id: 'reports', label: 'Reports', built: true },
+      { id: 'website', label: 'Website Management', built: true },
       { id: 'masterdata', label: 'Master Data' },
     ]},
     { group: 'System', items: [
@@ -371,6 +456,60 @@
     } else if (id === 'users') {
       pageSub.textContent = 'Manage CRM accounts and roles';
       renderUsers();
+    } else if (id === 'website') {
+      pageSub.textContent = 'Public site content & enquiries';
+      renderWebsiteManagement();
+    } else if (id === 'brands') {
+      pageSub.textContent = 'MakWell, Flyvision, Skevia — public copy';
+      renderBrandsAdmin();
+    } else if (id === 'products') {
+      pageSub.textContent = 'Sellable product catalog';
+      renderProductManagement();
+    } else if (id === 'serials') {
+      pageSub.textContent = 'All product registrations';
+      renderSerialsRegistrations();
+    } else if (id === 'warranty') {
+      pageSub.textContent = 'Warranty status across registrations';
+      renderWarranty();
+    } else if (id === 'dealers') {
+      pageSub.textContent = 'All dealer accounts';
+      renderDealersOverview();
+    } else if (id === 'centers') {
+      pageSub.textContent = 'All service center accounts';
+      renderCentersOverview();
+    } else if (id === 'technicians') {
+      pageSub.textContent = 'All technician accounts';
+      renderTechniciansOverview();
+    } else if (id === 'service') {
+      pageSub.textContent = 'All service activity, company-wide';
+      renderServiceOverview();
+    } else if (id === 'spareparts') {
+      pageSub.textContent = 'Master parts list (managed in Head Office)';
+      renderSparePartsOverview();
+    } else if (id === 'inventory') {
+      pageSub.textContent = 'Stock across all locations';
+      renderInventoryOverview();
+    } else if (id === 'stockmovement') {
+      pageSub.textContent = 'Full movement log, company-wide';
+      renderStockMovementOverview();
+    } else if (id === 'sparerequest') {
+      pageSub.textContent = 'Spare requests, company-wide';
+      renderSpareRequestOverview();
+    } else if (id === 'localpurchase') {
+      pageSub.textContent = 'Local purchase requests, company-wide';
+      renderLocalPurchaseOverview();
+    } else if (id === 'finance') {
+      pageSub.textContent = 'Claims & local purchase settlements';
+      renderFinanceOverview();
+    } else if (id === 'approvals') {
+      pageSub.textContent = 'Everything awaiting a decision';
+      renderApprovalsOverview();
+    } else if (id === 'customers') {
+      pageSub.textContent = 'Customers across all dealers';
+      renderCustomersOverview();
+    } else if (id === 'reports') {
+      pageSub.textContent = 'Company-wide summary';
+      renderReportsOverview();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -671,6 +810,968 @@
     resetPasswordBtn.disabled = false;
     resetPasswordBtn.textContent = original;
   });
+
+  // =================================================================
+  // WEBSITE MANAGEMENT — public site content editor + enquiries list
+  // =================================================================
+
+  async function renderWebsiteManagement() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Landing page content</h2>
+          <button class="btn-primary" id="open-sitecontent">Edit Content</button>
+        </div>
+        <div class="panel-body" style="font-size:13.5px;color:var(--stone);">
+          Controls the hero, about, and contact sections on the live public site. Changes appear immediately after saving.
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Contact enquiries</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Ticket ID</th><th>Name</th><th>Phone</th><th>Subject</th><th>Message</th></tr></thead>
+            <tbody id="enq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-sitecontent').addEventListener('click', openSiteContentModal);
+    loadContactEnquiries();
+  }
+
+  async function loadContactEnquiries() {
+    const tbody = document.getElementById('enq-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'contactEnquiries'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No enquiries submitted yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.ticketId || docSnap.id}</td>
+          <td>${d.name || '—'}</td>
+          <td>${d.phone || '—'}</td>
+          <td>${d.subject || '—'}</td>
+          <td style="max-width:280px;">${d.message || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load enquiries failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load enquiries. Check console for details.</td></tr>`;
+    }
+  }
+
+  const scOverlay = document.getElementById('sitecontent-overlay');
+  const scForm = document.getElementById('sitecontent-form');
+  const scError = document.getElementById('sitecontent-error');
+  const scSuccess = document.getElementById('sitecontent-success');
+  const scSubmitBtn = document.getElementById('submit-sitecontent');
+  const SC_FIELDS = ['heroHeadline', 'heroSubcopy', 'brandsIntro', 'aboutText1', 'aboutText2', 'contactPhone', 'contactEmail', 'contactLocation'];
+
+  async function openSiteContentModal() {
+    scError.classList.remove('show');
+    scSuccess.classList.remove('show');
+    scSubmitBtn.disabled = false;
+    scSubmitBtn.textContent = 'Save changes';
+    try {
+      const snap = await getDoc(doc(db, 'siteContent', 'landing'));
+      const d = snap.exists() ? snap.data() : {};
+      SC_FIELDS.forEach(f => { document.getElementById('sc-' + f).value = d[f] || ''; });
+    } catch (err) {
+      console.error('Load site content failed:', err);
+    }
+    scOverlay.classList.add('show');
+  }
+  function closeSiteContentModal() { scOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sitecontent').addEventListener('click', closeSiteContentModal);
+  scOverlay.addEventListener('click', (e) => { if (e.target === scOverlay) closeSiteContentModal(); });
+
+  scForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    scError.classList.remove('show');
+    scSuccess.classList.remove('show');
+    scSubmitBtn.disabled = true;
+    scSubmitBtn.textContent = 'Saving…';
+    try {
+      const payload = {};
+      SC_FIELDS.forEach(f => { payload[f] = document.getElementById('sc-' + f).value.trim(); });
+      await setDoc(doc(db, 'siteContent', 'landing'), payload, { merge: true });
+      scSuccess.textContent = 'Saved — live site updated.';
+      scSuccess.classList.add('show');
+      scSubmitBtn.disabled = false;
+      scSubmitBtn.textContent = 'Save changes';
+      setTimeout(closeSiteContentModal, 1000);
+    } catch (err) {
+      console.error('Save site content failed:', err);
+      scError.textContent = 'Could not save. Check console for details.';
+      scError.classList.add('show');
+      scSubmitBtn.disabled = false;
+      scSubmitBtn.textContent = 'Save changes';
+    }
+  });
+
+  // =================================================================
+  // BRANDS — tagline/description shown in each brand panel on the
+  // public landing page.
+  // =================================================================
+
+  const BRAND_IDS = ['makwell', 'flyvision', 'skevia'];
+  const BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+
+  async function renderBrandsAdmin() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Brand copy</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Brand</th><th>Tagline</th><th>Description</th><th>Actions</th></tr></thead>
+            <tbody id="brands-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadBrandsAdmin();
+  }
+
+  async function loadBrandsAdmin() {
+    const tbody = document.getElementById('brands-tbody');
+    tbody.innerHTML = '';
+    for (const brandId of BRAND_IDS) {
+      let d = {};
+      try {
+        const snap = await getDoc(doc(db, 'brands', brandId));
+        if (snap.exists()) d = snap.data();
+      } catch (err) {
+        console.error(`Load brand ${brandId} failed:`, err);
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><b>${BRAND_LABELS[brandId]}</b></td>
+        <td>${d.tagline || '—'}</td>
+        <td style="max-width:280px;">${d.description || '—'}</td>
+        <td><button class="btn-secondary brand-edit-btn" data-id="${brandId}">Edit</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('.brand-edit-btn').addEventListener('click', () => openBrandModal(brandId, d));
+    }
+  }
+
+  const brandOverlay = document.getElementById('brand-overlay');
+  const brandForm = document.getElementById('brand-form');
+  const brandError = document.getElementById('brand-error');
+  const brandSuccess = document.getElementById('brand-success');
+  const brandSubmitBtn = document.getElementById('submit-brand');
+  const brandModalTitle = document.getElementById('brand-modal-title');
+
+  function openBrandModal(brandId, data) {
+    brandForm.reset();
+    brandError.classList.remove('show');
+    brandSuccess.classList.remove('show');
+    brandSubmitBtn.disabled = false;
+    brandSubmitBtn.textContent = 'Save changes';
+    brandModalTitle.textContent = `Edit ${BRAND_LABELS[brandId]}`;
+    document.getElementById('brand-editing-id').value = brandId;
+    document.getElementById('brand-tagline').value = data.tagline || '';
+    document.getElementById('brand-description').value = data.description || '';
+    brandOverlay.classList.add('show');
+  }
+  function closeBrandModal() { brandOverlay.classList.remove('show'); }
+  document.getElementById('cancel-brand').addEventListener('click', closeBrandModal);
+  brandOverlay.addEventListener('click', (e) => { if (e.target === brandOverlay) closeBrandModal(); });
+
+  brandForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    brandError.classList.remove('show');
+    brandSuccess.classList.remove('show');
+    brandSubmitBtn.disabled = true;
+    brandSubmitBtn.textContent = 'Saving…';
+    const brandId = document.getElementById('brand-editing-id').value;
+    try {
+      await setDoc(doc(db, 'brands', brandId), {
+        tagline: document.getElementById('brand-tagline').value.trim(),
+        description: document.getElementById('brand-description').value.trim(),
+      }, { merge: true });
+      brandSuccess.textContent = 'Saved — live site updated.';
+      brandSuccess.classList.add('show');
+      brandSubmitBtn.disabled = false;
+      brandSubmitBtn.textContent = 'Save changes';
+      if (document.getElementById('brands-tbody')) loadBrandsAdmin();
+      setTimeout(closeBrandModal, 800);
+    } catch (err) {
+      console.error('Save brand failed:', err);
+      brandError.textContent = 'Could not save. Check console for details.';
+      brandError.classList.add('show');
+      brandSubmitBtn.disabled = false;
+      brandSubmitBtn.textContent = 'Save changes';
+    }
+  });
+
+  // =================================================================
+  // PRODUCT MANAGEMENT — the sellable product catalog (distinct from
+  // Head Office's spareParts, which is repair parts). This is what
+  // Dealer's Products tab reads from — currently empty until filled
+  // in here.
+  // =================================================================
+
+  async function renderProductManagement() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Product catalog</h2>
+          <button class="btn-primary" id="open-add-product">+ Add Product</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Actions</th></tr></thead>
+            <tbody id="products-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-product').addEventListener('click', () => openProductModal(null));
+    loadProducts();
+  }
+
+  async function loadProducts() {
+    const tbody = document.getElementById('products-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No products yet — add your first one. This is what Dealers see in their Products tab.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.category || '—'}</td>
+          <td>${d.brand || '—'}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td>
+          <td><button class="btn-secondary product-edit-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.product-edit-btn').addEventListener('click', () => openProductModal(d));
+      });
+    } catch (err) {
+      console.error('Load products failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load products. Check console for details.</td></tr>`;
+    }
+  }
+
+  const productOverlay = document.getElementById('product-overlay');
+  const productForm = document.getElementById('product-form');
+  const productError = document.getElementById('product-error');
+  const productSuccess = document.getElementById('product-success');
+  const productSubmitBtn = document.getElementById('submit-product');
+  const productModalTitle = document.getElementById('product-modal-title');
+
+  function openProductModal(existing) {
+    productForm.reset();
+    productError.classList.remove('show');
+    productSuccess.classList.remove('show');
+    productSubmitBtn.disabled = false;
+    if (existing) {
+      productModalTitle.textContent = 'Edit product';
+      document.getElementById('product-editing-id').value = existing.id;
+      document.getElementById('product-name').value = existing.name || '';
+      document.getElementById('product-category').value = existing.category || '';
+      document.getElementById('product-brand').value = existing.brand || 'MakWell';
+      document.getElementById('product-price').value = existing.price ?? '';
+      productSubmitBtn.textContent = 'Save changes';
+    } else {
+      productModalTitle.textContent = 'Add product';
+      document.getElementById('product-editing-id').value = '';
+      productSubmitBtn.textContent = 'Save product';
+    }
+    productOverlay.classList.add('show');
+  }
+  function closeProductModal() { productOverlay.classList.remove('show'); }
+  document.getElementById('cancel-product').addEventListener('click', closeProductModal);
+  productOverlay.addEventListener('click', (e) => { if (e.target === productOverlay) closeProductModal(); });
+
+  productForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    productError.classList.remove('show');
+    productSuccess.classList.remove('show');
+    productSubmitBtn.disabled = true;
+    productSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('product-editing-id').value;
+    const payload = {
+      name: document.getElementById('product-name').value.trim(),
+      category: document.getElementById('product-category').value.trim(),
+      brand: document.getElementById('product-brand').value,
+      price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'products', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'products'), { ...payload, createdAt: serverTimestamp() });
+      }
+      productSuccess.textContent = 'Saved.';
+      productSuccess.classList.add('show');
+      productSubmitBtn.disabled = false;
+      productSubmitBtn.textContent = editingId ? 'Save changes' : 'Save product';
+      if (document.getElementById('products-tbody')) loadProducts();
+      setTimeout(closeProductModal, 800);
+    } catch (err) {
+      console.error('Save product failed:', err);
+      productError.textContent = 'Could not save this product. Check console for details.';
+      productError.classList.add('show');
+      productSubmitBtn.disabled = false;
+      productSubmitBtn.textContent = editingId ? 'Save changes' : 'Save product';
+    }
+  });
+
+  // Small helper since serverTimestamp() isn't imported in this file yet
+  function serverTimestampFallback() {
+    return new Date().toISOString();
+  }
+
+  // =================================================================
+  // SERIAL & REGISTRATION / WARRANTY — oversight of productRegistrations
+  // (written by Dealers at point of sale).
+  // =================================================================
+
+  function warrantyStatus(purchaseDate, warrantyMonths) {
+    if (!purchaseDate) return { cls: '', label: 'Unknown' };
+    const purchase = new Date(purchaseDate);
+    const expiry = new Date(purchase);
+    expiry.setMonth(expiry.getMonth() + (warrantyMonths || 0));
+    const now = new Date();
+    const daysLeft = Math.round((expiry - now) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) return { cls: 'expired', label: 'Expired' };
+    if (daysLeft <= 30) return { cls: 'low', label: `Expiring (${daysLeft}d)` };
+    return { cls: 'active', label: 'Active' };
+  }
+
+  async function renderSerialsRegistrations() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All product registrations</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Reg. ID</th><th>Customer</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty Status</th></tr></thead>
+            <tbody id="regs-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadAllRegistrations('serials');
+  }
+
+  async function renderWarranty() {
+    contentEl.innerHTML = `
+      <div class="tab-toggle" id="warranty-tabs">
+        <button data-filter="all" class="active">All</button>
+        <button data-filter="active">Active</button>
+        <button data-filter="low">Expiring Soon</button>
+        <button data-filter="expired">Expired</button>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Warranty status</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Reg. ID</th><th>Customer</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Status</th></tr></thead>
+            <tbody id="regs-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.querySelectorAll('#warranty-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#warranty-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAllRegistrations('warranty', btn.dataset.filter);
+      });
+    });
+    loadAllRegistrations('warranty', 'all');
+  }
+
+  async function loadAllRegistrations(mode, filter) {
+    const tbody = document.getElementById('regs-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'productRegistrations'), orderBy('createdAt', 'desc')));
+      let docs = [];
+      snap.forEach(d => docs.push(d.data()));
+      if (mode === 'warranty' && filter && filter !== 'all') {
+        docs = docs.filter(d => warrantyStatus(d.purchaseDate, d.warrantyMonths).cls === filter);
+      }
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const status = warrantyStatus(d.purchaseDate, d.warrantyMonths);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.registrationId || '—'}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td>${d.serialNumber || '—'}</td>
+          <td>${d.purchaseDate || '—'}</td>
+          <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load registrations failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load registrations. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // DEALERS / SERVICE CENTERS / TECHNICIANS — account overviews.
+  // =================================================================
+
+  async function renderDealersOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All dealers</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
+            <tbody id="dealers-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('dealers-tbody');
+    try {
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'dealer')));
+      if (usersSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No dealer accounts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const userDoc of usersSnap.docs) {
+        const d = userDoc.data();
+        const [custSnap, orderSnap, saleSnap] = await Promise.all([
+          getDocs(query(collection(db, 'dealerCustomers'), where('dealerUid', '==', userDoc.id))),
+          getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', userDoc.id))),
+          getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', userDoc.id))),
+        ]);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.email || '—'}</td>
+          <td>${custSnap.size}</td>
+          <td>${orderSnap.size}</td>
+          <td>${saleSnap.size}</td>`;
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      console.error('Load dealers failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load dealers. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderCentersOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All service centers</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Requests</th><th>Technicians</th></tr></thead>
+            <tbody id="centers-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('centers-tbody');
+    try {
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
+      if (usersSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No service center accounts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const userDoc of usersSnap.docs) {
+        const d = userDoc.data();
+        const [reqSnap, techSnap] = await Promise.all([
+          getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', userDoc.id))),
+          getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', userDoc.id))),
+        ]);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.email || '—'}</td><td>${reqSnap.size}</td><td>${techSnap.size}</td>`;
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      console.error('Load service centers failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderTechniciansOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All technicians</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Jobs</th><th>Availability</th></tr></thead>
+            <tbody id="techs-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('techs-tbody');
+    try {
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
+      if (usersSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No technician accounts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const userDoc of usersSnap.docs) {
+        const d = userDoc.data();
+        const [jobSnap, availSnap] = await Promise.all([
+          getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', userDoc.id))),
+          getDoc(doc(db, 'technicianAvailability', userDoc.id)),
+        ]);
+        const availStatus = availSnap.exists() ? availSnap.data().status : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.email || '—'}</td>
+          <td>${jobSnap.size}</td>
+          <td>${availStatus ? `<span class="status-pill ${availStatus === 'available' ? 'active' : availStatus === 'busy' ? 'low' : 'cancelled'}">${availStatus}</span>` : '—'}</td>`;
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      console.error('Load technicians failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load technicians. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // SERVICE — company-wide serviceJobs + centerRequests, combined.
+  // =================================================================
+
+  async function renderServiceOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All service activity</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
+            <tbody id="service-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('service-tbody');
+    try {
+      const [jobsSnap, requestsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'centerRequests'), orderBy('createdAt', 'desc'))),
+      ]);
+      const rows = [];
+      jobsSnap.forEach(d => {
+        const j = d.data();
+        rows.push({ source: 'Technician', id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt });
+      });
+      requestsSnap.forEach(d => {
+        const r = d.data();
+        rows.push({ source: 'Service Center', id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt });
+      });
+      rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No service activity yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.source}</td>
+          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${r.customer || '—'}</td>
+          <td>${r.assigned || '—'}</td>
+          <td><span class="status-pill ${r.status}">${r.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load service overview failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // SPARE PARTS / INVENTORY / STOCK MOVEMENT / SPARE REQUEST /
+  // LOCAL PURCHASE — company-wide read-only oversight, reusing the
+  // exact collections Head Office already manages day-to-day.
+  // =================================================================
+
+  async function renderSparePartsOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Master parts list</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th></tr></thead>
+            <tbody id="sp-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('sp-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No parts yet — managed from the Head Office portal.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.partCode || docSnap.id}</td>
+          <td>${d.name || '—'}</td><td>${d.category || '—'}</td><td>${d.brandCompatibility || 'All'}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${d.reorderLevel ?? '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load spare parts failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderInventoryOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Stock across all locations</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Part</th><th>Head Office</th><th>Service Centers (total)</th><th>Technicians (total)</th></tr></thead>
+            <tbody id="inv-overview-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('inv-overview-tbody');
+    try {
+      const [partsSnap, invSnap] = await Promise.all([
+        getDocs(collection(db, 'spareParts')),
+        getDocs(collection(db, 'inventory')),
+      ]);
+      const totals = {};
+      partsSnap.forEach(d => { totals[d.id] = { name: d.data().name, headoffice: 0, servicecenter: 0, technician: 0 }; });
+      invSnap.forEach(d => {
+        const inv = d.data();
+        if (!totals[inv.partId]) totals[inv.partId] = { name: inv.partId, headoffice: 0, servicecenter: 0, technician: 0 };
+        totals[inv.partId][inv.location] = (totals[inv.partId][inv.location] || 0) + (inv.quantity || 0);
+      });
+      const rows = Object.values(totals);
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No inventory data yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.name}</td><td><b>${r.headoffice}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load inventory overview failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load inventory. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderStockMovementOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Full movement log</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Location</th><th>Qty</th><th>Reason</th></tr></thead>
+            <tbody id="sm-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('sm-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'stockMovements'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No stock movements recorded yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${d.type}</span></td>
+          <td style="text-transform:capitalize;">${d.location || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load stock movements failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load movement log. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderSpareRequestOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All spare requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Qty</th><th>Status</th></tr></thead>
+            <tbody id="sr-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('sr-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'spareRequests'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No spare requests yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
+          <td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td>${d.quantity ?? '—'}</td>
+          <td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load spare requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load spare requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderLocalPurchaseOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All local purchase requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Item</th><th>Requested By</th><th>Amount</th><th>Emergency</th><th>Status</th></tr></thead>
+            <tbody id="lp-overview-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('lp-overview-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'localPurchases'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No local purchase requests yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
+          <td>${d.item || '—'}</td><td>${d.requestedBy || '—'}</td>
+          <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
+          <td>${d.emergency ? 'Yes' : '—'}</td>
+          <td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load local purchases failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // FINANCE — settled totals across claims and local purchase.
+  // =================================================================
+
+  async function renderFinanceOverview() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Claims Settled</div><div class="value" id="fin-claims-total">…</div><div class="hint">Total ₹ paid out</div></div>
+        <div class="stat-card"><div class="label">Local Purchases Reimbursed</div><div class="value" id="fin-lp-total">…</div><div class="hint">Total ₹ paid out</div></div>
+        <div class="stat-card"><div class="label">Pending Claims</div><div class="value" id="fin-claims-pending">…</div><div class="hint">Submitted, not yet settled</div></div>
+        <div class="stat-card"><div class="label">Pending Local Purchases</div><div class="value" id="fin-lp-pending">…</div><div class="hint">Not yet reimbursed</div></div>
+      </div>`;
+    try {
+      const [claimsSnap, lpSnap] = await Promise.all([
+        getDocs(collection(db, 'claims')),
+        getDocs(collection(db, 'localPurchases')),
+      ]);
+      let claimsSettled = 0, claimsPending = 0, lpSettled = 0, lpPending = 0;
+      claimsSnap.forEach(d => {
+        const c = d.data();
+        if (c.status === 'settled') claimsSettled += Number(c.amount) || 0;
+        else if (c.status !== 'rejected') claimsPending++;
+      });
+      lpSnap.forEach(d => {
+        const l = d.data();
+        if (l.status === 'reimbursed') lpSettled += Number(l.actualAmount || l.estimatedAmount) || 0;
+        else lpPending++;
+      });
+      document.getElementById('fin-claims-total').textContent = '₹' + claimsSettled;
+      document.getElementById('fin-lp-total').textContent = '₹' + lpSettled;
+      document.getElementById('fin-claims-pending').textContent = claimsPending;
+      document.getElementById('fin-lp-pending').textContent = lpPending;
+    } catch (err) {
+      console.error('Load finance overview failed:', err);
+    }
+  }
+
+  // =================================================================
+  // APPROVALS — everything awaiting a decision, in one place.
+  // Read-only oversight; actioning still happens in the relevant
+  // portal (Head Office for claims/local purchase/spare requests).
+  // =================================================================
+
+  async function renderApprovalsOverview() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Pending claims</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody id="appr-claims-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Pending local purchase</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Request ID</th><th>Item</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody id="appr-lp-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>New spare requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Status</th></tr></thead>
+          <tbody id="appr-sr-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+      <div style="margin-top:16px;font-size:12.5px;color:var(--stone);">
+        This is a read-only overview — approve/verify/settle actions happen in the Head Office portal.
+      </div>`;
+
+    try {
+      const claimsSnap = await getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted')));
+      const tbody1 = document.getElementById('appr-claims-tbody');
+      if (claimsSnap.empty) {
+        tbody1.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing pending.</td></tr>`;
+      } else {
+        tbody1.innerHTML = '';
+        claimsSnap.forEach(docSnap => {
+          const d = docSnap.data();
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td><td>${d.claimantType || '—'}</td><td>${d.claimantName || '—'}</td><td>₹${d.amount ?? '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tbody1.appendChild(tr);
+        });
+      }
+    } catch (err) { console.error('Load pending claims failed:', err); }
+
+    try {
+      const lpSnap = await getDocs(query(collection(db, 'localPurchases'), where('status', 'in', ['requested', 'invoice_submitted'])));
+      const tbody2 = document.getElementById('appr-lp-tbody');
+      if (lpSnap.empty) {
+        tbody2.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing pending.</td></tr>`;
+      } else {
+        tbody2.innerHTML = '';
+        lpSnap.forEach(docSnap => {
+          const d = docSnap.data();
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td><td>${d.item || '—'}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tbody2.appendChild(tr);
+        });
+      }
+    } catch (err) { console.error('Load pending local purchase failed:', err); }
+
+    try {
+      const srSnap = await getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'new')));
+      const tbody3 = document.getElementById('appr-sr-tbody');
+      if (srSnap.empty) {
+        tbody3.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing pending.</td></tr>`;
+      } else {
+        tbody3.innerHTML = '';
+        srSnap.forEach(docSnap => {
+          const d = docSnap.data();
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td><td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tbody3.appendChild(tr);
+        });
+      }
+    } catch (err) { console.error('Load pending spare requests failed:', err); }
+  }
+
+  // =================================================================
+  // CUSTOMERS — aggregate across all dealers.
+  // =================================================================
+
+  async function renderCustomersOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All customers (across dealers)</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Address</th></tr></thead>
+            <tbody id="custs-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('custs-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerCustomers'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No customers logged by any dealer yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load customers failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load customers. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // REPORTS — lightweight company-wide summary.
+  // =================================================================
+
+  async function renderReportsOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Company summary</h2></div>
+        <div class="panel-body" id="reports-body" style="font-size:13.5px;color:var(--stone);line-height:2;">Loading…</div>
+      </div>`;
+    try {
+      const [dealersSnap, centersSnap, techsSnap, salesSnap, jobsSnap, requestsSnap, claimsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'dealer'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'technician'))),
+        getDocs(collection(db, 'dealerSales')),
+        getDocs(collection(db, 'serviceJobs')),
+        getDocs(collection(db, 'centerRequests')),
+        getDocs(collection(db, 'claims')),
+      ]);
+      let revenue = 0;
+      salesSnap.forEach(d => { revenue += Number(d.data().amount) || 0; });
+      let completedJobs = 0;
+      jobsSnap.forEach(d => { if (d.data().status === 'completed') completedJobs++; });
+      requestsSnap.forEach(d => { if (d.data().status === 'completed') completedJobs++; });
+      let settledClaims = 0;
+      claimsSnap.forEach(d => { if (d.data().status === 'settled') settledClaims += Number(d.data().amount) || 0; });
+
+      document.getElementById('reports-body').innerHTML = `
+        <b style="color:var(--ink)">${dealersSnap.size}</b> dealers, <b style="color:var(--ink)">${centersSnap.size}</b> service centers, <b style="color:var(--ink)">${techsSnap.size}</b> technicians.<br>
+        <b style="color:var(--ink)">${salesSnap.size}</b> dealer sales logged, totaling <b style="color:var(--ink)">₹${revenue}</b>.<br>
+        <b style="color:var(--ink)">${completedJobs}</b> service jobs/requests completed company-wide.<br>
+        <b style="color:var(--ink)">₹${settledClaims}</b> in claims settled to date.`;
+    } catch (err) {
+      console.error('Load reports failed:', err);
+      document.getElementById('reports-body').innerHTML = 'Couldn\'t load the summary. Check console for details.';
+    }
+  }
 
   // Default view once authenticated
   setActiveNav('dashboard');
