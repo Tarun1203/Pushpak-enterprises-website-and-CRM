@@ -308,13 +308,58 @@
   </div>
 </div>
 
+<!-- New RMA modal -->
+<div class="modal-overlay" id="rma-overlay">
+  <div class="modal">
+    <h3>New RMA request</h3>
+    <form id="rma-form">
+      <div class="form-row"><label>Customer name</label><input type="text" id="rma-customer" required></div>
+      <div class="form-row"><label>Customer phone</label><input type="tel" id="rma-phone" required></div>
+      <div class="form-row"><label>Product</label><input type="text" id="rma-product" required></div>
+      <div class="form-row"><label>Serial number</label><input type="text" id="rma-serial" required></div>
+      <div class="form-row"><label>Reason</label><textarea id="rma-reason" required></textarea></div>
+      <div class="modal-error" id="rma-error"></div>
+      <div class="modal-success" id="rma-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-rma">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-rma">Create RMA</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Template modal -->
+<div class="modal-overlay" id="template-overlay">
+  <div class="modal">
+    <h3 id="template-modal-title">Add template</h3>
+    <form id="template-form">
+      <input type="hidden" id="template-editing-id">
+      <div class="form-row"><label>Name</label><input type="text" id="template-name" placeholder="e.g. Service reminder" required></div>
+      <div class="form-row"><label>Channel</label>
+        <select id="template-channel">
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="SMS">SMS</option>
+          <option value="Email">Email</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Message body</label><textarea id="template-body" placeholder="Use {name}, {date}, etc. as placeholders" required></textarea></div>
+      <div class="modal-error" id="template-error"></div>
+      <div class="modal-success" id="template-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-template">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-template">Save template</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -386,10 +431,10 @@
     ]},
     { group: 'Service Operations', items: [
       { id: 'service', label: 'Service', built: true },
-      { id: 'routing', label: 'Service Request Routing' },
+      { id: 'routing', label: 'Service Request Routing', built: true },
       { id: 'centers', label: 'Service Centers', built: true },
       { id: 'technicians', label: 'Technicians', built: true },
-      { id: 'sla', label: 'SLA & Escalation' },
+      { id: 'sla', label: 'SLA & Escalation', built: true },
     ]},
     { group: 'Inventory & Logistics', items: [
       { id: 'spareparts', label: 'Spare Parts', built: true },
@@ -400,18 +445,18 @@
     ]},
     { group: 'Finance & Claims', items: [
       { id: 'finance', label: 'Finance', built: true },
-      { id: 'rma', label: 'RMA & Replacement' },
+      { id: 'rma', label: 'RMA & Replacement', built: true },
       { id: 'approvals', label: 'Approvals', built: true },
     ]},
     { group: 'Operations', items: [
-      { id: 'communication', label: 'Communication' },
+      { id: 'communication', label: 'Communication', built: true },
       { id: 'reports', label: 'Reports', built: true },
       { id: 'website', label: 'Website Management', built: true },
-      { id: 'masterdata', label: 'Master Data' },
+      { id: 'masterdata', label: 'Master Data', built: true },
     ]},
     { group: 'System', items: [
       { id: 'users', label: 'Users & Access', built: true },
-      { id: 'admin', label: 'Administration' },
+      { id: 'admin', label: 'Administration', built: true },
     ]},
   ];
 
@@ -510,6 +555,24 @@
     } else if (id === 'reports') {
       pageSub.textContent = 'Company-wide summary';
       renderReportsOverview();
+    } else if (id === 'routing') {
+      pageSub.textContent = 'Assign unassigned requests to a technician';
+      renderRouting();
+    } else if (id === 'sla') {
+      pageSub.textContent = 'Requests open too long';
+      renderSlaEscalation();
+    } else if (id === 'rma') {
+      pageSub.textContent = 'Product returns & replacements';
+      renderRma();
+    } else if (id === 'communication') {
+      pageSub.textContent = 'Reusable message templates';
+      renderCommunication();
+    } else if (id === 'masterdata') {
+      pageSub.textContent = 'Bulk import for the product catalog';
+      renderMasterData();
+    } else if (id === 'admin') {
+      pageSub.textContent = 'Company-wide settings';
+      renderAdministration();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -1771,6 +1834,574 @@
       console.error('Load reports failed:', err);
       document.getElementById('reports-body').innerHTML = 'Couldn\'t load the summary. Check console for details.';
     }
+  }
+
+  // =================================================================
+  // SERVICE REQUEST ROUTING — company-wide unassigned center requests,
+  // assignable directly to any technician account (cross-center).
+  // =================================================================
+
+  async function renderRouting() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Unassigned requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Customer</th><th>Product</th><th>Assign to</th><th></th></tr></thead>
+            <tbody id="routing-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadRoutingQueue();
+  }
+
+  let techniciansCache = null;
+
+  async function getTechniciansCache() {
+    if (techniciansCache) return techniciansCache;
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
+    techniciansCache = [];
+    snap.forEach(d => techniciansCache.push({ uid: d.id, ...d.data() }));
+    return techniciansCache;
+  }
+
+  async function loadRoutingQueue() {
+    const tbody = document.getElementById('routing-tbody');
+    try {
+      const [snap, techs] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
+        getTechniciansCache(),
+      ]);
+      const docs = [];
+      snap.forEach(d => { if (!d.data().technicianName) docs.push({ id: d.id, ...d.data() }); });
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing unassigned right now.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const options = techs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
+          <td><button class="btn-secondary routing-assign-btn" data-id="${d.id}">Assign</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
+          const select = tr.querySelector('.routing-tech-select');
+          if (!select.value) { alert('Select a technician first.'); return; }
+          const [uid, name] = select.value.split('|');
+          try {
+            await updateDoc(doc(db, 'centerRequests', d.id), {
+              technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
+            });
+            loadRoutingQueue();
+          } catch (err) {
+            console.error('Assign failed:', err);
+            alert('Could not assign this request. Check the console for details.');
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load routing queue failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the queue. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // SLA & ESCALATION — active requests open longer than a threshold.
+  // Threshold is a fixed default (24h = Due Soon, 48h = Breached)
+  // since there's no SLA-rules configuration anywhere yet — this is
+  // a real computed view, not a placeholder, just not configurable.
+  // =================================================================
+
+  async function renderSlaEscalation() {
+    contentEl.innerHTML = `
+      <div class="tab-toggle" id="sla-tabs">
+        <button data-filter="all" class="active">All Open</button>
+        <button data-filter="duesoon">Due Soon (&gt;24h)</button>
+        <button data-filter="breached">Breached (&gt;48h)</button>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Open requests by age</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Open For</th><th>Status</th></tr></thead>
+            <tbody id="sla-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:var(--stone);">Thresholds are fixed defaults (24h / 48h) — not yet configurable.</div>`;
+    document.querySelectorAll('#sla-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#sla-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadSlaView(btn.dataset.filter);
+      });
+    });
+    loadSlaView('all');
+  }
+
+  async function loadSlaView(filter) {
+    const tbody = document.getElementById('sla-tbody');
+    try {
+      const [jobsSnap, requestsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('status', 'in', ['assigned', 'in_progress']))),
+        getDocs(query(collection(db, 'centerRequests'), where('status', 'in', ['new', 'assigned', 'in_progress']))),
+      ]);
+      const now = Date.now();
+      const rows = [];
+      function pushRow(source, id, customer, status, createdAt) {
+        const openedMs = createdAt && createdAt.toDate ? createdAt.toDate().getTime() : now;
+        const hoursOpen = (now - openedMs) / (1000 * 60 * 60);
+        rows.push({ source, id, customer, status, hoursOpen });
+      }
+      jobsSnap.forEach(d => { const j = d.data(); pushRow('Technician', j.jobId, j.customerName, j.status, j.createdAt); });
+      requestsSnap.forEach(d => { const r = d.data(); pushRow('Service Center', r.requestId, r.customerName, r.status, r.createdAt); });
+
+      let filtered = rows;
+      if (filter === 'duesoon') filtered = rows.filter(r => r.hoursOpen > 24 && r.hoursOpen <= 48);
+      if (filter === 'breached') filtered = rows.filter(r => r.hoursOpen > 48);
+      filtered.sort((a, b) => b.hoursOpen - a.hoursOpen);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      filtered.forEach(r => {
+        const badge = r.hoursOpen > 48 ? 'cancelled' : r.hoursOpen > 24 ? 'low' : 'ok';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.source}</td>
+          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${r.customer || '—'}</td>
+          <td><span class="status-pill ${badge}">${Math.round(r.hoursOpen)}h</span></td>
+          <td>${r.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load SLA view failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load this view. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // RMA & REPLACEMENT — a new workflow, distinct from Head Office's
+  // spare-parts Returns & Defects. This is for a SOLD PRODUCT the
+  // customer wants returned/replaced.
+  // =================================================================
+
+  const RMA_STATUS_LABELS = { requested: 'Requested', approved: 'Approved', inspecting: 'Inspecting', replaced: 'Replaced', rejected: 'Rejected' };
+  const RMA_ACTIONS = {
+    requested: [{ label: 'Approve', next: 'approved' }, { label: 'Reject', next: 'rejected', variant: 'danger' }],
+    approved: [{ label: 'Start Inspection', next: 'inspecting' }],
+    inspecting: [{ label: 'Mark Replaced', next: 'replaced' }, { label: 'Reject', next: 'rejected', variant: 'danger' }],
+  };
+
+  async function renderRma() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>RMA & Replacement</h2>
+          <button class="btn-primary" id="open-rma">+ New RMA</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>RMA ID</th><th>Customer</th><th>Product</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="rma-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-rma').addEventListener('click', openRmaModal);
+    loadRmaList();
+  }
+
+  async function generateRmaId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `rma-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-RMA-${dateStr}-${String(next).padStart(4, '0')}-SuperAdmin`;
+  }
+
+  async function loadRmaList() {
+    const tbody = document.getElementById('rma-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'rmaRequests'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No RMA requests yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const actions = (RMA_ACTIONS[d.status] || []).map(a =>
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} rma-action-btn" data-id="${docSnap.id}" data-next="${a.next}">${a.label}</button>`
+        ).join('');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.rmaId || docSnap.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td>${d.serialNumber || '—'}</td>
+          <td><span class="status-pill ${d.status}">${RMA_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><div class="row-actions">${actions || '—'}</div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.rma-action-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try {
+            await updateDoc(doc(db, 'rmaRequests', btn.dataset.id), { status: btn.dataset.next, updatedAt: serverTimestamp() });
+            loadRmaList();
+          } catch (err) {
+            console.error('Update RMA failed:', err);
+            alert('Could not update this RMA. Check the console for details.');
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load RMA list failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load RMA requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  const rmaOverlay = document.getElementById('rma-overlay');
+  const rmaForm = document.getElementById('rma-form');
+  const rmaError = document.getElementById('rma-error');
+  const rmaSuccess = document.getElementById('rma-success');
+  const rmaSubmitBtn = document.getElementById('submit-rma');
+
+  function openRmaModal() {
+    rmaForm.reset();
+    rmaError.classList.remove('show');
+    rmaSuccess.classList.remove('show');
+    rmaSubmitBtn.disabled = false;
+    rmaSubmitBtn.textContent = 'Create RMA';
+    rmaOverlay.classList.add('show');
+  }
+  function closeRmaModal() { rmaOverlay.classList.remove('show'); }
+  document.getElementById('cancel-rma').addEventListener('click', closeRmaModal);
+  rmaOverlay.addEventListener('click', (e) => { if (e.target === rmaOverlay) closeRmaModal(); });
+
+  rmaForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    rmaError.classList.remove('show');
+    rmaSuccess.classList.remove('show');
+    rmaSubmitBtn.disabled = true;
+    rmaSubmitBtn.textContent = 'Creating…';
+    try {
+      const rmaId = await generateRmaId();
+      await addDoc(collection(db, 'rmaRequests'), {
+        rmaId,
+        customerName: document.getElementById('rma-customer').value.trim(),
+        customerPhone: document.getElementById('rma-phone').value.trim(),
+        product: document.getElementById('rma-product').value.trim(),
+        serialNumber: document.getElementById('rma-serial').value.trim(),
+        reason: document.getElementById('rma-reason').value.trim(),
+        status: 'requested',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      rmaSuccess.textContent = `Created — ${rmaId}`;
+      rmaSuccess.classList.add('show');
+      rmaSubmitBtn.disabled = false;
+      rmaSubmitBtn.textContent = 'Create RMA';
+      if (document.getElementById('rma-tbody')) loadRmaList();
+      setTimeout(closeRmaModal, 1000);
+    } catch (err) {
+      console.error('Create RMA failed:', err);
+      rmaError.textContent = 'Could not create this RMA. Check console for details.';
+      rmaError.classList.add('show');
+      rmaSubmitBtn.disabled = false;
+      rmaSubmitBtn.textContent = 'Create RMA';
+    }
+  });
+
+  // =================================================================
+  // COMMUNICATION — reusable message templates only. Actually
+  // SENDING WhatsApp/SMS/Email requires a real external API
+  // (WhatsApp Business API, Twilio, an email provider, etc.) with
+  // credentials this project doesn't have configured anywhere, so
+  // building a "Send" button here would silently do nothing. This
+  // module manages template text — genuinely useful prep work,
+  // honestly scoped short of actual sending.
+  // =================================================================
+
+  async function renderCommunication() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Message templates</h2>
+          <button class="btn-primary" id="open-template">+ Add Template</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Channel</th><th>Body</th><th>Actions</th></tr></thead>
+            <tbody id="template-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:var(--stone);">
+        This manages template text only — actually sending WhatsApp/SMS/Email requires connecting a
+        real messaging provider (e.g. WhatsApp Business API, Twilio), which isn't set up yet.
+      </div>`;
+    document.getElementById('open-template').addEventListener('click', () => openTemplateModal(null));
+    loadTemplates();
+  }
+
+  async function loadTemplates() {
+    const tbody = document.getElementById('template-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'messageTemplates'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No templates yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.channel || '—'}</td>
+          <td style="max-width:320px;color:var(--stone);">${d.body || '—'}</td>
+          <td><button class="btn-secondary template-edit-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.template-edit-btn').addEventListener('click', () => openTemplateModal(d));
+      });
+    } catch (err) {
+      console.error('Load templates failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load templates. Check console for details.</td></tr>`;
+    }
+  }
+
+  const templateOverlay = document.getElementById('template-overlay');
+  const templateForm = document.getElementById('template-form');
+  const templateError = document.getElementById('template-error');
+  const templateSuccess = document.getElementById('template-success');
+  const templateSubmitBtn = document.getElementById('submit-template');
+  const templateModalTitle = document.getElementById('template-modal-title');
+
+  function openTemplateModal(existing) {
+    templateForm.reset();
+    templateError.classList.remove('show');
+    templateSuccess.classList.remove('show');
+    templateSubmitBtn.disabled = false;
+    if (existing) {
+      templateModalTitle.textContent = 'Edit template';
+      document.getElementById('template-editing-id').value = existing.id;
+      document.getElementById('template-name').value = existing.name || '';
+      document.getElementById('template-channel').value = existing.channel || 'WhatsApp';
+      document.getElementById('template-body').value = existing.body || '';
+      templateSubmitBtn.textContent = 'Save changes';
+    } else {
+      templateModalTitle.textContent = 'Add template';
+      document.getElementById('template-editing-id').value = '';
+      templateSubmitBtn.textContent = 'Save template';
+    }
+    templateOverlay.classList.add('show');
+  }
+  function closeTemplateModal() { templateOverlay.classList.remove('show'); }
+  document.getElementById('cancel-template').addEventListener('click', closeTemplateModal);
+  templateOverlay.addEventListener('click', (e) => { if (e.target === templateOverlay) closeTemplateModal(); });
+
+  templateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    templateError.classList.remove('show');
+    templateSuccess.classList.remove('show');
+    templateSubmitBtn.disabled = true;
+    templateSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('template-editing-id').value;
+    const payload = {
+      name: document.getElementById('template-name').value.trim(),
+      channel: document.getElementById('template-channel').value,
+      body: document.getElementById('template-body').value.trim(),
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'messageTemplates', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'messageTemplates'), { ...payload, createdAt: serverTimestamp() });
+      }
+      templateSuccess.textContent = 'Saved.';
+      templateSuccess.classList.add('show');
+      templateSubmitBtn.disabled = false;
+      templateSubmitBtn.textContent = editingId ? 'Save changes' : 'Save template';
+      if (document.getElementById('template-tbody')) loadTemplates();
+      setTimeout(closeTemplateModal, 800);
+    } catch (err) {
+      console.error('Save template failed:', err);
+      templateError.textContent = 'Could not save this template. Check console for details.';
+      templateError.classList.add('show');
+      templateSubmitBtn.disabled = false;
+      templateSubmitBtn.textContent = editingId ? 'Save changes' : 'Save template';
+    }
+  });
+
+  // =================================================================
+  // MASTER DATA — bulk CSV import for the Product catalog. Runs
+  // entirely client-side (no backend needed): parse CSV, validate,
+  // batch-write to `products`.
+  // =================================================================
+
+  function renderMasterData() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Download sample file</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">
+            Download a sample CSV for the product catalog, fill it in, then upload it below.
+          </p>
+          <button class="btn-secondary" id="download-sample-csv">Download sample CSV</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Import products</h2></div>
+        <div class="panel-body">
+          <input type="file" id="csv-file-input" accept=".csv" style="margin-bottom:14px;">
+          <div id="csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="import-csv-btn" disabled>Import</button>
+          <div class="modal-error" id="import-error"></div>
+          <div class="modal-success" id="import-success"></div>
+        </div>
+      </div>`;
+
+    document.getElementById('download-sample-csv').addEventListener('click', () => {
+      const csv = 'name,category,brand,price\nSample 43 inch LED TV,LED TV,MakWell,18999\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'products-sample.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    let parsedRows = [];
+    const fileInput = document.getElementById('csv-file-input');
+    const preview = document.getElementById('csv-preview');
+    const importBtn = document.getElementById('import-csv-btn');
+    const importError = document.getElementById('import-error');
+    const importSuccess = document.getElementById('import-success');
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const lines = reader.result.split('\n').map(l => l.trim()).filter(Boolean);
+        const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+        parsedRows = lines.slice(1).map(line => {
+          const cells = line.split(',');
+          const row = {};
+          header.forEach((h, i) => { row[h] = (cells[i] || '').trim(); });
+          return row;
+        }).filter(r => r.name);
+        preview.textContent = `${parsedRows.length} product(s) ready to import.`;
+        importBtn.disabled = parsedRows.length === 0;
+      };
+      reader.readAsText(file);
+    });
+
+    importBtn.addEventListener('click', async () => {
+      importError.classList.remove('show');
+      importSuccess.classList.remove('show');
+      importBtn.disabled = true;
+      importBtn.textContent = 'Importing…';
+      try {
+        for (const row of parsedRows) {
+          await addDoc(collection(db, 'products'), {
+            name: row.name,
+            category: row.category || '',
+            brand: row.brand || 'MakWell',
+            price: row.price ? Number(row.price) : null,
+            createdAt: serverTimestamp()
+          });
+        }
+        importSuccess.textContent = `Imported ${parsedRows.length} product(s).`;
+        importSuccess.classList.add('show');
+        importBtn.textContent = 'Import';
+        parsedRows = [];
+        preview.textContent = '';
+        fileInput.value = '';
+      } catch (err) {
+        console.error('CSV import failed:', err);
+        importError.textContent = 'Import failed partway through. Check console for details — some rows may have been added.';
+        importError.classList.add('show');
+        importBtn.disabled = false;
+        importBtn.textContent = 'Import';
+      }
+    });
+  }
+
+  // =================================================================
+  // ADMINISTRATION — general company settings only. Audit Logs and
+  // State & District master data aren't built: audit logging would
+  // need instrumentation added to every write across the whole CRM
+  // (a cross-cutting change, not a single module), and State &
+  // District master data has no consumer anywhere yet to justify it.
+  // =================================================================
+
+  async function renderAdministration() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>General settings</h2></div>
+        <div class="panel-body">
+          <div class="form-row"><label>Company name</label><input type="text" id="admin-company-name"></div>
+          <div class="form-row"><label>Support email</label><input type="text" id="admin-support-email"></div>
+          <div class="form-row"><label>Support phone</label><input type="text" id="admin-support-phone"></div>
+          <div class="modal-error" id="admin-error"></div>
+          <div class="modal-success" id="admin-success"></div>
+          <button class="btn-primary" id="save-admin-settings" style="margin-top:8px;">Save changes</button>
+        </div>
+      </div>
+      <div class="coming-soon" style="margin-top:24px;">
+        <div class="big">Audit Logs & State/District Master Data aren't built yet</div>
+        <div class="small">Audit logging needs instrumentation added across every write in the CRM, not just this page — a bigger cross-cutting change. State/District data has no consumer yet to justify building it ahead of need.</div>
+      </div>`;
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'general'));
+      const d = snap.exists() ? snap.data() : {};
+      document.getElementById('admin-company-name').value = d.companyName || 'Pushpak Enterprises';
+      document.getElementById('admin-support-email').value = d.supportEmail || '';
+      document.getElementById('admin-support-phone').value = d.supportPhone || '';
+    } catch (err) {
+      console.error('Load settings failed:', err);
+    }
+    document.getElementById('save-admin-settings').addEventListener('click', async () => {
+      const btn = document.getElementById('save-admin-settings');
+      const errEl = document.getElementById('admin-error');
+      const okEl = document.getElementById('admin-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        await setDoc(doc(db, 'settings', 'general'), {
+          companyName: document.getElementById('admin-company-name').value.trim(),
+          supportEmail: document.getElementById('admin-support-email').value.trim(),
+          supportPhone: document.getElementById('admin-support-phone').value.trim(),
+        }, { merge: true });
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save settings failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save changes';
+    });
   }
 
   // Default view once authenticated

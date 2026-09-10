@@ -61,9 +61,9 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
