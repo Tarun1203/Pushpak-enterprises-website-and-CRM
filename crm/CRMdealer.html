@@ -76,6 +76,56 @@
   }
   .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
   .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.placed{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.confirmed{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.dispatched{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.delivered{background:#D9EEE0;color:var(--ok);}
+  .status-pill.completed{background:#D9EEE0;color:var(--ok);}
+  .status-pill.settled{background:#D9EEE0;color:var(--ok);}
+  .status-pill.active{background:#D9EEE0;color:var(--ok);}
+  .status-pill.contacted{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.converted{background:#D9EEE0;color:var(--ok);}
+  .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+  .status-pill.closed{background:#F6DCDC;color:var(--err);}
+
+  .tab-toggle{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tab-toggle button{
+    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:12.5px;
+    padding:8px 16px;border-radius:20px;color:var(--stone);
+  }
+  .tab-toggle button.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
 </style>
 </head>
 <body>
@@ -113,10 +163,107 @@
   </div>
 </div>
 
+<!-- New Customer modal -->
+<div class="modal-overlay" id="cust-overlay">
+  <div class="modal">
+    <h3>Add customer</h3>
+    <form id="cust-form">
+      <div class="form-row"><label>Name</label><input type="text" id="cust-name" required></div>
+      <div class="form-row"><label>Phone</label><input type="tel" id="cust-phone" required></div>
+      <div class="form-row"><label>Address</label><input type="text" id="cust-address"></div>
+      <div class="form-row"><label>Notes (optional)</label><textarea id="cust-notes"></textarea></div>
+      <div class="modal-error" id="cust-error"></div>
+      <div class="modal-success" id="cust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-cust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-cust">Save customer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Order modal -->
+<div class="modal-overlay" id="order-overlay">
+  <div class="modal">
+    <h3>Place a new order</h3>
+    <form id="order-form">
+      <div class="form-row"><label>Product / model</label><input type="text" id="order-product" placeholder="e.g. MakWell 43 inch LED TV" required></div>
+      <div class="form-row"><label>Quantity</label><input type="number" id="order-qty" min="1" value="1" required></div>
+      <div class="form-row"><label>Notes (optional)</label><textarea id="order-notes" placeholder="Any additional context…"></textarea></div>
+      <div class="modal-error" id="order-error"></div>
+      <div class="modal-success" id="order-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-order">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-order">Place order</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Sale modal -->
+<div class="modal-overlay" id="sale-overlay">
+  <div class="modal">
+    <h3>Log a sale</h3>
+    <form id="sale-form">
+      <div class="form-row"><label>Customer name</label><input type="text" id="sale-customer" required></div>
+      <div class="form-row"><label>Product / model</label><input type="text" id="sale-product" required></div>
+      <div class="form-row"><label>Quantity</label><input type="number" id="sale-qty" min="1" value="1" required></div>
+      <div class="form-row"><label>Amount (₹)</label><input type="number" id="sale-amount" min="0" step="0.01" required></div>
+      <div class="form-row"><label>Sale date</label><input type="date" id="sale-date" required></div>
+      <div class="modal-error" id="sale-error"></div>
+      <div class="modal-success" id="sale-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sale">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sale">Save sale</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Product Registration modal -->
+<div class="modal-overlay" id="reg-overlay">
+  <div class="modal">
+    <h3>Register a product</h3>
+    <form id="reg-form">
+      <div class="form-row"><label>Customer name</label><input type="text" id="reg-customer" required></div>
+      <div class="form-row"><label>Customer phone</label><input type="tel" id="reg-phone" required></div>
+      <div class="form-row"><label>Product / brand</label><input type="text" id="reg-product" required></div>
+      <div class="form-row"><label>Serial number</label><input type="text" id="reg-serial" required></div>
+      <div class="form-row"><label>Purchase date</label><input type="date" id="reg-purchase-date" required></div>
+      <div class="form-row"><label>Warranty (months)</label><input type="number" id="reg-warranty" min="0" value="12"></div>
+      <div class="modal-error" id="reg-error"></div>
+      <div class="modal-success" id="reg-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-reg">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-reg">Register</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Enquiry modal -->
+<div class="modal-overlay" id="denq-overlay">
+  <div class="modal">
+    <h3>Log an enquiry</h3>
+    <form id="denq-form">
+      <div class="form-row"><label>Customer name</label><input type="text" id="denq-customer" required></div>
+      <div class="form-row"><label>Phone</label><input type="tel" id="denq-phone" required></div>
+      <div class="form-row"><label>Subject</label><input type="text" id="denq-subject" placeholder="e.g. Interested in 55&quot; TV" required></div>
+      <div class="form-row"><label>Notes (optional)</label><textarea id="denq-notes"></textarea></div>
+      <div class="modal-error" id="denq-error"></div>
+      <div class="modal-success" id="denq-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-denq">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-denq">Save enquiry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -138,6 +285,8 @@
 
   const ALLOWED_ROLE = 'dealer';
 
+  let currentUser = null;
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       window.location.href = 'login.html';
@@ -155,6 +304,7 @@
       window.location.href = 'login.html';
       return;
     }
+    currentUser = user;
     userEmailEl.textContent = user.email;
     gate.style.display = 'none';
     appEl.style.display = 'block';
@@ -206,6 +356,30 @@
     if (id === 'dashboard') {
       pageSub.textContent = 'Welcome back';
       renderDashboard();
+    } else if (id === 'customers') {
+      pageSub.textContent = 'Your customer directory';
+      renderCustomers();
+    } else if (id === 'orders') {
+      pageSub.textContent = 'Orders placed with Pushpak Enterprises';
+      renderOrders();
+    } else if (id === 'sales') {
+      pageSub.textContent = 'Sales you\'ve logged';
+      renderSales();
+    } else if (id === 'products') {
+      pageSub.textContent = 'Product catalog';
+      renderProducts();
+    } else if (id === 'registration') {
+      pageSub.textContent = 'Register a product for warranty';
+      renderRegistrations();
+    } else if (id === 'enquiries') {
+      pageSub.textContent = 'Your leads and enquiries';
+      renderEnquiries();
+    } else if (id === 'performance') {
+      pageSub.textContent = 'Your sales stats';
+      renderPerformance();
+    } else if (id === 'profile') {
+      pageSub.textContent = 'Your dealer account details';
+      renderProfile();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -220,37 +394,732 @@
       </div>`;
   }
 
-  function renderDashboard() {
+  async function renderDashboard() {
     contentEl.innerHTML = `
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="label">Status</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Pending</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">This month</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Alerts</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
+        <div class="stat-card"><div class="label">Customers</div><div class="value" id="stat-customers">…</div><div class="hint">In your directory</div></div>
+        <div class="stat-card"><div class="label">Orders Placed</div><div class="value" id="stat-orders">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Sales Logged</div><div class="value" id="stat-sales">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Open Enquiries</div><div class="value" id="stat-enquiries">…</div><div class="hint">Not yet converted</div></div>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
         <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This is the Dealer dashboard shell — signed in and role-verified. Sections in the
-          sidebar will fill in with working data module by module, same as the rest of the CRM.
+          Every section in the sidebar is fully working — manage your customer directory, place orders,
+          log sales, register products for warranty, and track enquiries, all from here.
         </div>
       </div>`;
+    if (!currentUser) return;
+    try {
+      const [custSnap, orderSnap, saleSnap, enqSnap] = await Promise.all([
+        getDocs(query(collection(db, 'dealerCustomers'), where('dealerUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'dealerEnquiries'), where('dealerUid', '==', currentUser.uid), where('status', 'in', ['new', 'contacted']))),
+      ]);
+      document.getElementById('stat-customers').textContent = custSnap.size;
+      document.getElementById('stat-orders').textContent = orderSnap.size;
+      document.getElementById('stat-sales').textContent = saleSnap.size;
+      document.getElementById('stat-enquiries').textContent = enqSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Shared helpers
+  // ---------------------------------------------------------------
+
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // My Customers — dealer's own customer directory.
+  // ---------------------------------------------------------------
+
+  async function renderCustomers() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My customers</h2>
+          <button class="btn-primary" id="open-cust">+ Add Customer</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Notes</th></tr></thead>
+            <tbody id="cust-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-cust').addEventListener('click', openCustModal);
+    loadCustomers();
+  }
+
+  async function loadCustomers() {
+    const tbody = document.getElementById('cust-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerCustomers'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No customers yet — add your first one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td><td style="color:var(--stone);">${d.notes || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load customers failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load customers. Check console for details.</td></tr>`;
+    }
+  }
+
+  const custOverlay = document.getElementById('cust-overlay');
+  const custForm = document.getElementById('cust-form');
+  const custError = document.getElementById('cust-error');
+  const custSuccess = document.getElementById('cust-success');
+  const custSubmitBtn = document.getElementById('submit-cust');
+
+  function openCustModal() {
+    custForm.reset();
+    custError.classList.remove('show');
+    custSuccess.classList.remove('show');
+    custSubmitBtn.disabled = false;
+    custSubmitBtn.textContent = 'Save customer';
+    custOverlay.classList.add('show');
+  }
+  function closeCustModal() { custOverlay.classList.remove('show'); }
+  document.getElementById('cancel-cust').addEventListener('click', closeCustModal);
+  custOverlay.addEventListener('click', (e) => { if (e.target === custOverlay) closeCustModal(); });
+
+  custForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    custError.classList.remove('show');
+    custSuccess.classList.remove('show');
+    if (!currentUser) return;
+    custSubmitBtn.disabled = true;
+    custSubmitBtn.textContent = 'Saving…';
+    try {
+      await addDoc(collection(db, 'dealerCustomers'), {
+        dealerUid: currentUser.uid,
+        name: document.getElementById('cust-name').value.trim(),
+        phone: document.getElementById('cust-phone').value.trim(),
+        address: document.getElementById('cust-address').value.trim(),
+        notes: document.getElementById('cust-notes').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      custSuccess.textContent = 'Saved.';
+      custSuccess.classList.add('show');
+      custSubmitBtn.disabled = false;
+      custSubmitBtn.textContent = 'Save customer';
+      if (document.getElementById('cust-tbody')) loadCustomers();
+      setTimeout(closeCustModal, 800);
+    } catch (err) {
+      console.error('Save customer failed:', err);
+      custError.textContent = 'Could not save this customer. Check console for details.';
+      custError.classList.add('show');
+      custSubmitBtn.disabled = false;
+      custSubmitBtn.textContent = 'Save customer';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // My Orders — orders placed with Pushpak Enterprises for stock.
+  // Free-text product/model since a shared Product catalog doesn't
+  // exist yet (that's Super Admin's Product Management module).
+  // Status is admin-managed only — a dealer can't self-confirm or
+  // self-dispatch their own order, same reasoning as Claims.
+  // ---------------------------------------------------------------
+
+  const ORDER_STATUS_LABELS = { placed: 'Placed', confirmed: 'Confirmed', dispatched: 'Dispatched', delivered: 'Delivered', cancelled: 'Cancelled' };
+
+  async function generateOrderId() {
+    const next = await nextMonthlySerial(`dealerorder-${currentYYYYMM()}`);
+    return `PE-DO-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Dealer`;
+  }
+
+  async function renderOrders() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My orders</h2>
+          <button class="btn-primary" id="open-order">+ Place Order</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Notes</th></tr></thead>
+            <tbody id="order-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-order').addEventListener('click', openOrderModal);
+    loadOrders();
+  }
+
+  async function loadOrders() {
+    const tbody = document.getElementById('order-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No orders placed yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.orderId || docSnap.id}</td>
+          <td>${d.product || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><span class="status-pill ${d.status}">${ORDER_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td style="color:var(--stone);">${d.notes || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load orders failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load orders. Check console for details.</td></tr>`;
+    }
+  }
+
+  const orderOverlay = document.getElementById('order-overlay');
+  const orderForm = document.getElementById('order-form');
+  const orderError = document.getElementById('order-error');
+  const orderSuccess = document.getElementById('order-success');
+  const orderSubmitBtn = document.getElementById('submit-order');
+
+  function openOrderModal() {
+    orderForm.reset();
+    orderError.classList.remove('show');
+    orderSuccess.classList.remove('show');
+    orderSubmitBtn.disabled = false;
+    orderSubmitBtn.textContent = 'Place order';
+    orderOverlay.classList.add('show');
+  }
+  function closeOrderModal() { orderOverlay.classList.remove('show'); }
+  document.getElementById('cancel-order').addEventListener('click', closeOrderModal);
+  orderOverlay.addEventListener('click', (e) => { if (e.target === orderOverlay) closeOrderModal(); });
+
+  orderForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    orderError.classList.remove('show');
+    orderSuccess.classList.remove('show');
+    if (!currentUser) return;
+    orderSubmitBtn.disabled = true;
+    orderSubmitBtn.textContent = 'Placing…';
+    try {
+      const orderId = await generateOrderId();
+      await addDoc(collection(db, 'dealerOrders'), {
+        orderId,
+        dealerUid: currentUser.uid,
+        dealerEmail: currentUser.email,
+        product: document.getElementById('order-product').value.trim(),
+        quantity: Number(document.getElementById('order-qty').value) || 1,
+        notes: document.getElementById('order-notes').value.trim(),
+        status: 'placed',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      orderSuccess.textContent = `Placed — ${orderId}`;
+      orderSuccess.classList.add('show');
+      orderSubmitBtn.disabled = false;
+      orderSubmitBtn.textContent = 'Place order';
+      if (document.getElementById('order-tbody')) loadOrders();
+      setTimeout(closeOrderModal, 1000);
+    } catch (err) {
+      console.error('Place order failed:', err);
+      orderError.textContent = 'Could not place this order. Check console for details.';
+      orderError.classList.add('show');
+      orderSubmitBtn.disabled = false;
+      orderSubmitBtn.textContent = 'Place order';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // My Sales — the dealer's own logged sales, for their own records
+  // and for Performance stats. Independent of Orders/stock.
+  // ---------------------------------------------------------------
+
+  async function generateSaleId() {
+    const next = await nextMonthlySerial(`dealersale-${currentYYYYMM()}`);
+    return `PE-DS-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Dealer`;
+  }
+
+  async function renderSales() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My sales</h2>
+          <button class="btn-primary" id="open-sale">+ Log Sale</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Sale ID</th><th>Customer</th><th>Product</th><th>Qty</th><th>Amount</th><th>Date</th></tr></thead>
+            <tbody id="sale-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-sale').addEventListener('click', openSaleModal);
+    loadSales();
+  }
+
+  async function loadSales() {
+    const tbody = document.getElementById('sale-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No sales logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.saleId || docSnap.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td>${d.saleDate || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load sales failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load sales. Check console for details.</td></tr>`;
+    }
+  }
+
+  const saleOverlay = document.getElementById('sale-overlay');
+  const saleForm = document.getElementById('sale-form');
+  const saleError = document.getElementById('sale-error');
+  const saleSuccess = document.getElementById('sale-success');
+  const saleSubmitBtn = document.getElementById('submit-sale');
+
+  function openSaleModal() {
+    saleForm.reset();
+    saleError.classList.remove('show');
+    saleSuccess.classList.remove('show');
+    saleSubmitBtn.disabled = false;
+    saleSubmitBtn.textContent = 'Save sale';
+    saleOverlay.classList.add('show');
+  }
+  function closeSaleModal() { saleOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sale').addEventListener('click', closeSaleModal);
+  saleOverlay.addEventListener('click', (e) => { if (e.target === saleOverlay) closeSaleModal(); });
+
+  saleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saleError.classList.remove('show');
+    saleSuccess.classList.remove('show');
+    if (!currentUser) return;
+    saleSubmitBtn.disabled = true;
+    saleSubmitBtn.textContent = 'Saving…';
+    try {
+      const saleId = await generateSaleId();
+      await addDoc(collection(db, 'dealerSales'), {
+        saleId,
+        dealerUid: currentUser.uid,
+        customerName: document.getElementById('sale-customer').value.trim(),
+        product: document.getElementById('sale-product').value.trim(),
+        quantity: Number(document.getElementById('sale-qty').value) || 1,
+        amount: Number(document.getElementById('sale-amount').value) || 0,
+        saleDate: document.getElementById('sale-date').value,
+        createdAt: serverTimestamp()
+      });
+      saleSuccess.textContent = `Saved — ${saleId}`;
+      saleSuccess.classList.add('show');
+      saleSubmitBtn.disabled = false;
+      saleSubmitBtn.textContent = 'Save sale';
+      if (document.getElementById('sale-tbody')) loadSales();
+      setTimeout(closeSaleModal, 1000);
+    } catch (err) {
+      console.error('Save sale failed:', err);
+      saleError.textContent = 'Could not save this sale. Check console for details.';
+      saleError.classList.add('show');
+      saleSubmitBtn.disabled = false;
+      saleSubmitBtn.textContent = 'Save sale';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Products — read-only catalog. Empty until Super Admin's Product
+  // Management module exists to populate it; that's out of scope
+  // here, so this just wires the plumbing and shows an honest
+  // empty state rather than fabricating a catalog.
+  // ---------------------------------------------------------------
+
+  async function renderProducts() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Product catalog</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Category</th><th>Price</th></tr></thead>
+            <tbody id="products-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('products-tbody');
+    try {
+      const snap = await getDocs(collection(db, 'products'));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No products in the catalog yet — Head Office hasn't set this up.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.category || '—'}</td><td>${d.price != null ? '₹' + d.price : '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load products failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load the catalog. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Product Registration — dealer-assisted warranty registration at
+  // point of sale.
+  // ---------------------------------------------------------------
+
+  async function generateRegistrationId() {
+    const next = await nextMonthlySerial(`productreg-${currentYYYYMM()}`);
+    return `PE-REG-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Dealer`;
+  }
+
+  async function renderRegistrations() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Product registrations</h2>
+          <button class="btn-primary" id="open-reg">+ Register Product</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Reg. ID</th><th>Customer</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty</th></tr></thead>
+            <tbody id="reg-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-reg').addEventListener('click', openRegModal);
+    loadRegistrations();
+  }
+
+  async function loadRegistrations() {
+    const tbody = document.getElementById('reg-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No registrations yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.registrationId || docSnap.id}</td>
+          <td>${d.customerName || '—'}</td>
+          <td>${d.product || '—'}</td>
+          <td>${d.serialNumber || '—'}</td>
+          <td>${d.purchaseDate || '—'}</td>
+          <td>${d.warrantyMonths ?? '—'} mo</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load registrations failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load registrations. Check console for details.</td></tr>`;
+    }
+  }
+
+  const regOverlay = document.getElementById('reg-overlay');
+  const regForm = document.getElementById('reg-form');
+  const regError = document.getElementById('reg-error');
+  const regSuccess = document.getElementById('reg-success');
+  const regSubmitBtn = document.getElementById('submit-reg');
+
+  function openRegModal() {
+    regForm.reset();
+    regError.classList.remove('show');
+    regSuccess.classList.remove('show');
+    regSubmitBtn.disabled = false;
+    regSubmitBtn.textContent = 'Register';
+    document.getElementById('reg-warranty').value = 12;
+    regOverlay.classList.add('show');
+  }
+  function closeRegModal() { regOverlay.classList.remove('show'); }
+  document.getElementById('cancel-reg').addEventListener('click', closeRegModal);
+  regOverlay.addEventListener('click', (e) => { if (e.target === regOverlay) closeRegModal(); });
+
+  regForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    regError.classList.remove('show');
+    regSuccess.classList.remove('show');
+    if (!currentUser) return;
+    regSubmitBtn.disabled = true;
+    regSubmitBtn.textContent = 'Registering…';
+    try {
+      const registrationId = await generateRegistrationId();
+      await addDoc(collection(db, 'productRegistrations'), {
+        registrationId,
+        dealerUid: currentUser.uid,
+        customerName: document.getElementById('reg-customer').value.trim(),
+        customerPhone: document.getElementById('reg-phone').value.trim(),
+        product: document.getElementById('reg-product').value.trim(),
+        serialNumber: document.getElementById('reg-serial').value.trim(),
+        purchaseDate: document.getElementById('reg-purchase-date').value,
+        warrantyMonths: Number(document.getElementById('reg-warranty').value) || 12,
+        status: 'active',
+        createdAt: serverTimestamp()
+      });
+      regSuccess.textContent = `Registered — ${registrationId}`;
+      regSuccess.classList.add('show');
+      regSubmitBtn.disabled = false;
+      regSubmitBtn.textContent = 'Register';
+      if (document.getElementById('reg-tbody')) loadRegistrations();
+      setTimeout(closeRegModal, 1000);
+    } catch (err) {
+      console.error('Register product failed:', err);
+      regError.textContent = 'Could not register this product. Check console for details.';
+      regError.classList.add('show');
+      regSubmitBtn.disabled = false;
+      regSubmitBtn.textContent = 'Register';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Enquiries — the dealer's own lead-tracking pipeline (distinct
+  // from the public website's contact form enquiries).
+  // ---------------------------------------------------------------
+
+  async function renderEnquiries() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>My enquiries</h2>
+          <button class="btn-primary" id="open-denq">+ Log Enquiry</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Customer</th><th>Phone</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="denq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-denq').addEventListener('click', openDenqModal);
+    loadEnquiries();
+  }
+
+  const ENQ_NEXT = { new: 'contacted', contacted: 'converted' };
+  const ENQ_LABELS = { new: 'New', contacted: 'Contacted', converted: 'Converted', closed: 'Closed' };
+
+  async function loadEnquiries() {
+    const tbody = document.getElementById('denq-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerEnquiries'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No enquiries logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        let actionHtml = '—';
+        if (ENQ_NEXT[d.status]) {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary denq-advance-btn" data-id="${docSnap.id}" data-next="${ENQ_NEXT[d.status]}">Mark ${ENQ_LABELS[ENQ_NEXT[d.status]]}</button><button class="btn-danger denq-close-btn" data-id="${docSnap.id}">Close</button></div>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.customerName || '—'}</td>
+          <td>${d.phone || '—'}</td>
+          <td>${d.subject || '—'}</td>
+          <td><span class="status-pill ${d.status}">${ENQ_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.denq-advance-btn').forEach(b => b.addEventListener('click', () => advanceEnquiry(b.dataset.id, b.dataset.next)));
+      tbody.querySelectorAll('.denq-close-btn').forEach(b => b.addEventListener('click', () => advanceEnquiry(b.dataset.id, 'closed')));
+    } catch (err) {
+      console.error('Load enquiries failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load enquiries. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceEnquiry(id, nextStatus) {
+    try {
+      await updateDoc(doc(db, 'dealerEnquiries', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadEnquiries();
+    } catch (err) {
+      console.error('Update enquiry failed:', err);
+      alert('Could not update this enquiry. Check the console for details.');
+    }
+  }
+
+  const denqOverlay = document.getElementById('denq-overlay');
+  const denqForm = document.getElementById('denq-form');
+  const denqError = document.getElementById('denq-error');
+  const denqSuccess = document.getElementById('denq-success');
+  const denqSubmitBtn = document.getElementById('submit-denq');
+
+  function openDenqModal() {
+    denqForm.reset();
+    denqError.classList.remove('show');
+    denqSuccess.classList.remove('show');
+    denqSubmitBtn.disabled = false;
+    denqSubmitBtn.textContent = 'Save enquiry';
+    denqOverlay.classList.add('show');
+  }
+  function closeDenqModal() { denqOverlay.classList.remove('show'); }
+  document.getElementById('cancel-denq').addEventListener('click', closeDenqModal);
+  denqOverlay.addEventListener('click', (e) => { if (e.target === denqOverlay) closeDenqModal(); });
+
+  denqForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    denqError.classList.remove('show');
+    denqSuccess.classList.remove('show');
+    if (!currentUser) return;
+    denqSubmitBtn.disabled = true;
+    denqSubmitBtn.textContent = 'Saving…';
+    try {
+      await addDoc(collection(db, 'dealerEnquiries'), {
+        dealerUid: currentUser.uid,
+        customerName: document.getElementById('denq-customer').value.trim(),
+        phone: document.getElementById('denq-phone').value.trim(),
+        subject: document.getElementById('denq-subject').value.trim(),
+        notes: document.getElementById('denq-notes').value.trim(),
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      denqSuccess.textContent = 'Saved.';
+      denqSuccess.classList.add('show');
+      denqSubmitBtn.disabled = false;
+      denqSubmitBtn.textContent = 'Save enquiry';
+      if (document.getElementById('denq-tbody')) loadEnquiries();
+      setTimeout(closeDenqModal, 800);
+    } catch (err) {
+      console.error('Save enquiry failed:', err);
+      denqError.textContent = 'Could not save this enquiry. Check console for details.';
+      denqError.classList.add('show');
+      denqSubmitBtn.disabled = false;
+      denqSubmitBtn.textContent = 'Save enquiry';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Performance — real stats computed from this dealer's own data.
+  // ---------------------------------------------------------------
+
+  async function renderPerformance() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Total Sales</div><div class="value" id="perf-sales-count">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Total Revenue</div><div class="value" id="perf-revenue">…</div><div class="hint">Sum of logged sales</div></div>
+        <div class="stat-card"><div class="label">Enquiries Converted</div><div class="value" id="perf-converted">…</div><div class="hint">All time</div></div>
+        <div class="stat-card"><div class="label">Orders Placed</div><div class="value" id="perf-orders">…</div><div class="hint">All time</div></div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const [saleSnap, enqSnap, orderSnap] = await Promise.all([
+        getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'dealerEnquiries'), where('dealerUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid))),
+      ]);
+      let revenue = 0;
+      saleSnap.forEach(d => { revenue += Number(d.data().amount) || 0; });
+      let converted = 0;
+      enqSnap.forEach(d => { if (d.data().status === 'converted') converted++; });
+      document.getElementById('perf-sales-count').textContent = saleSnap.size;
+      document.getElementById('perf-revenue').textContent = '₹' + revenue;
+      document.getElementById('perf-converted').textContent = converted;
+      document.getElementById('perf-orders').textContent = orderSnap.size;
+    } catch (err) {
+      console.error('Load performance failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Profile — dealer's own self-editable details.
+  // ---------------------------------------------------------------
+
+  async function renderProfile() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Dealer profile</h2></div>
+        <div class="panel-body">
+          <div class="form-row"><label>Business name</label><input type="text" id="profile-name"></div>
+          <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
+          <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
+          <div class="form-row"><label>Address</label><input type="text" id="profile-address"></div>
+          <div class="form-row"><label>GSTIN (optional)</label><input type="text" id="profile-gstin"></div>
+          <div class="modal-error" id="profile-error"></div>
+          <div class="modal-success" id="profile-success"></div>
+          <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
+        </div>
+      </div>`;
+    if (!currentUser) return;
+    try {
+      const snap = await getDoc(doc(db, 'users', currentUser.uid));
+      const d = snap.exists() ? snap.data() : {};
+      document.getElementById('profile-name').value = d.name || '';
+      document.getElementById('profile-email').value = currentUser.email || '';
+      document.getElementById('profile-phone').value = d.phone || '';
+      document.getElementById('profile-address').value = d.address || '';
+      document.getElementById('profile-gstin').value = d.gstin || '';
+    } catch (err) {
+      console.error('Load profile failed:', err);
+    }
+    document.getElementById('save-profile').addEventListener('click', async () => {
+      const btn = document.getElementById('save-profile');
+      const errEl = document.getElementById('profile-error');
+      const okEl = document.getElementById('profile-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid), {
+          name: document.getElementById('profile-name').value.trim(),
+          phone: document.getElementById('profile-phone').value.trim(),
+          address: document.getElementById('profile-address').value.trim(),
+          gstin: document.getElementById('profile-gstin').value.trim(),
+        }, { merge: true });
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save profile failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save changes';
+    });
   }
 
   renderNav();

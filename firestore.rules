@@ -61,9 +61,9 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -129,6 +129,58 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------
+    // Dealer collections — each scoped to the owning dealer's own
+    // uid, same pattern as service center / technician above. Dealer
+    // is NOT in isStaff(), so without these dedicated rules a dealer
+    // would have no access to any of their own data at all.
+    // ---------------------------------------------------------------
+
+    match /dealerCustomers/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    match /dealerOrders/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /dealerSales/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    match /productRegistrations/{id} {
+      allow read, update: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /dealerEnquiries/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    // Product catalog — readable by anyone signed in (dealers browse
+    // it), writable only by Head Office / Super Admin. Empty until
+    // the Product Management module populates it.
+    match /products/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // ---------------------------------------------------------------
