@@ -244,6 +244,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------
+    // Dynamic product attributes — configurable spec fields per
+    // category (e.g. Television: Screen Size, Resolution...). The
+    // Model/SKU form loads these live based on the selected
+    // product's category. Public read, admin write.
+    // ---------------------------------------------------------------
+
+    match /productAttributes/{attrId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /categoryHistory/{entryId} {
       allow read: if isStaff();
       allow create: if isAdmin();

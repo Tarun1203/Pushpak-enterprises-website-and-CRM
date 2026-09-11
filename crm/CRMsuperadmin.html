@@ -356,6 +356,46 @@
     </form>
   </div>
 </div>
+
+<!-- Add/Edit Attribute modal -->
+<div class="modal-overlay" id="attr-overlay">
+  <div class="modal">
+    <h3 id="attr-modal-title">Add attribute</h3>
+    <form id="attr-form">
+      <input type="hidden" id="attr-editing-id">
+      <div class="form-row"><label>Category</label>
+        <select id="attr-category" required></select>
+      </div>
+      <div class="form-row"><label>Attribute name</label><input type="text" id="attr-name" placeholder="e.g. Screen Size" required></div>
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row"><label>Data type</label>
+          <select id="attr-datatype">
+            <option value="text">Text</option>
+            <option value="number">Number</option>
+            <option value="boolean">Yes / No</option>
+            <option value="select">Dropdown (fixed choices)</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Unit <span class="hint">(optional)</span></label><input type="text" id="attr-unit" placeholder="e.g. inch"></div>
+      </div>
+      <div class="form-row step-hidden" id="attr-options-row">
+        <label>Choices <span class="hint">(comma-separated)</span></label>
+        <input type="text" id="attr-options" placeholder="e.g. LED, QLED, OLED">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="attr-required">
+        <label for="attr-required">Required field</label>
+      </div>
+      <div class="form-row"><label>Display order</label><input type="number" id="attr-order" min="0" value="0"></div>
+      <div class="modal-error" id="attr-error"></div>
+      <div class="modal-success" id="attr-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-attr">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-attr">Save attribute</button>
+      </div>
+    </form>
+  </div>
+</div>
 <!-- Add/Edit Model modal -->
 <div class="modal-overlay" id="model-overlay">
   <div class="modal">
@@ -370,7 +410,8 @@
       <div class="form-row"><label>Model Number</label><input type="text" id="model-number" placeholder="e.g. MW43A" required></div>
       <div class="form-row"><label>SKU</label><input type="text" id="model-sku" placeholder="e.g. MW-TV-43-A"></div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="model-price" min="0" step="0.01"></div>
-      <div class="form-row"><label>Specifications <span class="hint">(free text for now)</span></label><textarea id="model-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
+      <div id="model-dynamic-attrs"></div>
+      <div class="form-row"><label>Additional notes <span class="hint">(anything not covered by the fields above)</span></label><textarea id="model-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
       <div class="form-row"><label>Warranty Plan</label>
         <select id="model-warranty">
           <option value="">No plan linked</option>
@@ -1376,18 +1417,35 @@
 
   async function renderCategories() {
     contentEl.innerHTML = `
+      <div class="tab-toggle" id="category-tabs">
+        <button data-filter="all" class="active">All Categories</button>
+        <button data-filter="active">Active</button>
+        <button data-filter="inactive">Inactive</button>
+        <button data-filter="history">Category History</button>
+        <button data-filter="attributes">Dynamic Attributes</button>
+      </div>
+      <div id="category-content"></div>`;
+    document.querySelectorAll('#category-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#category-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategoryFilter = btn.dataset.filter;
+        if (currentCategoryFilter === 'history') { renderCategoryListPanel(); loadCategoryHistory(); }
+        else if (currentCategoryFilter === 'attributes') renderAttributesPanel();
+        else { renderCategoryListPanel(); loadCategories(currentCategoryFilter); }
+      });
+    });
+    currentCategoryFilter = 'all';
+    renderCategoryListPanel();
+    loadCategories('all');
+  }
+
+  function renderCategoryListPanel() {
+    document.getElementById('category-content').innerHTML = `
       <div class="panel">
         <div class="panel-header">
           <h2>Categories</h2>
           <button class="btn-primary" id="open-add-category">+ Add Category</button>
-        </div>
-        <div class="panel-body" style="padding-bottom:0;">
-          <div class="tab-toggle" id="category-tabs">
-            <button data-filter="all" class="active">All Categories</button>
-            <button data-filter="active">Active</button>
-            <button data-filter="inactive">Inactive</button>
-            <button data-filter="history">Category History</button>
-          </div>
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
@@ -1397,17 +1455,6 @@
         </div>
       </div>`;
     document.getElementById('open-add-category').addEventListener('click', () => openCategoryModal(null));
-    document.querySelectorAll('#category-tabs button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#category-tabs button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentCategoryFilter = btn.dataset.filter;
-        if (currentCategoryFilter === 'history') loadCategoryHistory();
-        else loadCategories(currentCategoryFilter);
-      });
-    });
-    currentCategoryFilter = 'all';
-    loadCategories('all');
   }
 
   async function loadCategories(filter) {
@@ -1557,6 +1604,190 @@
   });
 
   // =================================================================
+  // DYNAMIC ATTRIBUTES — configurable spec fields per category
+  // (Issue #5). Defined here, then loaded live by the Model/SKU form
+  // based on whichever category the model's parent product belongs
+  // to — so a Television model shows Screen Size/Resolution/etc.
+  // fields, a Washing Machine model shows Capacity/Motor Type/etc.
+  // =================================================================
+
+  let allCategoriesCacheForAttrs = null;
+
+  async function getAllCategoriesCached(forceRefresh) {
+    if (allCategoriesCacheForAttrs && !forceRefresh) return allCategoriesCacheForAttrs;
+    const snap = await getDocs(collection(db, 'productCategories'));
+    allCategoriesCacheForAttrs = [];
+    snap.forEach(d => allCategoriesCacheForAttrs.push({ id: d.id, ...d.data() }));
+    allCategoriesCacheForAttrs.sort((a, b) => (BRAND_IDS.indexOf(a.brandId) - BRAND_IDS.indexOf(b.brandId)) || ((a.displayOrder || 0) - (b.displayOrder || 0)));
+    return allCategoriesCacheForAttrs;
+  }
+
+  const DATATYPE_LABELS = { text: 'Text', number: 'Number', boolean: 'Yes/No', select: 'Dropdown' };
+
+  async function renderAttributesPanel() {
+    const cats = await getAllCategoriesCached(true);
+    document.getElementById('category-content').innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Dynamic attributes</h2>
+          <button class="btn-primary" id="open-add-attr">+ Add Attribute</button>
+        </div>
+        <div class="panel-body" style="padding-bottom:0;">
+          <div class="form-row" style="max-width:320px;">
+            <label>Filter by category</label>
+            <select id="attr-filter-category">
+              <option value="">All categories</option>
+              ${cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${c.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Category</th><th>Attribute</th><th>Type</th><th>Unit</th><th>Required</th><th>Order</th><th>Actions</th></tr></thead>
+            <tbody id="attrs-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-attr').addEventListener('click', () => openAttrModal(null));
+    document.getElementById('attr-filter-category').addEventListener('change', (e) => loadAttributes(e.target.value));
+    loadAttributes('');
+  }
+
+  async function loadAttributes(categoryIdFilter) {
+    const tbody = document.getElementById('attrs-tbody');
+    try {
+      const cats = await getAllCategoriesCached(false);
+      const catMap = {};
+      cats.forEach(c => { catMap[c.id] = c; });
+      let snap;
+      if (categoryIdFilter) {
+        snap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', categoryIdFilter)));
+      } else {
+        snap = await getDocs(collection(db, 'productAttributes'));
+      }
+      let attrs = [];
+      snap.forEach(d => attrs.push({ id: d.id, ...d.data() }));
+      attrs.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      if (attrs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No attributes here yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      attrs.forEach(a => {
+        const cat = catMap[a.categoryId];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${cat ? cat.name : '—'}</td>
+          <td><b>${a.attributeName || '—'}</b></td>
+          <td>${DATATYPE_LABELS[a.dataType] || a.dataType}</td>
+          <td style="color:var(--stone);">${a.unit || '—'}</td>
+          <td>${a.required ? 'Yes' : 'No'}</td>
+          <td>${a.displayOrder ?? 0}</td>
+          <td><button class="btn-secondary attr-edit-btn" data-id="${a.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.attr-edit-btn').addEventListener('click', () => openAttrModal(a));
+      });
+    } catch (err) {
+      console.error('Load attributes failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load attributes. Check console for details.</td></tr>`;
+    }
+  }
+
+  const attrOverlay = document.getElementById('attr-overlay');
+  const attrForm = document.getElementById('attr-form');
+  const attrError = document.getElementById('attr-error');
+  const attrSuccess = document.getElementById('attr-success');
+  const attrSubmitBtn = document.getElementById('submit-attr');
+  const attrModalTitle = document.getElementById('attr-modal-title');
+  const attrCategorySelect = document.getElementById('attr-category');
+  const attrDatatypeSelect = document.getElementById('attr-datatype');
+  const attrOptionsRow = document.getElementById('attr-options-row');
+
+  attrDatatypeSelect.addEventListener('change', () => {
+    attrOptionsRow.classList.toggle('step-hidden', attrDatatypeSelect.value !== 'select');
+  });
+
+  async function openAttrModal(existing) {
+    attrForm.reset();
+    attrError.classList.remove('show');
+    attrSuccess.classList.remove('show');
+    attrSubmitBtn.disabled = false;
+    attrOptionsRow.classList.add('step-hidden');
+    const cats = await getAllCategoriesCached(true);
+    attrCategorySelect.innerHTML = cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${c.name}</option>`).join('');
+    if (existing) {
+      attrModalTitle.textContent = 'Edit attribute';
+      document.getElementById('attr-editing-id').value = existing.id;
+      attrCategorySelect.value = existing.categoryId || '';
+      document.getElementById('attr-name').value = existing.attributeName || '';
+      attrDatatypeSelect.value = existing.dataType || 'text';
+      document.getElementById('attr-unit').value = existing.unit || '';
+      document.getElementById('attr-options').value = (existing.options || []).join(', ');
+      document.getElementById('attr-required').checked = !!existing.required;
+      document.getElementById('attr-order').value = existing.displayOrder ?? 0;
+      attrOptionsRow.classList.toggle('step-hidden', existing.dataType !== 'select');
+      attrSubmitBtn.textContent = 'Save changes';
+    } else {
+      attrModalTitle.textContent = 'Add attribute';
+      document.getElementById('attr-editing-id').value = '';
+      document.getElementById('attr-order').value = 0;
+      attrSubmitBtn.textContent = 'Save attribute';
+    }
+    attrOverlay.classList.add('show');
+  }
+  function closeAttrModal() { attrOverlay.classList.remove('show'); }
+  document.getElementById('cancel-attr').addEventListener('click', closeAttrModal);
+  attrOverlay.addEventListener('click', (e) => { if (e.target === attrOverlay) closeAttrModal(); });
+
+  attrForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    attrError.classList.remove('show');
+    attrSuccess.classList.remove('show');
+    if (!attrCategorySelect.value) {
+      attrError.textContent = 'Select a category.';
+      attrError.classList.add('show');
+      return;
+    }
+    attrSubmitBtn.disabled = true;
+    attrSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('attr-editing-id').value;
+    const attributeName = document.getElementById('attr-name').value.trim();
+    const attributeKey = attributeName.trim().replace(/[^a-zA-Z0-9 ]/g, '').split(' ')
+      .map((w, i) => i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+    const payload = {
+      categoryId: attrCategorySelect.value,
+      attributeName,
+      attributeKey,
+      dataType: attrDatatypeSelect.value,
+      unit: document.getElementById('attr-unit').value.trim(),
+      options: attrDatatypeSelect.value === 'select'
+        ? document.getElementById('attr-options').value.split(',').map(s => s.trim()).filter(Boolean)
+        : [],
+      required: document.getElementById('attr-required').checked,
+      displayOrder: Number(document.getElementById('attr-order').value) || 0,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'productAttributes', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'productAttributes'), { ...payload, createdAt: serverTimestamp() });
+      }
+      attrSuccess.textContent = 'Saved.';
+      attrSuccess.classList.add('show');
+      attrSubmitBtn.disabled = false;
+      attrSubmitBtn.textContent = editingId ? 'Save changes' : 'Save attribute';
+      if (document.getElementById('attrs-tbody')) loadAttributes(document.getElementById('attr-filter-category').value);
+      setTimeout(closeAttrModal, 800);
+    } catch (err) {
+      console.error('Save attribute failed:', err);
+      attrError.textContent = 'Could not save this attribute. Check console for details.';
+      attrError.classList.add('show');
+      attrSubmitBtn.disabled = false;
+      attrSubmitBtn.textContent = editingId ? 'Save changes' : 'Save attribute';
+    }
+  });
+
+  // =================================================================
   // MODELS / SKU — each model belongs to a parent Product (Issue #6).
   // A product family (e.g. "MakWell Smart LED TV") is not the same
   // thing as a sellable model (MW32A, MW43A, MW50A...). Registration
@@ -1668,13 +1899,63 @@
     }
   }
 
-  modelProductSelect.addEventListener('change', () => populateModelWarrantyOptions(modelProductSelect.value, null));
+  modelProductSelect.addEventListener('change', () => {
+    populateModelWarrantyOptions(modelProductSelect.value, null);
+    renderModelDynamicAttrs(modelProductSelect.value, null);
+  });
+
+  async function renderModelDynamicAttrs(productId, existingValues) {
+    const container = document.getElementById('model-dynamic-attrs');
+    container.innerHTML = '';
+    const products = await getProductsCacheForModels(false);
+    const product = products.find(p => p.id === productId);
+    if (!product || !product.categoryId) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', product.categoryId)));
+      let attrs = [];
+      snap.forEach(d => attrs.push({ id: d.id, ...d.data() }));
+      attrs.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      if (attrs.length === 0) return;
+      attrs.forEach(a => {
+        const val = existingValues ? existingValues[a.attributeKey] : undefined;
+        const row = document.createElement('div');
+        row.className = 'form-row';
+        row.dataset.attrKey = a.attributeKey;
+        const labelText = a.attributeName + (a.unit ? ` (${a.unit})` : '') + (a.required ? ' *' : '');
+        let inputHtml = '';
+        if (a.dataType === 'number') {
+          inputHtml = `<input type="number" class="model-attr-input" value="${val ?? ''}" ${a.required ? 'required' : ''}>`;
+        } else if (a.dataType === 'boolean') {
+          inputHtml = `<select class="model-attr-input"><option value="">—</option><option value="yes" ${val === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${val === 'no' ? 'selected' : ''}>No</option></select>`;
+        } else if (a.dataType === 'select') {
+          inputHtml = `<select class="model-attr-input" ${a.required ? 'required' : ''}><option value="">Select…</option>` +
+            (a.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('') + `</select>`;
+        } else {
+          inputHtml = `<input type="text" class="model-attr-input" value="${val || ''}" ${a.required ? 'required' : ''}>`;
+        }
+        row.innerHTML = `<label>${labelText}</label>${inputHtml}`;
+        container.appendChild(row);
+      });
+    } catch (err) {
+      console.error('Load dynamic attributes for model failed:', err);
+    }
+  }
+
+  function collectModelAttrValues() {
+    const values = {};
+    document.querySelectorAll('#model-dynamic-attrs [data-attr-key]').forEach(row => {
+      const input = row.querySelector('.model-attr-input');
+      if (input && input.value) values[row.dataset.attrKey] = input.value;
+    });
+    return values;
+  }
 
   function openModelModal(existing) {
     modelForm.reset();
     modelError.classList.remove('show');
     modelSuccess.classList.remove('show');
     modelSubmitBtn.disabled = false;
+    document.getElementById('model-dynamic-attrs').innerHTML = '';
     populateModelProductOptions(existing ? existing.productId : null);
     if (existing) {
       modelModalTitle.textContent = 'Edit model';
@@ -1684,6 +1965,7 @@
       document.getElementById('model-price').value = existing.price ?? '';
       document.getElementById('model-specs').value = existing.specifications || '';
       populateModelWarrantyOptions(existing.productId, existing.warrantyPlanId || null);
+      renderModelDynamicAttrs(existing.productId, existing.attributeValues || {});
       document.getElementById('model-status').value = existing.status || 'active';
       modelSubmitBtn.textContent = 'Save changes';
     } else {
@@ -1720,6 +2002,7 @@
       sku: document.getElementById('model-sku').value.trim(),
       price: document.getElementById('model-price').value ? Number(document.getElementById('model-price').value) : null,
       specifications: document.getElementById('model-specs').value.trim(),
+      attributeValues: collectModelAttrValues(),
       warrantyPlanId: modelWarrantySelect.value || null,
       warrantyPlanName: modelWarrantySelect.value ? modelWarrantySelect.options[modelWarrantySelect.selectedIndex].textContent : null,
       status: document.getElementById('model-status').value,
