@@ -1119,6 +1119,9 @@
 
   function applyHashCategory() {
     const hash = window.location.hash.replace('#', '');
+    if (hash === 'register-product') { openRegisterModal(); return; }
+    if (hash === 'book-service') { openBookModal(); return; }
+    if (hash === 'track-service') { openTrackModal(); return; }
     const card = document.getElementById(hash);
     if (card && card.classList.contains('contact-cat-card')) {
       selectCategory(card);

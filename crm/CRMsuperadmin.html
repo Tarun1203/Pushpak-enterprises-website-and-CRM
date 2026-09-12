@@ -586,7 +586,7 @@
       { id: 'dashboard', label: 'Dashboard', built: true },
     ]},
     { group: 'Customers & Sales', items: [
-      { id: 'customers', label: 'Customers', built: true },
+      { id: 'customers', label: 'Customer 360', built: true },
       { id: 'brands', label: 'Brands', built: true },
       { id: 'products', label: 'Product Management', built: true },
       { id: 'categories', label: 'Categories', built: true },
@@ -722,7 +722,7 @@
       pageSub.textContent = 'Everything awaiting a decision';
       renderApprovalsOverview();
     } else if (id === 'customers') {
-      pageSub.textContent = 'Customers across all dealers';
+      pageSub.textContent = 'Search by phone \u2014 unified view across every collection';
       renderCustomersOverview();
     } else if (id === 'reports') {
       pageSub.textContent = 'Company-wide summary';
@@ -2798,9 +2798,29 @@
   // CUSTOMERS — aggregate across all dealers.
   // =================================================================
 
+  // =================================================================
+  // CUSTOMER 360 — search by phone number, see everything tied to
+  // that number across every collection that references a customer:
+  // registrations, warranty, service jobs/requests, enquiries, and
+  // any dealer relationship. Also works as a browsable list (click
+  // a row from "All Customers" below to load their 360 view).
+  // =================================================================
+
   async function renderCustomersOverview() {
     contentEl.innerHTML = `
-      <div class="panel">
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Look up a customer</h2></div>
+        <div class="panel-body">
+          <div class="form-row" style="max-width:320px;">
+            <label>Phone number</label>
+            <input type="tel" id="c360-phone-input" placeholder="e.g. 9980000515" inputmode="numeric" maxlength="10">
+          </div>
+          <button class="btn-primary" id="c360-search-btn">Search</button>
+          <div class="modal-error" id="c360-error" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <div id="c360-profile"></div>
+      <div class="panel" style="margin-top:24px;">
         <div class="panel-header"><h2>All customers (across dealers)</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
@@ -2809,6 +2829,15 @@
           </table>
         </div>
       </div>`;
+
+    document.getElementById('c360-search-btn').addEventListener('click', () => {
+      const phone = document.getElementById('c360-phone-input').value.trim();
+      loadCustomer360(phone);
+    });
+    document.getElementById('c360-phone-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); loadCustomer360(e.target.value.trim()); }
+    });
+
     const tbody = document.getElementById('custs-tbody');
     try {
       const snap = await getDocs(query(collection(db, 'dealerCustomers'), orderBy('createdAt', 'desc')));
@@ -2820,12 +2849,114 @@
       snap.forEach(docSnap => {
         const d = docSnap.data();
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
         tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td>`;
+        tr.addEventListener('click', () => {
+          document.getElementById('c360-phone-input').value = d.phone || '';
+          loadCustomer360(d.phone || '');
+          document.getElementById('c360-profile').scrollIntoView({ behavior: 'smooth' });
+        });
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load customers failed:', err);
       tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load customers. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function loadCustomer360(rawPhone) {
+    const errorEl = document.getElementById('c360-error');
+    const profileEl = document.getElementById('c360-profile');
+    errorEl.classList.remove('show');
+    const phone = rawPhone.replace(/[^\d]/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      errorEl.textContent = 'Enter a valid 10-digit mobile number.';
+      errorEl.classList.add('show');
+      return;
+    }
+    profileEl.innerHTML = '<div class="panel"><div class="panel-body" style="text-align:center;color:var(--stone);">Searching…</div></div>';
+
+    try {
+      const [regsSnap, jobsSnap, centerReqSnap, publicSvcSnap, enqSnap, dealerCustSnap] = await Promise.all([
+        getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', phone))),
+        getDocs(query(collection(db, 'serviceJobs'), where('customerPhone', '==', phone))),
+        getDocs(query(collection(db, 'centerRequests'), where('customerPhone', '==', phone))),
+        getDocs(query(collection(db, 'publicServiceRequests'), where('customerPhone', '==', phone))),
+        getDocs(query(collection(db, 'contactEnquiries'), where('phone', '==', phone))),
+        getDocs(query(collection(db, 'dealerCustomers'), where('phone', '==', phone))),
+      ]);
+
+      const registrations = []; regsSnap.forEach(d => registrations.push(d.data()));
+      const jobs = []; jobsSnap.forEach(d => jobs.push(d.data()));
+      const centerReqs = []; centerReqSnap.forEach(d => centerReqs.push(d.data()));
+      const publicSvc = []; publicSvcSnap.forEach(d => publicSvc.push(d.data()));
+      const enquiries = []; enqSnap.forEach(d => enquiries.push(d.data()));
+      const dealerLinks = []; dealerCustSnap.forEach(d => dealerLinks.push(d.data()));
+
+      const totalTouchpoints = registrations.length + jobs.length + centerReqs.length + publicSvc.length + enquiries.length;
+      const bestName = registrations[0]?.customerName || jobs[0]?.customerName || centerReqs[0]?.customerName
+        || publicSvc[0]?.customerName || dealerLinks[0]?.name || '—';
+
+      if (totalTouchpoints === 0 && dealerLinks.length === 0) {
+        profileEl.innerHTML = `
+          <div class="panel"><div class="panel-body" style="text-align:center;color:var(--stone);">
+            No records found for ${phone} across registrations, service activity, or enquiries.
+          </div></div>`;
+        return;
+      }
+
+      let html = `
+        <div class="panel" style="margin-bottom:1px;">
+          <div class="panel-header">
+            <h2>${bestName} <span style="color:var(--stone);font-weight:500;font-size:13px;">— ${phone}</span></h2>
+          </div>
+          <div class="panel-body" style="font-size:13px;color:var(--stone);">
+            ${registrations.length} registration(s) · ${jobs.length + centerReqs.length + publicSvc.length} service record(s) · ${enquiries.length} enquiry(ies)${dealerLinks.length ? ' · known to a dealer' : ''}
+          </div>
+        </div>`;
+
+      if (registrations.length) {
+        html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Registrations & Warranty</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Reg. ID</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty</th></tr></thead><tbody>`;
+        registrations.forEach(r => {
+          const status = warrantyStatus(r.purchaseDate, r.warrantyMonths);
+          html += `<tr><td style="font-size:12px;color:var(--stone);">${r.registrationId || '—'}</td><td>${r.product || '—'}</td><td>${r.serialNumber || '—'}</td><td>${r.purchaseDate || '—'}</td><td><span class="status-pill ${status.cls}">${status.label}</span></td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+      const allServiceRecords = [
+        ...jobs.map(j => ({ source: 'Technician', id: j.jobId, status: j.status, detail: j.issue || j.product })),
+        ...centerReqs.map(r => ({ source: 'Service Center', id: r.requestId, status: r.status, detail: r.product || r.type })),
+        ...publicSvc.map(p => ({ source: 'Website', id: p.requestId, status: p.status, detail: p.issueDescription || p.requestType })),
+      ];
+      if (allServiceRecords.length) {
+        html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Service Activity</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Source</th><th>ID</th><th>Detail</th><th>Status</th></tr></thead><tbody>`;
+        allServiceRecords.forEach(s => {
+          html += `<tr><td>${s.source}</td><td style="font-size:12px;color:var(--stone);">${s.id || '—'}</td><td>${s.detail || '—'}</td><td><span class="status-pill ${s.status}">${s.status}</span></td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+      if (enquiries.length) {
+        html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Website Enquiries</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Ticket ID</th><th>Subject</th><th>Message</th></tr></thead><tbody>`;
+        enquiries.forEach(e => {
+          html += `<tr><td style="font-size:12px;color:var(--stone);">${e.ticketId || '—'}</td><td>${e.subject || '—'}</td><td style="max-width:280px;">${e.message || '—'}</td></tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+      }
+
+      if (dealerLinks.length) {
+        html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Dealer Relationship</h2></div>
+          <div class="panel-body" style="font-size:13.5px;color:var(--stone);">Known to a dealer as a logged customer${dealerLinks[0].address ? ` at ${dealerLinks[0].address}` : ''}.</div></div>`;
+      }
+
+      profileEl.innerHTML = html;
+    } catch (err) {
+      console.error('Customer 360 search failed:', err);
+      profileEl.innerHTML = `<div class="panel"><div class="panel-body" style="color:var(--err);">Search failed. Check console for details.</div></div>`;
     }
   }
 

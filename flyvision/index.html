@@ -57,7 +57,9 @@
   .cat-pill.active{background:var(--brand);border-color:var(--brand);color:#fff;}
 
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-top:24px;}
-  .product-card{background:var(--paper);padding:26px 22px;}
+  .product-card{background:var(--paper);padding:26px 22px;display:block;text-decoration:none;color:inherit;transition:background .15s;}
+  .product-card:hover{background:var(--paper-deep);}
+  .product-card .view-details{font-size:12px;font-weight:600;color:var(--brand);margin-top:10px;}
   .product-card .cat{font-size:11.5px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
   .product-card h3{font-size:16px;font-weight:700;margin-bottom:8px;}
   .product-card .price{font-size:15px;color:var(--stone);}
@@ -262,7 +264,7 @@
       await loadCategories();
       const snap = await getDocs(query(collection(db, 'products'), where('brandId', '==', BRAND_ID)));
       allProducts = [];
-      snap.forEach(d => allProducts.push(d.data()));
+      snap.forEach(d => allProducts.push({ id: d.id, ...d.data() }));
       renderCategoryPills();
       renderProductGrid();
     } catch (err) {
@@ -299,12 +301,14 @@
     grid.style.display = 'grid';
     grid.innerHTML = '';
     filtered.forEach(p => {
-      const card = document.createElement('div');
+      const card = document.createElement('a');
+      card.href = `../product.html?id=${p.id}`;
       card.className = 'product-card';
       card.innerHTML = `
         <div class="cat">${p.categoryName || 'Product'}</div>
         <h3>${p.name || 'Unnamed product'}</h3>
-        <div class="price">${p.price != null ? '₹' + p.price : 'Price on request'}</div>`;
+        <div class="price">${p.price != null ? '₹' + p.price : 'Price on request'}</div>
+        <div class="view-details">View details →</div>`;
       grid.appendChild(card);
     });
   }

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product — Pushpak Enterprises</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
+    --brand:#1C6FBA;--brand-deep:#0F4C88;--radius:2px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 32px;}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(245,239,224,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--hairline);}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1000px;margin:0 auto;}
+  .header-inner .back{font-size:12.5px;color:var(--stone);font-weight:600;}
+  .header-inner .back:hover{color:var(--ink);}
+  .logo-box{height:30px;}
+  .logo-box img{height:100%;width:auto;}
+
+  main{padding:56px 0 80px;}
+  .state-msg{font-size:14px;color:var(--stone);padding:60px 0;text-align:center;}
+
+  .product-hero{display:grid;grid-template-columns:0.9fr 1.1fr;gap:48px;margin-bottom:56px;}
+  .product-visual{background:var(--brand-deep);border-radius:var(--radius);aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;padding:32px;}
+  .product-visual .logo-box{height:auto;width:60%;}
+  .product-visual .logo-box img{width:100%;height:auto;}
+  .product-info .cat{font-size:13px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:10px;}
+  .product-info h1{font-size:clamp(26px,3.4vw,38px);font-weight:800;letter-spacing:-0.02em;margin-bottom:14px;}
+  .product-info .price-range{font-size:19px;font-weight:700;color:var(--ink);margin-bottom:20px;}
+  .product-info .price-range span{font-size:13px;font-weight:500;color:var(--stone);}
+  .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px;}
+  .btn-primary{background:var(--brand);color:#fff;font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);}
+  .btn-secondary{border:1px solid var(--hairline);font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);}
+
+  h2{font-size:20px;font-weight:800;letter-spacing:-0.01em;margin-bottom:20px;}
+  .models-list{display:flex;flex-direction:column;gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-bottom:48px;}
+  .model-card{background:var(--paper);padding:26px 28px;}
+  .model-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+  .model-card-head .model-number{font-size:17px;font-weight:800;}
+  .model-card-head .sku{font-size:12px;color:var(--stone);margin-top:3px;}
+  .model-card-head .model-price{font-size:17px;font-weight:700;color:var(--brand);white-space:nowrap;}
+  .spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px 20px;margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);}
+  .spec-item .label{font-size:11px;color:var(--stone);text-transform:uppercase;letter-spacing:0.02em;}
+  .spec-item .value{font-size:13.5px;font-weight:600;margin-top:2px;}
+  .warranty-note{margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);font-size:13px;color:var(--stone);}
+  .warranty-note b{color:var(--ink);}
+  .warranty-components{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;}
+  .warranty-pill{background:var(--paper-deep);border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:600;color:var(--ink);}
+  .notes-box{font-size:13.5px;color:var(--stone);margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);}
+
+  footer{padding:28px 0;border-top:1px solid var(--hairline);}
+  .footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--stone);max-width:1000px;margin:0 auto;padding:0 32px;}
+
+  @media (max-width:760px){
+    .product-hero{grid-template-columns:1fr;}
+    .product-visual{order:-1;aspect-ratio:16/9;}
+    .header-inner{padding:16px 20px;}
+    .wrap{padding:0 20px;}
+    .footer-inner{padding:0 20px;flex-direction:column;gap:10px;text-align:center;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="index.html" class="back">← Pushpak Enterprises</a>
+    <div class="logo-box" id="brand-logo-box"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="content"><div class="state-msg">Loading product…</div></div>
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
+  </div>
+</footer>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  const BRAND_LOGO_FILES = { makwell: 'makwell-logo.jpeg', flyvision: 'flyvision-logo.jpeg', skevia: 'skevia-logo.jpeg' };
+  const BRAND_COLORS = {
+    makwell: { brand: '#8A3B94', deep: '#5E2568' },
+    flyvision: { brand: '#E5262C', deep: '#1B1B3A' },
+    skevia: { brand: '#1C7DC0', deep: '#0F4C88' },
+  };
+  const BRAND_HOME = { makwell: 'makwell/index.html', flyvision: 'flyvision/index.html', skevia: 'skevia/index.html' };
+
+  const params = new URLSearchParams(window.location.search);
+  const productId = params.get('id');
+  const contentEl = document.getElementById('content');
+
+  function applyBrandTheme(brandId) {
+    const colors = BRAND_COLORS[brandId];
+    if (colors) {
+      document.documentElement.style.setProperty('--brand', colors.brand);
+      document.documentElement.style.setProperty('--brand-deep', colors.deep);
+    }
+    const logoBox = document.getElementById('brand-logo-box');
+    if (BRAND_LOGO_FILES[brandId]) {
+      logoBox.innerHTML = `<img src="assets/logos/${BRAND_LOGO_FILES[brandId]}" alt="${brandId}">`;
+    }
+  }
+
+  async function loadProduct() {
+    if (!productId) {
+      contentEl.innerHTML = '<div class="state-msg">No product specified.</div>';
+      return;
+    }
+    try {
+      const productSnap = await getDoc(doc(db, 'products', productId));
+      if (!productSnap.exists()) {
+        contentEl.innerHTML = '<div class="state-msg">Product not found — it may have been removed.</div>';
+        return;
+      }
+      const product = productSnap.data();
+      applyBrandTheme(product.brandId);
+      document.title = `${product.name || 'Product'} — Pushpak Enterprises`;
+
+      // Attribute definitions for this product's category, so model
+      // attribute values can be shown with real labels/units instead
+      // of raw keys.
+      let attrDefs = {};
+      if (product.categoryId) {
+        try {
+          const attrSnap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', product.categoryId)));
+          attrSnap.forEach(d => { attrDefs[d.id] = d.data(); });
+          // Also index by attributeKey for lookup convenience
+          const byKey = {};
+          Object.values(attrDefs).forEach(a => { byKey[a.attributeKey] = a; });
+          attrDefs = byKey;
+        } catch (err) {
+          console.warn('Could not load attribute definitions:', err.message);
+        }
+      }
+
+      // Models for this product
+      let models = [];
+      try {
+        const modelsSnap = await getDocs(query(collection(db, 'productModels'), where('productId', '==', productId)));
+        modelsSnap.forEach(d => { const m = d.data(); if ((m.status || 'active') === 'active') models.push(m); });
+        models.sort((a, b) => (a.modelNumber || '').localeCompare(b.modelNumber || ''));
+      } catch (err) {
+        console.warn('Could not load models:', err.message);
+      }
+
+      // Warranty plan details (fetch each unique plan referenced by a model)
+      const warrantyPlanCache = {};
+      async function getWarrantyPlan(planId) {
+        if (!planId) return null;
+        if (warrantyPlanCache[planId] !== undefined) return warrantyPlanCache[planId];
+        try {
+          const snap = await getDoc(doc(db, 'warrantyPlans', planId));
+          warrantyPlanCache[planId] = snap.exists() ? snap.data() : null;
+        } catch (err) {
+          warrantyPlanCache[planId] = null;
+        }
+        return warrantyPlanCache[planId];
+      }
+
+      const prices = models.map(m => m.price).filter(p => p != null);
+      const priceRangeHtml = prices.length === 0
+        ? 'Price on request'
+        : (Math.min(...prices) === Math.max(...prices)
+            ? `₹${Math.min(...prices)}`
+            : `₹${Math.min(...prices)} <span>– ₹${Math.max(...prices)}</span>`);
+
+      const brandHome = BRAND_HOME[product.brandId] || 'index.html';
+
+      contentEl.innerHTML = `
+        <div class="product-hero">
+          <div class="product-visual">
+            <div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>
+          </div>
+          <div class="product-info">
+            <div class="cat">${product.categoryName || 'Product'}</div>
+            <h1>${product.name || 'Unnamed product'}</h1>
+            <div class="price-range">${priceRangeHtml}</div>
+            <div class="cta-row">
+              <a href="index.html#register-product" class="btn-primary">Register this product</a>
+              <a href="index.html#book-service" class="btn-secondary">Book a service</a>
+              <a href="${brandHome}" class="btn-secondary">Back to ${product.brand || 'brand'}</a>
+            </div>
+          </div>
+        </div>
+        <h2>Available models${models.length ? ` (${models.length})` : ''}</h2>
+        <div class="models-list" id="models-list"></div>
+      `;
+
+      const modelsListEl = document.getElementById('models-list');
+      if (models.length === 0) {
+        modelsListEl.outerHTML = '<div class="state-msg" style="padding:30px 0;">No models listed yet for this product.</div>';
+        return;
+      }
+
+      for (const m of models) {
+        const specEntries = Object.entries(m.attributeValues || {}).map(([key, val]) => {
+          const def = attrDefs[key];
+          const label = def ? def.attributeName : key;
+          const unit = def && def.unit ? ' ' + def.unit : '';
+          const displayVal = val === 'yes' ? 'Yes' : val === 'no' ? 'No' : val;
+          return `<div class="spec-item"><div class="label">${label}</div><div class="value">${displayVal}${unit}</div></div>`;
+        }).join('');
+
+        let warrantyHtml = '';
+        if (m.warrantyPlanId) {
+          const plan = await getWarrantyPlan(m.warrantyPlanId);
+          if (plan) {
+            const compPills = (plan.components || []).map(c =>
+              `<span class="warranty-pill">${c.componentName}: ${c.durationMonths} mo</span>`
+            ).join('');
+            warrantyHtml = `<div class="warranty-note"><b>Warranty:</b> ${plan.name}<div class="warranty-components">${compPills}</div></div>`;
+          } else {
+            warrantyHtml = `<div class="warranty-note"><b>Warranty:</b> ${m.warrantyPlanName || 'Plan on file'}</div>`;
+          }
+        }
+
+        const notesHtml = m.specifications
+          ? `<div class="notes-box">${m.specifications}</div>` : '';
+
+        const card = document.createElement('div');
+        card.className = 'model-card';
+        card.innerHTML = `
+          <div class="model-card-head">
+            <div>
+              <div class="model-number">${m.modelNumber || '—'}</div>
+              ${m.sku ? `<div class="sku">SKU: ${m.sku}</div>` : ''}
+            </div>
+            <div class="model-price">${m.price != null ? '₹' + m.price : 'Price on request'}</div>
+          </div>
+          ${specEntries ? `<div class="spec-grid">${specEntries}</div>` : ''}
+          ${warrantyHtml}
+          ${notesHtml}
+        `;
+        modelsListEl.appendChild(card);
+      }
+    } catch (err) {
+      console.error('Load product failed:', err);
+      contentEl.innerHTML = '<div class="state-msg">Could not load this product right now.</div>';
+    }
+  }
+
+  loadProduct();
+</script>
+</body>
+</html>

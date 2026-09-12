@@ -204,7 +204,7 @@ service cloud.firestore {
     // it), writable only by Warehouse / Super Admin. Empty until
     // the Product Management module populates it.
     match /products/{id} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
