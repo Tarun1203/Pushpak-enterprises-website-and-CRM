@@ -173,18 +173,6 @@
 
   /* ---------- Contact ---------- */
   .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;}
-  .contact-cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
-  .contact-cat-card{
-    background:var(--paper);padding:24px 20px;text-align:left;border:none;cursor:pointer;font-family:inherit;
-    transition:background .2s;display:block;width:100%;
-  }
-  .contact-cat-card:hover{background:var(--paper-deep);}
-  .contact-cat-card.active{background:var(--blue);}
-  .contact-cat-card.active h3,.contact-cat-card.active p{color:#fff;}
-  .contact-cat-card h3{font-size:14.5px;font-weight:700;margin-bottom:6px;}
-  .contact-cat-card p{font-size:12.5px;color:var(--stone);}
-  @media (max-width:860px){.contact-cat-grid{grid-template-columns:repeat(2,1fr);}}
-  @media (max-width:560px){.contact-cat-grid{grid-template-columns:1fr;}}
   .modal-overlay{
     position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
     align-items:center;justify-content:center;z-index:100;padding:20px;
@@ -224,11 +212,11 @@
   .contact-detail .label{font-size:12px;color:var(--stone);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;}
   .contact-detail .value{font-size:17px;font-weight:600;}
   form{display:flex;flex-direction:column;gap:14px;}
-  form input,form textarea{
+  form input,form textarea,form select{
     border:1px solid var(--hairline);padding:14px 16px;font-family:inherit;font-size:14px;
     border-radius:var(--radius);background:#fff;
   }
-  form input:focus,form textarea:focus{outline:2px solid var(--blue);outline-offset:1px;}
+  form input:focus,form textarea:focus,form select:focus{outline:2px solid var(--blue);outline-offset:1px;}
   form textarea{resize:vertical;min-height:100px;}
   .field-error{font-size:12px;color:#B3261E;display:none;margin-top:-8px;}
   .field-error.show{display:block;}
@@ -394,27 +382,7 @@
   <div class="wrap">
     <div class="section-head">
       <h2>Get in touch</h2>
-      <p>Pick what you need — we'll route your message accordingly.</p>
-    </div>
-    <div class="contact-cat-grid" id="contact-categories">
-      <button type="button" class="contact-cat-card" id="cat-register" data-category="Register a Product">
-        <h3>Register a Product</h3><p>Log your serial number to activate warranty cover.</p>
-      </button>
-      <button type="button" class="contact-cat-card" id="cat-installation" data-category="Installation / Demo Request">
-        <h3>Installation / Demo</h3><p>Request a home installation or product demo.</p>
-      </button>
-      <button type="button" class="contact-cat-card" id="cat-service" data-category="Service Request">
-        <h3>Service Request</h3><p>Raise a repair request and get matched to a technician.</p>
-      </button>
-      <button type="button" class="contact-cat-card" id="cat-track" data-category="Track a Service">
-        <h3>Track a Service</h3><p>Check the status of a request already raised.</p>
-      </button>
-      <button type="button" class="contact-cat-card" id="cat-warranty" data-category="Warranty Check">
-        <h3>Warranty Status</h3><p>Check what's covered on your product and until when.</p>
-      </button>
-      <button type="button" class="contact-cat-card" id="cat-support" data-category="General Support">
-        <h3>General Support</h3><p>Manuals, brochures, FAQs, or anything else.</p>
-      </button>
+      <p>Send a message and we'll route it accordingly.</p>
     </div>
 
     <div class="contact-grid" style="margin-top:40px;">
@@ -437,7 +405,25 @@
         <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)"
           inputmode="numeric" maxlength="10" required>
         <span id="phone-error" class="field-error"></span>
-        <input type="text" name="subject" id="enquiry-subject" placeholder="What's this about?">
+        <select name="subject" id="enquiry-subject" required>
+          <option value="">What's this about?</option>
+          <option value="Service Request">Service Request</option>
+          <option value="Installation / Demo Request">Installation / Demo</option>
+          <option value="Other">Other</option>
+        </select>
+        <select name="brand" id="enquiry-brand">
+          <option value="">Brand (optional)</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+        <input type="text" name="product" placeholder="Product / category (optional)">
+        <input type="text" name="modelNo" placeholder="Model No (optional)">
+        <input type="text" name="serialNo" placeholder="Serial No (optional)">
+        <input type="text" name="dealerName" placeholder="Purchased from — dealer name (optional)">
+        <input type="text" name="address" placeholder="Address (optional)">
+        <input type="text" name="city" placeholder="City (optional)">
+        <input type="text" name="pincode" placeholder="Pincode (optional)" inputmode="numeric" maxlength="6">
         <textarea name="message" placeholder="Message" required></textarea>
         <button type="submit">Send enquiry</button>
         <div class="ticket-note" id="ticket-note"></div>
@@ -1101,31 +1087,13 @@
     btn.disabled = false;
   });
 
-  // Contact category cards — clicking (or arriving via a #cat-* link
-  // from the Customer Services cards) marks the card active and
-  // pre-fills the enquiry subject with that category.
-  const subjectInput = document.getElementById('enquiry-subject');
-  const catCards = document.querySelectorAll('.contact-cat-card');
-
-  function selectCategory(card) {
-    catCards.forEach(c => c.classList.remove('active'));
-    card.classList.add('active');
-    subjectInput.value = card.dataset.category;
-  }
-
-  catCards.forEach(card => {
-    card.addEventListener('click', () => selectCategory(card));
-  });
-
+  // Hash-based modal auto-open — lets other pages (e.g. product.html)
+  // link straight into the Register/Book/Track modals.
   function applyHashCategory() {
     const hash = window.location.hash.replace('#', '');
     if (hash === 'register-product') { openRegisterModal(); return; }
     if (hash === 'book-service') { openBookModal(); return; }
     if (hash === 'track-service') { openTrackModal(); return; }
-    const card = document.getElementById(hash);
-    if (card && card.classList.contains('contact-cat-card')) {
-      selectCategory(card);
-    }
   }
   window.addEventListener('hashchange', applyHashCategory);
   applyHashCategory();
@@ -1280,6 +1248,14 @@
         name: form.name.value.trim(),
         phone: normalizedPhone,
         subject: form.subject.value.trim(),
+        brand: form.brand.value,
+        product: form.product.value.trim(),
+        modelNo: form.modelNo.value.trim(),
+        serialNo: form.serialNo.value.trim(),
+        dealerName: form.dealerName.value.trim(),
+        address: form.address.value.trim(),
+        city: form.city.value.trim(),
+        pincode: form.pincode.value.trim(),
         message: form.message.value.trim(),
         source: 'landing-page',
         createdAt: serverTimestamp()

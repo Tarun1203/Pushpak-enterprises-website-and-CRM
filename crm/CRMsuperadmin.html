@@ -1207,8 +1207,8 @@
         <div class="panel-header"><h2>Contact enquiries</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Ticket ID</th><th>Name</th><th>Phone</th><th>Subject</th><th>Message</th></tr></thead>
-            <tbody id="enq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Ticket ID</th><th>Name</th><th>Phone</th><th>Subject</th><th>Product</th><th>Dealer</th><th>Location</th><th>Message</th></tr></thead>
+            <tbody id="enq-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -1221,19 +1221,24 @@
     try {
       const snap = await getDocs(query(collection(db, 'contactEnquiries'), orderBy('createdAt', 'desc')));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No enquiries submitted yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No enquiries submitted yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       snap.forEach(docSnap => {
         const d = docSnap.data();
+        const productBits = [d.brand, d.product, d.modelNo ? `Model ${d.modelNo}` : null, d.serialNo ? `S/N ${d.serialNo}` : null].filter(Boolean).join(' — ');
+        const locationBits = [d.address, d.city, d.pincode].filter(Boolean).join(', ');
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.ticketId || docSnap.id}</td>
           <td>${d.name || '—'}</td>
           <td>${d.phone || '—'}</td>
           <td>${d.subject || '—'}</td>
-          <td style="max-width:280px;">${d.message || '—'}</td>`;
+          <td style="font-size:12.5px;">${productBits || '—'}</td>
+          <td style="font-size:12.5px;">${d.dealerName || '—'}</td>
+          <td style="font-size:12.5px;max-width:180px;">${locationBits || '—'}</td>
+          <td style="max-width:240px;">${d.message || '—'}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
