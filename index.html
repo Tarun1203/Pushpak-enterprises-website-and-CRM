@@ -1202,8 +1202,8 @@
     return `${y}${m}`;
   }
 
-  async function nextMonthlySerial(monthStr) {
-    const counterRef = doc(db, 'counters', `enquiry-${monthStr}`);
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
     const newValue = await runTransaction(db, async (transaction) => {
       const snap = await transaction.get(counterRef);
       const current = snap.exists() ? snap.data().value : 0;
@@ -1220,7 +1220,7 @@
 
   async function generateTicketId(pageType, mode) {
     const dateStr = todayYYYYMMDD();
-    const serial = await nextMonthlySerial(currentYYYYMM());
+    const serial = await nextMonthlySerial(`enquiry-${currentYYYYMM()}`);
     const serialPadded = String(serial).padStart(4, '0');
     return `PE-${pageType}-${dateStr}-${serialPadded}-${mode}`;
   }
