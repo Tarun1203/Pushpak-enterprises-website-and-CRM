@@ -600,6 +600,7 @@
       { id: 'routing', label: 'Service Request Routing', built: true },
       { id: 'centers', label: 'Service Centers', built: true },
       { id: 'technicians', label: 'Technicians', built: true },
+      { id: 'appointments', label: 'Appointments', built: true },
       { id: 'sla', label: 'SLA & Escalation', built: true },
     ]},
     { group: 'Inventory & Logistics', items: [
@@ -611,6 +612,7 @@
     ]},
     { group: 'Finance & Claims', items: [
       { id: 'finance', label: 'Finance', built: true },
+      { id: 'payments', label: 'Payments', built: true },
       { id: 'rma', label: 'RMA & Replacement', built: true },
       { id: 'approvals', label: 'Approvals', built: true },
     ]},
@@ -697,6 +699,9 @@
     } else if (id === 'technicians') {
       pageSub.textContent = 'All technician accounts';
       renderTechniciansOverview();
+    } else if (id === 'appointments') {
+      pageSub.textContent = 'All scheduled activity, company-wide';
+      renderAppointments();
     } else if (id === 'service') {
       pageSub.textContent = 'All service activity, company-wide';
       renderServiceOverview();
@@ -718,6 +723,9 @@
     } else if (id === 'finance') {
       pageSub.textContent = 'Claims & local purchase settlements';
       renderFinanceOverview();
+    } else if (id === 'payments') {
+      pageSub.textContent = 'Every recorded payment, with method and reference';
+      renderPayments();
     } else if (id === 'approvals') {
       pageSub.textContent = 'Everything awaiting a decision';
       renderApprovalsOverview();
@@ -2436,6 +2444,87 @@
   }
 
   // =================================================================
+  // APPOINTMENTS — company-wide agenda. Combines Technician jobs and
+  // Service Center requests that carry a scheduledDate, grouped by
+  // date. This is the oversight layer above Technician's own
+  // "Schedule" and Service Center's own "Scheduling" — those show a
+  // single role's jobs; this shows everyone's, together.
+  // =================================================================
+
+  async function renderAppointments() {
+    contentEl.innerHTML = `
+      <div class="tab-toggle" id="appt-tabs">
+        <button data-filter="upcoming" class="active">Upcoming</button>
+        <button data-filter="all">All Scheduled</button>
+      </div>
+      <div id="appt-content"></div>`;
+    document.querySelectorAll('#appt-tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#appt-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAppointments(btn.dataset.filter);
+      });
+    });
+    loadAppointments('upcoming');
+  }
+
+  async function loadAppointments(filter) {
+    document.getElementById('appt-content').innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${filter === 'upcoming' ? 'Upcoming appointments' : 'All scheduled activity'}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
+            <tbody id="appt-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('appt-tbody');
+    try {
+      const [jobsSnap, requestsSnap] = await Promise.all([
+        getDocs(collection(db, 'serviceJobs')),
+        getDocs(collection(db, 'centerRequests')),
+      ]);
+      let rows = [];
+      jobsSnap.forEach(d => {
+        const j = d.data();
+        if (j.scheduledDate) rows.push({ date: j.scheduledDate, source: 'Technician', id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status });
+      });
+      requestsSnap.forEach(d => {
+        const r = d.data();
+        if (r.scheduledDate) rows.push({ date: r.scheduledDate, source: 'Service Center', id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status });
+      });
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (filter === 'upcoming') {
+        rows = rows.filter(r => r.date >= todayStr && r.status !== 'completed' && r.status !== 'cancelled');
+      }
+      rows.sort((a, b) => a.date.localeCompare(b.date));
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      let lastDate = null;
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        const dateCell = r.date === lastDate ? '' : `<b>${r.date}</b>`;
+        lastDate = r.date;
+        tr.innerHTML = `
+          <td style="white-space:nowrap;">${dateCell}</td>
+          <td>${r.source}</td>
+          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${r.customer || '—'}</td>
+          <td>${r.assigned || '—'}</td>
+          <td><span class="status-pill ${r.status}">${r.status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load appointments failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load appointments. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
   // SERVICE — company-wide serviceJobs + centerRequests, combined.
   // =================================================================
 
@@ -2709,6 +2798,64 @@
       document.getElementById('fin-lp-pending').textContent = lpPending;
     } catch (err) {
       console.error('Load finance overview failed:', err);
+    }
+  }
+
+  // =================================================================
+  // PAYMENTS — every recorded settlement, with method and reference,
+  // written whenever Warehouse marks a claim Settled or a local
+  // purchase Reimbursed (see payment-overlay in CRMwarehouse.html).
+  // =================================================================
+
+  async function renderPayments() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Total Paid</div><div class="value" id="pay-total">…</div><div class="hint">All recorded payments</div></div>
+        <div class="stat-card"><div class="label">Claim Payments</div><div class="value" id="pay-claims-total">…</div><div class="hint">Sum for claims</div></div>
+        <div class="stat-card"><div class="label">Local Purchase Payments</div><div class="value" id="pay-lp-total">…</div><div class="hint">Sum for local purchases</div></div>
+        <div class="stat-card"><div class="label">Payments Recorded</div><div class="value" id="pay-count">…</div><div class="hint">All time</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Payment history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Description</th><th>Amount</th><th>Method</th><th>Payment Ref.</th></tr></thead>
+            <tbody id="pay-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('pay-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'payments'), orderBy('createdAt', 'desc')));
+      let total = 0, claimsTotal = 0, lpTotal = 0;
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No payments recorded yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = '';
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const amt = Number(d.amount) || 0;
+          total += amt;
+          if (d.sourceType === 'claim') claimsTotal += amt; else lpTotal += amt;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="white-space:nowrap;">${d.paidDate || '—'}</td>
+            <td style="text-transform:capitalize;">${d.sourceType === 'claim' ? 'Claim' : 'Local Purchase'}</td>
+            <td style="font-size:12px;color:var(--stone);">${d.sourceRef || '—'}</td>
+            <td>${d.description || '—'}</td>
+            <td>₹${amt}</td>
+            <td>${d.method || '—'}</td>
+            <td style="font-size:12px;color:var(--stone);">${d.referenceNumber || '—'}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('pay-total').textContent = '₹' + total;
+      document.getElementById('pay-claims-total').textContent = '₹' + claimsTotal;
+      document.getElementById('pay-lp-total').textContent = '₹' + lpTotal;
+      document.getElementById('pay-count').textContent = snap.size;
+    } catch (err) {
+      console.error('Load payments failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load payments. Check console for details.</td></tr>`;
     }
   }
 

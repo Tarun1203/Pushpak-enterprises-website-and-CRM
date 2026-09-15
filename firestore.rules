@@ -354,6 +354,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------
+    // Payments — a real settlement record (method, reference, paid
+    // date) created whenever Warehouse marks a claim "Settled" or a
+    // local purchase "Reimbursed", instead of that being a bare
+    // status flip with no payment trail.
+    // ---------------------------------------------------------------
+
+    match /payments/{paymentId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow read: if isStaff();
       allow write: if isAdmin();
