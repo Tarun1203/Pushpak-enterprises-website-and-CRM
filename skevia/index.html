@@ -58,6 +58,9 @@
 
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-top:24px;}
   .product-card{background:var(--paper);padding:26px 22px;display:block;text-decoration:none;color:inherit;transition:background .15s;}
+  .product-card-image{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;margin-bottom:14px;background:var(--paper-deep);}
+  .product-card-image-placeholder{display:flex;align-items:center;justify-content:center;}
+  .product-card-image-placeholder span{font-size:32px;font-weight:800;color:var(--brand);opacity:0.35;}
   .product-card:hover{background:var(--paper-deep);}
   .product-card .view-details{font-size:12px;font-weight:600;color:var(--brand);margin-top:10px;}
   .product-card .cat{font-size:11.5px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
@@ -304,7 +307,11 @@
       const card = document.createElement('a');
       card.href = `../product.html?id=${p.id}`;
       card.className = 'product-card';
+      const imageHtml = p.imageUrl
+        ? `<img src="${p.imageUrl}" alt="${p.name || ''}" class="product-card-image">`
+        : `<div class="product-card-image product-card-image-placeholder"><span>${(p.name || 'P').charAt(0)}</span></div>`;
       card.innerHTML = `
+        ${imageHtml}
         <div class="cat">${p.categoryName || 'Product'}</div>
         <h3>${p.name || 'Unnamed product'}</h3>
         <div class="price">${p.price != null ? '₹' + p.price : 'Price on request'}</div>

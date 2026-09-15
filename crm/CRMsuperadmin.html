@@ -339,6 +339,11 @@
         </select>
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
+      <div class="form-row">
+        <label>Product image</label>
+        <div id="product-image-preview" style="margin-bottom:8px;"></div>
+        <input type="file" id="product-image-input" accept="image/*">
+      </div>
       <div class="modal-error" id="product-error"></div>
       <div class="modal-success" id="product-success"></div>
       <div class="modal-actions">
@@ -551,6 +556,7 @@
   import {
     getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -565,6 +571,7 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const storage = getStorage(app);
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -1417,8 +1424,8 @@
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Actions</th></tr></thead>
-            <tbody id="products-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Actions</th></tr></thead>
+            <tbody id="products-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -1431,7 +1438,7 @@
     try {
       const snap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No products yet — add your first one. This is what Dealers see in their Products tab.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No products yet — add your first one. This is what Dealers see in their Products tab.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -1439,6 +1446,7 @@
         const d = { id: docSnap.id, ...docSnap.data() };
         const tr = document.createElement('tr');
         tr.innerHTML = `
+          <td>${d.imageUrl ? `<img src="${d.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">` : '<span style="color:var(--stone);font-size:11px;">No image</span>'}</td>
           <td>${d.name || '—'}</td>
           <td>${d.categoryName || d.category || '—'}</td>
           <td>${BRAND_LABELS[d.brandId] || d.brand || '—'}</td>
@@ -1493,6 +1501,7 @@
     productError.classList.remove('show');
     productSuccess.classList.remove('show');
     productSubmitBtn.disabled = false;
+    const imagePreview = document.getElementById('product-image-preview');
     if (existing) {
       productModalTitle.textContent = 'Edit product';
       document.getElementById('product-editing-id').value = existing.id;
@@ -1500,11 +1509,15 @@
       productBrandSelect.value = existing.brandId || 'makwell';
       document.getElementById('product-price').value = existing.price ?? '';
       populateProductCategoryOptions(productBrandSelect.value, existing.categoryId || null);
+      imagePreview.innerHTML = existing.imageUrl
+        ? `<img src="${existing.imageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">`
+        : '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
       productSubmitBtn.textContent = 'Save changes';
     } else {
       productModalTitle.textContent = 'Add product';
       document.getElementById('product-editing-id').value = '';
       populateProductCategoryOptions(productBrandSelect.value, null);
+      imagePreview.innerHTML = '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
       productSubmitBtn.textContent = 'Save product';
     }
     productOverlay.classList.add('show');
@@ -1531,11 +1544,34 @@
       price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
     };
     try {
+      let productId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'products', editingId), payload);
       } else {
-        await addDoc(collection(db, 'products'), { ...payload, createdAt: serverTimestamp() });
+        const ref = await addDoc(collection(db, 'products'), { ...payload, createdAt: serverTimestamp() });
+        productId = ref.id;
       }
+
+      const imageFile = document.getElementById('product-image-input').files[0];
+      if (imageFile) {
+        if (imageFile.size > 10 * 1024 * 1024) {
+          productError.textContent = 'Image saved product info, but the image itself is over 10MB and was skipped.';
+          productError.classList.add('show');
+        } else {
+          try {
+            const filePath = `products/${productId}/${Date.now()}_${imageFile.name}`;
+            const fileRef = storageRef(storage, filePath);
+            await uploadBytes(fileRef, imageFile);
+            const imageUrl = await getDownloadURL(fileRef);
+            await updateDoc(doc(db, 'products', productId), { imageUrl });
+          } catch (imgErr) {
+            console.error('Image upload failed:', imgErr);
+            productError.textContent = 'Product saved, but the image upload failed. Check console for details.';
+            productError.classList.add('show');
+          }
+        }
+      }
+
       productSuccess.textContent = 'Saved.';
       productSuccess.classList.add('show');
       productSubmitBtn.disabled = false;

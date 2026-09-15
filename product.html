@@ -194,8 +194,10 @@
 
       contentEl.innerHTML = `
         <div class="product-hero">
-          <div class="product-visual">
-            <div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>
+          <div class="product-visual" style="${product.imageUrl ? 'padding:0;' : ''}">
+            ${product.imageUrl
+              ? `<img src="${product.imageUrl}" alt="${product.name || ''}" style="width:100%;height:100%;object-fit:cover;">`
+              : `<div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>`}
           </div>
           <div class="product-info">
             <div class="cat">${product.categoryName || 'Product'}</div>

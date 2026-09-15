@@ -21,6 +21,20 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // ---------------------------------------------------------------
+    // Product images — shown on the public brand microsites, so
+    // these need public read (unlike diagnosis photos above, which
+    // are internal-only). Only Super Admin/Warehouse can upload,
+    // matching who can edit the product catalog itself in Firestore.
+    // ---------------------------------------------------------------
+
+    match /products/{productId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;

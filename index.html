@@ -355,9 +355,9 @@
       <p>Everything you need after you've bought a MakWell, Flyvision or Skevia product.</p>
     </div>
     <div class="services-grid">
-      <button type="button" class="service-card" data-modal="register"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
-      <button type="button" class="service-card" data-modal="book"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
-      <button type="button" class="service-card" data-modal="track"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
+      <button type="button" class="service-card" data-category="Register a Product"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
+      <button type="button" class="service-card" data-category="Service Request"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
+      <button type="button" class="service-card" data-category="Track a Service"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
       <button type="button" class="service-card" data-category="Warranty Check"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
       <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
       <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
@@ -407,8 +407,15 @@
         <span id="phone-error" class="field-error"></span>
         <select name="subject" id="enquiry-subject" required>
           <option value="">What's this about?</option>
+          <option value="Register a Product">Register a Product</option>
           <option value="Service Request">Service Request</option>
           <option value="Installation / Demo Request">Installation / Demo</option>
+          <option value="Track a Service">Track a Service</option>
+          <option value="Warranty Check">Warranty Status</option>
+          <option value="Manuals Request">Manuals</option>
+          <option value="Brochures Request">Brochures</option>
+          <option value="General Support">Support</option>
+          <option value="FAQ / Question">FAQ / Question</option>
           <option value="Other">Other</option>
         </select>
         <select name="brand" id="enquiry-brand">
@@ -438,24 +445,6 @@
     <span>MakWell · Flyvision · Skevia</span>
   </div>
 </footer>
-
-<!-- Customer service request modal -->
-<div class="modal-overlay" id="service-modal-overlay">
-  <div class="modal">
-    <button type="button" class="modal-close" id="service-modal-close">&times;</button>
-    <h3 id="service-modal-title">Register a Product</h3>
-    <div class="modal-sub">Fill in your details and we'll get back to you.</div>
-    <form id="service-modal-form">
-      <input type="text" name="name" placeholder="Your name" required>
-      <input type="tel" name="phone" id="service-modal-phone" placeholder="Phone number (10-digit mobile)"
-        inputmode="numeric" maxlength="10" required>
-      <span id="service-modal-phone-error" class="field-error"></span>
-      <textarea name="message" placeholder="Details (product, serial number, etc. if relevant)" required></textarea>
-      <button type="submit">Submit request</button>
-      <div class="ticket-note" id="service-modal-ticket-note"></div>
-    </form>
-  </div>
-</div>
 
 <!-- Register Product modal -->
 <div class="modal-overlay" id="register-overlay">
@@ -631,80 +620,20 @@
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
-  // Customer service cards — each opens this shared modal, pre-set
-  // to that card's category, and submits straight to contactEnquiries
-  // using the same ticket-ID scheme as the main enquiry form.
-  const serviceModalOverlay = document.getElementById('service-modal-overlay');
-  const serviceModalTitle = document.getElementById('service-modal-title');
-  const serviceModalForm = document.getElementById('service-modal-form');
-  const serviceModalPhone = document.getElementById('service-modal-phone');
-  const serviceModalPhoneError = document.getElementById('service-modal-phone-error');
-  const serviceModalTicketNote = document.getElementById('service-modal-ticket-note');
-  let currentServiceCategory = '';
-
+  // Customer service cards — scroll to the Contact section and
+  // pre-select the matching category in the enquiry form's dropdown,
+  // rather than opening a separate popup for each one.
   document.querySelectorAll('.service-card').forEach(card => {
     card.addEventListener('click', () => {
-      const modalType = card.dataset.modal;
-      if (modalType === 'register') { openRegisterModal(); return; }
-      if (modalType === 'book') { openBookModal(); return; }
-      if (modalType === 'track') { openTrackModal(); return; }
-      currentServiceCategory = card.dataset.category;
-      serviceModalTitle.textContent = card.querySelector('h3').textContent;
-      serviceModalForm.reset();
-      serviceModalPhoneError.classList.remove('show');
-      serviceModalTicketNote.textContent = '';
-      serviceModalOverlay.classList.add('show');
+      const category = card.dataset.category;
+      const subjectSelect = document.getElementById('enquiry-subject');
+      if (subjectSelect) {
+        subjectSelect.value = category;
+      }
+      document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
+      const nameField = document.querySelector('#enquiry-form input[name="name"]');
+      if (nameField) setTimeout(() => nameField.focus(), 400);
     });
-  });
-
-  function closeServiceModal() { serviceModalOverlay.classList.remove('show'); }
-  document.getElementById('service-modal-close').addEventListener('click', closeServiceModal);
-  serviceModalOverlay.addEventListener('click', (e) => { if (e.target === serviceModalOverlay) closeServiceModal(); });
-
-  serviceModalPhone.addEventListener('input', () => {
-    serviceModalPhone.value = serviceModalPhone.value.replace(/[^\d+\s-]/g, '');
-  });
-
-  serviceModalForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const btn = form.querySelector('button');
-
-    const normalizedPhone = normalizePhone(serviceModalPhone.value.trim());
-    if (!isValidIndianMobile(normalizedPhone)) {
-      serviceModalPhoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
-      serviceModalPhoneError.classList.add('show');
-      serviceModalPhone.focus();
-      return;
-    }
-    serviceModalPhoneError.classList.remove('show');
-
-    const original = btn.textContent;
-    btn.textContent = 'Sending…';
-    btn.disabled = true;
-    serviceModalTicketNote.textContent = '';
-    let ticketId;
-    try {
-      ticketId = await generateTicketId('ENQ', 'CustomerSite');
-      await addDoc(collection(db, 'contactEnquiries'), {
-        ticketId,
-        name: form.name.value.trim(),
-        phone: normalizedPhone,
-        subject: currentServiceCategory,
-        message: form.message.value.trim(),
-        source: 'landing-page-card',
-        createdAt: serverTimestamp()
-      });
-      btn.textContent = 'Sent — thank you';
-      serviceModalTicketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
-      form.reset();
-    } catch (err) {
-      console.error('Service request submit failed:', err);
-      btn.textContent = 'Something went wrong — try again';
-      btn.disabled = false;
-      return;
-    }
-    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
   });
 
   // =================================================================
