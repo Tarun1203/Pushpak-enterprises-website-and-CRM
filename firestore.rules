@@ -161,7 +161,17 @@ service cloud.firestore {
     }
 
     match /productRegistrations/{id} {
-      allow read, update: if isAdmin()
+      // Public read: the "Book a Service" search-by-mobile step needs
+      // to QUERY this collection by phone number for anyone, signed
+      // in or not — Firestore rules can't restrict a list/query to
+      // "only if the caller supplied the matching phone," they only
+      // see the resulting document's data, not the query filter used
+      // to find it. So this is genuinely public read, same tradeoff
+      // as Track Service's ticket-ID design (see publicServiceRequests
+      // below) — anyone with direct API access could list every
+      // registration, not just search their own by phone.
+      allow read: if true;
+      allow update: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid)
