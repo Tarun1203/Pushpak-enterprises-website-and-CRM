@@ -172,7 +172,7 @@
   @media (max-width:860px){.about-grid{grid-template-columns:1fr;gap:20px;}}
 
   /* ---------- Contact ---------- */
-  .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;}
+  .contact-info-standalone{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;}
   .modal-overlay{
     position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
     align-items:center;justify-content:center;z-index:100;padding:20px;
@@ -220,14 +220,13 @@
   form textarea{resize:vertical;min-height:100px;}
   .field-error{font-size:12px;color:#B3261E;display:none;margin-top:-8px;}
   .field-error.show{display:block;}
-  #enquiry-phone.invalid{border-color:#B3261E;}
   .ticket-note{font-size:13px;color:var(--stone);margin-top:4px;}
   .ticket-note b{color:var(--blue);}
   form button{
     background:var(--blue);color:#fff;font-weight:600;font-size:14px;
     padding:14px 26px;border:none;border-radius:var(--radius);cursor:pointer;width:fit-content;
   }
-  @media (max-width:860px){.contact-grid{grid-template-columns:1fr;gap:32px;}}
+  @media (max-width:860px){.contact-info-standalone{grid-template-columns:1fr;gap:24px;}}
 
   /* ---------- Footer ---------- */
   footer{padding:36px 0;}
@@ -355,9 +354,9 @@
       <p>Everything you need after you've bought a MakWell, Flyvision or Skevia product.</p>
     </div>
     <div class="services-grid">
-      <button type="button" class="service-card" data-category="Register a Product"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
-      <button type="button" class="service-card" data-category="Service Request"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
-      <button type="button" class="service-card" data-category="Track a Service"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
+      <button type="button" class="service-card" data-modal="register"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
+      <button type="button" class="service-card" data-modal="book"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
+      <button type="button" class="service-card" data-modal="track"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
       <button type="button" class="service-card" data-category="Warranty Check"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
       <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
       <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
@@ -382,59 +381,22 @@
   <div class="wrap">
     <div class="section-head">
       <h2>Get in touch</h2>
-      <p>Send a message and we'll route it accordingly.</p>
+      <p>Reach out any time — here's how.</p>
     </div>
 
-    <div class="contact-grid" style="margin-top:40px;">
-      <div>
-        <div class="contact-detail">
-          <div class="label">Location</div>
-          <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
-        </div>
-        <div class="contact-detail">
-          <div class="label">Phone</div>
-          <div class="value" id="contact-phone">+91 99800 00515</div>
-        </div>
-        <div class="contact-detail">
-          <div class="label">Email</div>
-          <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
-        </div>
+    <div class="contact-info-standalone" style="margin-top:40px;">
+      <div class="contact-detail">
+        <div class="label">Location</div>
+        <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
       </div>
-      <form id="enquiry-form">
-        <input type="text" name="name" placeholder="Your name" required>
-        <input type="tel" name="phone" id="enquiry-phone" placeholder="Phone number (10-digit mobile)"
-          inputmode="numeric" maxlength="10" required>
-        <span id="phone-error" class="field-error"></span>
-        <select name="subject" id="enquiry-subject" required>
-          <option value="">What's this about?</option>
-          <option value="Register a Product">Register a Product</option>
-          <option value="Service Request">Service Request</option>
-          <option value="Installation / Demo Request">Installation / Demo</option>
-          <option value="Track a Service">Track a Service</option>
-          <option value="Warranty Check">Warranty Status</option>
-          <option value="Manuals Request">Manuals</option>
-          <option value="Brochures Request">Brochures</option>
-          <option value="General Support">Support</option>
-          <option value="FAQ / Question">FAQ / Question</option>
-          <option value="Other">Other</option>
-        </select>
-        <select name="brand" id="enquiry-brand">
-          <option value="">Brand (optional)</option>
-          <option value="MakWell">MakWell</option>
-          <option value="Flyvision">Flyvision</option>
-          <option value="Skevia">Skevia</option>
-        </select>
-        <input type="text" name="product" placeholder="Product / category (optional)">
-        <input type="text" name="modelNo" placeholder="Model No (optional)">
-        <input type="text" name="serialNo" placeholder="Serial No (optional)">
-        <input type="text" name="dealerName" placeholder="Purchased from — dealer name (optional)">
-        <input type="text" name="address" placeholder="Address (optional)">
-        <input type="text" name="city" placeholder="City (optional)">
-        <input type="text" name="pincode" placeholder="Pincode (optional)" inputmode="numeric" maxlength="6">
-        <textarea name="message" placeholder="Message" required></textarea>
-        <button type="submit">Send enquiry</button>
-        <div class="ticket-note" id="ticket-note"></div>
-      </form>
+      <div class="contact-detail">
+        <div class="label">Phone</div>
+        <div class="value" id="contact-phone">+91 99800 00515</div>
+      </div>
+      <div class="contact-detail">
+        <div class="label">Email</div>
+        <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
+      </div>
     </div>
   </div>
 </section>
@@ -447,6 +409,45 @@
 </footer>
 
 <!-- Register Product modal -->
+<!-- Generic service request modal (Warranty/Manuals/Brochures/Support/FAQ) -->
+<div class="modal-overlay" id="service-modal-overlay">
+  <div class="modal modal-wide">
+    <button type="button" class="modal-close" id="service-modal-close">&times;</button>
+    <h3 id="service-modal-title">Warranty Status</h3>
+    <div class="modal-sub">Fill in your details and we'll get back to you.</div>
+    <form id="service-modal-form">
+      <div class="form-grid-2">
+        <input type="text" name="name" placeholder="Your name" required>
+        <input type="tel" name="phone" id="service-modal-phone" placeholder="Phone number (10-digit mobile)"
+          inputmode="numeric" maxlength="10" required>
+      </div>
+      <span id="service-modal-phone-error" class="field-error"></span>
+      <div class="form-grid-2">
+        <select name="brand" id="service-modal-brand">
+          <option value="">Brand (optional)</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+        <input type="text" name="product" placeholder="Product / category (optional)">
+      </div>
+      <div class="form-grid-2">
+        <input type="text" name="modelNo" placeholder="Model No (optional)">
+        <input type="text" name="serialNo" placeholder="Serial No (optional)">
+      </div>
+      <input type="text" name="dealerName" placeholder="Purchased from — dealer name (optional)">
+      <input type="text" name="address" placeholder="Address (optional)">
+      <div class="form-grid-2">
+        <input type="text" name="city" placeholder="City (optional)">
+        <input type="text" name="pincode" placeholder="Pincode (optional)" inputmode="numeric" maxlength="6">
+      </div>
+      <textarea name="message" placeholder="Details" required></textarea>
+      <button type="submit">Submit request</button>
+      <div class="ticket-note" id="service-modal-ticket-note"></div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="register-overlay">
   <div class="modal modal-wide">
     <button type="button" class="modal-close" id="register-close">&times;</button>
@@ -620,20 +621,104 @@
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
-  // Customer service cards — scroll to the Contact section and
-  // pre-select the matching category in the enquiry form's dropdown,
-  // rather than opening a separate popup for each one.
+  // Customer service cards — each opens a popup: Register/Book/Track
+  // open their own dedicated modal (search-by-mobile, structured
+  // fields), the rest open the shared generic modal pre-set to that
+  // card's category.
+  const serviceModalOverlay = document.getElementById('service-modal-overlay');
+  const serviceModalTitle = document.getElementById('service-modal-title');
+  const serviceModalForm = document.getElementById('service-modal-form');
+  const serviceModalPhone = document.getElementById('service-modal-phone');
+  const serviceModalPhoneError = document.getElementById('service-modal-phone-error');
+  const serviceModalTicketNote = document.getElementById('service-modal-ticket-note');
+  let currentServiceCategory = '';
+
+  function openGenericServiceModal(category, title) {
+    currentServiceCategory = category;
+    serviceModalTitle.textContent = title;
+    serviceModalForm.reset();
+    serviceModalPhoneError.classList.remove('show');
+    serviceModalTicketNote.textContent = '';
+    serviceModalOverlay.classList.add('show');
+  }
+
   document.querySelectorAll('.service-card').forEach(card => {
     card.addEventListener('click', () => {
-      const category = card.dataset.category;
-      const subjectSelect = document.getElementById('enquiry-subject');
-      if (subjectSelect) {
-        subjectSelect.value = category;
-      }
-      document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
-      const nameField = document.querySelector('#enquiry-form input[name="name"]');
-      if (nameField) setTimeout(() => nameField.focus(), 400);
+      const modalType = card.dataset.modal;
+      if (modalType === 'register') { openRegisterModal(); return; }
+      if (modalType === 'book') { openBookModal(); return; }
+      if (modalType === 'track') { openTrackModal(); return; }
+      openGenericServiceModal(card.dataset.category, card.querySelector('h3').textContent);
     });
+  });
+
+  function closeServiceModal() { serviceModalOverlay.classList.remove('show'); }
+  document.getElementById('service-modal-close').addEventListener('click', closeServiceModal);
+  serviceModalOverlay.addEventListener('click', (e) => { if (e.target === serviceModalOverlay) closeServiceModal(); });
+
+  serviceModalPhone.addEventListener('input', () => {
+    serviceModalPhone.value = serviceModalPhone.value.replace(/[^\d+\s-]/g, '');
+  });
+
+  serviceModalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button');
+
+    const normalizedPhone = normalizePhone(serviceModalPhone.value.trim());
+    if (!isValidIndianMobile(normalizedPhone)) {
+      serviceModalPhoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
+      serviceModalPhoneError.classList.add('show');
+      serviceModalPhone.focus();
+      return;
+    }
+    serviceModalPhoneError.classList.remove('show');
+
+    const original = btn.textContent;
+    btn.textContent = 'Sending…';
+    btn.disabled = true;
+    serviceModalTicketNote.textContent = '';
+    let ticketId;
+    try {
+      ticketId = await generateTicketId('ENQ', 'CustomerSite');
+      await addDoc(collection(db, 'contactEnquiries'), {
+        ticketId,
+        name: form.name.value.trim(),
+        phone: normalizedPhone,
+        subject: currentServiceCategory,
+        brand: form.brand.value,
+        product: form.product.value.trim(),
+        modelNo: form.modelNo.value.trim(),
+        serialNo: form.serialNo.value.trim(),
+        dealerName: form.dealerName.value.trim(),
+        address: form.address.value.trim(),
+        city: form.city.value.trim(),
+        pincode: form.pincode.value.trim(),
+        message: form.message.value.trim(),
+        source: 'landing-page-card',
+        createdAt: serverTimestamp()
+      });
+      // Notify Super Admin of the new enquiry (best-effort — a failure
+      // here shouldn't block the enquiry submission itself).
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          recipientType: 'role', recipientValue: 'superadmin',
+          title: 'New website enquiry', message: `${form.name.value.trim()} — ${currentServiceCategory || 'General enquiry'} (${ticketId})`,
+          read: false, createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification write failed (non-blocking):', notifErr.message);
+      }
+      btn.textContent = 'Sent — thank you';
+      serviceModalTicketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
+      form.reset();
+    } catch (err) {
+      console.error('Service request submit failed:', err);
+      btn.textContent = 'Something went wrong — try again';
+      btn.disabled = false;
+      return;
+    }
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
   });
 
   // =================================================================
@@ -1016,13 +1101,25 @@
     btn.disabled = false;
   });
 
-  // Hash-based modal auto-open — lets other pages (e.g. product.html)
-  // link straight into the Register/Book/Track modals.
+  // Hash-based modal auto-open — lets other pages (e.g. product.html,
+  // and every brand microsite's Customer Services cards) link
+  // straight into any of the 8 modals without duplicating them.
+  const HASH_GENERIC_CATEGORIES = {
+    'warranty-check': ['Warranty Check', 'Warranty Status'],
+    'manuals': ['Manuals Request', 'Manuals'],
+    'brochures': ['Brochures Request', 'Brochures'],
+    'support': ['General Support', 'Support'],
+    'faq': ['FAQ / Question', 'FAQs'],
+  };
   function applyHashCategory() {
     const hash = window.location.hash.replace('#', '');
     if (hash === 'register-product') { openRegisterModal(); return; }
     if (hash === 'book-service') { openBookModal(); return; }
     if (hash === 'track-service') { openTrackModal(); return; }
+    if (HASH_GENERIC_CATEGORIES[hash]) {
+      const [category, title] = HASH_GENERIC_CATEGORIES[hash];
+      openGenericServiceModal(category, title);
+    }
   }
   window.addEventListener('hashchange', applyHashCategory);
   applyHashCategory();
@@ -1138,79 +1235,6 @@
   function isValidIndianMobile(digits) {
     return /^[6-9]\d{9}$/.test(digits);
   }
-
-  const phoneInput = document.getElementById('enquiry-phone');
-  const phoneError = document.getElementById('phone-error');
-
-  phoneInput.addEventListener('input', () => {
-    phoneInput.value = phoneInput.value.replace(/[^\d+\s-]/g, '');
-  });
-
-  // Enquiry form -> writes to a `contactEnquiries` collection for CRM's
-  // Website Management > Contact Enquiries module to pick up.
-  document.getElementById('enquiry-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const btn = form.querySelector('button');
-    const ticketNote = document.getElementById('ticket-note');
-
-    const normalizedPhone = normalizePhone(phoneInput.value.trim());
-    if (!isValidIndianMobile(normalizedPhone)) {
-      phoneInput.classList.add('invalid');
-      phoneError.textContent = 'Enter a valid 10-digit mobile number (e.g. 9980000515).';
-      phoneError.classList.add('show');
-      phoneInput.focus();
-      return;
-    }
-    phoneInput.classList.remove('invalid');
-    phoneError.classList.remove('show');
-
-    const original = btn.textContent;
-    btn.textContent = 'Sending…';
-    btn.disabled = true;
-    ticketNote.textContent = '';
-    let ticketId;
-    try {
-      ticketId = await generateTicketId('ENQ', 'CustomerSite');
-      await addDoc(collection(db, 'contactEnquiries'), {
-        ticketId,
-        name: form.name.value.trim(),
-        phone: normalizedPhone,
-        subject: form.subject.value.trim(),
-        brand: form.brand.value,
-        product: form.product.value.trim(),
-        modelNo: form.modelNo.value.trim(),
-        serialNo: form.serialNo.value.trim(),
-        dealerName: form.dealerName.value.trim(),
-        address: form.address.value.trim(),
-        city: form.city.value.trim(),
-        pincode: form.pincode.value.trim(),
-        message: form.message.value.trim(),
-        source: 'landing-page',
-        createdAt: serverTimestamp()
-      });
-      // Notify Super Admin of the new enquiry (best-effort — a failure
-      // here shouldn't block the enquiry submission itself).
-      try {
-        await addDoc(collection(db, 'notifications'), {
-          recipientType: 'role', recipientValue: 'superadmin',
-          title: 'New website enquiry', message: `${form.name.value.trim()} — ${form.subject.value.trim() || 'General enquiry'} (${ticketId})`,
-          read: false, createdAt: serverTimestamp()
-        });
-      } catch (notifErr) {
-        console.warn('Notification write failed (non-blocking):', notifErr.message);
-      }
-      btn.textContent = 'Sent — thank you';
-      ticketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
-      form.reset();
-    } catch (err) {
-      console.error('Enquiry submit failed:', err);
-      btn.textContent = 'Something went wrong — try again';
-      btn.disabled = false;
-      return;
-    }
-    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 3000);
-  });
 
 </script>
 
