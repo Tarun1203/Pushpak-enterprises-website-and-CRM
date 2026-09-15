@@ -355,6 +355,27 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // In-app notifications — targeted either at a specific user
+    // (recipientType 'uid') or an entire role (recipientType 'role').
+    // Create is intentionally open (validated) because the public
+    // contact form — unauthenticated — needs to notify Super Admin
+    // of a new enquiry; read/update are restricted to the actual
+    // recipient. This is the achievable slice of "Communication"
+    // without a real WhatsApp/SMS/Email provider connected (see
+    // messageTemplates above for the rest of that honest scoping).
+    // ---------------------------------------------------------------
+
+    match /notifications/{notifId} {
+      allow read, update: if isSignedIn() && (
+        isAdmin()
+        || (resource.data.recipientType == 'uid' && resource.data.recipientValue == request.auth.uid)
+        || (resource.data.recipientType == 'role' && resource.data.recipientValue == callerRole())
+      );
+      allow create: if request.resource.data.keys().hasAll(['recipientType', 'recipientValue', 'title', 'message', 'read', 'createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Payments — a real settlement record (method, reference, paid
     // date) created whenever Warehouse marks a claim "Settled" or a
     // local purchase "Reimbursed", instead of that being a bare

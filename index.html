@@ -1284,6 +1284,17 @@
         source: 'landing-page',
         createdAt: serverTimestamp()
       });
+      // Notify Super Admin of the new enquiry (best-effort — a failure
+      // here shouldn't block the enquiry submission itself).
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          recipientType: 'role', recipientValue: 'superadmin',
+          title: 'New website enquiry', message: `${form.name.value.trim()} — ${form.subject.value.trim() || 'General enquiry'} (${ticketId})`,
+          read: false, createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification write failed (non-blocking):', notifErr.message);
+      }
       btn.textContent = 'Sent — thank you';
       ticketNote.innerHTML = `Your reference number: <b>${ticketId}</b> — save this for follow-up.`;
       form.reset();

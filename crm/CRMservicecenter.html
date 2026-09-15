@@ -1433,6 +1433,15 @@
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          recipientType: 'role', recipientValue: 'warehouse',
+          title: 'New claim submitted', message: `Service Center ${currentUser.email} — ₹${document.getElementById('cclaim-amount').value} (${claimId})`,
+          read: false, createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification write failed (non-blocking):', notifErr.message);
+      }
       cclaimSuccess.textContent = `Submitted — ${claimId}`;
       cclaimSuccess.classList.add('show');
       cclaimSubmitBtn.disabled = false;
