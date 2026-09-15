@@ -1636,6 +1636,16 @@
         await updateDoc(doc(db, 'localPurchases', sourceId), { status: 'reimbursed', updatedAt: serverTimestamp() });
         loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
       }
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'payment', entityId: sourceId, action: 'settled',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Recorded ₹${document.getElementById('payment-amount').value} payment (${document.getElementById('payment-method').value}) for ${refId}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
       paymentSuccess.textContent = 'Payment recorded.';
       paymentSuccess.classList.add('show');
       paymentSubmitBtn.disabled = false;

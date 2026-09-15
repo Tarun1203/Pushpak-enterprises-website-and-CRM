@@ -1046,6 +1046,17 @@
         name, email, role, createdAt: new Date().toISOString()
       });
 
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'user', entityId: newUid, action: 'created',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Created account for ${email} with role "${role}"`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+
       await signOut(secondaryAuth);
       await deleteApp(secondaryApp);
 
@@ -1087,10 +1098,12 @@
   const resetPasswordBtn = document.getElementById('reset-password-btn');
   let editingUid = null;
   let editingEmail = null;
+  let editingOriginalRole = null;
 
   function openEditUserModal(uid, data) {
     editingUid = uid;
     editingEmail = data.email || '';
+    editingOriginalRole = data.role || '';
     editNameInput.value = data.name || '';
     editEmailInput.value = data.email || '(not on record)';
     editRoleSelect.value = data.role || '';
@@ -1122,6 +1135,20 @@
         name: editNameInput.value.trim(),
         role: editRoleSelect.value
       });
+      try {
+        const roleChanged = editingOriginalRole !== editRoleSelect.value;
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'user', entityId: editingUid,
+          action: roleChanged ? 'role_changed' : 'updated',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: roleChanged
+            ? `Changed role for ${editingEmail} from "${editingOriginalRole}" to "${editRoleSelect.value}"`
+            : `Updated profile for ${editingEmail}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
       editUserSuccess.textContent = 'Saved.';
       editUserSuccess.classList.add('show');
       editSubmitBtn.textContent = 'Save changes';
@@ -3488,6 +3515,16 @@
         btn.addEventListener('click', async () => {
           try {
             await updateDoc(doc(db, 'rmaRequests', btn.dataset.id), { status: btn.dataset.next, updatedAt: serverTimestamp() });
+            try {
+              await addDoc(collection(db, 'auditLogs'), {
+                entityType: 'rma', entityId: btn.dataset.id, action: 'status_changed',
+                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+                details: `RMA status changed to "${btn.dataset.next}"`,
+                createdAt: serverTimestamp()
+              });
+            } catch (auditErr) {
+              console.warn('Audit log write failed (non-blocking):', auditErr.message);
+            }
             loadRmaList();
           } catch (err) {
             console.error('Update RMA failed:', err);
@@ -3773,12 +3810,41 @@
     });
   }
 
+  const AUDIT_ACTION_LABELS = { created: 'Created', updated: 'Updated', role_changed: 'Role Changed', settled: 'Settled', status_changed: 'Status Changed' };
+
+  async function loadAuditLogs() {
+    const tbody = document.getElementById('audit-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No audit entries yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
+          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${AUDIT_ACTION_LABELS[d.action] || d.action}</span></td>
+          <td style="font-size:12px;">${d.performedBy || '—'}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load audit logs failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the audit log. Check console for details.</td></tr>`;
+    }
+  }
+
   // =================================================================
-  // ADMINISTRATION — general company settings only. Audit Logs and
-  // State & District master data aren't built: audit logging would
-  // need instrumentation added to every write across the whole CRM
-  // (a cross-cutting change, not a single module), and State &
-  // District master data has no consumer anywhere yet to justify it.
+  // ADMINISTRATION — general company settings, plus Audit Logs
+  // (scoped to privilege changes and financial settlements/status
+  // changes — see the auditLogs rule comment for why that scope,
+  // not literally every write). State & District master data still
+  // isn't built: it has no consumer anywhere yet to justify it.
   // =================================================================
 
   async function renderAdministration() {
@@ -3794,10 +3860,20 @@
           <button class="btn-primary" id="save-admin-settings" style="margin-top:8px;">Save changes</button>
         </div>
       </div>
+      <div class="panel" style="margin-top:24px;">
+        <div class="panel-header"><h2>Audit log</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Action</th><th>By</th><th>Details</th></tr></thead>
+            <tbody id="audit-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
       <div class="coming-soon" style="margin-top:24px;">
-        <div class="big">Audit Logs & State/District Master Data aren't built yet</div>
-        <div class="small">Audit logging needs instrumentation added across every write in the CRM, not just this page — a bigger cross-cutting change. State/District data has no consumer yet to justify building it ahead of need.</div>
+        <div class="big">State/District Master Data isn't built yet</div>
+        <div class="small">No screen anywhere in the CRM currently consumes it — building it ahead of an actual need would be speculative.</div>
       </div>`;
+    loadAuditLogs();
     try {
       const snap = await getDoc(doc(db, 'settings', 'general'));
       const d = snap.exists() ? snap.data() : {};

@@ -393,6 +393,23 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Audit logs — scoped to the highest-value actions (privilege
+    // changes and financial settlements/status changes), not every
+    // write across the CRM. Instrumenting literally everything would
+    // be a much bigger cross-cutting change; this covers what an
+    // audit trail is for in practice: who changed a role, who
+    // approved a payment, who changed an RMA's status, and when.
+    // Admin-only read; writes only ever come from admin-triggered
+    // flows (see the corresponding action in each dashboard).
+    // ---------------------------------------------------------------
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
     // Deny by default. Every collection actually used by the app has
     // an explicit rule above — this is a real security boundary, not
     // a temporary placeholder. If a new collection is added later, it
