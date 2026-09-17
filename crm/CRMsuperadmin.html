@@ -321,28 +321,48 @@
 
 <!-- Add/Edit Product modal -->
 <div class="modal-overlay" id="product-overlay">
-  <div class="modal">
+  <div class="modal modal-wide">
     <h3 id="product-modal-title">Add product</h3>
     <form id="product-form">
       <input type="hidden" id="product-editing-id">
+      <input type="hidden" id="product-editing-model-id">
       <div class="form-row"><label>Name</label><input type="text" id="product-name" required></div>
-      <div class="form-row"><label>Brand</label>
-        <select id="product-brand">
-          <option value="makwell">MakWell</option>
-          <option value="flyvision">Flyvision</option>
-          <option value="skevia">Skevia</option>
-        </select>
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row"><label>Brand</label>
+          <select id="product-brand">
+            <option value="makwell">MakWell</option>
+            <option value="flyvision">Flyvision</option>
+            <option value="skevia">Skevia</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Category</label>
+          <select id="product-category-select">
+            <option value="">Select a brand first…</option>
+          </select>
+        </div>
       </div>
-      <div class="form-row"><label>Category</label>
-        <select id="product-category-select">
-          <option value="">Select a brand first…</option>
-        </select>
+      <div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row"><label>Model Number <span class="hint">(e.g. MW43A — if this product only comes in one size, this can just repeat the name)</span></label><input type="text" id="product-model-number" placeholder="e.g. MW43A"></div>
+        <div class="form-row"><label>SKU <span class="hint">(optional)</span></label><input type="text" id="product-sku" placeholder="e.g. MW-TV-43-A"></div>
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
       <div class="form-row">
         <label>Product image</label>
         <div id="product-image-preview" style="margin-bottom:8px;"></div>
         <input type="file" id="product-image-input" accept="image/*">
+      </div>
+      <div id="product-dynamic-attrs"></div>
+      <div class="form-row"><label>Additional notes <span class="hint">(anything not covered by the fields above)</span></label><textarea id="product-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
+      <div class="form-row"><label>Warranty Plan</label>
+        <select id="product-warranty">
+          <option value="">No plan linked</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select id="product-status">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
       <div class="modal-error" id="product-error"></div>
       <div class="modal-success" id="product-success"></div>
@@ -427,17 +447,14 @@
     </form>
   </div>
 </div>
-<!-- Add/Edit Model modal -->
+<!-- Add Variant modal — a new size/model under an EXISTING product -->
 <div class="modal-overlay" id="model-overlay">
   <div class="modal">
-    <h3 id="model-modal-title">Add model</h3>
+    <h3 id="model-modal-title">Add variant</h3>
+    <div class="modal-sub" id="model-product-label" style="font-weight:600;color:var(--ink);"></div>
     <form id="model-form">
       <input type="hidden" id="model-editing-id">
-      <div class="form-row"><label>Product</label>
-        <select id="model-product" required>
-          <option value="">Select a product…</option>
-        </select>
-      </div>
+      <input type="hidden" id="model-product-id">
       <div class="form-row"><label>Model Number</label><input type="text" id="model-number" placeholder="e.g. MW43A" required></div>
       <div class="form-row"><label>SKU</label><input type="text" id="model-sku" placeholder="e.g. MW-TV-43-A"></div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="model-price" min="0" step="0.01"></div>
@@ -458,7 +475,7 @@
       <div class="modal-success" id="model-success"></div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-model">Cancel</button>
-        <button type="submit" class="btn-primary" id="submit-model">Save model</button>
+        <button type="submit" class="btn-primary" id="submit-model">Save variant</button>
       </div>
     </form>
   </div>
@@ -621,9 +638,8 @@
     { group: 'Customers & Sales', items: [
       { id: 'customers', label: 'Customer 360', built: true },
       { id: 'brands', label: 'Brands', built: true },
-      { id: 'products', label: 'Product Management', built: true },
+      { id: 'products', label: 'Products', built: true },
       { id: 'categories', label: 'Categories', built: true },
-      { id: 'models', label: 'Models / SKU', built: true },
       { id: 'serials', label: 'Serial & Registration', built: true },
       { id: 'warranty', label: 'Warranty', built: true },
       { id: 'dealers', label: 'Dealers', built: true },
@@ -709,14 +725,11 @@
       pageSub.textContent = 'MakWell, Flyvision, Skevia — public copy';
       renderBrandsAdmin();
     } else if (id === 'products') {
-      pageSub.textContent = 'Sellable product catalog';
+      pageSub.textContent = 'Your catalog — each entry is one sellable item, with sizes/variants grouped underneath';
       renderProductManagement();
     } else if (id === 'categories') {
       pageSub.textContent = 'Category master, per brand';
       renderCategories();
-    } else if (id === 'models') {
-      pageSub.textContent = 'Model / SKU list per product';
-      renderModels();
     } else if (id === 'serials') {
       pageSub.textContent = 'All product registrations';
       renderSerialsRegistrations();
@@ -1419,45 +1432,67 @@
     contentEl.innerHTML = `
       <div class="panel">
         <div class="panel-header">
-          <h2>Product catalog</h2>
+          <h2>Products</h2>
           <button class="btn-primary" id="open-add-product">+ Add Product</button>
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Actions</th></tr></thead>
-            <tbody id="products-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Image</th><th>Product</th><th>Model No.</th><th>Category</th><th>Brand</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="products-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
-    document.getElementById('open-add-product').addEventListener('click', () => openProductModal(null));
+    document.getElementById('open-add-product').addEventListener('click', () => openProductModal(null, null));
     loadProducts();
   }
 
   async function loadProducts() {
     const tbody = document.getElementById('products-tbody');
     try {
-      const snap = await getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc')));
-      if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No products yet — add your first one. This is what Dealers see in their Products tab.</td></tr>`;
+      const [productsSnap, modelsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'productModels')),
+      ]);
+      const products = [];
+      productsSnap.forEach(d => products.push({ id: d.id, ...d.data() }));
+      if (products.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No products yet — add your first one. This is what Dealers and the public site see.</td></tr>`;
         return;
       }
+      const modelsByProduct = {};
+      modelsSnap.forEach(d => {
+        const m = { id: d.id, ...d.data() };
+        (modelsByProduct[m.productId] = modelsByProduct[m.productId] || []).push(m);
+      });
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = { id: docSnap.id, ...docSnap.data() };
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${d.imageUrl ? `<img src="${d.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">` : '<span style="color:var(--stone);font-size:11px;">No image</span>'}</td>
-          <td>${d.name || '—'}</td>
-          <td>${d.categoryName || d.category || '—'}</td>
-          <td>${BRAND_LABELS[d.brandId] || d.brand || '—'}</td>
-          <td>${d.price != null ? '₹' + d.price : '—'}</td>
-          <td><button class="btn-secondary product-edit-btn" data-id="${d.id}">Edit</button></td>`;
-        tbody.appendChild(tr);
-        tr.querySelector('.product-edit-btn').addEventListener('click', () => openProductModal(d));
+      products.forEach(p => {
+        const models = (modelsByProduct[p.id] || []).sort((a, b) => (a.modelNumber || '').localeCompare(b.modelNumber || ''));
+        const rowsForProduct = models.length ? models : [null]; // a product with zero variants still gets one row, to add its first
+        rowsForProduct.forEach((m, idx) => {
+          const tr = document.createElement('tr');
+          const imgCell = idx === 0
+            ? (p.imageUrl ? `<img src="${p.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">` : '<span style="color:var(--stone);font-size:11px;">No image</span>')
+            : '';
+          tr.innerHTML = `
+            <td>${imgCell}</td>
+            <td>${idx === 0 ? (p.name || '—') : ''}</td>
+            <td>${m ? (m.modelNumber || '—') : '<span style="color:var(--stone);font-size:12px;">No variant yet</span>'}</td>
+            <td>${idx === 0 ? (p.categoryName || '—') : ''}</td>
+            <td>${idx === 0 ? (BRAND_LABELS[p.brandId] || '—') : ''}</td>
+            <td>${m && m.price != null ? '₹' + m.price : '—'}</td>
+            <td>${m ? `<span class="status-pill ${(m.status || 'active') === 'active' ? 'ok' : 'out'}">${m.status || 'active'}</span>` : '—'}</td>
+            <td>
+              <button class="btn-secondary product-edit-btn">Edit</button>
+              <button class="btn-secondary product-variant-btn" style="margin-left:6px;">+ Variant</button>
+            </td>`;
+          tbody.appendChild(tr);
+          tr.querySelector('.product-edit-btn').addEventListener('click', () => openProductModal(p, m));
+          tr.querySelector('.product-variant-btn').addEventListener('click', () => openAddVariantModal(p));
+        });
       });
     } catch (err) {
       console.error('Load products failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load products. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load products. Check console for details.</td></tr>`;
     }
   }
 
@@ -1469,6 +1504,7 @@
   const productModalTitle = document.getElementById('product-modal-title');
   const productBrandSelect = document.getElementById('product-brand');
   const productCategorySelect = document.getElementById('product-category-select');
+  const productWarrantySelect = document.getElementById('product-warranty');
 
   async function populateProductCategoryOptions(brandId, selectedCategoryId) {
     productCategorySelect.innerHTML = '<option value="">Loading…</option>';
@@ -1494,29 +1530,111 @@
     }
   }
 
-  productBrandSelect.addEventListener('change', () => populateProductCategoryOptions(productBrandSelect.value, null));
+  async function populateWarrantyOptionsInto(selectEl, brandId, selectedPlanId) {
+    selectEl.innerHTML = '<option value="">No plan linked</option>';
+    if (!brandId) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'warrantyPlans'),
+        where('brandId', '==', brandId),
+        where('status', '==', 'active')
+      ));
+      snap.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.data().name;
+        selectEl.appendChild(opt);
+      });
+      if (selectedPlanId) selectEl.value = selectedPlanId;
+    } catch (err) {
+      console.error('Load warranty plans failed:', err);
+    }
+  }
 
-  function openProductModal(existing) {
+  async function renderDynamicAttrsInto(containerId, categoryId, existingValues) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    if (!categoryId) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', categoryId)));
+      let attrs = [];
+      snap.forEach(d => attrs.push({ id: d.id, ...d.data() }));
+      attrs.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      attrs.forEach(a => {
+        const val = existingValues ? existingValues[a.attributeKey] : undefined;
+        const row = document.createElement('div');
+        row.className = 'form-row';
+        row.dataset.attrKey = a.attributeKey;
+        const labelText = a.attributeName + (a.unit ? ` (${a.unit})` : '') + (a.required ? ' *' : '');
+        let inputHtml = '';
+        if (a.dataType === 'number') {
+          inputHtml = `<input type="number" class="dyn-attr-input" value="${val ?? ''}" ${a.required ? 'required' : ''}>`;
+        } else if (a.dataType === 'boolean') {
+          inputHtml = `<select class="dyn-attr-input"><option value="">—</option><option value="yes" ${val === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${val === 'no' ? 'selected' : ''}>No</option></select>`;
+        } else if (a.dataType === 'select') {
+          inputHtml = `<select class="dyn-attr-input" ${a.required ? 'required' : ''}><option value="">Select…</option>` +
+            (a.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('') + `</select>`;
+        } else {
+          inputHtml = `<input type="text" class="dyn-attr-input" value="${val || ''}" ${a.required ? 'required' : ''}>`;
+        }
+        row.innerHTML = `<label>${labelText}</label>${inputHtml}`;
+        container.appendChild(row);
+      });
+    } catch (err) {
+      console.error('Load dynamic attributes failed:', err);
+    }
+  }
+
+  function collectAttrValuesFrom(containerId) {
+    const values = {};
+    document.querySelectorAll(`#${containerId} [data-attr-key]`).forEach(row => {
+      const input = row.querySelector('.dyn-attr-input');
+      if (input && input.value) values[row.dataset.attrKey] = input.value;
+    });
+    return values;
+  }
+
+  productBrandSelect.addEventListener('change', () => {
+    populateProductCategoryOptions(productBrandSelect.value, null);
+    populateWarrantyOptionsInto(productWarrantySelect, productBrandSelect.value, null);
+  });
+  productCategorySelect.addEventListener('change', () => {
+    renderDynamicAttrsInto('product-dynamic-attrs', productCategorySelect.value, null);
+  });
+
+  function openProductModal(existingProduct, existingModel) {
     productForm.reset();
     productError.classList.remove('show');
     productSuccess.classList.remove('show');
     productSubmitBtn.disabled = false;
     const imagePreview = document.getElementById('product-image-preview');
-    if (existing) {
+    document.getElementById('product-dynamic-attrs').innerHTML = '';
+    document.getElementById('product-editing-model-id').value = existingModel ? existingModel.id : '';
+
+    if (existingProduct) {
       productModalTitle.textContent = 'Edit product';
-      document.getElementById('product-editing-id').value = existing.id;
-      document.getElementById('product-name').value = existing.name || '';
-      productBrandSelect.value = existing.brandId || 'makwell';
-      document.getElementById('product-price').value = existing.price ?? '';
-      populateProductCategoryOptions(productBrandSelect.value, existing.categoryId || null);
-      imagePreview.innerHTML = existing.imageUrl
-        ? `<img src="${existing.imageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">`
+      document.getElementById('product-editing-id').value = existingProduct.id;
+      document.getElementById('product-name').value = existingProduct.name || '';
+      productBrandSelect.value = existingProduct.brandId || 'makwell';
+      populateProductCategoryOptions(productBrandSelect.value, existingProduct.categoryId || null);
+      populateWarrantyOptionsInto(productWarrantySelect, existingProduct.brandId, existingModel ? existingModel.warrantyPlanId : null);
+      if (existingProduct.categoryId) {
+        renderDynamicAttrsInto('product-dynamic-attrs', existingProduct.categoryId, existingModel ? existingModel.attributeValues : {});
+      }
+      document.getElementById('product-model-number').value = existingModel ? (existingModel.modelNumber || '') : '';
+      document.getElementById('product-sku').value = existingModel ? (existingModel.sku || '') : '';
+      document.getElementById('product-price').value = existingModel && existingModel.price != null ? existingModel.price : '';
+      document.getElementById('product-specs').value = existingModel ? (existingModel.specifications || '') : '';
+      document.getElementById('product-status').value = existingModel ? (existingModel.status || 'active') : 'active';
+      imagePreview.innerHTML = existingProduct.imageUrl
+        ? `<img src="${existingProduct.imageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">`
         : '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
       productSubmitBtn.textContent = 'Save changes';
     } else {
       productModalTitle.textContent = 'Add product';
       document.getElementById('product-editing-id').value = '';
       populateProductCategoryOptions(productBrandSelect.value, null);
+      populateWarrantyOptionsInto(productWarrantySelect, productBrandSelect.value, null);
       imagePreview.innerHTML = '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
       productSubmitBtn.textContent = 'Save product';
     }
@@ -1532,30 +1650,51 @@
     productSuccess.classList.remove('show');
     productSubmitBtn.disabled = true;
     productSubmitBtn.textContent = 'Saving…';
-    const editingId = document.getElementById('product-editing-id').value;
+    const editingProductId = document.getElementById('product-editing-id').value;
+    const editingModelId = document.getElementById('product-editing-model-id').value;
     const categoryId = productCategorySelect.value;
     const categoryName = categoryId ? productCategorySelect.options[productCategorySelect.selectedIndex].textContent : '';
-    const payload = {
+    const productPayload = {
       name: document.getElementById('product-name').value.trim(),
       categoryId: categoryId || null,
       categoryName: categoryName || null,
       brandId: productBrandSelect.value,
       brand: BRAND_LABELS[productBrandSelect.value],
+    };
+    const modelPayload = {
+      modelNumber: document.getElementById('product-model-number').value.trim(),
+      sku: document.getElementById('product-sku').value.trim(),
       price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
+      specifications: document.getElementById('product-specs').value.trim(),
+      attributeValues: collectAttrValuesFrom('product-dynamic-attrs'),
+      warrantyPlanId: productWarrantySelect.value || null,
+      warrantyPlanName: productWarrantySelect.value ? productWarrantySelect.options[productWarrantySelect.selectedIndex].textContent : null,
+      status: document.getElementById('product-status').value,
     };
     try {
-      let productId = editingId;
-      if (editingId) {
-        await updateDoc(doc(db, 'products', editingId), payload);
+      let productId = editingProductId;
+      if (editingProductId) {
+        await updateDoc(doc(db, 'products', editingProductId), productPayload);
       } else {
-        const ref = await addDoc(collection(db, 'products'), { ...payload, createdAt: serverTimestamp() });
+        const ref = await addDoc(collection(db, 'products'), { ...productPayload, createdAt: serverTimestamp() });
         productId = ref.id;
+      }
+
+      // Only write a model doc if the form actually has a model number —
+      // lets someone save just the product shell first and add variants later.
+      if (modelPayload.modelNumber) {
+        const fullModelPayload = { ...modelPayload, productId, brandId: productBrandSelect.value };
+        if (editingModelId) {
+          await updateDoc(doc(db, 'productModels', editingModelId), fullModelPayload);
+        } else {
+          await addDoc(collection(db, 'productModels'), { ...fullModelPayload, createdAt: serverTimestamp() });
+        }
       }
 
       const imageFile = document.getElementById('product-image-input').files[0];
       if (imageFile) {
         if (imageFile.size > 10 * 1024 * 1024) {
-          productError.textContent = 'Image saved product info, but the image itself is over 10MB and was skipped.';
+          productError.textContent = 'Saved, but the image itself is over 10MB and was skipped.';
           productError.classList.add('show');
         } else {
           try {
@@ -1566,7 +1705,7 @@
             await updateDoc(doc(db, 'products', productId), { imageUrl });
           } catch (imgErr) {
             console.error('Image upload failed:', imgErr);
-            productError.textContent = 'Product saved, but the image upload failed. Check console for details.';
+            productError.textContent = 'Saved, but the image upload failed. Check console for details.';
             productError.classList.add('show');
           }
         }
@@ -1575,7 +1714,7 @@
       productSuccess.textContent = 'Saved.';
       productSuccess.classList.add('show');
       productSubmitBtn.disabled = false;
-      productSubmitBtn.textContent = editingId ? 'Save changes' : 'Save product';
+      productSubmitBtn.textContent = editingProductId ? 'Save changes' : 'Save product';
       if (document.getElementById('products-tbody')) loadProducts();
       setTimeout(closeProductModal, 800);
     } catch (err) {
@@ -1583,9 +1722,97 @@
       productError.textContent = 'Could not save this product. Check console for details.';
       productError.classList.add('show');
       productSubmitBtn.disabled = false;
-      productSubmitBtn.textContent = editingId ? 'Save changes' : 'Save product';
+      productSubmitBtn.textContent = editingProductId ? 'Save changes' : 'Save product';
     }
   });
+
+  // -----------------------------------------------------------------
+  // Add Variant — a lighter form, scoped to an EXISTING product, for
+  // the less common case of a second size/spec (e.g. adding MW65A
+  // to a product that already has MW43A). No Name/Brand/Category
+  // fields here — those are shared and already set on the product.
+  // -----------------------------------------------------------------
+
+  const modelOverlay = document.getElementById('model-overlay');
+  const modelForm = document.getElementById('model-form');
+  const modelError = document.getElementById('model-error');
+  const modelSuccess = document.getElementById('model-success');
+  const modelSubmitBtn = document.getElementById('submit-model');
+  const modelModalTitle = document.getElementById('model-modal-title');
+  const modelWarrantySelect = document.getElementById('model-warranty');
+
+  function openAddVariantModal(product) {
+    modelForm.reset();
+    modelError.classList.remove('show');
+    modelSuccess.classList.remove('show');
+    modelSubmitBtn.disabled = false;
+    document.getElementById('model-dynamic-attrs').innerHTML = '';
+    document.getElementById('model-editing-id').value = '';
+    document.getElementById('model-product-id').value = product.id;
+    document.getElementById('model-product-label').textContent = `${product.name} (${BRAND_LABELS[product.brandId] || ''})`;
+    modelModalTitle.textContent = 'Add variant';
+    modelSubmitBtn.textContent = 'Save variant';
+    populateWarrantyOptionsInto(modelWarrantySelect, product.brandId, null);
+    if (product.categoryId) renderDynamicAttrsInto('model-dynamic-attrs', product.categoryId, null);
+    modelOverlay.classList.add('show');
+  }
+
+  function closeModelModal() { modelOverlay.classList.remove('show'); }
+  document.getElementById('cancel-model').addEventListener('click', closeModelModal);
+  modelOverlay.addEventListener('click', (e) => { if (e.target === modelOverlay) closeModelModal(); });
+
+  modelForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    modelError.classList.remove('show');
+    modelSuccess.classList.remove('show');
+    const productId = document.getElementById('model-product-id').value;
+    if (!productId) {
+      modelError.textContent = 'Missing parent product — please close and try again from the product row.';
+      modelError.classList.add('show');
+      return;
+    }
+    modelSubmitBtn.disabled = true;
+    modelSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('model-editing-id').value;
+    const products = await getProductsCacheForModels(false);
+    const product = products.find(p => p.id === productId);
+    const payload = {
+      productId,
+      brandId: product ? product.brandId : null,
+      modelNumber: document.getElementById('model-number').value.trim(),
+      sku: document.getElementById('model-sku').value.trim(),
+      price: document.getElementById('model-price').value ? Number(document.getElementById('model-price').value) : null,
+      specifications: document.getElementById('model-specs').value.trim(),
+      attributeValues: collectAttrValuesFrom('model-dynamic-attrs'),
+      warrantyPlanId: modelWarrantySelect.value || null,
+      warrantyPlanName: modelWarrantySelect.value ? modelWarrantySelect.options[modelWarrantySelect.selectedIndex].textContent : null,
+      status: document.getElementById('model-status').value,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'productModels', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'productModels'), { ...payload, createdAt: serverTimestamp() });
+      }
+      modelSuccess.textContent = 'Saved.';
+      modelSuccess.classList.add('show');
+      modelSubmitBtn.disabled = false;
+      modelSubmitBtn.textContent = 'Save variant';
+      if (document.getElementById('products-tbody')) loadProducts();
+      setTimeout(closeModelModal, 800);
+    } catch (err) {
+      console.error('Save variant failed:', err);
+      modelError.textContent = 'Could not save this variant. Check console for details.';
+      modelError.classList.add('show');
+      modelSubmitBtn.disabled = false;
+      modelSubmitBtn.textContent = 'Save variant';
+    }
+  });
+
+  // Small helper since serverTimestamp() isn't imported in this file yet
+  function serverTimestampFallback() {
+    return new Date().toISOString();
+  }
 
   // =================================================================
   // CATEGORIES — the real Category Master (productCategories),
@@ -1987,233 +2214,6 @@
     productsCacheForModels = [];
     snap.forEach(d => productsCacheForModels.push({ id: d.id, ...d.data() }));
     return productsCacheForModels;
-  }
-
-  async function renderModels() {
-    contentEl.innerHTML = `
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Models / SKU</h2>
-          <button class="btn-primary" id="open-add-model">+ Add Model</button>
-        </div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>Model Number</th><th>SKU</th><th>Product</th><th>Brand</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="models-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
-    document.getElementById('open-add-model').addEventListener('click', () => openModelModal(null));
-    loadModels();
-  }
-
-  async function loadModels() {
-    const tbody = document.getElementById('models-tbody');
-    try {
-      const [modelsSnap, products] = await Promise.all([
-        getDocs(query(collection(db, 'productModels'), orderBy('createdAt', 'desc'))),
-        getProductsCacheForModels(false)
-      ]);
-      if (modelsSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No models yet — add your first one.</td></tr>`;
-        return;
-      }
-      const productMap = {};
-      products.forEach(p => { productMap[p.id] = p; });
-      tbody.innerHTML = '';
-      modelsSnap.forEach(docSnap => {
-        const d = { id: docSnap.id, ...docSnap.data() };
-        const product = productMap[d.productId];
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><b>${d.modelNumber || '—'}</b></td>
-          <td style="font-size:12px;color:var(--stone);">${d.sku || '—'}</td>
-          <td>${product ? product.name : '—'}</td>
-          <td>${BRAND_LABELS[d.brandId] || '—'}</td>
-          <td>${d.price != null ? '₹' + d.price : '—'}</td>
-          <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
-          <td><button class="btn-secondary model-edit-btn" data-id="${d.id}">Edit</button></td>`;
-        tbody.appendChild(tr);
-        tr.querySelector('.model-edit-btn').addEventListener('click', () => openModelModal(d));
-      });
-    } catch (err) {
-      console.error('Load models failed:', err);
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load models. Check console for details.</td></tr>`;
-    }
-  }
-
-  const modelOverlay = document.getElementById('model-overlay');
-  const modelForm = document.getElementById('model-form');
-  const modelError = document.getElementById('model-error');
-  const modelSuccess = document.getElementById('model-success');
-  const modelSubmitBtn = document.getElementById('submit-model');
-  const modelModalTitle = document.getElementById('model-modal-title');
-  const modelProductSelect = document.getElementById('model-product');
-
-  const modelWarrantySelect = document.getElementById('model-warranty');
-
-  async function populateModelProductOptions(selectedProductId) {
-    const products = await getProductsCacheForModels(true);
-    modelProductSelect.innerHTML = '<option value="">Select a product…</option>' +
-      products.map(p => `<option value="${p.id}">${p.name} (${BRAND_LABELS[p.brandId] || p.brand || ''})</option>`).join('');
-    if (selectedProductId) modelProductSelect.value = selectedProductId;
-  }
-
-  async function populateModelWarrantyOptions(productId, selectedPlanId) {
-    modelWarrantySelect.innerHTML = '<option value="">No plan linked</option>';
-    const products = await getProductsCacheForModels(false);
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-    try {
-      const snap = await getDocs(query(
-        collection(db, 'warrantyPlans'),
-        where('brandId', '==', product.brandId),
-        where('status', '==', 'active')
-      ));
-      snap.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = d.data().name;
-        modelWarrantySelect.appendChild(opt);
-      });
-      if (selectedPlanId) modelWarrantySelect.value = selectedPlanId;
-    } catch (err) {
-      console.error('Load warranty plans for model failed:', err);
-    }
-  }
-
-  modelProductSelect.addEventListener('change', () => {
-    populateModelWarrantyOptions(modelProductSelect.value, null);
-    renderModelDynamicAttrs(modelProductSelect.value, null);
-  });
-
-  async function renderModelDynamicAttrs(productId, existingValues) {
-    const container = document.getElementById('model-dynamic-attrs');
-    container.innerHTML = '';
-    const products = await getProductsCacheForModels(false);
-    const product = products.find(p => p.id === productId);
-    if (!product || !product.categoryId) return;
-    try {
-      const snap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', product.categoryId)));
-      let attrs = [];
-      snap.forEach(d => attrs.push({ id: d.id, ...d.data() }));
-      attrs.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-      if (attrs.length === 0) return;
-      attrs.forEach(a => {
-        const val = existingValues ? existingValues[a.attributeKey] : undefined;
-        const row = document.createElement('div');
-        row.className = 'form-row';
-        row.dataset.attrKey = a.attributeKey;
-        const labelText = a.attributeName + (a.unit ? ` (${a.unit})` : '') + (a.required ? ' *' : '');
-        let inputHtml = '';
-        if (a.dataType === 'number') {
-          inputHtml = `<input type="number" class="model-attr-input" value="${val ?? ''}" ${a.required ? 'required' : ''}>`;
-        } else if (a.dataType === 'boolean') {
-          inputHtml = `<select class="model-attr-input"><option value="">—</option><option value="yes" ${val === 'yes' ? 'selected' : ''}>Yes</option><option value="no" ${val === 'no' ? 'selected' : ''}>No</option></select>`;
-        } else if (a.dataType === 'select') {
-          inputHtml = `<select class="model-attr-input" ${a.required ? 'required' : ''}><option value="">Select…</option>` +
-            (a.options || []).map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('') + `</select>`;
-        } else {
-          inputHtml = `<input type="text" class="model-attr-input" value="${val || ''}" ${a.required ? 'required' : ''}>`;
-        }
-        row.innerHTML = `<label>${labelText}</label>${inputHtml}`;
-        container.appendChild(row);
-      });
-    } catch (err) {
-      console.error('Load dynamic attributes for model failed:', err);
-    }
-  }
-
-  function collectModelAttrValues() {
-    const values = {};
-    document.querySelectorAll('#model-dynamic-attrs [data-attr-key]').forEach(row => {
-      const input = row.querySelector('.model-attr-input');
-      if (input && input.value) values[row.dataset.attrKey] = input.value;
-    });
-    return values;
-  }
-
-  function openModelModal(existing) {
-    modelForm.reset();
-    modelError.classList.remove('show');
-    modelSuccess.classList.remove('show');
-    modelSubmitBtn.disabled = false;
-    document.getElementById('model-dynamic-attrs').innerHTML = '';
-    populateModelProductOptions(existing ? existing.productId : null);
-    if (existing) {
-      modelModalTitle.textContent = 'Edit model';
-      document.getElementById('model-editing-id').value = existing.id;
-      document.getElementById('model-number').value = existing.modelNumber || '';
-      document.getElementById('model-sku').value = existing.sku || '';
-      document.getElementById('model-price').value = existing.price ?? '';
-      document.getElementById('model-specs').value = existing.specifications || '';
-      populateModelWarrantyOptions(existing.productId, existing.warrantyPlanId || null);
-      renderModelDynamicAttrs(existing.productId, existing.attributeValues || {});
-      document.getElementById('model-status').value = existing.status || 'active';
-      modelSubmitBtn.textContent = 'Save changes';
-    } else {
-      modelModalTitle.textContent = 'Add model';
-      document.getElementById('model-editing-id').value = '';
-      modelWarrantySelect.innerHTML = '<option value="">Select a product first…</option>';
-      modelSubmitBtn.textContent = 'Save model';
-    }
-    modelOverlay.classList.add('show');
-  }
-  function closeModelModal() { modelOverlay.classList.remove('show'); }
-  document.getElementById('cancel-model').addEventListener('click', closeModelModal);
-  modelOverlay.addEventListener('click', (e) => { if (e.target === modelOverlay) closeModelModal(); });
-
-  modelForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    modelError.classList.remove('show');
-    modelSuccess.classList.remove('show');
-    if (!modelProductSelect.value) {
-      modelError.textContent = 'Select a product.';
-      modelError.classList.add('show');
-      return;
-    }
-    modelSubmitBtn.disabled = true;
-    modelSubmitBtn.textContent = 'Saving…';
-    const editingId = document.getElementById('model-editing-id').value;
-    const productId = modelProductSelect.value;
-    const products = await getProductsCacheForModels(false);
-    const product = products.find(p => p.id === productId);
-    const payload = {
-      productId,
-      brandId: product ? product.brandId : null,
-      modelNumber: document.getElementById('model-number').value.trim(),
-      sku: document.getElementById('model-sku').value.trim(),
-      price: document.getElementById('model-price').value ? Number(document.getElementById('model-price').value) : null,
-      specifications: document.getElementById('model-specs').value.trim(),
-      attributeValues: collectModelAttrValues(),
-      warrantyPlanId: modelWarrantySelect.value || null,
-      warrantyPlanName: modelWarrantySelect.value ? modelWarrantySelect.options[modelWarrantySelect.selectedIndex].textContent : null,
-      status: document.getElementById('model-status').value,
-    };
-    try {
-      if (editingId) {
-        await updateDoc(doc(db, 'productModels', editingId), payload);
-      } else {
-        await addDoc(collection(db, 'productModels'), { ...payload, createdAt: serverTimestamp() });
-      }
-      modelSuccess.textContent = 'Saved.';
-      modelSuccess.classList.add('show');
-      modelSubmitBtn.disabled = false;
-      modelSubmitBtn.textContent = editingId ? 'Save changes' : 'Save model';
-      if (document.getElementById('models-tbody')) loadModels();
-      setTimeout(closeModelModal, 800);
-    } catch (err) {
-      console.error('Save model failed:', err);
-      modelError.textContent = 'Could not save this model. Check console for details.';
-      modelError.classList.add('show');
-      modelSubmitBtn.disabled = false;
-      modelSubmitBtn.textContent = editingId ? 'Save changes' : 'Save model';
-    }
-  });
-
-  // Small helper since serverTimestamp() isn't imported in this file yet
-  function serverTimestampFallback() {
-    return new Date().toISOString();
   }
 
   // =================================================================
