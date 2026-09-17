@@ -208,6 +208,14 @@
   .track-status-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:16px;}
   .track-status-box .label{font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;margin-bottom:4px;}
   .track-status-box .value{font-size:15px;font-weight:700;margin-bottom:12px;}
+  .status-pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;}
+  .status-pill.active{background:#D9EEE0;color:#1C7A46;}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.expired{background:#F6DCDC;color:#B3261E;}
+  .warranty-result-card{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:14px;}
+  .warranty-result-card h4{font-size:14.5px;font-weight:700;margin-bottom:8px;}
+  .warranty-result-card .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--stone);margin-bottom:4px;}
+  .warranty-result-card .row span:first-child{color:var(--ink);font-weight:600;}
   .contact-detail{margin-bottom:24px;}
   .contact-detail .label{font-size:12px;color:var(--stone);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;}
   .contact-detail .value{font-size:17px;font-weight:600;}
@@ -357,7 +365,7 @@
       <button type="button" class="service-card" data-modal="register"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
       <button type="button" class="service-card" data-modal="book"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
       <button type="button" class="service-card" data-modal="track"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
-      <button type="button" class="service-card" data-category="Warranty Check"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
+      <button type="button" class="service-card" data-modal="warranty"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
       <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
       <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
       <button type="button" class="service-card" data-category="General Support"><h3>Support</h3><p>Reach our team for anything not covered above.</p></button>
@@ -602,6 +610,20 @@
   </div>
 </div>
 
+<!-- Warranty Status modal -->
+<div class="modal-overlay" id="warranty-overlay">
+  <div class="modal modal-wide">
+    <button type="button" class="modal-close" id="warranty-close">&times;</button>
+    <h3>Warranty Status</h3>
+    <div class="modal-sub">Enter your mobile number and product serial number to check coverage.</div>
+    <div class="form-row"><label>Mobile No</label><input type="tel" id="warranty-phone" inputmode="numeric" maxlength="10"></div>
+    <div class="form-row"><label>Serial No</label><input type="text" id="warranty-serial" placeholder="As given at registration"></div>
+    <span id="warranty-error" class="field-error"></span>
+    <button type="button" id="warranty-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Check warranty</button>
+    <div id="warranty-result"></div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -648,6 +670,7 @@
       if (modalType === 'register') { openRegisterModal(); return; }
       if (modalType === 'book') { openBookModal(); return; }
       if (modalType === 'track') { openTrackModal(); return; }
+      if (modalType === 'warranty') { openWarrantyModal(); return; }
       openGenericServiceModal(card.dataset.category, card.querySelector('h3').textContent);
     });
   });
@@ -1101,11 +1124,92 @@
     btn.disabled = false;
   });
 
+  // =================================================================
+  // WARRANTY STATUS — real lookup, not an enquiry form. Searches
+  // productRegistrations by mobile number (now public-read, see
+  // firestore.rules) and shows every registered product with its
+  // computed warranty status — same Active/Expiring/Expired logic
+  // Super Admin's Warranty screen uses.
+  // =================================================================
+
+  const warrantyOverlay = document.getElementById('warranty-overlay');
+  const warrantyPhone = document.getElementById('warranty-phone');
+  const warrantySerial = document.getElementById('warranty-serial');
+  const warrantyError = document.getElementById('warranty-error');
+  const warrantyResult = document.getElementById('warranty-result');
+  wirePhoneSanitizer(warrantyPhone);
+
+  function openWarrantyModal() {
+    warrantyPhone.value = '';
+    warrantySerial.value = '';
+    warrantyError.classList.remove('show');
+    warrantyResult.innerHTML = '';
+    warrantyOverlay.classList.add('show');
+  }
+  function closeWarrantyModal() { warrantyOverlay.classList.remove('show'); }
+  document.getElementById('warranty-close').addEventListener('click', closeWarrantyModal);
+  warrantyOverlay.addEventListener('click', (e) => { if (e.target === warrantyOverlay) closeWarrantyModal(); });
+
+  function computeWarrantyStatus(purchaseDate, warrantyMonths) {
+    if (!purchaseDate) return { cls: '', label: 'Unknown' };
+    const purchase = new Date(purchaseDate);
+    const expiry = new Date(purchase);
+    expiry.setMonth(expiry.getMonth() + (warrantyMonths || 12));
+    const daysLeft = Math.round((expiry - new Date()) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) return { cls: 'expired', label: 'Expired' };
+    if (daysLeft <= 30) return { cls: 'low', label: `Expiring in ${daysLeft}d` };
+    return { cls: 'active', label: `Active — until ${expiry.toLocaleDateString()}` };
+  }
+
+  document.getElementById('warranty-search-btn').addEventListener('click', async () => {
+    warrantyError.classList.remove('show');
+    warrantyResult.innerHTML = '';
+    const normalizedPhone = normalizePhone(warrantyPhone.value.trim());
+    const enteredSerial = warrantySerial.value.trim();
+    if (!isValidIndianMobile(normalizedPhone) || !enteredSerial) {
+      warrantyError.textContent = 'Enter both a valid 10-digit mobile number and the product serial number.';
+      warrantyError.classList.add('show');
+      return;
+    }
+    const btn = document.getElementById('warranty-search-btn');
+    const original = btn.textContent;
+    btn.textContent = 'Checking…';
+    btn.disabled = true;
+    try {
+      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone)));
+      const matches = [];
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if ((d.serialNumber || '').trim().toLowerCase() === enteredSerial.toLowerCase()) matches.push(d);
+      });
+      if (matches.length === 0) {
+        warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registration found matching that mobile number and serial number.</div></div>';
+      } else {
+        warrantyResult.innerHTML = '';
+        matches.forEach(d => {
+          const status = computeWarrantyStatus(d.purchaseDate, d.warrantyMonths);
+          const card = document.createElement('div');
+          card.className = 'warranty-result-card';
+          card.innerHTML = `
+            <h4>${d.product || (d.brand + ' ' + d.category) || 'Product'}</h4>
+            <div class="row"><span>Serial No</span><span>${d.serialNumber || '—'}</span></div>
+            <div class="row"><span>Purchased</span><span>${d.purchaseDate || '—'}</span></div>
+            <div style="margin-top:8px;"><span class="status-pill ${status.cls}">${status.label}</span></div>`;
+          warrantyResult.appendChild(card);
+        });
+      }
+    } catch (err) {
+      console.error('Warranty check failed:', err);
+      warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">Could not check warranty right now. Please try again.</div></div>';
+    }
+    btn.textContent = original;
+    btn.disabled = false;
+  });
+
   // Hash-based modal auto-open — lets other pages (e.g. product.html,
   // and every brand microsite's Customer Services cards) link
   // straight into any of the 8 modals without duplicating them.
   const HASH_GENERIC_CATEGORIES = {
-    'warranty-check': ['Warranty Check', 'Warranty Status'],
     'manuals': ['Manuals Request', 'Manuals'],
     'brochures': ['Brochures Request', 'Brochures'],
     'support': ['General Support', 'Support'],
@@ -1116,6 +1220,7 @@
     if (hash === 'register-product') { openRegisterModal(); return; }
     if (hash === 'book-service') { openBookModal(); return; }
     if (hash === 'track-service') { openTrackModal(); return; }
+    if (hash === 'warranty-check') { openWarrantyModal(); return; }
     if (HASH_GENERIC_CATEGORIES[hash]) {
       const [category, title] = HASH_GENERIC_CATEGORIES[hash];
       openGenericServiceModal(category, title);
