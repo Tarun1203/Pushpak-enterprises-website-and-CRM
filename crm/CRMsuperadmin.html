@@ -3437,8 +3437,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         getServiceCentersCache(),
       ]);
       const docs = [];
-      centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ id: d.id, source: 'centerRequests', ...d.data() }); });
-      publicSnap.forEach(d => { docs.push({ id: d.id, source: 'publicServiceRequests', ...d.data() }); });
+      centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ ...d.data(), id: d.id, source: 'centerRequests' }); });
+      publicSnap.forEach(d => { docs.push({ ...d.data(), id: d.id, source: 'publicServiceRequests' }); });
       if (docs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing unassigned right now.</td></tr>`;
         return;
