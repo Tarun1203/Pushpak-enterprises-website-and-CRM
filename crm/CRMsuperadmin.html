@@ -223,6 +223,10 @@
           <option value="dealer">Dealer</option>
         </select>
       </div>
+      <div class="form-row step-hidden" id="new-user-districts-row">
+        <label>Districts covered <span class="hint">(comma-separated, e.g. Hubli, Dharwad, Gadag)</span></label>
+        <input type="text" id="new-user-districts" placeholder="e.g. Hubli, Dharwad">
+      </div>
       <div class="modal-error" id="add-user-error"></div>
       <div class="modal-success" id="add-user-success"></div>
       <div class="modal-actions">
@@ -256,6 +260,10 @@
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
         </select>
+      </div>
+      <div class="form-row step-hidden" id="edit-user-districts-row">
+        <label>Districts covered <span class="hint">(comma-separated, e.g. Hubli, Dharwad, Gadag)</span></label>
+        <input type="text" id="edit-user-districts" placeholder="e.g. Hubli, Dharwad">
       </div>
       <div class="modal-error" id="edit-user-error"></div>
       <div class="modal-success" id="edit-user-success"></div>
@@ -1032,6 +1040,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     addUserSuccess.classList.remove('show');
     submitBtn.disabled = false;
     submitBtn.textContent = 'Create account';
+    document.getElementById('new-user-districts-row').classList.add('step-hidden');
     overlay.classList.add('show');
   }
   function closeAddUserModal() {
@@ -1039,6 +1048,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
   document.getElementById('cancel-add-user').addEventListener('click', closeAddUserModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAddUserModal(); });
+  document.getElementById('new-user-role').addEventListener('change', (e) => {
+    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+  });
 
   addUserForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1072,8 +1084,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       // Write the role doc using the PRIMARY app's Firestore instance,
       // authenticated as the admin — so it passes the isAdmin() rule.
+      const districtsRaw = document.getElementById('new-user-districts').value.trim();
+      const districtsCovered = role === 'servicecenter' && districtsRaw
+        ? districtsRaw.split(',').map(d => d.trim()).filter(Boolean)
+        : [];
       await setDoc(doc(db, 'users', newUid), {
-        name, email, role, createdAt: new Date().toISOString()
+        name, email, role, districtsCovered, createdAt: new Date().toISOString()
       });
 
       try {
@@ -1137,6 +1153,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     editNameInput.value = data.name || '';
     editEmailInput.value = data.email || '(not on record)';
     editRoleSelect.value = data.role || '';
+    document.getElementById('edit-user-districts').value = (data.districtsCovered || []).join(', ');
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     editUserError.classList.remove('show');
     editUserSuccess.classList.remove('show');
     editSubmitBtn.disabled = false;
@@ -1148,6 +1166,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
   document.getElementById('cancel-edit-user').addEventListener('click', closeEditUserModal);
   editOverlay.addEventListener('click', (e) => { if (e.target === editOverlay) closeEditUserModal(); });
+  editRoleSelect.addEventListener('change', (e) => {
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+  });
 
   editUserForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1160,10 +1181,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     editSubmitBtn.disabled = true;
     editSubmitBtn.textContent = 'Saving…';
+    const districtsRaw = document.getElementById('edit-user-districts').value.trim();
+    const districtsCovered = editRoleSelect.value === 'servicecenter' && districtsRaw
+      ? districtsRaw.split(',').map(d => d.trim()).filter(Boolean)
+      : [];
     try {
       await updateDoc(doc(db, 'users', editingUid), {
         name: editNameInput.value.trim(),
-        role: editRoleSelect.value
+        role: editRoleSelect.value,
+        districtsCovered
       });
       try {
         const roleChanged = editingOriginalRole !== editRoleSelect.value;
@@ -3383,6 +3409,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
 
   let techniciansCache = null;
+  let serviceCentersCache = null;
 
   async function getTechniciansCache() {
     if (techniciansCache) return techniciansCache;
@@ -3392,13 +3419,22 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     return techniciansCache;
   }
 
+  async function getServiceCentersCache() {
+    if (serviceCentersCache) return serviceCentersCache;
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
+    serviceCentersCache = [];
+    snap.forEach(d => serviceCentersCache.push({ uid: d.id, ...d.data() }));
+    return serviceCentersCache;
+  }
+
   async function loadRoutingQueue() {
     const tbody = document.getElementById('routing-tbody');
     try {
-      const [centerSnap, publicSnap, techs] = await Promise.all([
+      const [centerSnap, publicSnap, techs, centers] = await Promise.all([
         getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
         getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new'))),
         getTechniciansCache(),
+        getServiceCentersCache(),
       ]);
       const docs = [];
       centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ id: d.id, source: 'centerRequests', ...d.data() }); });
@@ -3410,37 +3446,43 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = '';
       docs.forEach(d => {
         const tr = document.createElement('tr');
-        const options = techs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
         const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
-        const sourceLabel = d.source === 'publicServiceRequests' ? 'Website' : 'Service Center';
-        tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span style="color:var(--stone);">${sourceLabel}</span></td>
-          <td>${d.customerName || '—'}</td>
-          <td>${productLabel}</td>
-          <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
-          <td><button class="btn-secondary routing-assign-btn" data-id="${d.id}">Assign</button></td>`;
-        tbody.appendChild(tr);
-        tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
-          const select = tr.querySelector('.routing-tech-select');
-          if (!select.value) { alert('Select a technician first.'); return; }
-          const [uid, name] = select.value.split('|');
-          try {
-            if (d.source === 'centerRequests') {
-              await updateDoc(doc(db, 'centerRequests', d.id), {
-                technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
-              });
-            } else {
-              // Website submissions have no serviceJobs doc yet — create
-              // one now so it flows into the technician's normal My
-              // Jobs / Diagnosis workflow, same as any other job. The
-              // original publicServiceRequests doc is marked assigned
-              // too, so Track Service (public site) still shows the
-              // right status, and this stops appearing here as unassigned.
-              const jobId = d.requestId || d.id;
-              await addDoc(collection(db, 'serviceJobs'), {
-                jobId,
-                technicianUid: uid,
-                technicianEmail: name,
+
+        if (d.source === 'publicServiceRequests') {
+          // Route to a Service Center first — they assign their own
+          // technician from their own roster (Center Requests screen).
+          // District-matched centers are listed first when the
+          // customer's city matches one of a center's covered districts.
+          const city = (d.city || '').trim().toLowerCase();
+          const sorted = [...centers].sort((a, b) => {
+            const aMatch = (a.districtsCovered || []).some(dist => dist.toLowerCase() === city);
+            const bMatch = (b.districtsCovered || []).some(dist => dist.toLowerCase() === city);
+            return (bMatch ? 1 : 0) - (aMatch ? 1 : 0);
+          });
+          const options = sorted.map(c => {
+            const matchFlag = city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city) ? ' ✓ covers this district' : '';
+            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
+          }).join('');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}</span></td>
+            <td>${d.customerName || '—'}</td>
+            <td>${productLabel}</td>
+            <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
+            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
+          tbody.appendChild(tr);
+          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
+            const select = tr.querySelector('.routing-center-select');
+            if (!select.value) { alert('Select a service center first.'); return; }
+            const [centerUid, centerName] = select.value.split('|');
+            try {
+              // Creates a real centerRequests doc so this appears in
+              // that center's own "Center Requests" queue, where they
+              // assign it to one of their own technicians as usual.
+              const requestId = d.requestId || d.id;
+              await addDoc(collection(db, 'centerRequests'), {
+                requestId,
+                serviceCenterUid: centerUid,
+                serviceCenterName: centerName,
                 customerName: d.customerName || '',
                 customerPhone: d.customerPhone || '',
                 address: d.address || '',
@@ -3450,31 +3492,67 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
                 category: d.category || '',
                 modelNo: d.modelNo || '',
                 serialNumber: d.serialNo || '',
-                issue: d.issueDescription || d.requestType || '',
-                status: 'assigned',
+                type: d.requestType === 'installation' ? 'installation' : 'service',
+                issue: d.issueDescription || '',
+                status: 'new',
                 sourceRequestId: d.id,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
               });
               await updateDoc(doc(db, 'publicServiceRequests', d.id), {
+                serviceCenterUid: centerUid, serviceCenterName: centerName, status: 'assigned_to_center', updatedAt: serverTimestamp()
+              });
+              try {
+                await addDoc(collection(db, 'notifications'), {
+                  recipientType: 'uid', recipientValue: centerUid,
+                  title: 'New service request routed to you', message: `${d.customerName || 'A customer'} — ${productLabel}`,
+                  read: false, createdAt: serverTimestamp()
+                });
+              } catch (notifErr) {
+                console.warn('Notification write failed (non-blocking):', notifErr.message);
+              }
+              loadRoutingQueue();
+            } catch (err) {
+              console.error('Route to center failed:', err);
+              alert('Could not route this request. Check the console for details.');
+            }
+          });
+        } else {
+          // Already belongs to a service center (they created it
+          // themselves) and just needs a technician — Super Admin can
+          // assign cross-center as an override/escalation tool.
+          const options = techs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
+            <td>${d.customerName || '—'}</td>
+            <td>${productLabel}</td>
+            <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
+            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
+          tbody.appendChild(tr);
+          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
+            const select = tr.querySelector('.routing-tech-select');
+            if (!select.value) { alert('Select a technician first.'); return; }
+            const [uid, name] = select.value.split('|');
+            try {
+              await updateDoc(doc(db, 'centerRequests', d.id), {
                 technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
               });
+              try {
+                await addDoc(collection(db, 'notifications'), {
+                  recipientType: 'uid', recipientValue: uid,
+                  title: 'New job assigned', message: `${d.customerName || 'A customer'} — ${productLabel}`,
+                  read: false, createdAt: serverTimestamp()
+                });
+              } catch (notifErr) {
+                console.warn('Notification write failed (non-blocking):', notifErr.message);
+              }
+              loadRoutingQueue();
+            } catch (err) {
+              console.error('Assign failed:', err);
+              alert('Could not assign this request. Check the console for details.');
             }
-            try {
-              await addDoc(collection(db, 'notifications'), {
-                recipientType: 'uid', recipientValue: uid,
-                title: 'New job assigned', message: `${d.customerName || 'A customer'} — ${productLabel}`,
-                read: false, createdAt: serverTimestamp()
-              });
-            } catch (notifErr) {
-              console.warn('Notification write failed (non-blocking):', notifErr.message);
-            }
-            loadRoutingQueue();
-          } catch (err) {
-            console.error('Assign failed:', err);
-            alert('Could not assign this request. Check the console for details.');
-          }
-        });
+          });
+        }
       });
     } catch (err) {
       console.error('Load routing queue failed:', err);
