@@ -830,14 +830,23 @@
     const listEl = document.getElementById('notif-list');
     const badgeEl = document.getElementById('notif-badge');
     try {
+      // No orderBy here on purpose — combining it with the two where()
+      // clauses needs a composite index that doesn't exist by default
+      // in Firestore. Sorting client-side avoids that requirement
+      // entirely; a person's notification list is small enough that
+      // this costs nothing in practice.
       const snap = await getDocs(query(
         collection(db, 'notifications'),
         where('recipientType', '==', cfg.type),
-        where('recipientValue', '==', cfg.value),
-        orderBy('createdAt', 'desc')
+        where('recipientValue', '==', cfg.value)
       ));
       const items = [];
       snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const at = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+        const bt = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+        return bt - at;
+      });
       const unreadCount = items.filter(n => !n.read).length;
       if (unreadCount > 0) {
         badgeEl.textContent = unreadCount > 9 ? '9+' : unreadCount;
