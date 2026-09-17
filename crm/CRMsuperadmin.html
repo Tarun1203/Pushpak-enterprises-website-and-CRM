@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
+:root{
     --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
     --blue:#1C6FBA;--blue-deep:#0F4C88;
     --err:#B3261E;--ok:#1C7A46;--sidebar-w:264px;
@@ -96,10 +96,11 @@
 
   .modal-overlay{
     position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
-    align-items:center;justify-content:center;z-index:50;
+    align-items:center;justify-content:center;z-index:50;padding:24px;
   }
   .modal-overlay.show{display:flex;}
-  .modal{background:var(--paper);width:100%;max-width:420px;border-radius:3px;padding:28px;}
+  .modal{background:var(--paper);width:100%;max-width:420px;max-height:calc(100vh - 48px);overflow-y:auto;border-radius:3px;padding:28px;}
+  .modal.modal-wide{max-width:640px;}
   .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
   .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
   .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
@@ -566,7 +567,7 @@
 </div>
 
 <script type="module">
-  import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";

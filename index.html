@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
+:root{
     --ink:#25292E;
     --paper:#F5EFE0;
     --paper-deep:#EDE3CC;
@@ -625,7 +625,7 @@
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -1391,11 +1391,10 @@
   function isValidIndianMobile(digits) {
     return /^[6-9]\d{9}$/.test(digits);
   }
-
 </script>
 
 <script>
-  // Hero product image carousel — cross-fades between the three
+// Hero product image carousel — cross-fades between the three
   // brand TVs every 4 seconds. Pauses if the tab isn't visible.
   (function () {
     const imgs = document.querySelectorAll('.hero-product-img');
