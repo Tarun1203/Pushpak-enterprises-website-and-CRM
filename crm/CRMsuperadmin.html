@@ -101,6 +101,10 @@
   .modal-overlay.show{display:flex;}
   .modal{background:var(--paper);width:100%;max-width:420px;max-height:calc(100vh - 48px);overflow-y:auto;border-radius:3px;padding:28px;}
   .modal.modal-wide{max-width:640px;}
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:0;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--paper-deep);border-radius:20px;padding:5px 8px 5px 12px;font-size:12.5px;font-weight:600;}
+  .chip button{background:none;border:none;color:var(--stone);cursor:pointer;font-size:14px;line-height:1;padding:0;}
+  .chip button:hover{color:var(--err);}
   .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
   .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
   .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
@@ -224,8 +228,20 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
-        <label>Districts covered <span class="hint">(comma-separated, e.g. Hubli, Dharwad, Gadag)</span></label>
-        <input type="text" id="new-user-districts" placeholder="e.g. Hubli, Dharwad">
+        <label>Cities / districts covered <span class="hint">(one at a time — suggestions come from actual customer registrations)</span></label>
+        <div class="chip-list" id="new-user-districts-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="new-user-district-input" list="known-districts-list" placeholder="e.g. Hubli" style="flex:1;">
+          <button type="button" class="btn-secondary" id="new-user-district-add">Add</button>
+        </div>
+      </div>
+      <div class="form-row step-hidden" id="new-user-pincodes-row">
+        <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
+        <div class="chip-list" id="new-user-pincodes-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="new-user-pincode-input" list="known-pincodes-list" placeholder="e.g. 580020" inputmode="numeric" maxlength="6" style="flex:1;">
+          <button type="button" class="btn-secondary" id="new-user-pincode-add">Add</button>
+        </div>
       </div>
       <div class="modal-error" id="add-user-error"></div>
       <div class="modal-success" id="add-user-success"></div>
@@ -262,8 +278,20 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
-        <label>Districts covered <span class="hint">(comma-separated, e.g. Hubli, Dharwad, Gadag)</span></label>
-        <input type="text" id="edit-user-districts" placeholder="e.g. Hubli, Dharwad">
+        <label>Cities / districts covered <span class="hint">(one at a time — suggestions come from actual customer registrations)</span></label>
+        <div class="chip-list" id="edit-user-districts-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="edit-user-district-input" list="known-districts-list" placeholder="e.g. Hubli" style="flex:1;">
+          <button type="button" class="btn-secondary" id="edit-user-district-add">Add</button>
+        </div>
+      </div>
+      <div class="form-row step-hidden" id="edit-user-pincodes-row">
+        <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
+        <div class="chip-list" id="edit-user-pincodes-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="edit-user-pincode-input" list="known-pincodes-list" placeholder="e.g. 580020" inputmode="numeric" maxlength="6" style="flex:1;">
+          <button type="button" class="btn-secondary" id="edit-user-pincode-add">Add</button>
+        </div>
       </div>
       <div class="modal-error" id="edit-user-error"></div>
       <div class="modal-success" id="edit-user-success"></div>
@@ -277,6 +305,10 @@
     </form>
   </div>
 </div>
+
+<!-- Shared suggestion lists — populated from real customer registrations -->
+<datalist id="known-districts-list"></datalist>
+<datalist id="known-pincodes-list"></datalist>
 
 <!-- Edit Site Content modal -->
 <div class="modal-overlay" id="sitecontent-overlay">
@@ -1028,6 +1060,82 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   }
 
+  // -----------------------------------------------------------------
+  // Chip-input helper — used for "Cities/districts covered" and
+  // "Pincodes covered" on Service Center accounts. Each value is its
+  // own removable tag rather than one free-typed comma blob, and the
+  // input suggests values pulled from real productRegistrations data
+  // (see loadKnownLocations below), not guessed.
+  // -----------------------------------------------------------------
+
+  function createChipInput(chipsContainerId, inputId, addBtnId) {
+    let values = [];
+    const chipsEl = document.getElementById(chipsContainerId);
+    const inputEl = document.getElementById(inputId);
+    const addBtnEl = document.getElementById(addBtnId);
+
+    function render() {
+      chipsEl.innerHTML = '';
+      values.forEach((v, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `${v} <button type="button">&times;</button>`;
+        chip.querySelector('button').addEventListener('click', () => {
+          values.splice(i, 1);
+          render();
+        });
+        chipsEl.appendChild(chip);
+      });
+    }
+    function addFromInput() {
+      const v = inputEl.value.trim();
+      if (v && !values.includes(v)) {
+        values.push(v);
+        render();
+      }
+      inputEl.value = '';
+      inputEl.focus();
+    }
+    addBtnEl.addEventListener('click', addFromInput);
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addFromInput(); }
+    });
+    return {
+      get: () => values,
+      set: (arr) => { values = Array.isArray(arr) ? [...arr] : []; render(); },
+    };
+  }
+
+  const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add');
+  const newUserPincodesChip = createChipInput('new-user-pincodes-chips', 'new-user-pincode-input', 'new-user-pincode-add');
+  const editUserDistrictsChip = createChipInput('edit-user-districts-chips', 'edit-user-district-input', 'edit-user-district-add');
+  const editUserPincodesChip = createChipInput('edit-user-pincodes-chips', 'edit-user-pincode-input', 'edit-user-pincode-add');
+
+  // Populates the two shared <datalist>s from real customer data —
+  // every distinct city and pincode anyone has actually registered
+  // a product from. Loaded once, cached, reused by all four inputs.
+  let knownLocationsLoaded = false;
+  async function loadKnownLocations() {
+    if (knownLocationsLoaded) return;
+    knownLocationsLoaded = true;
+    try {
+      const snap = await getDocs(collection(db, 'productRegistrations'));
+      const cities = new Set();
+      const pincodes = new Set();
+      snap.forEach(d => {
+        const r = d.data();
+        if (r.city) cities.add(r.city.trim());
+        if (r.pincode) pincodes.add(r.pincode.trim());
+      });
+      const citiesList = document.getElementById('known-districts-list');
+      const pincodesList = document.getElementById('known-pincodes-list');
+      citiesList.innerHTML = [...cities].sort().map(c => `<option value="${c}">`).join('');
+      pincodesList.innerHTML = [...pincodes].sort().map(p => `<option value="${p}">`).join('');
+    } catch (err) {
+      console.warn('Could not load known locations for suggestions:', err.message);
+    }
+  }
+
   const overlay = document.getElementById('add-user-overlay');
   const addUserForm = document.getElementById('add-user-form');
   const addUserError = document.getElementById('add-user-error');
@@ -1041,6 +1149,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     submitBtn.disabled = false;
     submitBtn.textContent = 'Create account';
     document.getElementById('new-user-districts-row').classList.add('step-hidden');
+    document.getElementById('new-user-pincodes-row').classList.add('step-hidden');
+    newUserDistrictsChip.set([]);
+    newUserPincodesChip.set([]);
+    loadKnownLocations();
     overlay.classList.add('show');
   }
   function closeAddUserModal() {
@@ -1050,6 +1162,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAddUserModal(); });
   document.getElementById('new-user-role').addEventListener('change', (e) => {
     document.getElementById('new-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
   });
 
   addUserForm.addEventListener('submit', async (e) => {
@@ -1084,12 +1197,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       // Write the role doc using the PRIMARY app's Firestore instance,
       // authenticated as the admin — so it passes the isAdmin() rule.
-      const districtsRaw = document.getElementById('new-user-districts').value.trim();
-      const districtsCovered = role === 'servicecenter' && districtsRaw
-        ? districtsRaw.split(',').map(d => d.trim()).filter(Boolean)
-        : [];
+      const districtsCovered = role === 'servicecenter' ? newUserDistrictsChip.get() : [];
+      const pincodesCovered = role === 'servicecenter' ? newUserPincodesChip.get() : [];
       await setDoc(doc(db, 'users', newUid), {
-        name, email, role, districtsCovered, createdAt: new Date().toISOString()
+        name, email, role, districtsCovered, pincodesCovered, createdAt: new Date().toISOString()
       });
 
       try {
@@ -1153,8 +1264,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     editNameInput.value = data.name || '';
     editEmailInput.value = data.email || '(not on record)';
     editRoleSelect.value = data.role || '';
-    document.getElementById('edit-user-districts').value = (data.districtsCovered || []).join(', ');
+    editUserDistrictsChip.set(data.districtsCovered || []);
+    editUserPincodesChip.set(data.pincodesCovered || []);
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
+    loadKnownLocations();
     editUserError.classList.remove('show');
     editUserSuccess.classList.remove('show');
     editSubmitBtn.disabled = false;
@@ -1168,6 +1282,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   editOverlay.addEventListener('click', (e) => { if (e.target === editOverlay) closeEditUserModal(); });
   editRoleSelect.addEventListener('change', (e) => {
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
   });
 
   editUserForm.addEventListener('submit', async (e) => {
@@ -1181,15 +1296,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     editSubmitBtn.disabled = true;
     editSubmitBtn.textContent = 'Saving…';
-    const districtsRaw = document.getElementById('edit-user-districts').value.trim();
-    const districtsCovered = editRoleSelect.value === 'servicecenter' && districtsRaw
-      ? districtsRaw.split(',').map(d => d.trim()).filter(Boolean)
-      : [];
+    const districtsCovered = editRoleSelect.value === 'servicecenter' ? editUserDistrictsChip.get() : [];
+    const pincodesCovered = editRoleSelect.value === 'servicecenter' ? editUserPincodesChip.get() : [];
     try {
       await updateDoc(doc(db, 'users', editingUid), {
         name: editNameInput.value.trim(),
         role: editRoleSelect.value,
-        districtsCovered
+        districtsCovered,
+        pincodesCovered
       });
       try {
         const roleChanged = editingOriginalRole !== editRoleSelect.value;
@@ -3451,20 +3565,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         if (d.source === 'publicServiceRequests') {
           // Route to a Service Center first — they assign their own
           // technician from their own roster (Center Requests screen).
-          // District-matched centers are listed first when the
-          // customer's city matches one of a center's covered districts.
+          // Pincode is the most precise signal available (matches
+          // what's actually captured at registration); city/district
+          // is the fallback when pincode doesn't match anything.
           const city = (d.city || '').trim().toLowerCase();
-          const sorted = [...centers].sort((a, b) => {
-            const aMatch = (a.districtsCovered || []).some(dist => dist.toLowerCase() === city);
-            const bMatch = (b.districtsCovered || []).some(dist => dist.toLowerCase() === city);
-            return (bMatch ? 1 : 0) - (aMatch ? 1 : 0);
-          });
+          const pincode = (d.pincode || '').trim();
+          function matchLevel(c) {
+            if (pincode && (c.pincodesCovered || []).includes(pincode)) return 2;
+            if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
+            return 0;
+          }
+          const sorted = [...centers].sort((a, b) => matchLevel(b) - matchLevel(a));
           const options = sorted.map(c => {
-            const matchFlag = city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city) ? ' ✓ covers this district' : '';
+            const level = matchLevel(c);
+            const matchFlag = level === 2 ? ' ✓ covers this pincode' : level === 1 ? ' ✓ covers this city' : '';
             return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
           }).join('');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}</span></td>
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}${d.pincode ? ' ' + d.pincode : ''}</span></td>
             <td>${d.customerName || '—'}</td>
             <td>${productLabel}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
@@ -3487,6 +3605,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
                 customerPhone: d.customerPhone || '',
                 address: d.address || '',
                 city: d.city || '',
+                pincode: d.pincode || '',
                 product: productLabel,
                 brand: d.brand || '',
                 category: d.category || '',
