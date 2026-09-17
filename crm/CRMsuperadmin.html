@@ -2753,9 +2753,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       </div>`;
     const tbody = document.getElementById('service-tbody');
     try {
-      const [jobsSnap, requestsSnap] = await Promise.all([
+      const [jobsSnap, requestsSnap, publicSnap] = await Promise.all([
         getDocs(query(collection(db, 'serviceJobs'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'centerRequests'), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'publicServiceRequests')),
       ]);
       const rows = [];
       jobsSnap.forEach(d => {
@@ -2765,6 +2766,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       requestsSnap.forEach(d => {
         const r = d.data();
         rows.push({ source: 'Service Center', id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt });
+      });
+      publicSnap.forEach(d => {
+        const p = d.data();
+        rows.push({ source: 'Website', id: p.requestId, customer: p.customerName, assigned: p.technicianName || '—', status: p.status, createdAt: p.createdAt });
       });
       rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (rows.length === 0) {
@@ -3390,12 +3395,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function loadRoutingQueue() {
     const tbody = document.getElementById('routing-tbody');
     try {
-      const [snap, techs] = await Promise.all([
+      const [centerSnap, publicSnap, techs] = await Promise.all([
         getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new'))),
         getTechniciansCache(),
       ]);
       const docs = [];
-      snap.forEach(d => { if (!d.data().technicianName) docs.push({ id: d.id, ...d.data() }); });
+      centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ id: d.id, source: 'centerRequests', ...d.data() }); });
+      publicSnap.forEach(d => { docs.push({ id: d.id, source: 'publicServiceRequests', ...d.data() }); });
       if (docs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing unassigned right now.</td></tr>`;
         return;
@@ -3404,10 +3411,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       docs.forEach(d => {
         const tr = document.createElement('tr');
         const options = techs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+        const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+        const sourceLabel = d.source === 'publicServiceRequests' ? 'Website' : 'Service Center';
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span style="color:var(--stone);">${sourceLabel}</span></td>
           <td>${d.customerName || '—'}</td>
-          <td>${d.product || '—'}</td>
+          <td>${productLabel}</td>
           <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
           <td><button class="btn-secondary routing-assign-btn" data-id="${d.id}">Assign</button></td>`;
         tbody.appendChild(tr);
@@ -3416,13 +3425,45 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           if (!select.value) { alert('Select a technician first.'); return; }
           const [uid, name] = select.value.split('|');
           try {
-            await updateDoc(doc(db, 'centerRequests', d.id), {
-              technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
-            });
+            if (d.source === 'centerRequests') {
+              await updateDoc(doc(db, 'centerRequests', d.id), {
+                technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
+              });
+            } else {
+              // Website submissions have no serviceJobs doc yet — create
+              // one now so it flows into the technician's normal My
+              // Jobs / Diagnosis workflow, same as any other job. The
+              // original publicServiceRequests doc is marked assigned
+              // too, so Track Service (public site) still shows the
+              // right status, and this stops appearing here as unassigned.
+              const jobId = d.requestId || d.id;
+              await addDoc(collection(db, 'serviceJobs'), {
+                jobId,
+                technicianUid: uid,
+                technicianEmail: name,
+                customerName: d.customerName || '',
+                customerPhone: d.customerPhone || '',
+                address: d.address || '',
+                city: d.city || '',
+                product: productLabel,
+                brand: d.brand || '',
+                category: d.category || '',
+                modelNo: d.modelNo || '',
+                serialNumber: d.serialNo || '',
+                issue: d.issueDescription || d.requestType || '',
+                status: 'assigned',
+                sourceRequestId: d.id,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
+              await updateDoc(doc(db, 'publicServiceRequests', d.id), {
+                technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
+              });
+            }
             try {
               await addDoc(collection(db, 'notifications'), {
                 recipientType: 'uid', recipientValue: uid,
-                title: 'New job assigned', message: `${d.customerName || 'A customer'} — ${d.product || d.requestId || ''}`,
+                title: 'New job assigned', message: `${d.customerName || 'A customer'} — ${productLabel}`,
                 read: false, createdAt: serverTimestamp()
               });
             } catch (notifErr) {
