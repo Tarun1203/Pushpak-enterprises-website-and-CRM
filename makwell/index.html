@@ -331,8 +331,9 @@
       const card = document.createElement('a');
       card.href = `../product.html?id=${p.id}`;
       card.className = 'product-card';
-      const imageHtml = p.imageUrl
-        ? `<img src="${p.imageUrl}" alt="${p.name || ''}" class="product-card-image">`
+      const firstImage = (p.imageUrls && p.imageUrls[0]) || p.imageUrl;
+      const imageHtml = firstImage
+        ? `<img src="${firstImage}" alt="${p.name || ''}" class="product-card-image">`
         : `<div class="product-card-image product-card-image-placeholder"><span>${(p.name || 'P').charAt(0)}</span></div>`;
       card.innerHTML = `
         ${imageHtml}

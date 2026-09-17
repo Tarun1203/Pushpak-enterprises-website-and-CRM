@@ -347,9 +347,9 @@
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
       <div class="form-row">
-        <label>Product image</label>
-        <div id="product-image-preview" style="margin-bottom:8px;"></div>
-        <input type="file" id="product-image-input" accept="image/*">
+        <label>Product images <span class="hint">(pick multiple at once)</span></label>
+        <div id="product-image-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
+        <input type="file" id="product-image-input" accept="image/*" multiple>
       </div>
       <div id="product-dynamic-attrs"></div>
       <div class="form-row"><label>Additional notes <span class="hint">(anything not covered by the fields above)</span></label><textarea id="product-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
@@ -571,7 +571,7 @@
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
@@ -1471,7 +1471,7 @@
         rowsForProduct.forEach((m, idx) => {
           const tr = document.createElement('tr');
           const imgCell = idx === 0
-            ? (p.imageUrl ? `<img src="${p.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">` : '<span style="color:var(--stone);font-size:11px;">No image</span>')
+            ? ((p.imageUrls && p.imageUrls[0]) || p.imageUrl ? `<img src="${(p.imageUrls && p.imageUrls[0]) || p.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">` : '<span style="color:var(--stone);font-size:11px;">No image</span>')
             : '';
           tr.innerHTML = `
             <td>${imgCell}</td>
@@ -1602,12 +1602,38 @@
     renderDynamicAttrsInto('product-dynamic-attrs', productCategorySelect.value, null);
   });
 
+  function renderProductImageGrid(productId, imageUrls) {
+    const grid = document.getElementById('product-image-grid');
+    grid.innerHTML = '';
+    (imageUrls || []).forEach(url => {
+      const thumb = document.createElement('div');
+      thumb.style.cssText = 'position:relative;width:64px;height:64px;';
+      thumb.innerHTML = `
+        <img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">
+        <button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">&times;</button>`;
+      thumb.querySelector('button').addEventListener('click', async () => {
+        if (!productId) { thumb.remove(); return; } // not yet saved, nothing to remove from Firestore
+        if (!confirm('Remove this image?')) return;
+        try {
+          await updateDoc(doc(db, 'products', productId), { imageUrls: arrayRemove(url) });
+          thumb.remove();
+        } catch (err) {
+          console.error('Remove image failed:', err);
+          alert('Could not remove this image. Check the console for details.');
+        }
+      });
+      grid.appendChild(thumb);
+    });
+    if (!imageUrls || imageUrls.length === 0) {
+      grid.innerHTML = '<span style="font-size:12px;color:var(--stone);">No images yet</span>';
+    }
+  }
+
   function openProductModal(existingProduct, existingModel) {
     productForm.reset();
     productError.classList.remove('show');
     productSuccess.classList.remove('show');
     productSubmitBtn.disabled = false;
-    const imagePreview = document.getElementById('product-image-preview');
     document.getElementById('product-dynamic-attrs').innerHTML = '';
     document.getElementById('product-editing-model-id').value = existingModel ? existingModel.id : '';
 
@@ -1626,16 +1652,16 @@
       document.getElementById('product-price').value = existingModel && existingModel.price != null ? existingModel.price : '';
       document.getElementById('product-specs').value = existingModel ? (existingModel.specifications || '') : '';
       document.getElementById('product-status').value = existingModel ? (existingModel.status || 'active') : 'active';
-      imagePreview.innerHTML = existingProduct.imageUrl
-        ? `<img src="${existingProduct.imageUrl}" style="width:80px;height:80px;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">`
-        : '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
+      // Legacy single-image products show their one image as the starting grid item.
+      const existingImages = existingProduct.imageUrls || (existingProduct.imageUrl ? [existingProduct.imageUrl] : []);
+      renderProductImageGrid(existingProduct.id, existingImages);
       productSubmitBtn.textContent = 'Save changes';
     } else {
       productModalTitle.textContent = 'Add product';
       document.getElementById('product-editing-id').value = '';
       populateProductCategoryOptions(productBrandSelect.value, null);
       populateWarrantyOptionsInto(productWarrantySelect, productBrandSelect.value, null);
-      imagePreview.innerHTML = '<span style="font-size:12px;color:var(--stone);">No image yet</span>';
+      renderProductImageGrid(null, []);
       productSubmitBtn.textContent = 'Save product';
     }
     productOverlay.classList.add('show');
@@ -1691,23 +1717,24 @@
         }
       }
 
-      const imageFile = document.getElementById('product-image-input').files[0];
-      if (imageFile) {
+      const imageFiles = Array.from(document.getElementById('product-image-input').files || []);
+      for (const imageFile of imageFiles) {
+        if (!imageFile.type.startsWith('image/')) continue;
         if (imageFile.size > 10 * 1024 * 1024) {
-          productError.textContent = 'Saved, but the image itself is over 10MB and was skipped.';
+          productError.textContent = `Saved, but "${imageFile.name}" is over 10MB and was skipped.`;
           productError.classList.add('show');
-        } else {
-          try {
-            const filePath = `products/${productId}/${Date.now()}_${imageFile.name}`;
-            const fileRef = storageRef(storage, filePath);
-            await uploadBytes(fileRef, imageFile);
-            const imageUrl = await getDownloadURL(fileRef);
-            await updateDoc(doc(db, 'products', productId), { imageUrl });
-          } catch (imgErr) {
-            console.error('Image upload failed:', imgErr);
-            productError.textContent = 'Saved, but the image upload failed. Check console for details.';
-            productError.classList.add('show');
-          }
+          continue;
+        }
+        try {
+          const filePath = `products/${productId}/${Date.now()}_${imageFile.name}`;
+          const fileRef = storageRef(storage, filePath);
+          await uploadBytes(fileRef, imageFile);
+          const imageUrl = await getDownloadURL(fileRef);
+          await updateDoc(doc(db, 'products', productId), { imageUrls: arrayUnion(imageUrl) });
+        } catch (imgErr) {
+          console.error('Image upload failed:', imgErr);
+          productError.textContent = `Saved, but "${imageFile.name}" failed to upload. Check console for details.`;
+          productError.classList.add('show');
         }
       }
 

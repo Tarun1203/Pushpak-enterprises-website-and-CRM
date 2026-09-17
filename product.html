@@ -191,13 +191,22 @@
             : `₹${Math.min(...prices)} <span>– ₹${Math.max(...prices)}</span>`);
 
       const brandHome = BRAND_HOME[product.brandId] || 'index.html';
+      const galleryImages = product.imageUrls && product.imageUrls.length ? product.imageUrls : (product.imageUrl ? [product.imageUrl] : []);
 
       contentEl.innerHTML = `
         <div class="product-hero">
-          <div class="product-visual" style="${product.imageUrl ? 'padding:0;' : ''}">
-            ${product.imageUrl
-              ? `<img src="${product.imageUrl}" alt="${product.name || ''}" style="width:100%;height:100%;object-fit:cover;">`
-              : `<div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>`}
+          <div>
+            <div class="product-visual" id="product-hero-visual" style="${galleryImages.length ? 'padding:0;' : ''}">
+              ${galleryImages.length
+                ? `<img src="${galleryImages[0]}" alt="${product.name || ''}" id="product-hero-img" style="width:100%;height:100%;object-fit:cover;">`
+                : `<div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>`}
+            </div>
+            ${galleryImages.length > 1 ? `
+              <div id="product-thumb-strip" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                ${galleryImages.map((url, i) => `
+                  <img src="${url}" data-idx="${i}" class="product-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:2px;cursor:pointer;border:2px solid ${i === 0 ? 'var(--brand)' : 'transparent'};">
+                `).join('')}
+              </div>` : ''}
           </div>
           <div class="product-info">
             <div class="cat">${product.categoryName || 'Product'}</div>
@@ -213,6 +222,16 @@
         <h2>Available models${models.length ? ` (${models.length})` : ''}</h2>
         <div class="models-list" id="models-list"></div>
       `;
+
+      if (galleryImages.length > 1) {
+        document.querySelectorAll('.product-thumb').forEach(thumb => {
+          thumb.addEventListener('click', () => {
+            document.getElementById('product-hero-img').src = galleryImages[Number(thumb.dataset.idx)];
+            document.querySelectorAll('.product-thumb').forEach(t => t.style.borderColor = 'transparent');
+            thumb.style.borderColor = 'var(--brand)';
+          });
+        });
+      }
 
       const modelsListEl = document.getElementById('models-list');
       if (models.length === 0) {
