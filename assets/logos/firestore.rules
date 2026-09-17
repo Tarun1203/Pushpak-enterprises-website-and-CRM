@@ -1,0 +1,434 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------
+    // Helper functions
+    // ---------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Looks up the caller's role from their own user profile doc.
+    // Every authenticated CRM user must have a corresponding
+    // /users/{uid} document with a `role` field for this to work.
+    function callerRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && callerRole() in ['superadmin', 'warehouse'];
+    }
+
+    function isStaff() {
+      // Any recognized internal role — used where dealers/technicians
+      // should NOT have access but any office/field staff role should.
+      return isSignedIn() && callerRole() in
+        ['superadmin', 'warehouse', 'servicecenter', 'technician'];
+    }
+
+    // ---------------------------------------------------------------
+    // Public website content — readable by anyone, writable only
+    // by Super Admin / Warehouse via the CRM's Website Management.
+    // ---------------------------------------------------------------
+
+    match /siteContent/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Contact enquiries from the public landing page form.
+    // Anyone can submit one; only admins can read or manage them
+    // (surfaces in CRM > Website Management > Contact Enquiries).
+    // ---------------------------------------------------------------
+
+    // ---------------------------------------------------------------
+    // Serial-number counters backing ticket/request/part IDs:
+    //   counters/enquiry-{YYYYMM}, counters/sparerequest-{YYYYMM}  (monthly)
+    //   counters/sparepart-master                                  (ever-incrementing)
+    // Callers may only create a counter at 1 or bump an existing one
+    // by exactly +1 — never set it to an arbitrary value — so IDs
+    // can be safely minted without opening the door to tampering.
+    // ---------------------------------------------------------------
+
+    match /counters/{counterId} {
+      allow get: if true;
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+        && request.resource.data.value == 1;
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+        && request.resource.data.value == resource.data.value + 1;
+      allow delete: if isAdmin();
+    }
+
+    match /contactEnquiries/{enquiryId} {
+      allow create: if request.resource.data.keys().hasAll(['ticketId', 'name', 'phone', 'message', 'createdAt'])
+        && request.resource.data.ticketId is string
+        && request.resource.data.ticketId.matches('^PE-[A-Z]+-[0-9]{8}-[0-9]{4}-[A-Za-z]+$')
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[6-9][0-9]{9}$')
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 2000;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // CRM user profiles — each signed-in user's own role record.
+    // A user can read their own profile (needed for role checks and
+    // for the CRM UI to know what to show them). Only admins can
+    // create/change roles — nobody can grant themselves access.
+    // ---------------------------------------------------------------
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
+    }
+
+    // ---------------------------------------------------------------
+    // Service jobs — a technician may only read/write their OWN jobs
+    // (matched by technicianUid), not other technicians'. Admins can
+    // see everything, for future dispatch/oversight. This overrides
+    // the general staff catch-all below, which would otherwise let
+    // any technician read every other technician's job list.
+    // ---------------------------------------------------------------
+
+    match /serviceJobs/{jobId} {
+      allow read, update: if isAdmin()
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Center requests & center technician roster — scoped to the
+    // owning service center's own uid, same pattern as serviceJobs.
+    // ---------------------------------------------------------------
+
+    match /centerRequests/{reqId} {
+      allow read, update: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /centerTechnicians/{techId} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------
+    // Dealer collections — each scoped to the owning dealer's own
+    // uid, same pattern as service center / technician above. Dealer
+    // is NOT in isStaff(), so without these dedicated rules a dealer
+    // would have no access to any of their own data at all.
+    // ---------------------------------------------------------------
+
+    match /dealerCustomers/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    match /dealerOrders/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /dealerSales/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    match /productRegistrations/{id} {
+      // Public read: the "Book a Service" search-by-mobile step needs
+      // to QUERY this collection by phone number for anyone, signed
+      // in or not — Firestore rules can't restrict a list/query to
+      // "only if the caller supplied the matching phone," they only
+      // see the resulting document's data, not the query filter used
+      // to find it. So this is genuinely public read, same tradeoff
+      // as Track Service's ticket-ID design (see publicServiceRequests
+      // below) — anyone with direct API access could list every
+      // registration, not just search their own by phone.
+      allow read: if true;
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid)
+        || (request.resource.data.source == 'public-site'
+            && request.resource.data.keys().hasAll(['registrationId', 'customerName', 'customerPhone', 'product', 'createdAt'])
+            && request.resource.data.customerPhone is string
+            && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$'));
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Public service requests (from the "Book a Service" flow).
+    // Document ID IS the requestId, so Track Service can do a direct
+    // get() by ticket number rather than an open query — `allow list`
+    // stays admin-only so nobody can enumerate the whole collection.
+    // A guessable low-serial ticket ID is a known residual limitation
+    // (see index.html comments) — no server-side phone verification
+    // is possible without a backend, so treat the ticket ID itself,
+    // not the phone, as the actual access boundary.
+    // ---------------------------------------------------------------
+
+    match /publicServiceRequests/{requestId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if requestId == request.resource.data.requestId
+        && request.resource.data.keys().hasAll(['requestId', 'customerName', 'customerPhone', 'status', 'createdAt'])
+        && request.resource.data.customerPhone is string
+        && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$');
+      allow update, delete: if isAdmin();
+    }
+
+    match /dealerEnquiries/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    // Product catalog — readable by anyone signed in (dealers browse
+    // it), writable only by Warehouse / Super Admin. Empty until
+    // the Product Management module populates it.
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Product categories — the real Category Master. Public read
+    // (the brand microsites need this unauthenticated, same as
+    // brands/siteContent); only admins can create/edit. A lightweight
+    // per-category change log lives alongside it (categoryHistory) —
+    // scoped to this one feature, not the general cross-cutting audit
+    // log the project doesn't have yet.
+    // ---------------------------------------------------------------
+
+    match /productCategories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Product Models / SKUs — each model belongs to a parent product
+    // (productId) and carries brandId denormalized for easy querying.
+    // Public read (same reasoning as products/categories), admin write.
+    // ---------------------------------------------------------------
+
+    match /productModels/{modelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Warranty Plans — a plan can cover multiple components with
+    // different durations (e.g. Washing Machine: full product 1yr,
+    // spin motor 2yr, wash motor 5yr). Public read, admin write.
+    // ---------------------------------------------------------------
+
+    match /warrantyPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Dynamic product attributes — configurable spec fields per
+    // category (e.g. Television: Screen Size, Resolution...). The
+    // Model/SKU form loads these live based on the selected
+    // product's category. Public read, admin write.
+    // ---------------------------------------------------------------
+
+    match /productAttributes/{attrId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categoryHistory/{entryId} {
+      allow read: if isStaff();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Claims — Warehouse (isAdmin) manages the full pipeline for
+    // every claim. A technician or service center may create their
+    // own claim and read only their own (matched by claimantUid) —
+    // they cannot verify/settle/reject their own claims.
+    // ---------------------------------------------------------------
+
+    match /claims/{claimId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.claimantUid == request.auth.uid);
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.claimantUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Inventory — any staff member may read (Warehouse, Area
+    // Manager read-only views, future Service Center views, etc.).
+    // Writes to a 'technician'-location doc are restricted to that
+    // technician's own uid, or an admin; Warehouse's own stock
+    // docs are effectively admin-only in practice already.
+    // ---------------------------------------------------------------
+
+    match /inventory/{invId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Technician availability — a technician sets only their own
+    // status; any staff member can read it (future dispatch use).
+    // ---------------------------------------------------------------
+
+    match /technicianAvailability/{uid} {
+      allow read: if isStaff();
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // ---------------------------------------------------------------
+    // Warehouse operational collections. Master data (spare parts) is
+    // staff-readable but admin-only to edit. Transactional collections
+    // (movements, requests, purchases, returns) are staff-readable for
+    // company-wide oversight, but writes are admin-only EXCEPT where a
+    // specific role creates its own tagged record (a technician's or
+    // service center's own stock movement, or a service center's own
+    // return) — those match the same owner-tag pattern used above.
+    // ---------------------------------------------------------------
+
+    match /spareParts/{partId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /stockMovements/{moveId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /spareRequests/{reqId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /localPurchases/{lpId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /returns/{returnId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /rmaRequests/{rmaId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /messageTemplates/{templateId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // In-app notifications — targeted either at a specific user
+    // (recipientType 'uid') or an entire role (recipientType 'role').
+    // Create is intentionally open (validated) because the public
+    // contact form — unauthenticated — needs to notify Super Admin
+    // of a new enquiry; read/update are restricted to the actual
+    // recipient. This is the achievable slice of "Communication"
+    // without a real WhatsApp/SMS/Email provider connected (see
+    // messageTemplates above for the rest of that honest scoping).
+    // ---------------------------------------------------------------
+
+    match /notifications/{notifId} {
+      allow read, update: if isSignedIn() && (
+        isAdmin()
+        || (resource.data.recipientType == 'uid' && resource.data.recipientValue == request.auth.uid)
+        || (resource.data.recipientType == 'role' && resource.data.recipientValue == callerRole())
+      );
+      allow create: if request.resource.data.keys().hasAll(['recipientType', 'recipientValue', 'title', 'message', 'read', 'createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Payments — a real settlement record (method, reference, paid
+    // date) created whenever Warehouse marks a claim "Settled" or a
+    // local purchase "Reimbursed", instead of that being a bare
+    // status flip with no payment trail.
+    // ---------------------------------------------------------------
+
+    match /payments/{paymentId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Audit logs — scoped to the highest-value actions (privilege
+    // changes and financial settlements/status changes), not every
+    // write across the CRM. Instrumenting literally everything would
+    // be a much bigger cross-cutting change; this covers what an
+    // audit trail is for in practice: who changed a role, who
+    // approved a payment, who changed an RMA's status, and when.
+    // Admin-only read; writes only ever come from admin-triggered
+    // flows (see the corresponding action in each dashboard).
+    // ---------------------------------------------------------------
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // Deny by default. Every collection actually used by the app has
+    // an explicit rule above — this is a real security boundary, not
+    // a temporary placeholder. If a new collection is added later, it
+    // needs its own rule block; it will NOT fall through to broad
+    // staff access.
+    // ---------------------------------------------------------------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

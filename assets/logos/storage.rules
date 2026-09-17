@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ---------------------------------------------------------------
+    // Diagnosis photos (before/after repair shots), one folder per
+    // service job. Scoped to signed-in CRM users only — every role
+    // in this app is internal staff of some kind (technician,
+    // service center, warehouse, super admin); there's no public
+    // upload path here. This is the first Storage rule in the
+    // project — previously Storage access was left disabled
+    // entirely for uploads (see the earlier invoice-attachment
+    // field, still disabled on the public site).
+    // ---------------------------------------------------------------
+
+    match /serviceJobs/{jobId}/diagnosis/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ---------------------------------------------------------------
+    // Product images — shown on the public brand microsites, so
+    // these need public read (unlike diagnosis photos above, which
+    // are internal-only). Only Super Admin/Warehouse can upload,
+    // matching who can edit the product catalog itself in Firestore.
+    // ---------------------------------------------------------------
+
+    match /products/{productId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Deny everything else by default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

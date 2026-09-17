@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse / Warehouse — Pushpak Enterprises CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
+    --blue:#1C6FBA;--blue-deep:#0F4C88;
+    --err:#B3261E;--ok:#1C7A46;--sidebar-w:264px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+
+  #gate{
+    position:fixed;inset:0;background:var(--paper);z-index:100;
+    display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--stone);
+  }
+  #app{display:none;}
+
+  .layout{display:flex;min-height:100vh;}
+  .sidebar{
+    width:var(--sidebar-w);flex-shrink:0;background:var(--blue-deep);color:var(--paper);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .sidebar-header{padding:22px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
+  .sidebar-header img{width:30px;height:30px;flex-shrink:0;}
+  .sidebar-header .name{font-size:13px;font-weight:700;}
+  .sidebar-header .role{font-size:11px;color:#C9D6E4;}
+  .nav-group{padding:14px 10px 4px;}
+  .nav-group-label{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#9FB4C8;padding:6px 12px;text-transform:uppercase;}
+  .nav-item{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 12px;border-radius:3px;font-size:13px;font-weight:500;color:#E3EAF1;
+    cursor:pointer;transition:background .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.08);color:#fff;}
+  .nav-item.active{background:rgba(255,255,255,0.16);color:#fff;font-weight:600;}
+  .nav-badge{font-size:9.5px;background:rgba(255,255,255,0.12);color:#C9D6E4;padding:2px 6px;border-radius:20px;}
+  .sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,0.1);}
+  .sidebar-footer .email{font-size:11.5px;color:#C9D6E4;margin-bottom:10px;word-break:break-all;}
+  .logout-btn{
+    width:100%;background:transparent;border:1px solid rgba(255,255,255,0.25);color:#E3EAF1;
+    padding:9px;border-radius:3px;font-size:12.5px;font-weight:600;
+  }
+  .logout-btn:hover{background:rgba(255,255,255,0.1);}
+
+  .main{flex:1;min-width:0;}
+  .topbar{
+    padding:18px 32px;border-bottom:1px solid var(--hairline);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar h1{font-size:20px;font-weight:800;letter-spacing:-0.01em;}
+  .topbar .sub{font-size:13px;color:var(--stone);margin-top:2px;}
+  .content{padding:32px;}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-bottom:32px;}
+  .stat-card{background:var(--paper);padding:22px 20px;}
+  .stat-card .label{font-size:12px;color:var(--stone);font-weight:600;margin-bottom:8px;}
+  .stat-card .value{font-size:28px;font-weight:800;letter-spacing:-0.01em;}
+  .stat-card .hint{font-size:11.5px;color:var(--stone);margin-top:4px;}
+  @media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .panel{border:1px solid var(--hairline);border-radius:2px;}
+  .panel-header{padding:18px 22px;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;}
+  .panel-header h2{font-size:15px;font-weight:700;}
+  .panel-body{padding:22px;}
+
+  .coming-soon{
+    border:1px dashed var(--hairline);border-radius:2px;padding:60px 30px;text-align:center;color:var(--stone);
+  }
+  .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+  .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.approved{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.picking{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.packing{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
+  .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
+  .status-pill.received{background:#D9EEE0;color:var(--ok);}
+  .status-pill.backorder{background:#F6DCDC;color:var(--err);}
+  .status-pill.ok{background:#D9EEE0;color:var(--ok);}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.out{background:#F6DCDC;color:var(--err);}
+
+  .priority-tag{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;}
+  .priority-tag.urgent{color:var(--err);}
+  .priority-tag.normal{color:var(--stone);}
+
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
+
+  .notif-bell{position:relative;background:none;border:1px solid var(--hairline);border-radius:2px;padding:9px 12px;cursor:pointer;font-size:15px;}
+  .notif-badge{position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;}
+  .notif-panel{
+    position:absolute;top:100%;right:0;margin-top:8px;width:340px;max-height:400px;overflow-y:auto;
+    background:var(--paper);border:1px solid var(--hairline);border-radius:2px;box-shadow:0 8px 24px rgba(0,0,0,0.12);
+    z-index:60;display:none;
+  }
+  .notif-panel.show{display:block;}
+  .notif-panel-header{padding:12px 16px;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;}
+  .notif-panel-header h4{font-size:13px;font-weight:700;}
+  .notif-panel-header button{background:none;border:none;font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:600;}
+  .notif-item{padding:12px 16px;border-bottom:1px solid var(--hairline);cursor:pointer;}
+  .notif-item:last-child{border-bottom:none;}
+  .notif-item.unread{background:var(--paper-deep);}
+  .notif-item .title{font-size:12.5px;font-weight:700;margin-bottom:3px;}
+  .notif-item .msg{font-size:12px;color:var(--stone);}
+  .notif-item .time{font-size:10.5px;color:var(--stone);margin-top:4px;}
+  .notif-empty{padding:24px 16px;text-align:center;font-size:12.5px;color:var(--stone);}
+</style>
+</head>
+<body>
+
+<div id="gate">Checking your session…</div>
+
+<div id="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../assets/logos/pushpak-enterprises-icon.png" alt="">
+        <div>
+          <div class="name">Pushpak Enterprises</div>
+          <div class="role">Warehouse / Warehouse</div>
+        </div>
+      </div>
+
+      <div id="nav-container"></div>
+
+      <div class="sidebar-footer">
+        <div class="email" id="user-email"></div>
+        <button class="logout-btn" id="logout-btn">Sign out</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Dashboard</h1>
+          <div class="sub" id="page-sub">Welcome back</div>
+        </div>
+        <div style="position:relative;">
+          <button class="notif-bell" id="notif-bell-btn">🔔<span class="notif-badge" id="notif-badge" style="display:none;">0</span></button>
+          <div class="notif-panel" id="notif-panel">
+            <div class="notif-panel-header"><h4>Notifications</h4><button id="notif-mark-all">Mark all read</button></div>
+            <div id="notif-list"><div class="notif-empty">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- New Spare Request modal -->
+<div class="modal-overlay" id="new-request-overlay">
+  <div class="modal">
+    <h3>New spare request</h3>
+    <form id="new-request-form">
+      <div class="form-row">
+        <label>Requesting Service Center</label>
+        <input type="text" id="req-center" placeholder="e.g. Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Part / item</label>
+        <input type="text" id="req-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="req-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Priority</label>
+        <select id="req-priority">
+          <option value="normal">Normal</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="req-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="new-request-error"></div>
+      <div class="modal-success" id="new-request-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-new-request">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-new-request">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Spare Part modal -->
+<div class="modal-overlay" id="part-overlay">
+  <div class="modal">
+    <h3 id="part-modal-title">Add spare part</h3>
+    <form id="part-form">
+      <input type="hidden" id="part-editing-id">
+      <div class="form-row">
+        <label>Part name</label>
+        <input type="text" id="part-name" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Category</label>
+        <input type="text" id="part-category" placeholder="e.g. Thermostat, Heating Element, Valve">
+      </div>
+      <div class="form-row">
+        <label>Brand compatibility</label>
+        <select id="part-brand">
+          <option value="All">All brands</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Price (₹)</label>
+        <input type="number" id="part-price" min="0" step="0.01">
+      </div>
+      <div class="form-row">
+        <label>Reorder level</label>
+        <input type="number" id="part-reorder" min="0" value="5">
+      </div>
+      <div class="modal-error" id="part-error"></div>
+      <div class="modal-success" id="part-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-part">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-part">Save part</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Adjust Stock modal -->
+<div class="modal-overlay" id="adjust-overlay">
+  <div class="modal">
+    <h3>Adjust Warehouse stock</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="adjust-part-label"></div>
+    <form id="adjust-form">
+      <input type="hidden" id="adjust-part-id">
+      <div class="form-row">
+        <label>Action</label>
+        <select id="adjust-type">
+          <option value="add">Add stock (received)</option>
+          <option value="remove">Remove stock (issued/used)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="adjust-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Reason / notes (optional)</label>
+        <input type="text" id="adjust-reason" placeholder="e.g. Purchased from supplier, or issued to SC-Hubli">
+      </div>
+      <div class="modal-error" id="adjust-error"></div>
+      <div class="modal-success" id="adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-adjust">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Local Purchase modal -->
+<div class="modal-overlay" id="lp-overlay">
+  <div class="modal">
+    <h3>New local purchase request</h3>
+    <form id="lp-form">
+      <div class="form-row">
+        <label>Item / part needed</label>
+        <input type="text" id="lp-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="lp-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Estimated amount (₹)</label>
+        <input type="number" id="lp-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Requested by</label>
+        <input type="text" id="lp-requestedby" placeholder="e.g. your name or center name" required>
+      </div>
+      <div class="form-row">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="lp-emergency-flag" style="width:auto;">
+          This is an emergency purchase
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="lp-notes" placeholder="Why this is needed, vendor info, etc."></textarea>
+      </div>
+      <div class="modal-error" id="lp-error"></div>
+      <div class="modal-success" id="lp-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Invoice submission modal -->
+<div class="modal-overlay" id="lp-invoice-overlay">
+  <div class="modal">
+    <h3>Submit invoice</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="lp-invoice-label"></div>
+    <form id="lp-invoice-form">
+      <input type="hidden" id="lp-invoice-doc-id">
+      <div class="form-row">
+        <label>Vendor name</label>
+        <input type="text" id="lp-vendor" required>
+      </div>
+      <div class="form-row">
+        <label>Invoice number</label>
+        <input type="text" id="lp-invoice-number" required>
+      </div>
+      <div class="form-row">
+        <label>Actual amount (₹)</label>
+        <input type="number" id="lp-actual-amount" min="0" step="0.01" required>
+      </div>
+      <div class="modal-error" id="lp-invoice-error"></div>
+      <div class="modal-success" id="lp-invoice-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp-invoice">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp-invoice">Submit invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Payment Details modal (used for both Mark Settled and Mark Reimbursed) -->
+<div class="modal-overlay" id="payment-overlay">
+  <div class="modal">
+    <h3>Record payment</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="payment-label"></div>
+    <form id="payment-form">
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="payment-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Method</label>
+        <select id="payment-method">
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="UPI">UPI</option>
+          <option value="Cash">Cash</option>
+          <option value="Cheque">Cheque</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Reference number <span class="hint">(UPI ref, cheque no., transaction ID)</span></label>
+        <input type="text" id="payment-reference">
+      </div>
+      <div class="form-row">
+        <label>Paid date</label>
+        <input type="date" id="payment-date" required>
+      </div>
+      <div class="modal-error" id="payment-error"></div>
+      <div class="modal-success" id="payment-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-payment">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-payment">Record payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Claim modal -->
+<div class="modal-overlay" id="claim-overlay">
+  <div class="modal">
+    <h3>New claim</h3>
+    <form id="claim-form">
+      <div class="form-row">
+        <label>Claimant type</label>
+        <select id="claim-type" required>
+          <option value="technician">Technician</option>
+          <option value="servicecenter">Service Center</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Claimant name</label>
+        <input type="text" id="claim-name" placeholder="e.g. Ramesh K., or Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="claim-description" placeholder="e.g. Travel expense for on-site repair" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="claim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="claim-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="claim-error"></div>
+      <div class="modal-success" id="claim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-claim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-claim">Create claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Return modal -->
+<div class="modal-overlay" id="return-overlay">
+  <div class="modal">
+    <h3>Log a return</h3>
+    <form id="return-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="return-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="return-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Returned from</label>
+        <input type="text" id="return-source" placeholder="e.g. Service Center - Hubli, or Technician - Ramesh" required>
+      </div>
+      <div class="form-row">
+        <label>Reason</label>
+        <input type="text" id="return-reason" placeholder="e.g. Damaged in transit, excess stock, wrong part" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="return-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="return-error"></div>
+      <div class="modal-success" id="return-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-return">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-return">Log return</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const gate = document.getElementById('gate');
+  const appEl = document.getElementById('app');
+  const userEmailEl = document.getElementById('user-email');
+
+  const ALLOWED_ROLE = 'warehouse';
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = 'login.html';
+      return;
+    }
+    try {
+      const roleSnap = await getDoc(doc(db, 'users', user.uid));
+      if (!roleSnap.exists() || roleSnap.data().role !== ALLOWED_ROLE) {
+        await signOut(auth);
+        window.location.href = 'login.html';
+        return;
+      }
+    } catch (err) {
+      console.error('Role check failed:', err);
+      window.location.href = 'login.html';
+      return;
+    }
+    userEmailEl.textContent = user.email;
+    gate.style.display = 'none';
+    appEl.style.display = 'block';
+    renderDashboard();
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service Visibility"}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+
+  const navContainer = document.getElementById('nav-container');
+  const pageTitle = document.getElementById('page-title');
+  const pageSub = document.getElementById('page-sub');
+  const contentEl = document.getElementById('content');
+
+  function renderNav() {
+    navContainer.innerHTML = '';
+    NAV.forEach(group => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'nav-group';
+      const label = document.createElement('div');
+      label.className = 'nav-group-label';
+      label.textContent = group.group;
+      groupEl.appendChild(label);
+      group.items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'nav-item';
+        el.dataset.id = item.id;
+        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.addEventListener('click', () => selectSection(item.id, item.label));
+        groupEl.appendChild(el);
+      });
+      navContainer.appendChild(groupEl);
+    });
+  }
+
+  function setActiveNav(id) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+
+  const SPARE_REQUEST_TABS = {
+    'requests-new': 'new',
+    'requests-approved': 'approved',
+    'requests-picking': 'picking',
+    'requests-packing': 'packing',
+    'requests-dispatch': 'dispatched',
+    'requests-transit': 'intransit',
+    'requests-backorder': 'backorder',
+  };
+
+  function selectSection(id, label) {
+    setActiveNav(id);
+    pageTitle.textContent = label;
+    if (id === 'dashboard') {
+      pageSub.textContent = 'Welcome back';
+      renderDashboard();
+    } else if (SPARE_REQUEST_TABS[id]) {
+      pageSub.textContent = 'Spare Requests & Dispatch';
+      renderSpareRequests(SPARE_REQUEST_TABS[id], label);
+    } else if (id === 'spareparts') {
+      pageSub.textContent = 'Part master list';
+      renderSpareParts();
+    } else if (id === 'inv-warehouse') {
+      pageSub.textContent = 'Current stock at Warehouse';
+      renderInventory('warehouse');
+    } else if (id === 'inv-summary') {
+      pageSub.textContent = 'Stock across all parts';
+      renderInventory('summary');
+    } else if (id === 'inv-lowstock') {
+      pageSub.textContent = 'Parts at or below reorder level';
+      renderInventory('low');
+    } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
+      pageSub.textContent = 'Not populated yet';
+      renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
+    } else if (id === 'move-history') {
+      pageSub.textContent = 'Full log, all movement types';
+      renderMovementHistory(null, label);
+    } else if (id === 'move-receive') {
+      pageSub.textContent = 'Stock received into Warehouse';
+      renderMovementHistory('receive', label);
+    } else if (id === 'move-issue') {
+      pageSub.textContent = 'Stock issued out of Warehouse';
+      renderMovementHistory('issue', label);
+    } else if (LOCAL_PURCHASE_TABS[id]) {
+      pageSub.textContent = 'Local Purchase';
+      renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
+    } else if (CLAIMS_TABS[id]) {
+      pageSub.textContent = 'Claims';
+      renderClaims(CLAIMS_TABS[id], id, label);
+    } else if (RETURNS_TABS[id]) {
+      pageSub.textContent = 'Returns & Defects';
+      renderReturns(RETURNS_TABS[id], id, label);
+    } else {
+      pageSub.textContent = 'Not built yet';
+      renderComingSoon(label);
+    }
+  }
+
+  function renderNoLocationData(label, portalName) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">No ${label.toLowerCase()} data yet</div>
+        <div class="small">This will populate automatically once the ${portalName} portal is built and starts tracking its own stock.</div>
+      </div>`;
+  }
+
+  function renderComingSoon(label) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">${label} isn't built yet</div>
+        <div class="small">This module is on the roadmap — it'll be built out next, module by module.</div>
+      </div>`;
+  }
+
+  async function renderDashboard() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">New Requests</div>
+          <div class="value" id="stat-new">…</div>
+          <div class="hint">Awaiting approval</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Back Order</div>
+          <div class="value" id="stat-backorder">…</div>
+          <div class="hint">Stuck, needs attention</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">In Transit</div>
+          <div class="value" id="stat-transit">…</div>
+          <div class="hint">Currently dispatched</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Alerts</div>
+          <div class="value">—</div>
+          <div class="hint">Module not built yet</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Getting started</h2></div>
+        <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
+          <b style="color:var(--blue)">Spare Requests & Dispatch</b> is fully working — use the sidebar tabs to move requests
+          through New → Approved → Picking → Packing → Dispatch → In Transit, or mark them Back Order.
+          Other sections in the sidebar will fill in module by module.
+        </div>
+      </div>`;
+    try {
+      const [newSnap, backorderSnap, transitSnap] = await Promise.all([
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'backorder'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'intransit'))),
+      ]);
+      document.getElementById('stat-new').textContent = newSnap.size;
+      document.getElementById('stat-backorder').textContent = backorderSnap.size;
+      document.getElementById('stat-transit').textContent = transitSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Spare Requests & Dispatch
+  // ---------------------------------------------------------------
+
+  const STATUS_LABELS = {
+    new: 'New', approved: 'Approved', picking: 'Picking', packing: 'Packing',
+    dispatched: 'Dispatched', intransit: 'In Transit', received: 'Received', backorder: 'Back Order'
+  };
+
+  // Each status's forward action(s) and, where relevant, a side action
+  // (e.g. flagging Back Order from New/Approved, or retrying from Back Order).
+  const STATUS_ACTIONS = {
+    new:        [{ label: 'Approve', next: 'approved' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    approved:   [{ label: 'Start Picking', next: 'picking' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    picking:    [{ label: 'Mark Packed', next: 'packing' }],
+    packing:    [{ label: 'Dispatch', next: 'dispatched' }],
+    dispatched: [{ label: 'Mark In Transit', next: 'intransit' }],
+    intransit:  [{ label: 'Mark Received', next: 'received' }],
+    backorder:  [{ label: 'Retry (back to New)', next: 'new' }],
+  };
+
+  async function renderSpareRequests(status, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-new-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Qty</th><th>Priority</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="requests-tbody">
+              <tr><td colspan="7" class="empty-row">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-new-request').addEventListener('click', openNewRequestModal);
+    loadSpareRequests(status);
+  }
+
+  async function loadSpareRequests(status) {
+    const tbody = document.getElementById('requests-tbody');
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'spareRequests'),
+        where('status', '==', status),
+        orderBy('createdAt', 'desc')
+      ));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No requests in this stage.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const tr = document.createElement('tr');
+        const actions = (STATUS_ACTIONS[status] || []).map(a =>
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${docSnap.id}" data-next="${a.next}">${a.label}</button>`
+        ).join('');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
+          <td>${d.serviceCenter || '—'}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><span class="priority-tag ${d.priority || 'normal'}">${(d.priority || 'normal').toUpperCase()}</span></td>
+          <td><span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><div class="row-actions">${actions}</div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.action-btn').forEach(btn => {
+        btn.addEventListener('click', () => advanceRequest(btn.dataset.uid, btn.dataset.next, status));
+      });
+    } catch (err) {
+      console.error('Load spare requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceRequest(uid, nextStatus, currentTabStatus) {
+    try {
+      await updateDoc(doc(db, 'spareRequests', uid), {
+        status: nextStatus,
+        updatedAt: serverTimestamp()
+      });
+      loadSpareRequests(currentTabStatus);
+    } catch (err) {
+      console.error('Update request status failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // Request ID format matches the site's ticket convention:
+  // PE-SR-{YYYYMMDD}-{Serial}-{Mode}. Serial resets monthly via an
+  // atomic Firestore transaction (counters/sparerequest-{YYYYMM}),
+  // same collision-safe pattern used for public enquiry tickets.
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+  async function generateRequestId() {
+    const serial = await nextMonthlySerial(`sparerequest-${currentYYYYMM()}`);
+    return `PE-SR-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-Warehouse`;
+  }
+
+  const newRequestOverlay = document.getElementById('new-request-overlay');
+  const newRequestForm = document.getElementById('new-request-form');
+  const newRequestError = document.getElementById('new-request-error');
+  const newRequestSuccess = document.getElementById('new-request-success');
+  const newRequestSubmitBtn = document.getElementById('submit-new-request');
+
+  function openNewRequestModal() {
+    newRequestForm.reset();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = false;
+    newRequestSubmitBtn.textContent = 'Create request';
+    newRequestOverlay.classList.add('show');
+  }
+  function closeNewRequestModal() {
+    newRequestOverlay.classList.remove('show');
+  }
+  document.getElementById('cancel-new-request').addEventListener('click', closeNewRequestModal);
+  newRequestOverlay.addEventListener('click', (e) => { if (e.target === newRequestOverlay) closeNewRequestModal(); });
+
+  newRequestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = true;
+    newRequestSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: document.getElementById('req-center').value.trim(),
+        item: document.getElementById('req-item').value.trim(),
+        quantity: Number(document.getElementById('req-qty').value) || 1,
+        priority: document.getElementById('req-priority').value,
+        notes: document.getElementById('req-notes').value.trim(),
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      newRequestSuccess.textContent = `Created — ${requestId}`;
+      newRequestSuccess.classList.add('show');
+      newRequestSubmitBtn.textContent = 'Create request';
+      newRequestSubmitBtn.disabled = false;
+      // Refresh the currently open tab if it's the "New" tab
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && activeItem.dataset.id === 'requests-new') loadSpareRequests('new');
+      setTimeout(closeNewRequestModal, 1000);
+    } catch (err) {
+      console.error('Create request failed:', err);
+      newRequestError.textContent = 'Could not create request. Check console for details.';
+      newRequestError.classList.add('show');
+      newRequestSubmitBtn.disabled = false;
+      newRequestSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Spare Parts (master list)
+  // ---------------------------------------------------------------
+
+  async function generatePartCode() {
+    const counterRef = doc(db, 'counters', 'sparepart-master');
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `SP-${String(next).padStart(4, '0')}`;
+  }
+
+  async function renderSpareParts() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Spare parts master list</h2>
+          <button class="btn-primary" id="open-add-part">+ Add part</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="parts-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-part').addEventListener('click', () => openPartModal(null));
+    loadSpareParts();
+  }
+
+  let sparePartsCache = [];
+
+  async function loadSpareParts() {
+    const tbody = document.getElementById('parts-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
+      sparePartsCache = [];
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No parts yet — add your first one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        sparePartsCache.push(d);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
+          <td>${d.name || '—'}</td>
+          <td>${d.category || '—'}</td>
+          <td>${d.brandCompatibility || 'All'}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td>
+          <td>${d.reorderLevel ?? '—'}</td>
+          <td><button class="btn-secondary edit-part-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
+      });
+    } catch (err) {
+      console.error('Load spare parts failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
+    }
+  }
+
+  const partOverlay = document.getElementById('part-overlay');
+  const partForm = document.getElementById('part-form');
+  const partError = document.getElementById('part-error');
+  const partSuccess = document.getElementById('part-success');
+  const partSubmitBtn = document.getElementById('submit-part');
+  const partModalTitle = document.getElementById('part-modal-title');
+
+  function openPartModal(existing) {
+    partForm.reset();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = false;
+    if (existing) {
+      partModalTitle.textContent = `Edit ${existing.partCode || 'part'}`;
+      document.getElementById('part-editing-id').value = existing.id;
+      document.getElementById('part-name').value = existing.name || '';
+      document.getElementById('part-category').value = existing.category || '';
+      document.getElementById('part-brand').value = existing.brandCompatibility || 'All';
+      document.getElementById('part-price').value = existing.price ?? '';
+      document.getElementById('part-reorder').value = existing.reorderLevel ?? 5;
+      partSubmitBtn.textContent = 'Save changes';
+    } else {
+      partModalTitle.textContent = 'Add spare part';
+      document.getElementById('part-editing-id').value = '';
+      document.getElementById('part-reorder').value = 5;
+      partSubmitBtn.textContent = 'Save part';
+    }
+    partOverlay.classList.add('show');
+  }
+  function closePartModal() { partOverlay.classList.remove('show'); }
+  document.getElementById('cancel-part').addEventListener('click', closePartModal);
+  partOverlay.addEventListener('click', (e) => { if (e.target === partOverlay) closePartModal(); });
+
+  partForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = true;
+    partSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('part-editing-id').value;
+    const payload = {
+      name: document.getElementById('part-name').value.trim(),
+      category: document.getElementById('part-category').value.trim(),
+      brandCompatibility: document.getElementById('part-brand').value,
+      price: document.getElementById('part-price').value ? Number(document.getElementById('part-price').value) : null,
+      reorderLevel: Number(document.getElementById('part-reorder').value) || 0,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'spareParts', editingId), payload);
+      } else {
+        const partCode = await generatePartCode();
+        await addDoc(collection(db, 'spareParts'), { ...payload, partCode, createdAt: serverTimestamp() });
+      }
+      partSuccess.textContent = 'Saved.';
+      partSuccess.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+      loadSpareParts();
+      setTimeout(closePartModal, 800);
+    } catch (err) {
+      console.error('Save part failed:', err);
+      partError.textContent = 'Could not save this part. Check console for details.';
+      partError.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Inventory — Warehouse stock, Stock Summary, Low/Out of Stock.
+  // One inventory doc per part at Warehouse, id = `warehouse_{partId}`,
+  // so adjustments upsert cleanly. Each adjustment also logs a
+  // stockMovements entry — groundwork for the future Stock Movement /
+  // Movement History module.
+  // ---------------------------------------------------------------
+
+  async function getHeadOfficeInventoryMap() {
+    const snap = await getDocs(query(collection(db, 'inventory'), where('location', '==', 'warehouse')));
+    const map = {};
+    snap.forEach(d => { map[d.data().partId] = { id: d.id, ...d.data() }; });
+    return map;
+  }
+
+  function stockStatus(qty, reorderLevel) {
+    if (qty <= 0) return { cls: 'out', label: 'Out of stock' };
+    if (qty <= reorderLevel) return { cls: 'low', label: 'Low' };
+    return { cls: 'ok', label: 'OK' };
+  }
+
+  async function renderInventory(view) {
+    const titles = {
+      warehouse: 'Warehouse stock',
+      summary: 'Stock summary',
+      low: 'Low / out of stock'
+    };
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${titles[view]}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Part</th><th>Category</th><th>Qty (WH)</th><th>Reorder Level</th><th>Status</th>${view === 'warehouse' ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="inventory-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadInventory(view);
+  }
+
+  async function loadInventory(view) {
+    const tbody = document.getElementById('inventory-tbody');
+    try {
+      const [partsSnap, invMap] = await Promise.all([
+        getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc'))),
+        getHeadOfficeInventoryMap()
+      ]);
+      let rows = [];
+      partsSnap.forEach(docSnap => {
+        const part = { id: docSnap.id, ...docSnap.data() };
+        const inv = invMap[part.id];
+        const qty = inv ? inv.quantity : 0;
+        rows.push({ part, qty });
+      });
+      if (view === 'low') {
+        rows = rows.filter(r => r.qty <= (r.part.reorderLevel || 0));
+      }
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${sparePartsCache.length === 0 && rows.length === 0 ? 'No parts in the master list yet — add parts first.' : 'Nothing to show here.'}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(({ part, qty }) => {
+        const status = stockStatus(qty, part.reorderLevel || 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${part.partCode || part.id}</td>
+          <td>${part.name || '—'}</td>
+          <td>${part.category || '—'}</td>
+          <td><b>${qty}</b></td>
+          <td>${part.reorderLevel ?? 0}</td>
+          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
+        tbody.appendChild(tr);
+        if (view === 'warehouse') {
+          tr.querySelector('.adjust-btn').addEventListener('click', (e) => {
+            openAdjustModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.code);
+          });
+        }
+      });
+    } catch (err) {
+      console.error('Load inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load inventory. Check console for details.</td></tr>`;
+    }
+  }
+
+  const adjustOverlay = document.getElementById('adjust-overlay');
+  const adjustForm = document.getElementById('adjust-form');
+  const adjustError = document.getElementById('adjust-error');
+  const adjustSuccess = document.getElementById('adjust-success');
+  const adjustSubmitBtn = document.getElementById('submit-adjust');
+  const adjustPartLabel = document.getElementById('adjust-part-label');
+
+  function openAdjustModal(partId, partName, partCode) {
+    adjustForm.reset();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    adjustSubmitBtn.disabled = false;
+    adjustSubmitBtn.textContent = 'Save';
+    document.getElementById('adjust-part-id').value = partId;
+    adjustPartLabel.textContent = `${partCode ? partCode + ' — ' : ''}${partName}`;
+    adjustOverlay.classList.add('show');
+  }
+  function closeAdjustModal() { adjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-adjust').addEventListener('click', closeAdjustModal);
+  adjustOverlay.addEventListener('click', (e) => { if (e.target === adjustOverlay) closeAdjustModal(); });
+
+  adjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    const partId = document.getElementById('adjust-part-id').value;
+    const type = document.getElementById('adjust-type').value;
+    const qty = Number(document.getElementById('adjust-qty').value) || 0;
+    const reason = document.getElementById('adjust-reason').value.trim();
+    if (qty <= 0) {
+      adjustError.textContent = 'Enter a quantity greater than 0.';
+      adjustError.classList.add('show');
+      return;
+    }
+    adjustSubmitBtn.disabled = true;
+    adjustSubmitBtn.textContent = 'Saving…';
+    const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const delta = type === 'add' ? qty : -qty;
+        const next = Math.max(0, current + delta);
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: type === 'add' ? 'receive' : 'issue',
+        location: 'warehouse', quantity: qty, reason,
+        createdAt: serverTimestamp()
+      });
+      adjustSuccess.textContent = 'Stock updated.';
+      adjustSuccess.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+      const activeItem = document.querySelector('.nav-item.active');
+      const activeId = activeItem ? activeItem.dataset.id : null;
+      const viewMap = { 'inv-warehouse': 'warehouse', 'inv-summary': 'summary', 'inv-lowstock': 'low' };
+      if (activeId && viewMap[activeId]) loadInventory(viewMap[activeId]);
+      setTimeout(closeAdjustModal, 800);
+    } catch (err) {
+      console.error('Adjust stock failed:', err);
+      adjustError.textContent = 'Could not update stock. Check console for details.';
+      adjustError.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Stock Movement — Movement History (plus Receive/Issue as
+  // filtered views of the same log). Every adjustment made from
+  // Inventory > Warehouse Stock already writes a stockMovements
+  // entry, so this view is populated automatically — no separate
+  // data-entry step needed for Receive/Issue.
+  // ---------------------------------------------------------------
+
+  const MOVEMENT_TYPE_LABELS = { receive: 'Receive', issue: 'Issue', transfer: 'Transfer', adjustment: 'Adjustment' };
+
+  async function renderMovementHistory(typeFilter, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${label}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Part</th><th>Qty</th><th>Location</th><th>Reason / Notes</th></tr>
+            </thead>
+            <tbody id="movement-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadMovementHistory(typeFilter);
+  }
+
+  async function loadMovementHistory(typeFilter) {
+    const tbody = document.getElementById('movement-tbody');
+    try {
+      const baseQuery = typeFilter
+        ? query(collection(db, 'stockMovements'), where('type', '==', typeFilter), orderBy('createdAt', 'desc'))
+        : query(collection(db, 'stockMovements'), orderBy('createdAt', 'desc'));
+      const [movementsSnap, partsSnap] = await Promise.all([
+        getDocs(baseQuery),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (movementsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No movements recorded yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      movementsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${MOVEMENT_TYPE_LABELS[d.type] || d.type}</span></td>
+          <td>${part ? (part.partCode + ' — ' + part.name) : (d.partId || '—')}</td>
+          <td><b>${d.quantity ?? '—'}</b></td>
+          <td style="text-transform:capitalize;">${d.location || '—'}</td>
+          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load movement history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load movement history. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Local Purchase — Requests → Invoice Submitted → Verified →
+  // Reimbursed, plus an Emergency cross-filter and a full History log.
+  // ---------------------------------------------------------------
+
+  const LOCAL_PURCHASE_TABS = {
+    'lp-new': 'requested',
+    'lp-emergency': 'EMERGENCY',
+    'lp-invoice': 'invoice_submitted',
+    'lp-claims': 'verified',
+    'lp-history': 'ALL',
+  };
+  const LP_STATUS_LABELS = {
+    requested: 'Requested', invoice_submitted: 'Invoice Submitted', verified: 'Verified', reimbursed: 'Reimbursed'
+  };
+  const LP_STATUS_PILL_CLASS = {
+    requested: 'new', invoice_submitted: 'low', verified: 'ok', reimbursed: 'ok'
+  };
+
+  async function generateLocalPurchaseId() {
+    const counterKey = `localpurchase-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-LP-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderLocalPurchase(filterValue, tabId, label) {
+    const showActions = tabId !== 'lp-history';
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-lp-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Item</th><th>Qty</th><th>Requested By</th><th>Amount</th><th>Emergency</th><th>Status</th>${showActions ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="lp-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-lp-request').addEventListener('click', openLpModal);
+    loadLocalPurchases(filterValue, tabId, showActions);
+  }
+
+  async function loadLocalPurchases(filterValue, tabId, showActions) {
+    const tbody = document.getElementById('lp-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'EMERGENCY') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('emergency', '==', true), orderBy('createdAt', 'desc')));
+      } else {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('status', '==', filterValue), orderBy('createdAt', 'desc')));
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (filterValue === 'EMERGENCY') {
+        docs = docs.filter(d => d.status !== 'reimbursed');
+      }
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (showActions) {
+          if (d.status === 'requested') {
+            actionHtml = `<button class="btn-secondary lp-invoice-btn" data-id="${d.id}" data-item="${(d.item || '').replace(/"/g, '&quot;')}" data-requestid="${d.requestId || ''}">Submit Invoice</button>`;
+          } else if (d.status === 'invoice_submitted') {
+            actionHtml = `<button class="btn-secondary lp-verify-btn" data-id="${d.id}">Verify Invoice</button>`;
+          } else if (d.status === 'verified') {
+            actionHtml = `<button class="btn-primary lp-reimburse-btn" data-id="${d.id}">Mark Reimbursed</button>`;
+          } else {
+            actionHtml = '—';
+          }
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.requestedBy || '—'}</td>
+          <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
+          <td>${d.emergency ? '<span class="priority-tag urgent">URGENT</span>' : '—'}</td>
+          <td><span class="status-pill ${LP_STATUS_PILL_CLASS[d.status] || ''}">${LP_STATUS_LABELS[d.status] || d.status}</span></td>
+          ${showActions ? `<td>${actionHtml}</td>` : ''}`;
+        tbody.appendChild(tr);
+      });
+      if (showActions) {
+        tbody.querySelectorAll('.lp-invoice-btn').forEach(btn => {
+          btn.addEventListener('click', () => openLpInvoiceModal(btn.dataset.id, btn.dataset.item, btn.dataset.requestid));
+        });
+        tbody.querySelectorAll('.lp-verify-btn').forEach(btn => {
+          btn.addEventListener('click', () => advanceLocalPurchase(btn.dataset.id, 'verified', tabId));
+        });
+        tbody.querySelectorAll('.lp-reimburse-btn').forEach(btn => {
+          btn.addEventListener('click', () => openPaymentModal('localPurchase', btn.dataset.id, tabId));
+        });
+      }
+    } catch (err) {
+      console.error('Load local purchases failed:', err);
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceLocalPurchase(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'localPurchases', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
+    } catch (err) {
+      console.error('Update local purchase failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // New Local Purchase Request modal
+  const lpOverlay = document.getElementById('lp-overlay');
+  const lpForm = document.getElementById('lp-form');
+  const lpError = document.getElementById('lp-error');
+  const lpSuccess = document.getElementById('lp-success');
+  const lpSubmitBtn = document.getElementById('submit-lp');
+
+  function openLpModal() {
+    lpForm.reset();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = false;
+    lpSubmitBtn.textContent = 'Create request';
+    lpOverlay.classList.add('show');
+  }
+  function closeLpModal() { lpOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp').addEventListener('click', closeLpModal);
+  lpOverlay.addEventListener('click', (e) => { if (e.target === lpOverlay) closeLpModal(); });
+
+  lpForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = true;
+    lpSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateLocalPurchaseId();
+      await addDoc(collection(db, 'localPurchases'), {
+        requestId,
+        item: document.getElementById('lp-item').value.trim(),
+        quantity: Number(document.getElementById('lp-qty').value) || 1,
+        estimatedAmount: Number(document.getElementById('lp-amount').value) || 0,
+        requestedBy: document.getElementById('lp-requestedby').value.trim(),
+        emergency: document.getElementById('lp-emergency-flag').checked,
+        notes: document.getElementById('lp-notes').value.trim(),
+        status: 'requested',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      lpSuccess.textContent = `Created — ${requestId}`;
+      lpSuccess.classList.add('show');
+      lpSubmitBtn.textContent = 'Create request';
+      lpSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpModal, 1000);
+    } catch (err) {
+      console.error('Create local purchase failed:', err);
+      lpError.textContent = 'Could not create request. Check console for details.';
+      lpError.classList.add('show');
+      lpSubmitBtn.disabled = false;
+      lpSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // Invoice submission modal
+  const lpInvoiceOverlay = document.getElementById('lp-invoice-overlay');
+  const lpInvoiceForm = document.getElementById('lp-invoice-form');
+  const lpInvoiceError = document.getElementById('lp-invoice-error');
+  const lpInvoiceSuccess = document.getElementById('lp-invoice-success');
+  const lpInvoiceSubmitBtn = document.getElementById('submit-lp-invoice');
+  const lpInvoiceLabel = document.getElementById('lp-invoice-label');
+
+  function openLpInvoiceModal(docId, item, requestId) {
+    lpInvoiceForm.reset();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = false;
+    lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    document.getElementById('lp-invoice-doc-id').value = docId;
+    lpInvoiceLabel.textContent = `${requestId ? requestId + ' — ' : ''}${item}`;
+    lpInvoiceOverlay.classList.add('show');
+  }
+  function closeLpInvoiceModal() { lpInvoiceOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp-invoice').addEventListener('click', closeLpInvoiceModal);
+  lpInvoiceOverlay.addEventListener('click', (e) => { if (e.target === lpInvoiceOverlay) closeLpInvoiceModal(); });
+
+  lpInvoiceForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = true;
+    lpInvoiceSubmitBtn.textContent = 'Saving…';
+    const docId = document.getElementById('lp-invoice-doc-id').value;
+    try {
+      await updateDoc(doc(db, 'localPurchases', docId), {
+        status: 'invoice_submitted',
+        vendor: document.getElementById('lp-vendor').value.trim(),
+        invoiceNumber: document.getElementById('lp-invoice-number').value.trim(),
+        actualAmount: Number(document.getElementById('lp-actual-amount').value) || 0,
+        updatedAt: serverTimestamp()
+      });
+      lpInvoiceSuccess.textContent = 'Invoice submitted.';
+      lpInvoiceSuccess.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpInvoiceModal, 800);
+    } catch (err) {
+      console.error('Submit invoice failed:', err);
+      lpInvoiceError.textContent = 'Could not submit invoice. Check console for details.';
+      lpInvoiceError.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Claims — Technician / Service Center reimbursement claims.
+  // Submitted → Verified → Settled, with Reject available from
+  // Submitted or Verified, and Reopen from Rejected.
+  // ---------------------------------------------------------------
+
+  const CLAIMS_TABS = {
+    'claims-technician': 'technician',
+    'claims-servicecenter': 'servicecenter',
+    'claims-verification': 'VERIFICATION',
+    'claims-history': 'ALL',
+  };
+  const CLAIM_STATUS_LABELS = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+  const CLAIM_STATUS_PILL_CLASS = { submitted: 'new', verified: 'low', settled: 'ok', rejected: 'backorder' };
+
+  async function generateClaimId() {
+    const counterKey = `claim-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderClaims(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-claim-request">+ New Claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="claims-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-claim-request').addEventListener('click', openClaimModal);
+    loadClaims(filterValue, tabId);
+  }
+
+  async function loadClaims(filterValue, tabId) {
+    const tbody = document.getElementById('claims-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'claims'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'VERIFICATION') {
+        snap = await getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted'), orderBy('createdAt', 'desc')));
+      } else {
+        snap = await getDocs(query(collection(db, 'claims'), where('claimantType', '==', filterValue), orderBy('createdAt', 'desc')));
+      }
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (d.status === 'submitted') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'verified') {
+          actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'rejected') {
+          actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+          <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
+          <td>${d.claimantName || '—'}</td>
+          <td>${d.description || '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'verified', tabId)));
+      tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', () => openPaymentModal('claim', btn.dataset.id, tabId)));
+      tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'rejected', tabId)));
+      tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'submitted', tabId)));
+    } catch (err) {
+      console.error('Load claims failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceClaim(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'claims', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadClaims(CLAIMS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update claim failed:', err);
+      alert('Could not update this claim. Check the console for details.');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Payments — a real settlement record (method, reference, paid
+  // date), created whenever a claim is marked Settled or a local
+  // purchase marked Reimbursed. Replaces what used to be a bare
+  // status flip with no payment trail.
+  // ---------------------------------------------------------------
+
+  const paymentOverlay = document.getElementById('payment-overlay');
+  const paymentForm = document.getElementById('payment-form');
+  const paymentError = document.getElementById('payment-error');
+  const paymentSuccess = document.getElementById('payment-success');
+  const paymentSubmitBtn = document.getElementById('submit-payment');
+  const paymentLabel = document.getElementById('payment-label');
+  let paymentContext = null;
+
+  async function openPaymentModal(sourceType, sourceId, tabId) {
+    paymentForm.reset();
+    paymentError.classList.remove('show');
+    paymentSuccess.classList.remove('show');
+    paymentSubmitBtn.disabled = false;
+    paymentSubmitBtn.textContent = 'Record payment';
+    document.getElementById('payment-date').value = new Date().toISOString().slice(0, 10);
+
+    const collectionName = sourceType === 'claim' ? 'claims' : 'localPurchases';
+    try {
+      const snap = await getDoc(doc(db, collectionName, sourceId));
+      const d = snap.exists() ? snap.data() : {};
+      const refId = sourceType === 'claim' ? (d.claimId || sourceId) : (d.requestId || sourceId);
+      const amount = sourceType === 'claim' ? d.amount : (d.actualAmount ?? d.estimatedAmount);
+      paymentLabel.textContent = `${refId} — ${d.description || d.item || ''}`;
+      document.getElementById('payment-amount').value = amount ?? '';
+      paymentContext = { sourceType, sourceId, tabId, refId, description: d.description || d.item || '' };
+    } catch (err) {
+      console.error('Load payment context failed:', err);
+      paymentContext = { sourceType, sourceId, tabId, refId: sourceId, description: '' };
+    }
+    paymentOverlay.classList.add('show');
+  }
+  function closePaymentModal() { paymentOverlay.classList.remove('show'); }
+  document.getElementById('cancel-payment').addEventListener('click', closePaymentModal);
+  paymentOverlay.addEventListener('click', (e) => { if (e.target === paymentOverlay) closePaymentModal(); });
+
+  paymentForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    paymentError.classList.remove('show');
+    paymentSuccess.classList.remove('show');
+    if (!paymentContext) return;
+    paymentSubmitBtn.disabled = true;
+    paymentSubmitBtn.textContent = 'Recording…';
+    const { sourceType, sourceId, tabId, refId, description } = paymentContext;
+    try {
+      await addDoc(collection(db, 'payments'), {
+        sourceType,
+        sourceId,
+        sourceRef: refId,
+        description,
+        amount: Number(document.getElementById('payment-amount').value) || 0,
+        method: document.getElementById('payment-method').value,
+        referenceNumber: document.getElementById('payment-reference').value.trim(),
+        paidDate: document.getElementById('payment-date').value,
+        createdAt: serverTimestamp()
+      });
+      if (sourceType === 'claim') {
+        await updateDoc(doc(db, 'claims', sourceId), { status: 'settled', updatedAt: serverTimestamp() });
+        loadClaims(CLAIMS_TABS[tabId], tabId);
+      } else {
+        await updateDoc(doc(db, 'localPurchases', sourceId), { status: 'reimbursed', updatedAt: serverTimestamp() });
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
+      }
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'payment', entityId: sourceId, action: 'settled',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Recorded ₹${document.getElementById('payment-amount').value} payment (${document.getElementById('payment-method').value}) for ${refId}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      paymentSuccess.textContent = 'Payment recorded.';
+      paymentSuccess.classList.add('show');
+      paymentSubmitBtn.disabled = false;
+      paymentSubmitBtn.textContent = 'Record payment';
+      setTimeout(closePaymentModal, 900);
+    } catch (err) {
+      console.error('Record payment failed:', err);
+      paymentError.textContent = 'Could not record this payment. Check console for details.';
+      paymentError.classList.add('show');
+      paymentSubmitBtn.disabled = false;
+      paymentSubmitBtn.textContent = 'Record payment';
+    }
+  });
+
+  const claimOverlay = document.getElementById('claim-overlay');
+  const claimForm = document.getElementById('claim-form');
+  const claimError = document.getElementById('claim-error');
+  const claimSuccess = document.getElementById('claim-success');
+  const claimSubmitBtn = document.getElementById('submit-claim');
+
+  function openClaimModal() {
+    claimForm.reset();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = false;
+    claimSubmitBtn.textContent = 'Create claim';
+    claimOverlay.classList.add('show');
+  }
+  function closeClaimModal() { claimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-claim').addEventListener('click', closeClaimModal);
+  claimOverlay.addEventListener('click', (e) => { if (e.target === claimOverlay) closeClaimModal(); });
+
+  claimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = true;
+    claimSubmitBtn.textContent = 'Creating…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: document.getElementById('claim-type').value,
+        claimantName: document.getElementById('claim-name').value.trim(),
+        description: document.getElementById('claim-description').value.trim(),
+        amount: Number(document.getElementById('claim-amount').value) || 0,
+        notes: document.getElementById('claim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      claimSuccess.textContent = `Created — ${claimId}`;
+      claimSuccess.classList.add('show');
+      claimSubmitBtn.textContent = 'Create claim';
+      claimSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && CLAIMS_TABS[activeItem.dataset.id]) {
+        loadClaims(CLAIMS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeClaimModal, 1000);
+    } catch (err) {
+      console.error('Create claim failed:', err);
+      claimError.textContent = 'Could not create claim. Check console for details.';
+      claimError.classList.add('show');
+      claimSubmitBtn.disabled = false;
+      claimSubmitBtn.textContent = 'Create claim';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Returns & Defects — intake → inspect (defective or restock) →
+  // for defective items, send to supplier or dispose.
+  // ---------------------------------------------------------------
+
+  const RETURNS_TABS = {
+    'returns-intake': 'received',
+    'returns-defective': 'defective',
+    'returns-supplier': 'supplier_return',
+    'returns-disposal': 'disposed',
+  };
+  const RETURN_STATUS_LABELS = {
+    received: 'Received', defective: 'Defective', supplier_return: 'Sent to Supplier',
+    disposed: 'Disposed', restocked: 'Restocked'
+  };
+  const RETURN_STATUS_PILL_CLASS = {
+    received: 'new', defective: 'backorder', supplier_return: 'low', disposed: 'out', restocked: 'ok'
+  };
+
+  async function generateReturnId() {
+    const counterKey = `return-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-RT-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderReturns(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-return-request">+ Log Return</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Return ID</th><th>Part</th><th>Qty</th><th>Source</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="returns-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-return-request').addEventListener('click', openReturnModal);
+    loadReturns(filterValue, tabId);
+  }
+
+  async function loadReturns(filterValue, tabId) {
+    const tbody = document.getElementById('returns-tbody');
+    try {
+      const [returnsSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', '==', filterValue), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (returnsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      returnsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const part = partMap[d.partId];
+        const partLabel = part ? `${part.partCode} — ${part.name}` : (d.partId || '—');
+        let actionHtml = '—';
+        if (d.status === 'received') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${docSnap.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${docSnap.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button></div>`;
+        } else if (d.status === 'defective') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-supplier-btn" data-id="${docSnap.id}">Send to Supplier</button><button class="btn-danger return-dispose-btn" data-id="${docSnap.id}">Dispose</button></div>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.returnId || docSnap.id}</td>
+          <td>${partLabel}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.source || '—'}</td>
+          <td>${d.reason || '—'}</td>
+          <td><span class="status-pill ${RETURN_STATUS_PILL_CLASS[d.status] || ''}">${RETURN_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.return-defective-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'defective', tabId)));
+      tbody.querySelectorAll('.return-supplier-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'supplier_return', tabId)));
+      tbody.querySelectorAll('.return-dispose-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'disposed', tabId)));
+      tbody.querySelectorAll('.return-restock-btn').forEach(btn => {
+        btn.addEventListener('click', () => restockReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+    } catch (err) {
+      console.error('Load returns failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load returns. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceReturn(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'returns', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update return failed:', err);
+      alert('Could not update this return. Check the console for details.');
+    }
+  }
+
+  // "Return to Stock" both closes out the return AND adds the
+  // quantity back into Warehouse inventory — same atomic pattern
+  // as Inventory's Adjust Stock, plus a stockMovements log entry.
+  async function restockReturn(returnDocId, partId, qty, tabId) {
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'receive', location: 'warehouse', quantity: qty,
+        reason: 'Returned to stock (inspected, found OK)', createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'returns', returnDocId), { status: 'restocked', updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Restock return failed:', err);
+      alert('Could not restock this item. Check the console for details.');
+    }
+  }
+
+  const returnOverlay = document.getElementById('return-overlay');
+  const returnForm = document.getElementById('return-form');
+  const returnError = document.getElementById('return-error');
+  const returnSuccess = document.getElementById('return-success');
+  const returnSubmitBtn = document.getElementById('submit-return');
+  const returnPartSelect = document.getElementById('return-part-id');
+
+  async function populateReturnPartOptions() {
+    if (returnPartSelect.dataset.loaded === 'true') return;
+    try {
+      const snap = await getDocs(collection(db, 'spareParts'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement('option');
+        opt.value = docSnap.id;
+        opt.textContent = `${d.partCode} — ${d.name}`;
+        returnPartSelect.appendChild(opt);
+      });
+      returnPartSelect.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Load parts for return form failed:', err);
+    }
+  }
+
+  function openReturnModal() {
+    returnForm.reset();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    returnSubmitBtn.disabled = false;
+    returnSubmitBtn.textContent = 'Log return';
+    populateReturnPartOptions();
+    returnOverlay.classList.add('show');
+  }
+  function closeReturnModal() { returnOverlay.classList.remove('show'); }
+  document.getElementById('cancel-return').addEventListener('click', closeReturnModal);
+  returnOverlay.addEventListener('click', (e) => { if (e.target === returnOverlay) closeReturnModal(); });
+
+  returnForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    if (!returnPartSelect.value) {
+      returnError.textContent = 'Select a part.';
+      returnError.classList.add('show');
+      return;
+    }
+    returnSubmitBtn.disabled = true;
+    returnSubmitBtn.textContent = 'Saving…';
+    try {
+      const returnId = await generateReturnId();
+      await addDoc(collection(db, 'returns'), {
+        returnId,
+        partId: returnPartSelect.value,
+        quantity: Number(document.getElementById('return-qty').value) || 1,
+        source: document.getElementById('return-source').value.trim(),
+        reason: document.getElementById('return-reason').value.trim(),
+        notes: document.getElementById('return-notes').value.trim(),
+        status: 'received',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      returnSuccess.textContent = `Logged — ${returnId}`;
+      returnSuccess.classList.add('show');
+      returnSubmitBtn.textContent = 'Log return';
+      returnSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && RETURNS_TABS[activeItem.dataset.id]) {
+        loadReturns(RETURNS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeReturnModal, 1000);
+    } catch (err) {
+      console.error('Log return failed:', err);
+      returnError.textContent = 'Could not log this return. Check console for details.';
+      returnError.classList.add('show');
+      returnSubmitBtn.disabled = false;
+      returnSubmitBtn.textContent = 'Log return';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Notifications — role-targeted, for Warehouse. Achievable slice of "Communication"
+  // without a real WhatsApp/SMS/Email provider connected.
+  // ---------------------------------------------------------------
+
+  let notifUnsubscribeTimer = null;
+
+  function notifQueryConfig() {
+    return { type: 'role', value: 'warehouse' };
+  }
+
+  async function loadNotifications() {
+    const cfg = notifQueryConfig();
+    if (!cfg) return;
+    const listEl = document.getElementById('notif-list');
+    const badgeEl = document.getElementById('notif-badge');
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'notifications'),
+        where('recipientType', '==', cfg.type),
+        where('recipientValue', '==', cfg.value),
+        orderBy('createdAt', 'desc')
+      ));
+      const items = [];
+      snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+      const unreadCount = items.filter(n => !n.read).length;
+      if (unreadCount > 0) {
+        badgeEl.textContent = unreadCount > 9 ? '9+' : unreadCount;
+        badgeEl.style.display = 'block';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      items.slice(0, 25).forEach(n => {
+        const el = document.createElement('div');
+        el.className = 'notif-item' + (n.read ? '' : ' unread');
+        const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
+        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${n.message || ''}</div><div class="time">${dateStr}</div>`;
+        el.addEventListener('click', async () => {
+          if (!n.read) {
+            try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }
+          }
+        });
+        listEl.appendChild(el);
+      });
+    } catch (err) {
+      console.error('Load notifications failed:', err);
+      listEl.innerHTML = '<div class="notif-empty">Couldn\'t load notifications.</div>';
+    }
+  }
+
+  const notifBellBtn = document.getElementById('notif-bell-btn');
+  const notifPanel = document.getElementById('notif-panel');
+  if (notifBellBtn) {
+    notifBellBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifPanel.classList.toggle('show');
+      if (notifPanel.classList.contains('show')) loadNotifications();
+    });
+    document.addEventListener('click', (e) => {
+      if (!notifPanel.contains(e.target) && e.target !== notifBellBtn) notifPanel.classList.remove('show');
+    });
+    document.getElementById('notif-mark-all').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cfg = notifQueryConfig();
+      if (!cfg) return;
+      try {
+        const snap = await getDocs(query(collection(db, 'notifications'), where('recipientType', '==', cfg.type), where('recipientValue', '==', cfg.value), where('read', '==', false)));
+        await Promise.all(snap.docs.map(d => updateDoc(doc(db, 'notifications', d.id), { read: true })));
+        loadNotifications();
+      } catch (err) { console.error('Mark all read failed:', err); }
+    });
+  }
+
+  if (notifUnsubscribeTimer) clearInterval(notifUnsubscribeTimer);
+  notifUnsubscribeTimer = setInterval(loadNotifications, 60000);
+
+  renderNav();
+  setActiveNav('dashboard');
+</script>
+</body>
+</html>
