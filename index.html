@@ -1233,7 +1233,7 @@
             bodyHtml += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
               <div style="font-size:11.5px;font-weight:600;color:var(--stone);text-transform:uppercase;margin-bottom:8px;">Coverage by component</div>`;
             d.warrantyComponents.forEach(c => {
-              const status = computeWarrantyStatus(d.purchaseDate, c.durationMonths);
+              const status = computeWarrantyStatus(d.purchaseDate, (c.durationYears || 0) * 12);
               bodyHtml += `
                 <div class="row" style="margin-bottom:8px;">
                   <span>${c.componentName}${c.coverage ? ' <span style="font-weight:400;color:var(--stone);">— ' + c.coverage + '</span>' : ''}</span>

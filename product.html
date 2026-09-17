@@ -234,7 +234,7 @@
           const plan = await getWarrantyPlan(m.warrantyPlanId);
           if (plan) {
             const compPills = (plan.components || []).map(c =>
-              `<span class="warranty-pill">${c.componentName}: ${c.durationMonths} mo</span>`
+              `<span class="warranty-pill">${c.componentName}: ${c.durationYears}yr</span>`
             ).join('');
             warrantyHtml = `<div class="warranty-note"><b>Warranty:</b> ${plan.name}<div class="warranty-components">${compPills}</div></div>`;
           } else {

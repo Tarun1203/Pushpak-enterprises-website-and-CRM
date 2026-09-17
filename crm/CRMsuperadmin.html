@@ -2331,7 +2331,7 @@
     row.dataset.rowId = rowId;
     row.innerHTML = `
       <input type="text" class="wc-name" placeholder="Component (e.g. Full Product)" value="${(existing && existing.componentName) || ''}">
-      <input type="number" class="wc-months" placeholder="Months" min="0" value="${(existing && existing.durationMonths) ?? ''}">
+      <input type="number" class="wc-years" placeholder="Years" min="0" step="0.5" value="${(existing && existing.durationYears) ?? ''}">
       <input type="text" class="wc-coverage" placeholder="Coverage notes (optional)" value="${(existing && existing.coverage) || ''}">
       <button type="button" class="wc-remove">Remove</button>`;
     row.querySelector('.wc-remove').addEventListener('click', () => row.remove());
@@ -2341,7 +2341,7 @@
   function collectComponentRows() {
     return Array.from(document.querySelectorAll('#wplan-components .wplan-component-row')).map(row => ({
       componentName: row.querySelector('.wc-name').value.trim(),
-      durationMonths: Number(row.querySelector('.wc-months').value) || 0,
+      durationYears: Number(row.querySelector('.wc-years').value) || 0,
       coverage: row.querySelector('.wc-coverage').value.trim(),
     })).filter(c => c.componentName);
   }
@@ -2375,7 +2375,7 @@
       tbody.innerHTML = '';
       snap.forEach(docSnap => {
         const d = { id: docSnap.id, ...docSnap.data() };
-        const componentsSummary = (d.components || []).map(c => `${c.componentName}: ${c.durationMonths}mo`).join(', ') || '—';
+        const componentsSummary = (d.components || []).map(c => `${c.componentName}: ${c.durationYears}y`).join(', ') || '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${d.name || '—'}</b></td>
