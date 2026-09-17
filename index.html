@@ -819,6 +819,40 @@
     const f = registerForm;
     try {
       const registrationId = await generateRegistrationId();
+
+      // Try to link a real Warranty Plan (with its component breakdown)
+      // matching this brand + category, so the Warranty Status lookup
+      // can show per-component coverage instead of one flat date.
+      // Falls back to the plain 12-month default if no plan matches —
+      // keeps this working even before any plans exist for a brand.
+      const BRAND_NAME_TO_ID = { MakWell: 'makwell', Flyvision: 'flyvision', Skevia: 'skevia' };
+      const brandId = BRAND_NAME_TO_ID[f.brand.value] || null;
+      let matchedWarrantyPlanId = null;
+      let matchedWarrantyComponents = null;
+      if (brandId) {
+        try {
+          let categoryId = null;
+          const catSnap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
+          catSnap.forEach(c => {
+            if ((c.data().name || '').toLowerCase() === registerCategory.value.toLowerCase()) categoryId = c.id;
+          });
+          const planSnap = await getDocs(query(collection(db, 'warrantyPlans'), where('brandId', '==', brandId), where('status', '==', 'active')));
+          let categoryMatch = null, anyCategoryMatch = null;
+          planSnap.forEach(p => {
+            const pd = p.data();
+            if (categoryId && pd.categoryId === categoryId) categoryMatch = { id: p.id, ...pd };
+            else if (!pd.categoryId) anyCategoryMatch = { id: p.id, ...pd };
+          });
+          const chosen = categoryMatch || anyCategoryMatch;
+          if (chosen) {
+            matchedWarrantyPlanId = chosen.id;
+            matchedWarrantyComponents = chosen.components || null;
+          }
+        } catch (planErr) {
+          console.warn('Warranty plan lookup failed (non-blocking):', planErr.message);
+        }
+      }
+
       await addDoc(collection(db, 'productRegistrations'), {
         registrationId,
         customerName: f.name.value.trim(),
@@ -836,6 +870,8 @@
         dealerName: f.dealerName.value.trim(),
         installationRequired: document.getElementById('register-installation').checked,
         warrantyMonths: 12,
+        warrantyPlanId: matchedWarrantyPlanId,
+        warrantyComponents: matchedWarrantyComponents,
         status: 'active',
         source: 'public-site',
         createdAt: serverTimestamp()
@@ -1187,14 +1223,29 @@
       } else {
         warrantyResult.innerHTML = '';
         matches.forEach(d => {
-          const status = computeWarrantyStatus(d.purchaseDate, d.warrantyMonths);
           const card = document.createElement('div');
           card.className = 'warranty-result-card';
-          card.innerHTML = `
+          let bodyHtml = `
             <h4>${d.product || (d.brand + ' ' + d.category) || 'Product'}</h4>
             <div class="row"><span>Serial No</span><span>${d.serialNumber || '—'}</span></div>
-            <div class="row"><span>Purchased</span><span>${d.purchaseDate || '—'}</span></div>
-            <div style="margin-top:8px;"><span class="status-pill ${status.cls}">${status.label}</span></div>`;
+            <div class="row"><span>Purchased</span><span>${d.purchaseDate || '—'}</span></div>`;
+          if (d.warrantyComponents && d.warrantyComponents.length) {
+            bodyHtml += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
+              <div style="font-size:11.5px;font-weight:600;color:var(--stone);text-transform:uppercase;margin-bottom:8px;">Coverage by component</div>`;
+            d.warrantyComponents.forEach(c => {
+              const status = computeWarrantyStatus(d.purchaseDate, c.durationMonths);
+              bodyHtml += `
+                <div class="row" style="margin-bottom:8px;">
+                  <span>${c.componentName}${c.coverage ? ' <span style="font-weight:400;color:var(--stone);">— ' + c.coverage + '</span>' : ''}</span>
+                  <span class="status-pill ${status.cls}">${status.label}</span>
+                </div>`;
+            });
+            bodyHtml += `</div>`;
+          } else {
+            const status = computeWarrantyStatus(d.purchaseDate, d.warrantyMonths);
+            bodyHtml += `<div style="margin-top:8px;"><span class="status-pill ${status.cls}">${status.label}</span></div>`;
+          }
+          card.innerHTML = bodyHtml;
           warrantyResult.appendChild(card);
         });
       }
