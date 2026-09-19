@@ -489,6 +489,47 @@
   </div>
 </div>
 <!-- Add Variant modal — a new size/model under an EXISTING product -->
+<!-- Add/Edit Spare Part modal -->
+<div class="modal-overlay" id="part-overlay">
+  <div class="modal">
+    <h3 id="part-modal-title">Add spare part</h3>
+    <form id="part-form">
+      <input type="hidden" id="part-editing-id">
+      <div class="form-row">
+        <label>Part name</label>
+        <input type="text" id="part-name" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Category</label>
+        <input type="text" id="part-category" placeholder="e.g. Thermostat, Heating Element, Valve">
+      </div>
+      <div class="form-row">
+        <label>Brand compatibility</label>
+        <select id="part-brand">
+          <option value="All">All brands</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Price (₹)</label>
+        <input type="number" id="part-price" min="0" step="0.01">
+      </div>
+      <div class="form-row">
+        <label>Reorder level</label>
+        <input type="number" id="part-reorder" min="0" value="5">
+      </div>
+      <div class="modal-error" id="part-error"></div>
+      <div class="modal-success" id="part-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-part">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-part">Save part</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="model-overlay">
   <div class="modal">
     <h3 id="model-modal-title">Add variant</h3>
@@ -793,7 +834,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       pageSub.textContent = 'All service activity, company-wide';
       renderServiceOverview();
     } else if (id === 'spareparts') {
-      pageSub.textContent = 'Master parts list (managed in Warehouse)';
+      pageSub.textContent = 'Master parts list — add/edit here or in Warehouse, same collection';
       renderSparePartsOverview();
     } else if (id === 'inventory') {
       pageSub.textContent = 'Stock across all locations';
@@ -2942,36 +2983,127 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function renderSparePartsOverview() {
     contentEl.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>Master parts list</h2></div>
+        <div class="panel-header">
+          <h2>Master parts list</h2>
+          <button class="btn-primary" id="open-add-part">+ Add part</button>
+        </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th></tr></thead>
-            <tbody id="sp-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th><th>Actions</th></tr></thead>
+            <tbody id="sp-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
+    document.getElementById('open-add-part').addEventListener('click', () => openPartModal(null));
+    loadSpareParts();
+  }
+
+  async function loadSpareParts() {
     const tbody = document.getElementById('sp-tbody');
     try {
       const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No parts yet — managed from the Warehouse portal.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No parts yet — add your first one.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       snap.forEach(docSnap => {
-        const d = docSnap.data();
+        const d = { id: docSnap.id, ...docSnap.data() };
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.partCode || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
           <td>${d.name || '—'}</td><td>${d.category || '—'}</td><td>${d.brandCompatibility || 'All'}</td>
-          <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${d.reorderLevel ?? '—'}</td>`;
+          <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${d.reorderLevel ?? '—'}</td>
+          <td><button class="btn-secondary edit-part-btn">Edit</button></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
       });
     } catch (err) {
       console.error('Load spare parts failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
     }
   }
+
+  async function generatePartCode() {
+    const counterRef = doc(db, 'counters', 'sparepart-master');
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `SP-${String(next).padStart(4, '0')}`;
+  }
+
+  const partOverlay = document.getElementById('part-overlay');
+  const partForm = document.getElementById('part-form');
+  const partError = document.getElementById('part-error');
+  const partSuccess = document.getElementById('part-success');
+  const partSubmitBtn = document.getElementById('submit-part');
+  const partModalTitle = document.getElementById('part-modal-title');
+
+  function openPartModal(existing) {
+    partForm.reset();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = false;
+    if (existing) {
+      partModalTitle.textContent = `Edit ${existing.partCode || 'part'}`;
+      document.getElementById('part-editing-id').value = existing.id;
+      document.getElementById('part-name').value = existing.name || '';
+      document.getElementById('part-category').value = existing.category || '';
+      document.getElementById('part-brand').value = existing.brandCompatibility || 'All';
+      document.getElementById('part-price').value = existing.price ?? '';
+      document.getElementById('part-reorder').value = existing.reorderLevel ?? 5;
+      partSubmitBtn.textContent = 'Save changes';
+    } else {
+      partModalTitle.textContent = 'Add spare part';
+      document.getElementById('part-editing-id').value = '';
+      document.getElementById('part-reorder').value = 5;
+      partSubmitBtn.textContent = 'Save part';
+    }
+    partOverlay.classList.add('show');
+  }
+  function closePartModal() { partOverlay.classList.remove('show'); }
+  document.getElementById('cancel-part').addEventListener('click', closePartModal);
+  partOverlay.addEventListener('click', (e) => { if (e.target === partOverlay) closePartModal(); });
+
+  partForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = true;
+    partSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('part-editing-id').value;
+    const payload = {
+      name: document.getElementById('part-name').value.trim(),
+      category: document.getElementById('part-category').value.trim(),
+      brandCompatibility: document.getElementById('part-brand').value,
+      price: document.getElementById('part-price').value ? Number(document.getElementById('part-price').value) : null,
+      reorderLevel: Number(document.getElementById('part-reorder').value) || 0,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'spareParts', editingId), payload);
+      } else {
+        const partCode = await generatePartCode();
+        await addDoc(collection(db, 'spareParts'), { ...payload, partCode, createdAt: serverTimestamp() });
+      }
+      partSuccess.textContent = 'Saved.';
+      partSuccess.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+      loadSpareParts();
+      setTimeout(closePartModal, 800);
+    } catch (err) {
+      console.error('Save part failed:', err);
+      partError.textContent = 'Could not save this part. Check console for details.';
+      partError.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+    }
+  });
 
   async function renderInventoryOverview() {
     contentEl.innerHTML = `
