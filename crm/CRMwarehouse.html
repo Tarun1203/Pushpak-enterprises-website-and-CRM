@@ -445,7 +445,7 @@
 <!-- New Return modal -->
 <div class="modal-overlay" id="return-overlay">
   <div class="modal">
-    <h3>Log a return</h3>
+    <h3 id="return-modal-title">Log a return</h3>
     <form id="return-form">
       <div class="form-row">
         <label>Part</label>
@@ -532,7 +532,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests"}, {"id": "requests-approved", "label": "Approved"}, {"id": "requests-picking", "label": "Picking"}, {"id": "requests-packing", "label": "Packing"}, {"id": "requests-dispatch", "label": "Dispatch"}, {"id": "requests-transit", "label": "In Transit"}, {"id": "requests-backorder", "label": "Back Order"}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock"}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary"}, {"id": "inv-lowstock", "label": "Low / Out of Stock"}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive"}, {"id": "move-issue", "label": "Issue"}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History"}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts"}, {"id": "lp-new", "label": "New Requests"}, {"id": "lp-emergency", "label": "Emergency Purchase"}, {"id": "lp-invoice", "label": "Invoice Verification"}, {"id": "lp-claims", "label": "Claim Processing"}, {"id": "lp-history", "label": "Local Purchase History"}, {"id": "claims-technician", "label": "Technician Claims"}, {"id": "claims-servicecenter", "label": "Service Center Claims"}, {"id": "claims-verification", "label": "Claims Verification"}, {"id": "claims-history", "label": "Claims History"}, {"id": "returns-requests", "label": "Return Requests"}, {"id": "returns-intake", "label": "Returns"}, {"id": "returns-defective", "label": "Defective Parts"}, {"id": "returns-rejected", "label": "Rejected"}, {"id": "returns-refurbished", "label": "Refurbished"}, {"id": "returns-supplier", "label": "Supplier Returns"}, {"id": "returns-disposal", "label": "Disposal"}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -1982,17 +1982,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // ---------------------------------------------------------------
 
   const RETURNS_TABS = {
+    'returns-requests': 'requested',
     'returns-intake': 'received',
     'returns-defective': 'defective',
+    'returns-rejected': 'rejected',
+    'returns-refurbished': 'refurbished',
     'returns-supplier': 'supplier_return',
     'returns-disposal': 'disposed',
   };
   const RETURN_STATUS_LABELS = {
-    received: 'Received', defective: 'Defective', supplier_return: 'Sent to Supplier',
+    requested: 'Requested', received: 'Received', defective: 'Defective', rejected: 'Rejected',
+    refurbished: 'Refurbished', supplier_return: 'Sent to Supplier',
     disposed: 'Disposed', restocked: 'Restocked'
   };
   const RETURN_STATUS_PILL_CLASS = {
-    received: 'new', defective: 'backorder', supplier_return: 'low', disposed: 'out', restocked: 'ok'
+    requested: 'new', received: 'new', defective: 'backorder', rejected: 'out',
+    refurbished: 'ok', supplier_return: 'low', disposed: 'out', restocked: 'ok'
   };
 
   async function generateReturnId() {
@@ -2013,7 +2018,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       <div class="panel">
         <div class="panel-header">
           <h2>${label}</h2>
-          <button class="btn-primary" id="open-return-request">+ Log Return</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="open-return-request">+ Request Return</button>
+            <button class="btn-primary" id="open-return-accept">+ Accept Return</button>
+          </div>
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
@@ -2024,7 +2032,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           </table>
         </div>
       </div>`;
-    document.getElementById('open-return-request').addEventListener('click', openReturnModal);
+    document.getElementById('open-return-request').addEventListener('click', () => openReturnModal('request'));
+    document.getElementById('open-return-accept').addEventListener('click', () => openReturnModal('accept'));
     loadReturns(filterValue, tabId);
   }
 
@@ -2048,10 +2057,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const part = partMap[d.partId];
         const partLabel = part ? `${part.partCode} — ${part.name}` : (d.partId || '—');
         let actionHtml = '—';
-        if (d.status === 'received') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${docSnap.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${docSnap.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button></div>`;
+        if (d.status === 'requested') {
+          actionHtml = `<button class="btn-secondary return-received-btn" data-id="${docSnap.id}">Mark Received</button>`;
+        } else if (d.status === 'received') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${docSnap.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${docSnap.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button><button class="btn-danger return-reject-btn" data-id="${docSnap.id}">Reject</button></div>`;
         } else if (d.status === 'defective') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary return-supplier-btn" data-id="${docSnap.id}">Send to Supplier</button><button class="btn-danger return-dispose-btn" data-id="${docSnap.id}">Dispose</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-refurbish-btn" data-id="${docSnap.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Refurbish</button><button class="btn-secondary return-supplier-btn" data-id="${docSnap.id}">Send to Supplier</button><button class="btn-secondary return-claim-btn" data-id="${docSnap.id}" data-partid="${d.partId}">File Claim</button><button class="btn-danger return-dispose-btn" data-id="${docSnap.id}">Dispose</button></div>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -2064,11 +2075,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
       });
+      tbody.querySelectorAll('.return-received-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'received', tabId)));
       tbody.querySelectorAll('.return-defective-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'defective', tabId)));
+      tbody.querySelectorAll('.return-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'rejected', tabId)));
       tbody.querySelectorAll('.return-supplier-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'supplier_return', tabId)));
       tbody.querySelectorAll('.return-dispose-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'disposed', tabId)));
       tbody.querySelectorAll('.return-restock-btn').forEach(btn => {
         btn.addEventListener('click', () => restockReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+      tbody.querySelectorAll('.return-refurbish-btn').forEach(btn => {
+        btn.addEventListener('click', () => refurbishReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+      tbody.querySelectorAll('.return-claim-btn').forEach(btn => {
+        btn.addEventListener('click', () => fileClaimFromReturn(btn.dataset.id, btn.dataset.partid));
       });
     } catch (err) {
       console.error('Load returns failed:', err);
@@ -2111,6 +2130,61 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // Refurbish: same effect as restocking (repaired in-house, usable
+  // again) but tracked as its own terminal status so it's visible
+  // separately from "returned, found already OK" — useful for
+  // knowing how much repair work is actually happening.
+  async function refurbishReturn(returnDocId, partId, qty, tabId) {
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'receive', location: 'warehouse', quantity: qty,
+        reason: 'Refurbished and returned to stock', createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'returns', returnDocId), { status: 'refurbished', updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Refurbish return failed:', err);
+      alert('Could not refurbish this item. Check the console for details.');
+    }
+  }
+
+  // Files a real claims entry referencing this return, so it flows
+  // into the existing Claims Verification pipeline for processing —
+  // for a defective part that's genuinely the source/dealer's fault
+  // (not just excess stock), rather than a silent dead end.
+  async function fileClaimFromReturn(returnDocId, partId) {
+    try {
+      const returnSnap = await getDoc(doc(db, 'returns', returnDocId));
+      if (!returnSnap.exists()) { alert('Could not find this return.'); return; }
+      const r = returnSnap.data();
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantUid: null,
+        claimantType: 'warehouse',
+        partId,
+        description: `Defective part claim — ${r.reason || 'no reason given'} (from return ${r.returnId || returnDocId})`,
+        amount: null,
+        sourceReturnId: returnDocId,
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      alert(`Claim filed — ${claimId}. Find it under Claim Processing / Claims Verification.`);
+    } catch (err) {
+      console.error('File claim from return failed:', err);
+      alert('Could not file a claim for this return. Check the console for details.');
+    }
+  }
+
   const returnOverlay = document.getElementById('return-overlay');
   const returnForm = document.getElementById('return-form');
   const returnError = document.getElementById('return-error');
@@ -2135,12 +2209,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
-  function openReturnModal() {
+  function openReturnModal(mode) {
     returnForm.reset();
     returnError.classList.remove('show');
     returnSuccess.classList.remove('show');
     returnSubmitBtn.disabled = false;
-    returnSubmitBtn.textContent = 'Log return';
+    returnForm.dataset.mode = mode;
+    if (mode === 'request') {
+      document.getElementById('return-modal-title').textContent = 'Request a return';
+      returnSubmitBtn.textContent = 'Send request';
+    } else {
+      document.getElementById('return-modal-title').textContent = 'Accept a return';
+      returnSubmitBtn.textContent = 'Accept return';
+    }
     populateReturnPartOptions();
     returnOverlay.classList.add('show');
   }
@@ -2157,6 +2238,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       returnError.classList.add('show');
       return;
     }
+    const mode = returnForm.dataset.mode || 'accept';
+    const initialStatus = mode === 'request' ? 'requested' : 'received';
     returnSubmitBtn.disabled = true;
     returnSubmitBtn.textContent = 'Saving…';
     try {
@@ -2168,13 +2251,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         source: document.getElementById('return-source').value.trim(),
         reason: document.getElementById('return-reason').value.trim(),
         notes: document.getElementById('return-notes').value.trim(),
-        status: 'received',
+        status: initialStatus,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      returnSuccess.textContent = `Logged — ${returnId}`;
+      returnSuccess.textContent = `Saved — ${returnId}`;
       returnSuccess.classList.add('show');
-      returnSubmitBtn.textContent = 'Log return';
+      returnSubmitBtn.textContent = mode === 'request' ? 'Send request' : 'Accept return';
       returnSubmitBtn.disabled = false;
       const activeItem = document.querySelector('.nav-item.active');
       if (activeItem && RETURNS_TABS[activeItem.dataset.id]) {
