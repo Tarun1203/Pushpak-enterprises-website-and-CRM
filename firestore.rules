@@ -420,6 +420,19 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Pincode master — the territory hierarchy (PIN → City/Taluk/
+    // District/State) that Service Center coverage and Routing
+    // resolve against. Public read: the "serviceability check" on
+    // the public site (checking if a PIN is covered before a
+    // customer submits a request) needs this unauthenticated.
+    // ---------------------------------------------------------------
+
+    match /pincodes/{pin} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Deny by default. Every collection actually used by the app has
     // an explicit rule above — this is a real security boundary, not
     // a temporary placeholder. If a new collection is added later, it

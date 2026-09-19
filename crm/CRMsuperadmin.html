@@ -416,6 +416,54 @@
 </div>
 
 <!-- Add/Edit Category modal -->
+<!-- Add/Edit Pincode modal -->
+<div class="modal-overlay" id="pincode-overlay">
+  <div class="modal">
+    <h3 id="pincode-modal-title">Add pincode</h3>
+    <form id="pincode-form">
+      <input type="hidden" id="pincode-editing-id">
+      <div class="form-row"><label>PIN</label><input type="text" id="pincode-pin" inputmode="numeric" maxlength="6" placeholder="e.g. 584101" required></div>
+      <div class="form-row"><label>Area</label><input type="text" id="pincode-area" placeholder="e.g. Raichur Town"></div>
+      <div class="form-row"><label>City</label><input type="text" id="pincode-city" placeholder="e.g. Raichur"></div>
+      <div class="form-row"><label>Taluk</label><input type="text" id="pincode-taluk" placeholder="e.g. Raichur"></div>
+      <div class="form-row"><label>District</label><input type="text" id="pincode-district" placeholder="e.g. Raichur"></div>
+      <div class="form-row"><label>State</label><input type="text" id="pincode-state" placeholder="e.g. Karnataka"></div>
+      <div class="form-row"><label>Status</label>
+        <select id="pincode-active">
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
+      <div class="modal-error" id="pincode-error"></div>
+      <div class="modal-success" id="pincode-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-pincode">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-pincode">Save pincode</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Bulk import pincodes modal -->
+<div class="modal-overlay" id="pincode-bulk-overlay">
+  <div class="modal modal-wide">
+    <h3>Bulk import pincodes</h3>
+    <div class="modal-sub">One per line: <code>PIN, Area, City, Taluk, District, State</code> — trailing fields can be left blank (e.g. just <code>584101, Raichur</code>).</div>
+    <form id="pincode-bulk-form">
+      <div class="form-row">
+        <textarea id="pincode-bulk-text" rows="10" placeholder="584101, Raichur Town, Raichur, Raichur, Raichur, Karnataka
+584102, Yeragera, Raichur, Raichur, Raichur, Karnataka"></textarea>
+      </div>
+      <div class="modal-error" id="pincode-bulk-error"></div>
+      <div class="modal-success" id="pincode-bulk-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-pincode-bulk">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-pincode-bulk">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="category-overlay">
   <div class="modal">
     <h3 id="category-modal-title">Add category</h3>
@@ -731,6 +779,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'routing', label: 'Service Request Routing', built: true },
       { id: 'centers', label: 'Service Centers', built: true },
       { id: 'technicians', label: 'Technicians', built: true },
+      { id: 'pincodes', label: 'Pincode Master', built: true },
       { id: 'appointments', label: 'Appointments', built: true },
       { id: 'sla', label: 'SLA & Escalation', built: true },
     ]},
@@ -827,6 +876,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'technicians') {
       pageSub.textContent = 'All technician accounts';
       renderTechniciansOverview();
+    } else if (id === 'pincodes') {
+      pageSub.textContent = 'PIN → City / Taluk / District / State — the territory hierarchy everything else resolves against';
+      renderPincodeMaster();
     } else if (id === 'appointments') {
       pageSub.textContent = 'All scheduled activity, company-wide';
       renderAppointments();
@@ -1160,13 +1212,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (knownLocationsLoaded) return;
     knownLocationsLoaded = true;
     try {
-      const snap = await getDocs(collection(db, 'productRegistrations'));
+      const [regSnap, pincodeMaster] = await Promise.all([
+        getDocs(collection(db, 'productRegistrations')),
+        getPincodesCache(false),
+      ]);
       const cities = new Set();
       const pincodes = new Set();
-      snap.forEach(d => {
+      regSnap.forEach(d => {
         const r = d.data();
         if (r.city) cities.add(r.city.trim());
         if (r.pincode) pincodes.add(r.pincode.trim());
+      });
+      // Pincode Master is the authoritative source (Issue #2 — "should
+      // not be manually typed repeatedly") — merged in alongside
+      // whatever's shown up in real registrations so far.
+      pincodeMaster.forEach(p => {
+        pincodes.add(p.id);
+        if (p.city) cities.add(p.city);
+        if (p.district) cities.add(p.district);
       });
       const citiesList = document.getElementById('known-districts-list');
       const pincodesList = document.getElementById('known-pincodes-list');
@@ -2042,6 +2105,234 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // =================================================================
 
   let currentCategoryFilter = 'all';
+
+  // =================================================================
+  // PINCODE MASTER — the territory hierarchy (PIN → Area/City/Taluk/
+  // District/State) everything else resolves against: Service Center
+  // coverage, Routing's match display, and (later) a public-site
+  // serviceability check. `resolvePincode()` is exported for other
+  // modules to use once this data exists.
+  // =================================================================
+
+  let pincodesCache = null;
+
+  async function getPincodesCache(forceRefresh) {
+    if (pincodesCache && !forceRefresh) return pincodesCache;
+    const snap = await getDocs(collection(db, 'pincodes'));
+    pincodesCache = [];
+    snap.forEach(d => pincodesCache.push({ id: d.id, ...d.data() }));
+    pincodesCache.sort((a, b) => a.id.localeCompare(b.id));
+    return pincodesCache;
+  }
+
+  async function resolvePincode(pin) {
+    const list = await getPincodesCache(false);
+    return list.find(p => p.id === pin) || null;
+  }
+
+  let pincodeSearchTerm = '';
+
+  async function renderPincodeMaster() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Pincode master</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="open-bulk-pincode">Bulk import</button>
+            <button class="btn-primary" id="open-add-pincode">+ Add Pincode</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding-bottom:0;">
+          <input type="text" id="pincode-search" placeholder="Search by PIN, city, or district…" style="width:100%;max-width:360px;border:1px solid var(--hairline);padding:10px 12px;border-radius:2px;font-family:inherit;font-size:13.5px;">
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>PIN</th><th>Area</th><th>City</th><th>Taluk</th><th>District</th><th>State</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="pincode-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-pincode').addEventListener('click', () => openPincodeModal(null));
+    document.getElementById('open-bulk-pincode').addEventListener('click', openPincodeBulkModal);
+    pincodeSearchTerm = '';
+    document.getElementById('pincode-search').addEventListener('input', (e) => {
+      pincodeSearchTerm = e.target.value.trim().toLowerCase();
+      loadPincodeMaster();
+    });
+    loadPincodeMaster();
+  }
+
+  async function loadPincodeMaster() {
+    const tbody = document.getElementById('pincode-tbody');
+    try {
+      let list = await getPincodesCache(true);
+      if (pincodeSearchTerm) {
+        list = list.filter(p =>
+          p.id.includes(pincodeSearchTerm) ||
+          (p.city || '').toLowerCase().includes(pincodeSearchTerm) ||
+          (p.district || '').toLowerCase().includes(pincodeSearchTerm)
+        );
+      }
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">${pincodeSearchTerm ? 'No matches.' : 'No pincodes yet — add your first one, or use Bulk Import for a whole district at once.'}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      list.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><b>${p.id}</b></td>
+          <td>${p.area || '—'}</td>
+          <td>${p.city || '—'}</td>
+          <td>${p.taluk || '—'}</td>
+          <td>${p.district || '—'}</td>
+          <td>${p.state || '—'}</td>
+          <td><span class="status-pill ${p.active === false ? 'out' : 'ok'}">${p.active === false ? 'inactive' : 'active'}</span></td>
+          <td><button class="btn-secondary pincode-edit-btn">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.pincode-edit-btn').addEventListener('click', () => openPincodeModal(p));
+      });
+    } catch (err) {
+      console.error('Load pincode master failed:', err);
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load pincodes. Check console for details.</td></tr>`;
+    }
+  }
+
+  const pincodeOverlay = document.getElementById('pincode-overlay');
+  const pincodeForm = document.getElementById('pincode-form');
+  const pincodeError = document.getElementById('pincode-error');
+  const pincodeSuccess = document.getElementById('pincode-success');
+  const pincodeSubmitBtn = document.getElementById('submit-pincode');
+  const pincodeModalTitle = document.getElementById('pincode-modal-title');
+  const pincodePinInput = document.getElementById('pincode-pin');
+
+  function openPincodeModal(existing) {
+    pincodeForm.reset();
+    pincodeError.classList.remove('show');
+    pincodeSuccess.classList.remove('show');
+    pincodeSubmitBtn.disabled = false;
+    if (existing) {
+      pincodeModalTitle.textContent = `Edit ${existing.id}`;
+      document.getElementById('pincode-editing-id').value = existing.id;
+      pincodePinInput.value = existing.id;
+      pincodePinInput.disabled = true;
+      document.getElementById('pincode-area').value = existing.area || '';
+      document.getElementById('pincode-city').value = existing.city || '';
+      document.getElementById('pincode-taluk').value = existing.taluk || '';
+      document.getElementById('pincode-district').value = existing.district || '';
+      document.getElementById('pincode-state').value = existing.state || '';
+      document.getElementById('pincode-active').value = existing.active === false ? 'false' : 'true';
+      pincodeSubmitBtn.textContent = 'Save changes';
+    } else {
+      pincodeModalTitle.textContent = 'Add pincode';
+      document.getElementById('pincode-editing-id').value = '';
+      pincodePinInput.disabled = false;
+      pincodeSubmitBtn.textContent = 'Save pincode';
+    }
+    pincodeOverlay.classList.add('show');
+  }
+  function closePincodeModal() { pincodeOverlay.classList.remove('show'); }
+  document.getElementById('cancel-pincode').addEventListener('click', closePincodeModal);
+  pincodeOverlay.addEventListener('click', (e) => { if (e.target === pincodeOverlay) closePincodeModal(); });
+
+  pincodeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    pincodeError.classList.remove('show');
+    pincodeSuccess.classList.remove('show');
+    const pin = pincodePinInput.value.trim();
+    if (!/^\d{6}$/.test(pin)) {
+      pincodeError.textContent = 'Enter a valid 6-digit PIN.';
+      pincodeError.classList.add('show');
+      return;
+    }
+    pincodeSubmitBtn.disabled = true;
+    pincodeSubmitBtn.textContent = 'Saving…';
+    const payload = {
+      area: document.getElementById('pincode-area').value.trim(),
+      city: document.getElementById('pincode-city').value.trim(),
+      taluk: document.getElementById('pincode-taluk').value.trim(),
+      district: document.getElementById('pincode-district').value.trim(),
+      state: document.getElementById('pincode-state').value.trim(),
+      active: document.getElementById('pincode-active').value === 'true',
+    };
+    try {
+      await setDoc(doc(db, 'pincodes', pin), { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+      pincodeSuccess.textContent = 'Saved.';
+      pincodeSuccess.classList.add('show');
+      pincodeSubmitBtn.disabled = false;
+      pincodeSubmitBtn.textContent = document.getElementById('pincode-editing-id').value ? 'Save changes' : 'Save pincode';
+      if (document.getElementById('pincode-tbody')) loadPincodeMaster();
+      setTimeout(closePincodeModal, 800);
+    } catch (err) {
+      console.error('Save pincode failed:', err);
+      pincodeError.textContent = 'Could not save this pincode. Check console for details.';
+      pincodeError.classList.add('show');
+      pincodeSubmitBtn.disabled = false;
+      pincodeSubmitBtn.textContent = 'Save pincode';
+    }
+  });
+
+  // Bulk import — one line per pincode, so a whole district can be
+  // populated in one paste instead of one form submission each.
+  const pincodeBulkOverlay = document.getElementById('pincode-bulk-overlay');
+  const pincodeBulkForm = document.getElementById('pincode-bulk-form');
+  const pincodeBulkError = document.getElementById('pincode-bulk-error');
+  const pincodeBulkSuccess = document.getElementById('pincode-bulk-success');
+  const pincodeBulkSubmitBtn = document.getElementById('submit-pincode-bulk');
+
+  function openPincodeBulkModal() {
+    pincodeBulkForm.reset();
+    pincodeBulkError.classList.remove('show');
+    pincodeBulkSuccess.classList.remove('show');
+    pincodeBulkSubmitBtn.disabled = false;
+    pincodeBulkSubmitBtn.textContent = 'Import';
+    pincodeBulkOverlay.classList.add('show');
+  }
+  function closePincodeBulkModal() { pincodeBulkOverlay.classList.remove('show'); }
+  document.getElementById('cancel-pincode-bulk').addEventListener('click', closePincodeBulkModal);
+  pincodeBulkOverlay.addEventListener('click', (e) => { if (e.target === pincodeBulkOverlay) closePincodeBulkModal(); });
+
+  pincodeBulkForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    pincodeBulkError.classList.remove('show');
+    pincodeBulkSuccess.classList.remove('show');
+    const raw = document.getElementById('pincode-bulk-text').value.trim();
+    if (!raw) {
+      pincodeBulkError.textContent = 'Paste at least one line.';
+      pincodeBulkError.classList.add('show');
+      return;
+    }
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    pincodeBulkSubmitBtn.disabled = true;
+    pincodeBulkSubmitBtn.textContent = 'Importing…';
+    let successCount = 0, skipCount = 0;
+    for (const line of lines) {
+      const parts = line.split(',').map(p => p.trim());
+      const pin = parts[0];
+      if (!/^\d{6}$/.test(pin)) { skipCount++; continue; }
+      try {
+        await setDoc(doc(db, 'pincodes', pin), {
+          area: parts[1] || '',
+          city: parts[2] || '',
+          taluk: parts[3] || '',
+          district: parts[4] || '',
+          state: parts[5] || '',
+          active: true,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        successCount++;
+      } catch (err) {
+        console.error(`Import failed for ${pin}:`, err);
+        skipCount++;
+      }
+    }
+    pincodeBulkSuccess.textContent = `Imported ${successCount} pincode(s)${skipCount ? `, skipped ${skipCount} invalid line(s)` : ''}.`;
+    pincodeBulkSuccess.classList.add('show');
+    pincodeBulkSubmitBtn.disabled = false;
+    pincodeBulkSubmitBtn.textContent = 'Import';
+    if (document.getElementById('pincode-tbody')) loadPincodeMaster();
+    setTimeout(closePincodeBulkModal, 1200);
+  });
 
   async function renderCategories() {
     contentEl.innerHTML = `
@@ -3755,6 +4046,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         getTechniciansCache(),
         getServiceCentersCache(),
       ]);
+      const pincodeMaster = await getPincodesCache(false);
       const docs = [];
       centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ ...d.data(), id: d.id, source: 'centerRequests' }); });
       publicSnap.forEach(d => { docs.push({ ...d.data(), id: d.id, source: 'publicServiceRequests' }); });
@@ -3769,21 +4061,28 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
         if (d.source === 'publicServiceRequests') {
           // These have no exact pincode match (otherwise they'd have
-          // been auto-routed above) — city-level suggestions are
-          // still shown, but a person picks the final destination.
+          // been auto-routed above) — district (resolved via the
+          // Pincode Master, when available) is a stronger fallback
+          // signal than raw city-text; shown to staff either way.
+          const resolvedPincode = pincodeMaster.find(p => p.id === (d.pincode || '').trim());
           const city = (d.city || '').trim().toLowerCase();
+          const district = resolvedPincode ? (resolvedPincode.district || '').toLowerCase() : '';
           function matchLevel(c) {
+            if (district && (c.districtsCovered || []).some(dist => dist.toLowerCase() === district)) return 2;
             if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
             return 0;
           }
           const sorted = [...centers].sort((a, b) => matchLevel(b) - matchLevel(a));
           const options = sorted.map(c => {
             const level = matchLevel(c);
-            const matchFlag = level === 1 ? ' ✓ covers this city' : '';
+            const matchFlag = level === 2 ? ' ✓ covers this district' : level === 1 ? ' ✓ covers this city' : '';
             return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
           }).join('');
+          const locationLabel = resolvedPincode
+            ? ` — ${resolvedPincode.city || d.city || ''}${resolvedPincode.district ? ', ' + resolvedPincode.district + ' District' : ''}`
+            : (d.city ? ' — ' + d.city : '');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}${d.pincode ? ' ' + d.pincode : ''}</span></td>
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${locationLabel}${d.pincode ? ' ' + d.pincode : ''}</span></td>
             <td>${d.customerName || '—'}</td>
             <td>${productLabel}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
