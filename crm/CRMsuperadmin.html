@@ -3510,6 +3510,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function renderRouting() {
     contentEl.innerHTML = `
+      <div id="routing-auto-notice"></div>
       <div class="panel">
         <div class="panel-header"><h2>Unassigned requests</h2></div>
         <div class="panel-body" style="padding:0;">
@@ -3541,9 +3542,81 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     return serviceCentersCache;
   }
 
+  // Shared by both auto-routing (exact pincode match) and the manual
+  // Assign button (fallback: no exact match, or an admin overriding
+  // the city-level suggestion). Creates the real centerRequests doc
+  // and marks the source request as routed.
+  async function routeRequestToCenter(d, centerUid, centerName, productLabel) {
+    const requestId = d.requestId || d.id;
+    await addDoc(collection(db, 'centerRequests'), {
+      requestId,
+      serviceCenterUid: centerUid,
+      serviceCenterName: centerName,
+      customerName: d.customerName || '',
+      customerPhone: d.customerPhone || '',
+      address: d.address || '',
+      city: d.city || '',
+      pincode: d.pincode || '',
+      product: productLabel,
+      brand: d.brand || '',
+      category: d.category || '',
+      modelNo: d.modelNo || '',
+      serialNumber: d.serialNo || '',
+      type: d.requestType === 'installation' ? 'installation' : 'service',
+      issue: d.issueDescription || '',
+      status: 'new',
+      sourceRequestId: d.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'publicServiceRequests', d.id), {
+      serviceCenterUid: centerUid, serviceCenterName: centerName, status: 'assigned_to_center', updatedAt: serverTimestamp()
+    });
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'uid', recipientValue: centerUid,
+        title: 'New service request routed to you', message: `${d.customerName || 'A customer'} — ${productLabel}`,
+        read: false, createdAt: serverTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn('Notification write failed (non-blocking):', notifErr.message);
+    }
+  }
+
+  // Runs before the manual queue renders. Any website request whose
+  // pincode exactly matches a service center's covered pincodes gets
+  // routed automatically — no click needed. Only requests with no
+  // exact pincode match are left for manual routing (the "Super
+  // Admin / Warehouse bucket" — city-level suggestions still shown
+  // there, but a person has to pick).
+  async function autoRouteExactPincodeMatches() {
+    const centers = await getServiceCentersCache();
+    const publicSnap = await getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new')));
+    let routedCount = 0;
+    for (const docSnap of publicSnap.docs) {
+      const d = { ...docSnap.data(), id: docSnap.id };
+      const pincode = (d.pincode || '').trim();
+      if (!pincode) continue;
+      const match = centers.find(c => (c.pincodesCovered || []).includes(pincode));
+      if (!match) continue;
+      const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+      try {
+        await routeRequestToCenter(d, match.uid, match.name || match.email, productLabel);
+        routedCount++;
+      } catch (err) {
+        console.error(`Auto-route failed for ${d.id}:`, err);
+      }
+    }
+    const notice = document.getElementById('routing-auto-notice');
+    if (notice && routedCount > 0) {
+      notice.innerHTML = `<div class="modal-success show" style="margin-bottom:16px;">Auto-routed ${routedCount} request(s) by exact pincode match — sent straight to the covering service center.</div>`;
+    }
+  }
+
   async function loadRoutingQueue() {
     const tbody = document.getElementById('routing-tbody');
     try {
+      await autoRouteExactPincodeMatches();
       const [centerSnap, publicSnap, techs, centers] = await Promise.all([
         getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
         getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new'))),
@@ -3563,22 +3636,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
 
         if (d.source === 'publicServiceRequests') {
-          // Route to a Service Center first — they assign their own
-          // technician from their own roster (Center Requests screen).
-          // Pincode is the most precise signal available (matches
-          // what's actually captured at registration); city/district
-          // is the fallback when pincode doesn't match anything.
+          // These have no exact pincode match (otherwise they'd have
+          // been auto-routed above) — city-level suggestions are
+          // still shown, but a person picks the final destination.
           const city = (d.city || '').trim().toLowerCase();
-          const pincode = (d.pincode || '').trim();
           function matchLevel(c) {
-            if (pincode && (c.pincodesCovered || []).includes(pincode)) return 2;
             if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
             return 0;
           }
           const sorted = [...centers].sort((a, b) => matchLevel(b) - matchLevel(a));
           const options = sorted.map(c => {
             const level = matchLevel(c);
-            const matchFlag = level === 2 ? ' ✓ covers this pincode' : level === 1 ? ' ✓ covers this city' : '';
+            const matchFlag = level === 1 ? ' ✓ covers this city' : '';
             return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
           }).join('');
           tr.innerHTML = `
@@ -3593,43 +3662,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             if (!select.value) { alert('Select a service center first.'); return; }
             const [centerUid, centerName] = select.value.split('|');
             try {
-              // Creates a real centerRequests doc so this appears in
-              // that center's own "Center Requests" queue, where they
-              // assign it to one of their own technicians as usual.
-              const requestId = d.requestId || d.id;
-              await addDoc(collection(db, 'centerRequests'), {
-                requestId,
-                serviceCenterUid: centerUid,
-                serviceCenterName: centerName,
-                customerName: d.customerName || '',
-                customerPhone: d.customerPhone || '',
-                address: d.address || '',
-                city: d.city || '',
-                pincode: d.pincode || '',
-                product: productLabel,
-                brand: d.brand || '',
-                category: d.category || '',
-                modelNo: d.modelNo || '',
-                serialNumber: d.serialNo || '',
-                type: d.requestType === 'installation' ? 'installation' : 'service',
-                issue: d.issueDescription || '',
-                status: 'new',
-                sourceRequestId: d.id,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-              });
-              await updateDoc(doc(db, 'publicServiceRequests', d.id), {
-                serviceCenterUid: centerUid, serviceCenterName: centerName, status: 'assigned_to_center', updatedAt: serverTimestamp()
-              });
-              try {
-                await addDoc(collection(db, 'notifications'), {
-                  recipientType: 'uid', recipientValue: centerUid,
-                  title: 'New service request routed to you', message: `${d.customerName || 'A customer'} — ${productLabel}`,
-                  read: false, createdAt: serverTimestamp()
-                });
-              } catch (notifErr) {
-                console.warn('Notification write failed (non-blocking):', notifErr.message);
-              }
+              await routeRequestToCenter(d, centerUid, centerName, productLabel);
               loadRoutingQueue();
             } catch (err) {
               console.error('Route to center failed:', err);
