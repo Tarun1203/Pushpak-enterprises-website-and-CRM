@@ -311,7 +311,11 @@ service cloud.firestore {
 
     match /technicianAvailability/{uid} {
       allow read: if isStaff();
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid && !('suspended' in request.resource.data));
+      allow update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['suspended']));
     }
 
     // ---------------------------------------------------------------

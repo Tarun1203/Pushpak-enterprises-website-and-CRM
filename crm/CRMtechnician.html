@@ -700,9 +700,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // ---------------------------------------------------------------
 
   const AVAILABILITY_OPTIONS = [
-    { value: 'available', label: 'Available', desc: 'Free to take on new jobs right now.' },
-    { value: 'busy', label: 'Busy', desc: 'Currently on a job or otherwise occupied.' },
-    { value: 'off', label: 'Off', desc: 'Not working — day off or outside working hours.' },
+    { value: 'available', label: 'Available', desc: 'Free to take on new jobs right now.', pillClass: 'completed' },
+    { value: 'on_the_way', label: 'On the Way', desc: 'Heading to a customer for an active job.', pillClass: 'assigned' },
+    { value: 'at_customer', label: 'At Customer', desc: 'On-site, working the job.', pillClass: 'assigned' },
+    { value: 'in_progress', label: 'In Progress', desc: 'Actively repairing/servicing right now.', pillClass: 'in_progress' },
+    { value: 'break', label: 'On a Break', desc: 'Short break — back shortly.', pillClass: 'cancelled' },
+    { value: 'leave', label: 'On Leave', desc: 'Not working today — approved leave.', pillClass: 'cancelled' },
+    { value: 'holiday', label: 'Holiday', desc: 'Company holiday — not a personal leave day.', pillClass: 'cancelled' },
+    { value: 'offline', label: 'Offline', desc: 'Outside working hours / day off.', pillClass: 'cancelled' },
   ];
 
   async function renderAvailability() {
@@ -718,6 +723,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     AVAILABILITY_OPTIONS.forEach(opt => {
       const btn = document.createElement('button');
       btn.textContent = opt.label;
+      btn.title = opt.desc;
       btn.dataset.value = opt.value;
       btn.addEventListener('click', () => setAvailability(opt.value));
       optionsEl.appendChild(btn);
@@ -729,12 +735,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     if (!currentUser) return;
     try {
       const snap = await getDoc(doc(db, 'technicianAvailability', currentUser.uid));
-      const current = snap.exists() ? snap.data().status : null;
-      document.getElementById('availability-current').innerHTML = current
-        ? `Current status: <span class="status-pill ${current === 'available' ? 'completed' : current === 'busy' ? 'in_progress' : 'cancelled'}">${AVAILABILITY_OPTIONS.find(o => o.value === current)?.label || current}</span>`
-        : 'You haven\'t set your availability yet.';
+      const data = snap.exists() ? snap.data() : {};
+      const current = data.status || null;
+      const suspended = data.suspended === true;
+      const currentOpt = AVAILABILITY_OPTIONS.find(o => o.value === current);
+      if (suspended) {
+        document.getElementById('availability-current').innerHTML =
+          `<span class="status-pill cancelled">Suspended</span> — contact your Service Center or Warehouse. You can't change your own status while suspended.`;
+      } else {
+        document.getElementById('availability-current').innerHTML = current
+          ? `Current status: <span class="status-pill ${currentOpt ? currentOpt.pillClass : 'cancelled'}">${currentOpt ? currentOpt.label : current}</span>`
+          : 'You haven\'t set your availability yet.';
+      }
       document.querySelectorAll('#availability-options button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.value === current);
+        btn.disabled = suspended;
+        btn.style.opacity = suspended ? '0.5' : '1';
+        btn.style.cursor = suspended ? 'not-allowed' : 'pointer';
       });
     } catch (err) {
       console.error('Load availability failed:', err);
@@ -744,6 +761,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   async function setAvailability(status) {
     if (!currentUser) return;
     try {
+      const existing = await getDoc(doc(db, 'technicianAvailability', currentUser.uid));
+      if (existing.exists() && existing.data().suspended === true) {
+        alert('Your account is suspended — you can\'t change your own status. Contact your Service Center or Warehouse.');
+        return;
+      }
       await setDoc(doc(db, 'technicianAvailability', currentUser.uid), {
         status, technicianEmail: currentUser.email, updatedAt: serverTimestamp()
       }, { merge: true });
