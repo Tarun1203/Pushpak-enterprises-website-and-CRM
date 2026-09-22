@@ -438,7 +438,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests"}, {"id": "technicians", "label": "Center Technicians"}, {"id": "installation", "label": "Installation"}, {"id": "scheduling", "label": "Scheduling"}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory"}, {"id": "dispatch", "label": "Spare Dispatch"}, {"id": "sendback", "label": "Send Back to Head Office"}]}, {"group": "Finance", "items": [{"id": "claims", "label": "Center Claims"}, {"id": "payments", "label": "Payment History"}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance"}, {"id": "reports", "label": "Reports"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -618,11 +618,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(
         collection(db, 'centerRequests'),
-        where('serviceCenterUid', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('serviceCenterUid', '==', currentUser.uid)
       ));
       let docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (typeFilter !== 'all') docs = docs.filter(d => d.type === typeFilter);
       if (docs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
@@ -774,14 +774,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('tech-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No technicians on your roster yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.skills || '—'}</td>`;
         tbody.appendChild(tr);
@@ -1121,8 +1123,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         getDocs(query(
           collection(db, 'stockMovements'),
           where('serviceCenterUid', '==', currentUser.uid),
-          where('type', '==', 'issue'),
-          orderBy('createdAt', 'desc')
+          where('type', '==', 'issue')
         )),
         getDocs(collection(db, 'spareParts'))
       ]);
@@ -1132,9 +1133,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No dispatches logged yet.</td></tr>`;
         return;
       }
+      let movDocs = [];
+      movSnap.forEach(d => movDocs.push({ id: d.id, ...d.data() }));
+      movDocs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      movSnap.forEach(docSnap => {
-        const d = docSnap.data();
+      movDocs.forEach(d => {
         const part = partMap[d.partId];
         const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
         const tr = document.createElement('tr');
@@ -1371,18 +1374,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('cclaims-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'claims'), where('claimantUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'claims'), where('claimantUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No claims submitted yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'new';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
           <td>${d.description || '—'}</td>
           <td>₹${d.amount ?? '—'}</td>
           <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span></td>`;
@@ -1477,19 +1482,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const snap = await getDocs(query(
         collection(db, 'claims'),
         where('claimantUid', '==', currentUser.uid),
-        where('status', '==', 'settled'),
-        orderBy('createdAt', 'desc')
+        where('status', '==', 'settled')
       ));
       let total = 0;
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No settled claims yet.</td></tr>`;
       } else {
+        let docs = [];
+        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         tbody.innerHTML = '';
-        snap.forEach(docSnap => {
-          const d = docSnap.data();
+        docs.forEach(d => {
           total += Number(d.amount) || 0;
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td><td>${d.description || '—'}</td><td>₹${d.amount ?? '—'}</td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${d.description || '—'}</td><td>₹${d.amount ?? '—'}</td>`;
           tbody.appendChild(tr);
         });
       }

@@ -475,14 +475,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('cust-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'dealerCustomers'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'dealerCustomers'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No customers yet — add your first one.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td><td style="color:var(--stone);">${d.notes || '—'}</td>`;
         tbody.appendChild(tr);
@@ -579,17 +581,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('order-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No orders placed yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.orderId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.orderId || d.id}</td>
           <td>${d.product || '—'}</td>
           <td>${d.quantity ?? '—'}</td>
           <td><span class="status-pill ${d.status}">${ORDER_STATUS_LABELS[d.status] || d.status}</span></td>
@@ -687,17 +691,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('sale-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No sales logged yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.saleId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.saleId || d.id}</td>
           <td>${d.customerName || '—'}</td>
           <td>${d.product || '—'}</td>
           <td>${d.quantity ?? '—'}</td>
@@ -833,17 +839,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('reg-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No registrations yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.registrationId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.registrationId || d.id}</td>
           <td>${d.customerName || '—'}</td>
           <td>${d.product || '—'}</td>
           <td>${d.serialNumber || '—'}</td>
@@ -942,17 +950,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('denq-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'dealerEnquiries'), where('dealerUid', '==', currentUser.uid), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'dealerEnquiries'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No enquiries logged yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         let actionHtml = '—';
         if (ENQ_NEXT[d.status]) {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary denq-advance-btn" data-id="${docSnap.id}" data-next="${ENQ_NEXT[d.status]}">Mark ${ENQ_LABELS[ENQ_NEXT[d.status]]}</button><button class="btn-danger denq-close-btn" data-id="${docSnap.id}">Close</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary denq-advance-btn" data-id="${d.id}" data-next="${ENQ_NEXT[d.status]}">Mark ${ENQ_LABELS[ENQ_NEXT[d.status]]}</button><button class="btn-danger denq-close-btn" data-id="${d.id}">Close</button></div>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `

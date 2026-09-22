@@ -538,11 +538,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(
         collection(db, 'serviceJobs'),
-        where('technicianUid', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('technicianUid', '==', currentUser.uid)
       ));
       let docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (currentJobFilter === 'active') {
         docs = docs.filter(d => d.status === 'assigned' || d.status === 'in_progress');
       } else if (currentJobFilter !== 'all') {
@@ -1134,20 +1134,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(
         collection(db, 'claims'),
-        where('claimantUid', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('claimantUid', '==', currentUser.uid)
       ));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="4" class="empty-row">You haven't submitted any claims yet.</td></tr>`;
         return;
       }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
+      docs.forEach(d => {
         const tr = document.createElement('tr');
         const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'assigned';
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
           <td>${d.description || '—'}</td>
           <td>₹${d.amount ?? '—'}</td>
           <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_T[d.status] || d.status}</span></td>`;
@@ -1258,20 +1259,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const snap = await getDocs(query(
         collection(db, 'claims'),
         where('claimantUid', '==', currentUser.uid),
-        where('status', '==', 'settled'),
-        orderBy('createdAt', 'desc')
+        where('status', '==', 'settled')
       ));
       let total = 0;
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No settled claims yet.</td></tr>`;
       } else {
+        let docs = [];
+        snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         tbody.innerHTML = '';
-        snap.forEach(docSnap => {
-          const d = docSnap.data();
+        docs.forEach(d => {
           total += Number(d.amount) || 0;
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td>
+            <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
             <td>${d.description || '—'}</td>
             <td>₹${d.amount ?? '—'}</td>`;
           tbody.appendChild(tr);
