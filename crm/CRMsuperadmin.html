@@ -1131,9 +1131,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div class="hint">Across all roles</div>
         </div>
         <div class="stat-card">
-          <div class="label">Service Requests</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
+          <div class="label">Service Activity</div>
+          <div class="value">See Service →</div>
+          <div class="hint">Jobs, center requests & website submissions, combined</div>
         </div>
       </div>
       <div class="panel">
@@ -4240,7 +4240,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (techniciansCache) return techniciansCache;
     const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
     techniciansCache = [];
-    snap.forEach(d => techniciansCache.push({ uid: d.id, ...d.data() }));
+    for (const d of snap.docs) {
+      let suspended = false;
+      try {
+        const availSnap = await getDoc(doc(db, 'technicianAvailability', d.id));
+        suspended = availSnap.exists() && availSnap.data().suspended === true;
+      } catch (err) { /* non-fatal — treat as not suspended */ }
+      techniciansCache.push({ uid: d.id, ...d.data(), suspended });
+    }
     return techniciansCache;
   }
 
@@ -4391,7 +4398,25 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           // Already belongs to a service center (they created it
           // themselves) and just needs a technician — Super Admin can
           // assign cross-center as an override/escalation tool.
-          const options = techs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+          // Suspended technicians are excluded entirely; skill/brand
+          // matches are flagged and sorted first, same pattern as the
+          // Service Center match flags above.
+          const brandId = (d.brand || '').toLowerCase();
+          const category = d.category || '';
+          function techMatchLevel(t) {
+            const brandOk = !brandId || (t.brandsAuthorized || []).includes(brandId);
+            const skillOk = !category || (t.skills || []).some(s => s.category === category);
+            if (brandOk && skillOk && (brandId || category)) return 2;
+            if (brandOk || skillOk) return 1;
+            return 0;
+          }
+          const eligibleTechs = techs.filter(t => !t.suspended);
+          const sortedTechs = [...eligibleTechs].sort((a, b) => techMatchLevel(b) - techMatchLevel(a));
+          const options = sortedTechs.map(t => {
+            const level = techMatchLevel(t);
+            const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
+            return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
+          }).join('');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
             <td>${d.customerName || '—'}</td>
