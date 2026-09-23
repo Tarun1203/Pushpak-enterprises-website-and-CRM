@@ -232,6 +232,10 @@
         <label>Scheduled date (optional)</label>
         <input type="date" id="job-scheduled-date">
       </div>
+      <div class="form-row" style="display:flex;gap:12px;">
+        <div style="flex:1;"><label>Start time</label><input type="time" id="job-scheduled-start"></div>
+        <div style="flex:1;"><label>End time</label><input type="time" id="job-scheduled-end"></div>
+      </div>
       <div class="modal-error" id="job-error"></div>
       <div class="modal-success" id="job-success"></div>
       <div class="modal-actions">
@@ -695,6 +699,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         product: document.getElementById('job-product').value.trim(),
         issue: document.getElementById('job-issue').value.trim(),
         scheduledDate: document.getElementById('job-scheduled-date').value || null,
+        scheduledStartTime: document.getElementById('job-scheduled-start').value || null,
+        scheduledEndTime: document.getElementById('job-scheduled-end').value || null,
         status: 'assigned',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -725,8 +731,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="panel-header"><h2>Upcoming schedule</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Date</th><th>Job ID</th><th>Customer</th><th>Address</th><th>Status</th></tr></thead>
-            <tbody id="schedule-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Date</th><th>Time</th><th>Job ID</th><th>Customer</th><th>Address</th><th>Status</th></tr></thead>
+            <tbody id="schedule-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -736,29 +742,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const snap = await getDocs(query(
         collection(db, 'serviceJobs'),
         where('technicianUid', '==', currentUser.uid),
-        where('status', 'in', ['assigned', 'in_progress'])
+        where('status', 'in', JOB_ACTIVE_STATUSES)
       ));
       let docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-      docs = docs.filter(d => d.scheduledDate).sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+      docs = docs.filter(d => d.scheduledDate).sort((a, b) => (a.scheduledDate + (a.scheduledStartTime || '00:00')).localeCompare(b.scheduledDate + (b.scheduledStartTime || '00:00')));
       if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No scheduled jobs yet — set a date when logging or editing a job.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No scheduled jobs yet — set a date and time when logging a job.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       docs.forEach(d => {
+        const timeLabel = d.scheduledStartTime ? `${d.scheduledStartTime}${d.scheduledEndTime ? '–' + d.scheduledEndTime : ''}` : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${d.scheduledDate}</b></td>
+          <td>${timeLabel}</td>
           <td style="font-size:12px;color:var(--stone);">${d.jobId || d.id}</td>
           <td>${d.customerName || '—'}</td>
           <td>${d.address || '—'}</td>
-          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
+          <td><span class="status-pill ${JOB_STATUS_PILL_CLASS[d.status] || ''}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load schedule failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load schedule. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load schedule. Check console for details.</td></tr>`;
     }
   }
 

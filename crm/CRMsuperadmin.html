@@ -478,6 +478,25 @@
 <!-- Add/Edit Category modal -->
 <!-- Add/Edit Pincode modal -->
 <!-- Add/Edit SLA Rule modal -->
+<!-- Schedule / Reschedule appointment modal -->
+<div class="modal-overlay" id="schedule-overlay">
+  <div class="modal">
+    <h3>Schedule appointment</h3>
+    <div id="schedule-job-label" style="font-size:12.5px;color:var(--stone);margin-bottom:14px;"></div>
+    <form id="schedule-form">
+      <div class="form-row"><label>Date</label><input type="date" id="schedule-date" required></div>
+      <div class="form-row"><label>Start time</label><input type="time" id="schedule-start" required></div>
+      <div class="form-row"><label>End time</label><input type="time" id="schedule-end" required></div>
+      <div class="modal-error" id="schedule-error"></div>
+      <div class="modal-success" id="schedule-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-schedule">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-schedule">Save schedule</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="sla-rule-overlay">
   <div class="modal">
     <h3 id="sla-rule-modal-title">Add SLA rule</h3>
@@ -3481,6 +3500,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     contentEl.innerHTML = `
       <div class="tab-toggle" id="appt-tabs">
         <button data-filter="upcoming" class="active">Upcoming</button>
+        <button data-filter="unscheduled">Unscheduled</button>
         <button data-filter="all">All Scheduled</button>
       </div>
       <div id="appt-content"></div>`;
@@ -3495,13 +3515,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
 
   async function loadAppointments(filter) {
+    const isUnscheduled = filter === 'unscheduled';
     document.getElementById('appt-content').innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>${filter === 'upcoming' ? 'Upcoming appointments' : 'All scheduled activity'}</h2></div>
+        <div class="panel-header"><h2>${filter === 'upcoming' ? 'Upcoming appointments' : isUnscheduled ? 'Not yet scheduled' : 'All scheduled activity'}</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Date</th><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
-            <tbody id="appt-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr>${isUnscheduled ? '' : '<th>Date</th><th>Time</th>'}<th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th><th></th></tr></thead>
+            <tbody id="appt-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3514,41 +3535,147 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       let rows = [];
       jobsSnap.forEach(d => {
         const j = d.data();
-        if (j.scheduledDate) rows.push({ date: j.scheduledDate, source: 'Technician', id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status });
+        rows.push({ coll: 'serviceJobs', docId: d.id, date: j.scheduledDate || '', startTime: j.scheduledStartTime || '', endTime: j.scheduledEndTime || '', source: 'Technician', id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, assignedUid: j.technicianUid, status: j.status });
       });
       requestsSnap.forEach(d => {
         const r = d.data();
-        if (r.scheduledDate) rows.push({ date: r.scheduledDate, source: 'Service Center', id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status });
+        rows.push({ coll: 'centerRequests', docId: d.id, date: r.scheduledDate || '', startTime: r.scheduledStartTime || '', endTime: r.scheduledEndTime || '', source: 'Service Center', id: r.requestId, customer: r.customerName, assigned: r.technicianName, assignedUid: r.technicianUid || r.technicianName, status: r.status });
       });
+      const activeOnly = r => !['completed', 'closed', 'cancelled', 'verification'].includes(r.status);
       const todayStr = new Date().toISOString().slice(0, 10);
       if (filter === 'upcoming') {
-        rows = rows.filter(r => r.date >= todayStr && r.status !== 'completed' && r.status !== 'cancelled');
+        rows = rows.filter(r => r.date && r.date >= todayStr && activeOnly(r));
+        rows.sort((a, b) => (a.date + (a.startTime || '00:00')).localeCompare(b.date + (b.startTime || '00:00')));
+      } else if (isUnscheduled) {
+        rows = rows.filter(r => !r.date && activeOnly(r));
+      } else {
+        rows = rows.filter(r => r.date);
+        rows.sort((a, b) => (a.date + (a.startTime || '00:00')).localeCompare(b.date + (b.startTime || '00:00')));
       }
-      rows.sort((a, b) => a.date.localeCompare(b.date));
       if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing here.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Nothing here.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       let lastDate = null;
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        const dateCell = r.date === lastDate ? '' : `<b>${r.date}</b>`;
-        lastDate = r.date;
+        const timeLabel = r.startTime ? `${r.startTime}${r.endTime ? '–' + r.endTime : ''}` : '—';
+        const dateHtml = isUnscheduled ? '' : (() => {
+          const dateCell = r.date === lastDate ? '' : `<b>${r.date}</b>`;
+          lastDate = r.date;
+          return `<td style="white-space:nowrap;">${dateCell}</td><td style="white-space:nowrap;">${timeLabel}</td>`;
+        })();
         tr.innerHTML = `
-          <td style="white-space:nowrap;">${dateCell}</td>
+          ${dateHtml}
           <td>${r.source}</td>
           <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
           <td>${r.customer || '—'}</td>
           <td>${r.assigned || '—'}</td>
-          <td><span class="status-pill ${r.status}">${r.status}</span></td>`;
+          <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
+          <td><button class="btn-secondary appt-schedule-btn" data-coll="${r.coll}" data-id="${r.docId}">${r.date ? 'Reschedule' : 'Schedule'}</button></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.appt-schedule-btn').addEventListener('click', () => openScheduleModal(r, filter));
       });
     } catch (err) {
       console.error('Load appointments failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load appointments. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load appointments. Check console for details.</td></tr>`;
     }
   }
+
+  // Schedule modal — checks for overlap against every OTHER active
+  // slot already booked for the same assigned person on the same
+  // date, across both serviceJobs and centerRequests, before saving.
+  // This is the actual "cannot accidentally double-book" requirement,
+  // not just a nicer-looking date field.
+  const scheduleOverlay = document.getElementById('schedule-overlay');
+  const scheduleForm = document.getElementById('schedule-form');
+  const scheduleError = document.getElementById('schedule-error');
+  const scheduleSuccess = document.getElementById('schedule-success');
+  const scheduleSubmitBtn = document.getElementById('submit-schedule');
+  let schedulingRow = null;
+  let schedulingFilter = 'upcoming';
+
+  function openScheduleModal(row, filter) {
+    schedulingRow = row;
+    schedulingFilter = filter;
+    scheduleForm.reset();
+    scheduleError.classList.remove('show');
+    scheduleSuccess.classList.remove('show');
+    scheduleSubmitBtn.disabled = false;
+    scheduleSubmitBtn.textContent = 'Save schedule';
+    document.getElementById('schedule-job-label').textContent = `${row.id || row.docId} — ${row.customer || 'customer'} (${row.assigned || 'unassigned'})`;
+    if (row.date) document.getElementById('schedule-date').value = row.date;
+    if (row.startTime) document.getElementById('schedule-start').value = row.startTime;
+    if (row.endTime) document.getElementById('schedule-end').value = row.endTime;
+    scheduleOverlay.classList.add('show');
+  }
+  function closeScheduleModal() { scheduleOverlay.classList.remove('show'); }
+  document.getElementById('cancel-schedule').addEventListener('click', closeScheduleModal);
+  scheduleOverlay.addEventListener('click', (e) => { if (e.target === scheduleOverlay) closeScheduleModal(); });
+
+  scheduleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    scheduleError.classList.remove('show');
+    scheduleSuccess.classList.remove('show');
+    const date = document.getElementById('schedule-date').value;
+    const start = document.getElementById('schedule-start').value;
+    const end = document.getElementById('schedule-end').value;
+    if (!date || !start || !end) {
+      scheduleError.textContent = 'Date, start time, and end time are all required.';
+      scheduleError.classList.add('show');
+      return;
+    }
+    if (end <= start) {
+      scheduleError.textContent = 'End time must be after start time.';
+      scheduleError.classList.add('show');
+      return;
+    }
+    if (!schedulingRow.assignedUid) {
+      scheduleError.textContent = 'This job has no one assigned yet — assign a technician first.';
+      scheduleError.classList.add('show');
+      return;
+    }
+    scheduleSubmitBtn.disabled = true;
+    scheduleSubmitBtn.textContent = 'Checking for conflicts…';
+    try {
+      // Pull every other active slot for the same assigned person on
+      // the same date, across both collections, and check overlap.
+      const [jobsSnap, requestsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('scheduledDate', '==', date))),
+        getDocs(query(collection(db, 'centerRequests'), where('scheduledDate', '==', date))),
+      ]);
+      const others = [];
+      jobsSnap.forEach(d => { if (d.id !== schedulingRow.docId) others.push({ ...d.data(), docId: d.id, personKey: d.data().technicianUid }); });
+      requestsSnap.forEach(d => { if (d.id !== schedulingRow.docId) others.push({ ...d.data(), docId: d.id, personKey: d.data().technicianUid || d.data().technicianName }); });
+      const conflict = others.find(o =>
+        o.personKey === schedulingRow.assignedUid &&
+        o.scheduledStartTime && o.scheduledEndTime &&
+        start < o.scheduledEndTime && end > o.scheduledStartTime
+      );
+      if (conflict) {
+        scheduleError.textContent = `${schedulingRow.assigned} is already booked ${conflict.scheduledStartTime}–${conflict.scheduledEndTime} that day (${conflict.customerName || conflict.jobId || conflict.requestId || 'another job'}).`;
+        scheduleError.classList.add('show');
+        scheduleSubmitBtn.disabled = false;
+        scheduleSubmitBtn.textContent = 'Save schedule';
+        return;
+      }
+      await updateDoc(doc(db, schedulingRow.coll, schedulingRow.docId), {
+        scheduledDate: date, scheduledStartTime: start, scheduledEndTime: end, updatedAt: serverTimestamp()
+      });
+      scheduleSuccess.textContent = 'Scheduled.';
+      scheduleSuccess.classList.add('show');
+      scheduleSubmitBtn.textContent = 'Saved';
+      loadAppointments(schedulingFilter);
+      setTimeout(closeScheduleModal, 800);
+    } catch (err) {
+      console.error('Save schedule failed:', err);
+      scheduleError.textContent = 'Could not save this schedule. Check console for details.';
+      scheduleError.classList.add('show');
+      scheduleSubmitBtn.disabled = false;
+      scheduleSubmitBtn.textContent = 'Save schedule';
+    }
+  });
 
   // =================================================================
   // SERVICE — company-wide serviceJobs + centerRequests, combined.
