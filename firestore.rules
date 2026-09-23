@@ -343,7 +343,15 @@ service cloud.firestore {
 
     match /spareRequests/{reqId} {
       allow read: if isStaff();
-      allow write: if isAdmin();
+      // Technicians request spares directly from Diagnosis, tagged
+      // with their own uid — Warehouse/Super Admin can also create
+      // requests on a center's behalf as before. Advancing a request
+      // through the pipeline (approved/picking/dispatched/etc.) stays
+      // admin-only — a technician can ask for a part, not move it
+      // through the warehouse themselves.
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     match /localPurchases/{lpId} {

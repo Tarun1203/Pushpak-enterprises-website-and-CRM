@@ -94,6 +94,7 @@
   .status-pill.in_progress{background:#FBEAD2;color:#9A6A15;}
   .status-pill.completed{background:#D9EEE0;color:var(--ok);}
   .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+  .status-pill.waiting_spare{background:#F6DCDC;color:var(--err);}
   .status-pill.low{background:#FBEAD2;color:#9A6A15;}
   .status-pill.out{background:#F6DCDC;color:var(--err);}
   .status-pill.ok{background:#D9EEE0;color:var(--ok);}
@@ -156,6 +157,31 @@
       </div>
       <div class="content" id="content"></div>
     </div>
+  </div>
+</div>
+
+<!-- Request Spare (linked to a job) modal -->
+<div class="modal-overlay" id="spare-req-overlay">
+  <div class="modal">
+    <h3>Request a spare part</h3>
+    <div id="spare-req-job-label" style="font-size:12.5px;color:var(--stone);margin-bottom:14px;"></div>
+    <form id="spare-req-form">
+      <input type="hidden" id="spare-req-job-id">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="spare-req-part" required><option value="">Select part…</option></select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="spare-req-qty" min="1" value="1" required>
+      </div>
+      <div class="modal-error" id="spare-req-error"></div>
+      <div class="modal-success" id="spare-req-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-spare-req">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-spare-req">Request Spare</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -581,7 +607,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     });
   }
 
-  const JOB_STATUS_LABELS = { new: 'New', assigned: 'Assigned', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' };
+  const JOB_STATUS_LABELS = { new: 'New', assigned: 'Assigned', in_progress: 'In Progress', waiting_spare: 'Waiting for Spare', completed: 'Completed', cancelled: 'Cancelled' };
 
   // ---------------------------------------------------------------
   // Center Requests / Installation — this center's own request log.
@@ -634,9 +660,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         if (d.status === 'new') {
           actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
         } else if (d.status === 'assigned') {
-          actionHtml = `<button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
         } else if (d.status === 'in_progress') {
-          actionHtml = `<button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button>`;
+          actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
+        } else if (d.status === 'waiting_spare') {
+          actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${d.id}">Resume Work</button>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -653,6 +681,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.querySelectorAll('.req-progress-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
       tbody.querySelectorAll('.req-complete-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'completed', typeFilter)));
       tbody.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'cancelled', typeFilter)));
+      tbody.querySelectorAll('.req-resume-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
+      tbody.querySelectorAll('.req-spare-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const jobDoc = docs.find(x => x.id === b.dataset.id);
+          if (jobDoc) openSpareReqModal(jobDoc, typeFilter);
+        });
+      });
     } catch (err) {
       console.error('Load center requests failed:', err);
       tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
@@ -668,6 +703,116 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       alert('Could not update this request. Check the console for details.');
     }
   }
+
+  // ---------------------------------------------------------------
+  // Request a spare part linked to a specific job — same pattern as
+  // the Technician portal's Diagnosis screen: creates a real
+  // spareRequests doc tagged with sourceJobId/sourceJobCollection so
+  // Warehouse sees which job it's for, and moves the job itself to
+  // "Waiting for Spare" so its status reflects why it's stalled.
+  // ---------------------------------------------------------------
+
+  let sparePartsListCache = null;
+  async function getSparePartsListCache() {
+    if (sparePartsListCache) return sparePartsListCache;
+    const snap = await getDocs(collection(db, 'spareParts'));
+    sparePartsListCache = [];
+    snap.forEach(d => sparePartsListCache.push({ id: d.id, ...d.data() }));
+    return sparePartsListCache;
+  }
+
+  async function generateSpareRequestId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `sparerequest-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-SR-${dateStr}-${String(next).padStart(4, '0')}-ServiceCenter`;
+  }
+
+  const spareReqOverlay = document.getElementById('spare-req-overlay');
+  const spareReqForm = document.getElementById('spare-req-form');
+  const spareReqError = document.getElementById('spare-req-error');
+  const spareReqSuccess = document.getElementById('spare-req-success');
+  const spareReqSubmitBtn = document.getElementById('submit-spare-req');
+  let spareReqTypeFilter = 'all';
+
+  async function openSpareReqModal(jobDoc, typeFilter) {
+    spareReqForm.reset();
+    spareReqError.classList.remove('show');
+    spareReqSuccess.classList.remove('show');
+    spareReqSubmitBtn.disabled = false;
+    spareReqSubmitBtn.textContent = 'Request Spare';
+    spareReqTypeFilter = typeFilter;
+    document.getElementById('spare-req-job-id').value = jobDoc.id;
+    document.getElementById('spare-req-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'} (${jobDoc.product || jobDoc.type || 'job'})`;
+    const parts = await getSparePartsListCache();
+    const select = document.getElementById('spare-req-part');
+    select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${p.name}">${p.partCode ? p.partCode + ' — ' : ''}${p.name}</option>`).join('');
+    spareReqOverlay.classList.add('show');
+  }
+  function closeSpareReqModal() { spareReqOverlay.classList.remove('show'); }
+  document.getElementById('cancel-spare-req').addEventListener('click', closeSpareReqModal);
+  spareReqOverlay.addEventListener('click', (e) => { if (e.target === spareReqOverlay) closeSpareReqModal(); });
+
+  spareReqForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    spareReqError.classList.remove('show');
+    spareReqSuccess.classList.remove('show');
+    const select = document.getElementById('spare-req-part');
+    const partId = select.value;
+    const partName = select.selectedOptions[0]?.dataset.name || '';
+    const qty = Number(document.getElementById('spare-req-qty').value) || 1;
+    const jobId = document.getElementById('spare-req-job-id').value;
+    if (!partId) {
+      spareReqError.textContent = 'Select a part first.';
+      spareReqError.classList.add('show');
+      return;
+    }
+    spareReqSubmitBtn.disabled = true;
+    spareReqSubmitBtn.textContent = 'Requesting…';
+    try {
+      const jobSnap = await getDoc(doc(db, 'centerRequests', jobId));
+      const jobData = jobSnap.exists() ? jobSnap.data() : {};
+      const requestId = await generateSpareRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: currentUser.email,
+        item: partName,
+        partId,
+        quantity: qty,
+        priority: 'normal',
+        notes: `Requested from Center Requests — ${jobData.requestId || jobId}`,
+        sourceJobId: jobId,
+        sourceJobLabel: `${jobData.requestId || jobId} — ${jobData.customerName || 'customer'} (${jobData.product || jobData.type || 'job'})`,
+        sourceJobCollection: 'centerRequests',
+        requestedByUid: currentUser.uid,
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      // Job moves to Waiting for Spare — same real link between the
+      // request and the job's own status that the Technician side uses.
+      await updateDoc(doc(db, 'centerRequests', jobId), { status: 'waiting_spare', updatedAt: serverTimestamp() });
+      spareReqSuccess.textContent = `Requested — ${requestId}`;
+      spareReqSuccess.classList.add('show');
+      spareReqSubmitBtn.textContent = 'Requested';
+      loadCenterRequests(spareReqTypeFilter);
+      setTimeout(closeSpareReqModal, 900);
+    } catch (err) {
+      console.error('Request spare failed:', err);
+      spareReqError.textContent = 'Could not request this part. Check console for details.';
+      spareReqError.classList.add('show');
+      spareReqSubmitBtn.disabled = false;
+      spareReqSubmitBtn.textContent = 'Request Spare';
+    }
+  });
 
   const reqOverlay = document.getElementById('req-overlay');
   const reqForm = document.getElementById('req-form');
