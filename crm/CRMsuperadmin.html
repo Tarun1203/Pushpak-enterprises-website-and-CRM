@@ -251,6 +251,14 @@
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="new-user-brand-cb" value="skevia"> Skevia</label>
         </div>
       </div>
+      <div class="form-row step-hidden" id="new-user-categories-row">
+        <label>Categories handled <span class="hint">(what this center can actually service)</span></label>
+        <div class="chip-list" id="new-user-categories-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <select id="new-user-category-input" style="flex:1;"><option value="">Category…</option></select>
+          <button type="button" class="btn-secondary" id="new-user-category-add">Add</button>
+        </div>
+      </div>
       <div class="form-row step-hidden" id="new-user-skills-row">
         <label>Skills <span class="hint">(product category + skill level)</span></label>
         <div id="new-user-skills-list" style="margin-bottom:8px;"></div>
@@ -321,6 +329,14 @@
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="edit-user-brand-cb" value="makwell"> MakWell</label>
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="edit-user-brand-cb" value="flyvision"> Flyvision</label>
           <label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" class="edit-user-brand-cb" value="skevia"> Skevia</label>
+        </div>
+      </div>
+      <div class="form-row step-hidden" id="edit-user-categories-row">
+        <label>Categories handled <span class="hint">(what this center can actually service)</span></label>
+        <div class="chip-list" id="edit-user-categories-chips"></div>
+        <div style="display:flex;gap:8px;">
+          <select id="edit-user-category-input" style="flex:1;"><option value="">Category…</option></select>
+          <button type="button" class="btn-secondary" id="edit-user-category-add">Add</button>
         </div>
       </div>
       <div class="form-row step-hidden" id="edit-user-skills-row">
@@ -1293,6 +1309,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   const newUserSkills = createSkillInput('new-user-skills-list', 'new-user-skill-category', 'new-user-skill-level', 'new-user-skill-add');
   const editUserSkills = createSkillInput('edit-user-skills-list', 'edit-user-skill-category', 'edit-user-skill-level', 'edit-user-skill-add');
+  const newUserCategoriesChip = createChipInput('new-user-categories-chips', 'new-user-category-input', 'new-user-category-add');
+  const editUserCategoriesChip = createChipInput('edit-user-categories-chips', 'edit-user-category-input', 'edit-user-category-add');
 
   let skillCategoryOptionsLoaded = false;
   async function loadSkillCategoryOptions() {
@@ -1305,6 +1323,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const optionsHtml = '<option value="">Category…</option>' + [...names].sort().map(n => `<option value="${n}">${n}</option>`).join('');
       document.getElementById('new-user-skill-category').innerHTML = optionsHtml;
       document.getElementById('edit-user-skill-category').innerHTML = optionsHtml;
+      document.getElementById('new-user-category-input').innerHTML = optionsHtml;
+      document.getElementById('edit-user-category-input').innerHTML = optionsHtml;
     } catch (err) {
       console.warn('Could not load skill categories:', err.message);
     }
@@ -1368,10 +1388,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-districts-row').classList.add('step-hidden');
     document.getElementById('new-user-pincodes-row').classList.add('step-hidden');
     document.getElementById('new-user-brands-row').classList.add('step-hidden');
+    document.getElementById('new-user-categories-row').classList.add('step-hidden');
     document.getElementById('new-user-skills-row').classList.add('step-hidden');
     newUserDistrictsChip.set([]);
     newUserPincodesChip.set([]);
     newUserSkills.set([]);
+    newUserCategoriesChip.set([]);
     setCheckedBrands('new-user-brand-cb', []);
     loadKnownLocations();
     overlay.classList.add('show');
@@ -1384,9 +1406,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   document.getElementById('new-user-role').addEventListener('change', (e) => {
     document.getElementById('new-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
-    document.getElementById('new-user-brands-row').classList.toggle('step-hidden', e.target.value !== 'technician');
+    document.getElementById('new-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
+    document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
-    if (e.target.value === 'technician') loadSkillCategoryOptions();
+    if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
   });
 
   addUserForm.addEventListener('submit', async (e) => {
@@ -1423,10 +1446,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       // authenticated as the admin — so it passes the isAdmin() rule.
       const districtsCovered = role === 'servicecenter' ? newUserDistrictsChip.get() : [];
       const pincodesCovered = role === 'servicecenter' ? newUserPincodesChip.get() : [];
-      const brandsAuthorized = role === 'technician' ? getCheckedBrands('new-user-brand-cb') : [];
+      const brandsAuthorized = ['technician', 'servicecenter'].includes(role) ? getCheckedBrands('new-user-brand-cb') : [];
       const skills = role === 'technician' ? newUserSkills.get() : [];
+      const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
       await setDoc(doc(db, 'users', newUid), {
-        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, createdAt: new Date().toISOString()
+        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, categoriesAuthorized, createdAt: new Date().toISOString()
       });
 
       try {
@@ -1493,12 +1517,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     editUserDistrictsChip.set(data.districtsCovered || []);
     editUserPincodesChip.set(data.pincodesCovered || []);
     editUserSkills.set(data.skills || []);
+    editUserCategoriesChip.set(data.categoriesAuthorized || []);
     setCheckedBrands('edit-user-brand-cb', data.brandsAuthorized || []);
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
-    document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', data.role !== 'technician');
+    document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
+    document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
-    if (data.role === 'technician') loadSkillCategoryOptions();
+    if (data.role === 'technician' || data.role === 'servicecenter') loadSkillCategoryOptions();
     loadKnownLocations();
     editUserError.classList.remove('show');
     editUserSuccess.classList.remove('show');
@@ -1514,9 +1540,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   editRoleSelect.addEventListener('change', (e) => {
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
-    document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', e.target.value !== 'technician');
+    document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
+    document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
-    if (e.target.value === 'technician') loadSkillCategoryOptions();
+    if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
   });
 
   editUserForm.addEventListener('submit', async (e) => {
@@ -1532,8 +1559,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     editSubmitBtn.textContent = 'Saving…';
     const districtsCovered = editRoleSelect.value === 'servicecenter' ? editUserDistrictsChip.get() : [];
     const pincodesCovered = editRoleSelect.value === 'servicecenter' ? editUserPincodesChip.get() : [];
-    const brandsAuthorized = editRoleSelect.value === 'technician' ? getCheckedBrands('edit-user-brand-cb') : [];
+    const brandsAuthorized = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? getCheckedBrands('edit-user-brand-cb') : [];
     const skills = editRoleSelect.value === 'technician' ? editUserSkills.get() : [];
+    const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
     try {
       await updateDoc(doc(db, 'users', editingUid), {
         name: editNameInput.value.trim(),
@@ -1541,7 +1569,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         districtsCovered,
         pincodesCovered,
         brandsAuthorized,
-        skills
+        skills,
+        categoriesAuthorized
       });
       try {
         const roleChanged = editingOriginalRole !== editRoleSelect.value;
@@ -4310,12 +4339,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const centers = await getServiceCentersCache();
     const publicSnap = await getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new')));
     let routedCount = 0;
+    let skippedNoCapability = 0;
     for (const docSnap of publicSnap.docs) {
       const d = { ...docSnap.data(), id: docSnap.id };
       const pincode = (d.pincode || '').trim();
       if (!pincode) continue;
-      const match = centers.find(c => (c.pincodesCovered || []).includes(pincode));
-      if (!match) continue;
+      const requestBrandId = (d.brand || '').toLowerCase();
+      const pincodeMatches = centers.filter(c => (c.pincodesCovered || []).includes(pincode));
+      if (pincodeMatches.length === 0) continue;
+      // Validation: a pincode match alone isn't enough — the center
+      // also has to actually be authorized for this brand. Auto-route
+      // only fires when both line up; otherwise it's left for manual
+      // routing so a person can see and resolve the mismatch.
+      const match = pincodeMatches.find(c => !requestBrandId || (c.brandsAuthorized || []).includes(requestBrandId));
+      if (!match) { skippedNoCapability++; continue; }
       const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
       try {
         await routeRequestToCenter(d, match.uid, match.name || match.email, productLabel);
@@ -4325,8 +4362,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     }
     const notice = document.getElementById('routing-auto-notice');
-    if (notice && routedCount > 0) {
-      notice.innerHTML = `<div class="modal-success show" style="margin-bottom:16px;">Auto-routed ${routedCount} request(s) by exact pincode match — sent straight to the covering service center.</div>`;
+    if (notice) {
+      let html = '';
+      if (routedCount > 0) {
+        html += `<div class="modal-success show" style="margin-bottom:8px;">Auto-routed ${routedCount} request(s) by exact pincode match — sent straight to the covering service center.</div>`;
+      }
+      if (skippedNoCapability > 0) {
+        html += `<div class="modal-error show" style="margin-bottom:16px;">${skippedNoCapability} request(s) matched a pincode but not a brand-authorized center — left below for manual routing.</div>`;
+      }
+      notice.innerHTML = html;
     }
   }
 
@@ -4361,22 +4405,32 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const resolvedPincode = pincodeMaster.find(p => p.id === (d.pincode || '').trim());
           const city = (d.city || '').trim().toLowerCase();
           const district = resolvedPincode ? (resolvedPincode.district || '').toLowerCase() : '';
-          function matchLevel(c) {
+          const requestBrandId = (d.brand || '').toLowerCase();
+          function locationLevel(c) {
             if (district && (c.districtsCovered || []).some(dist => dist.toLowerCase() === district)) return 2;
             if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
             return 0;
           }
-          const sorted = [...centers].sort((a, b) => matchLevel(b) - matchLevel(a));
+          function brandOk(c) {
+            return !requestBrandId || (c.brandsAuthorized || []).includes(requestBrandId);
+          }
+          const sorted = [...centers].sort((a, b) => {
+            const aScore = locationLevel(a) * 10 + (brandOk(a) ? 1 : 0);
+            const bScore = locationLevel(b) * 10 + (brandOk(b) ? 1 : 0);
+            return bScore - aScore;
+          });
           const options = sorted.map(c => {
-            const level = matchLevel(c);
-            const matchFlag = level === 2 ? ' ✓ covers this district' : level === 1 ? ' ✓ covers this city' : '';
-            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
+            const level = locationLevel(c);
+            const locFlag = level === 2 ? '✓ district' : level === 1 ? '✓ city' : '';
+            const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
+            const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
+            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${flags ? ' — ' + flags : ''}</option>`;
           }).join('');
           const locationLabel = resolvedPincode
             ? ` — ${resolvedPincode.city || d.city || ''}${resolvedPincode.district ? ', ' + resolvedPincode.district + ' District' : ''}`
             : (d.city ? ' — ' + d.city : '');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${locationLabel}${d.pincode ? ' ' + d.pincode : ''}</span></td>
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${locationLabel}${d.pincode ? ' ' + d.pincode : ''}${d.brand ? ' — ' + d.brand : ''}</span></td>
             <td>${d.customerName || '—'}</td>
             <td>${productLabel}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
