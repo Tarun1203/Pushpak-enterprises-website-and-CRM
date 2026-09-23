@@ -208,6 +208,19 @@
         <input type="text" id="job-address" placeholder="e.g. area, city">
       </div>
       <div class="form-row">
+        <label>Pincode <span class="hint">(needed for SLA territory rules)</span></label>
+        <input type="text" id="job-pincode" inputmode="numeric" maxlength="6" placeholder="e.g. 580020">
+      </div>
+      <div class="form-row">
+        <label>Service type</label>
+        <select id="job-type">
+          <option value="repair">Repair</option>
+          <option value="installation">Installation</option>
+          <option value="warranty">Warranty Repair</option>
+          <option value="paid">Paid Repair</option>
+        </select>
+      </div>
+      <div class="form-row">
         <label>Product / brand</label>
         <input type="text" id="job-product" placeholder="e.g. MakWell geyser 15L">
       </div>
@@ -677,6 +690,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         customerName: document.getElementById('job-customer-name').value.trim(),
         customerPhone: document.getElementById('job-customer-phone').value.trim(),
         address: document.getElementById('job-address').value.trim(),
+        pincode: document.getElementById('job-pincode').value.trim(),
+        type: document.getElementById('job-type').value,
         product: document.getElementById('job-product').value.trim(),
         issue: document.getElementById('job-issue').value.trim(),
         scheduledDate: document.getElementById('job-scheduled-date').value || null,

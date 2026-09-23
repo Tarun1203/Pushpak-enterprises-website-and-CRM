@@ -445,6 +445,18 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // SLA rules — territory/service-type-aware thresholds, replacing
+    // the fixed 24h/48h default. Staff-readable (so Warehouse/Service
+    // Center understand what's being measured against), admin-only
+    // to configure.
+    // ---------------------------------------------------------------
+
+    match /slaRules/{ruleId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Deny by default. Every collection actually used by the app has
     // an explicit rule above — this is a real security boundary, not
     // a temporary placeholder. If a new collection is added later, it

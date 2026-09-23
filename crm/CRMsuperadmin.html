@@ -477,6 +477,32 @@
 
 <!-- Add/Edit Category modal -->
 <!-- Add/Edit Pincode modal -->
+<!-- Add/Edit SLA Rule modal -->
+<div class="modal-overlay" id="sla-rule-overlay">
+  <div class="modal">
+    <h3 id="sla-rule-modal-title">Add SLA rule</h3>
+    <form id="sla-rule-form">
+      <input type="hidden" id="sla-rule-editing-id">
+      <div class="form-row"><label>Rule name</label><input type="text" id="sla-rule-name" placeholder="e.g. Rural districts, Installation jobs" required></div>
+      <div class="form-row"><label>Applies to</label>
+        <select id="sla-rule-match-type">
+          <option value="district">A district</option>
+          <option value="servicetype">A service type</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Value</label><input type="text" id="sla-rule-match-value" placeholder="e.g. Raichur, or installation" required></div>
+      <div class="form-row"><label>Due soon after (hours)</label><input type="number" id="sla-rule-duesoon" min="1" value="24" required></div>
+      <div class="form-row"><label>Breached after (hours)</label><input type="number" id="sla-rule-breached" min="1" value="48" required></div>
+      <div class="modal-error" id="sla-rule-error"></div>
+      <div class="modal-success" id="sla-rule-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sla-rule">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sla-rule">Save rule</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pincode-overlay">
   <div class="modal">
     <h3 id="pincode-modal-title">Add pincode</h3>
@@ -4573,21 +4599,36 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function renderSlaEscalation() {
     contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>SLA rules</h2>
+          <button class="btn-primary" id="open-add-sla-rule">+ Add rule</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Rule</th><th>Matches</th><th>Due Soon</th><th>Breached</th><th>Actions</th></tr></thead>
+            <tbody id="sla-rules-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="panel-body" style="font-size:12px;color:var(--stone);">
+          A job matches its most specific rule: district match first, then service-type match, then the default below applies.
+        </div>
+      </div>
       <div class="tab-toggle" id="sla-tabs">
         <button data-filter="all" class="active">All Open</button>
-        <button data-filter="duesoon">Due Soon (&gt;24h)</button>
-        <button data-filter="breached">Breached (&gt;48h)</button>
+        <button data-filter="duesoon">Due Soon</button>
+        <button data-filter="breached">Breached</button>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Open requests by age</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Open For</th><th>Status</th></tr></thead>
-            <tbody id="sla-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Open For</th><th>Status</th><th>Rule Applied</th></tr></thead>
+            <tbody id="sla-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
-      </div>
-      <div style="margin-top:14px;font-size:12px;color:var(--stone);">Thresholds are fixed defaults (24h / 48h) — not yet configurable.</div>`;
+      </div>`;
+    document.getElementById('open-add-sla-rule').addEventListener('click', () => openSlaRuleModal(null));
     document.querySelectorAll('#sla-tabs button').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#sla-tabs button').forEach(b => b.classList.remove('active'));
@@ -4595,52 +4636,188 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         loadSlaView(btn.dataset.filter);
       });
     });
+    loadSlaRules();
     loadSlaView('all');
+  }
+
+  // Global fallback when no rule matches — kept as a constant rather
+  // than a stored rule, since it should always exist even before any
+  // rules have been configured.
+  const SLA_DEFAULT = { dueSoonHours: 24, breachedHours: 48 };
+
+  let slaRulesCache = null;
+  async function getSlaRulesCache(forceRefresh) {
+    if (slaRulesCache && !forceRefresh) return slaRulesCache;
+    const snap = await getDocs(collection(db, 'slaRules'));
+    slaRulesCache = [];
+    snap.forEach(d => slaRulesCache.push({ id: d.id, ...d.data() }));
+    return slaRulesCache;
+  }
+
+  // Most specific match wins: district > service type > default.
+  function resolveSlaRule(rules, district, serviceType) {
+    if (district) {
+      const districtMatch = rules.find(r => r.matchType === 'district' && (r.matchValue || '').toLowerCase() === district.toLowerCase());
+      if (districtMatch) return districtMatch;
+    }
+    if (serviceType) {
+      const typeMatch = rules.find(r => r.matchType === 'servicetype' && (r.matchValue || '').toLowerCase() === serviceType.toLowerCase());
+      if (typeMatch) return typeMatch;
+    }
+    return null;
+  }
+
+  async function loadSlaRules() {
+    const tbody = document.getElementById('sla-rules-tbody');
+    try {
+      const rules = await getSlaRulesCache(true);
+      if (rules.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No rules yet — everything uses the default (${SLA_DEFAULT.dueSoonHours}h / ${SLA_DEFAULT.breachedHours}h).</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rules.forEach(r => {
+        const tr = document.createElement('tr');
+        const matchLabel = r.matchType === 'district' ? `District: ${r.matchValue}` : `Service type: ${r.matchValue}`;
+        tr.innerHTML = `
+          <td><b>${r.name}</b></td>
+          <td>${matchLabel}</td>
+          <td>${r.dueSoonHours}h</td>
+          <td>${r.breachedHours}h</td>
+          <td><button class="btn-secondary sla-rule-edit-btn">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.sla-rule-edit-btn').addEventListener('click', () => openSlaRuleModal(r));
+      });
+    } catch (err) {
+      console.error('Load SLA rules failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load rules. Check console for details.</td></tr>`;
+    }
   }
 
   async function loadSlaView(filter) {
     const tbody = document.getElementById('sla-tbody');
     try {
-      const [jobsSnap, requestsSnap] = await Promise.all([
+      const [jobsSnap, requestsSnap, pincodeMaster, rules] = await Promise.all([
         getDocs(query(collection(db, 'serviceJobs'), where('status', 'in', ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']))),
         getDocs(query(collection(db, 'centerRequests'), where('status', 'in', ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']))),
+        getPincodesCache(false),
+        getSlaRulesCache(false),
       ]);
       const now = Date.now();
       const rows = [];
-      function pushRow(source, id, customer, status, createdAt) {
+      function pushRow(source, id, customer, status, createdAt, pincode, serviceType) {
         const openedMs = createdAt && createdAt.toDate ? createdAt.toDate().getTime() : now;
         const hoursOpen = (now - openedMs) / (1000 * 60 * 60);
-        rows.push({ source, id, customer, status, hoursOpen });
+        const resolved = pincode ? pincodeMaster.find(p => p.id === pincode) : null;
+        const district = resolved ? resolved.district : '';
+        const rule = resolveSlaRule(rules, district, serviceType);
+        const thresholds = rule || SLA_DEFAULT;
+        rows.push({ source, id, customer, status, hoursOpen, ruleLabel: rule ? rule.name : `Default (${SLA_DEFAULT.dueSoonHours}h/${SLA_DEFAULT.breachedHours}h)`, dueSoonHours: thresholds.dueSoonHours, breachedHours: thresholds.breachedHours });
       }
-      jobsSnap.forEach(d => { const j = d.data(); pushRow('Technician', j.jobId, j.customerName, j.status, j.createdAt); });
-      requestsSnap.forEach(d => { const r = d.data(); pushRow('Service Center', r.requestId, r.customerName, r.status, r.createdAt); });
+      jobsSnap.forEach(d => { const j = d.data(); pushRow('Technician', j.jobId, j.customerName, j.status, j.createdAt, j.pincode, j.type); });
+      requestsSnap.forEach(d => { const r = d.data(); pushRow('Service Center', r.requestId, r.customerName, r.status, r.createdAt, r.pincode, r.type); });
 
       let filtered = rows;
-      if (filter === 'duesoon') filtered = rows.filter(r => r.hoursOpen > 24 && r.hoursOpen <= 48);
-      if (filter === 'breached') filtered = rows.filter(r => r.hoursOpen > 48);
+      if (filter === 'duesoon') filtered = rows.filter(r => r.hoursOpen > r.dueSoonHours && r.hoursOpen <= r.breachedHours);
+      if (filter === 'breached') filtered = rows.filter(r => r.hoursOpen > r.breachedHours);
       filtered.sort((a, b) => b.hoursOpen - a.hoursOpen);
 
       if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing here.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing here.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       filtered.forEach(r => {
-        const badge = r.hoursOpen > 48 ? 'cancelled' : r.hoursOpen > 24 ? 'low' : 'ok';
+        const badge = r.hoursOpen > r.breachedHours ? 'cancelled' : r.hoursOpen > r.dueSoonHours ? 'low' : 'ok';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${r.source}</td>
           <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
           <td>${r.customer || '—'}</td>
           <td><span class="status-pill ${badge}">${Math.round(r.hoursOpen)}h</span></td>
-          <td>${SVC_STATUS_LABELS[r.status] || r.status}</td>`;
+          <td>${SVC_STATUS_LABELS[r.status] || r.status}</td>
+          <td style="font-size:12px;color:var(--stone);">${r.ruleLabel}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load SLA view failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load this view. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load this view. Check console for details.</td></tr>`;
     }
   }
+
+  const slaRuleOverlay = document.getElementById('sla-rule-overlay');
+  const slaRuleForm = document.getElementById('sla-rule-form');
+  const slaRuleError = document.getElementById('sla-rule-error');
+  const slaRuleSuccess = document.getElementById('sla-rule-success');
+  const slaRuleSubmitBtn = document.getElementById('submit-sla-rule');
+  const slaRuleModalTitle = document.getElementById('sla-rule-modal-title');
+
+  function openSlaRuleModal(existing) {
+    slaRuleForm.reset();
+    slaRuleError.classList.remove('show');
+    slaRuleSuccess.classList.remove('show');
+    slaRuleSubmitBtn.disabled = false;
+    if (existing) {
+      slaRuleModalTitle.textContent = 'Edit SLA rule';
+      document.getElementById('sla-rule-editing-id').value = existing.id;
+      document.getElementById('sla-rule-name').value = existing.name || '';
+      document.getElementById('sla-rule-match-type').value = existing.matchType || 'district';
+      document.getElementById('sla-rule-match-value').value = existing.matchValue || '';
+      document.getElementById('sla-rule-duesoon').value = existing.dueSoonHours ?? 24;
+      document.getElementById('sla-rule-breached').value = existing.breachedHours ?? 48;
+      slaRuleSubmitBtn.textContent = 'Save changes';
+    } else {
+      slaRuleModalTitle.textContent = 'Add SLA rule';
+      document.getElementById('sla-rule-editing-id').value = '';
+      slaRuleSubmitBtn.textContent = 'Save rule';
+    }
+    slaRuleOverlay.classList.add('show');
+  }
+  function closeSlaRuleModal() { slaRuleOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sla-rule').addEventListener('click', closeSlaRuleModal);
+  slaRuleOverlay.addEventListener('click', (e) => { if (e.target === slaRuleOverlay) closeSlaRuleModal(); });
+
+  slaRuleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    slaRuleError.classList.remove('show');
+    slaRuleSuccess.classList.remove('show');
+    const dueSoon = Number(document.getElementById('sla-rule-duesoon').value);
+    const breached = Number(document.getElementById('sla-rule-breached').value);
+    if (breached <= dueSoon) {
+      slaRuleError.textContent = 'Breached hours must be greater than Due Soon hours.';
+      slaRuleError.classList.add('show');
+      return;
+    }
+    slaRuleSubmitBtn.disabled = true;
+    slaRuleSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('sla-rule-editing-id').value;
+    const payload = {
+      name: document.getElementById('sla-rule-name').value.trim(),
+      matchType: document.getElementById('sla-rule-match-type').value,
+      matchValue: document.getElementById('sla-rule-match-value').value.trim(),
+      dueSoonHours: dueSoon,
+      breachedHours: breached,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'slaRules', editingId), payload);
+      } else {
+        await addDoc(collection(db, 'slaRules'), { ...payload, createdAt: serverTimestamp() });
+      }
+      slaRuleSuccess.textContent = 'Saved.';
+      slaRuleSuccess.classList.add('show');
+      slaRuleSubmitBtn.disabled = false;
+      slaRuleSubmitBtn.textContent = editingId ? 'Save changes' : 'Save rule';
+      if (document.getElementById('sla-rules-tbody')) { loadSlaRules(); loadSlaView('all'); }
+      setTimeout(closeSlaRuleModal, 800);
+    } catch (err) {
+      console.error('Save SLA rule failed:', err);
+      slaRuleError.textContent = 'Could not save this rule. Check console for details.';
+      slaRuleError.classList.add('show');
+      slaRuleSubmitBtn.disabled = false;
+      slaRuleSubmitBtn.textContent = editingId ? 'Save changes' : 'Save rule';
+    }
+  });
 
   // =================================================================
   // RMA & REPLACEMENT — a new workflow, distinct from Warehouse's
