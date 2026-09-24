@@ -639,6 +639,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     measurementId: "G-YLM91W3YF1"
   };
 
+  // Escapes text before it's interpolated into an innerHTML template.
+  // Track Service and Warranty Status render data straight back from
+  // a submission — defense in depth even though this path only shows
+  // a result to whoever already knows both the ticket ID and phone.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
@@ -1227,23 +1241,50 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      const snap = await getDoc(doc(db, 'publicServiceRequests', ticket));
-      if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
-        trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+      // The ticket prefix tells us which kind it is — a PE-REG-
+      // ticket is a product registration, not a service request, and
+      // lives in a different collection with a different lookup
+      // (registrations use an auto-generated doc ID, so this needs a
+      // query by the registrationId field, not a direct get by ID).
+      if (ticket.startsWith('PE-REG-')) {
+        const regSnap = await getDocs(query(collection(db, 'productRegistrations'), where('registrationId', '==', ticket)));
+        let match = null;
+        regSnap.forEach(d => { if (d.data().customerPhone === normalizedPhone) match = d.data(); });
+        if (!match) {
+          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+        } else {
+          const dateStr = match.createdAt && match.createdAt.toDate ? match.createdAt.toDate().toLocaleDateString() : '—';
+          trackResult.innerHTML = `
+            <div class="track-status-box">
+              <div class="label">Status</div>
+              <div class="value">Product Registered</div>
+              <div class="label">Request Type</div>
+              <div class="value" style="font-size:13.5px;">Product Registration</div>
+              <div class="label">Product</div>
+              <div class="value" style="font-size:13.5px;">${escapeHtml(match.brand) || ''} ${escapeHtml(match.category) || ''}${match.modelNo ? ' — ' + escapeHtml(match.modelNo) : ''}</div>
+              <div class="label">Submitted</div>
+              <div class="value" style="font-size:13.5px;">${dateStr}</div>
+            </div>`;
+        }
       } else {
-        const d = snap.data();
-        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
-        trackResult.innerHTML = `
-          <div class="track-status-box">
-            <div class="label">Status</div>
-            <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
-            <div class="label">Request Type</div>
-            <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
-            <div class="label">Product</div>
-            <div class="value" style="font-size:13.5px;">${d.brand || ''} ${d.category || ''}</div>
-            <div class="label">Submitted</div>
-            <div class="value" style="font-size:13.5px;">${dateStr}</div>
-          </div>`;
+        const snap = await getDoc(doc(db, 'publicServiceRequests', ticket));
+        if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
+          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+        } else {
+          const d = snap.data();
+          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+          trackResult.innerHTML = `
+            <div class="track-status-box">
+              <div class="label">Status</div>
+              <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
+              <div class="label">Request Type</div>
+              <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
+              <div class="label">Product</div>
+              <div class="value" style="font-size:13.5px;">${escapeHtml(d.brand) || ''} ${escapeHtml(d.category) || ''}</div>
+              <div class="label">Submitted</div>
+              <div class="value" style="font-size:13.5px;">${dateStr}</div>
+            </div>`;
+        }
       }
     } catch (err) {
       console.error('Track service failed:', err);
@@ -1319,9 +1360,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           const card = document.createElement('div');
           card.className = 'warranty-result-card';
           let bodyHtml = `
-            <h4>${d.product || (d.brand + ' ' + d.category) || 'Product'}</h4>
-            <div class="row"><span>Serial No</span><span>${d.serialNumber || '—'}</span></div>
-            <div class="row"><span>Purchased</span><span>${d.purchaseDate || '—'}</span></div>`;
+            <h4>${escapeHtml(d.product) || (escapeHtml(d.brand) + ' ' + escapeHtml(d.category)) || 'Product'}</h4>
+            <div class="row"><span>Serial No</span><span>${escapeHtml(d.serialNumber) || '—'}</span></div>
+            <div class="row"><span>Purchased</span><span>${escapeHtml(d.purchaseDate) || '—'}</span></div>`;
           if (d.warrantyComponents && d.warrantyComponents.length) {
             bodyHtml += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
               <div style="font-size:11.5px;font-weight:600;color:var(--stone);text-transform:uppercase;margin-bottom:8px;">Coverage by component</div>`;
@@ -1329,7 +1370,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               const status = computeWarrantyStatus(d.purchaseDate, (c.durationYears || 0) * 12);
               bodyHtml += `
                 <div class="row" style="margin-bottom:8px;">
-                  <span>${c.componentName}${c.coverage ? ' <span style="font-weight:400;color:var(--stone);">— ' + c.coverage + '</span>' : ''}</span>
+                  <span>${escapeHtml(c.componentName)}${c.coverage ? ' <span style="font-weight:400;color:var(--stone);">— ' + escapeHtml(c.coverage) + '</span>' : ''}</span>
                   <span class="status-pill ${status.cls}">${status.label}</span>
                 </div>`;
             });
