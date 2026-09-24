@@ -483,12 +483,7 @@
         </div>
         <div class="form-row"><label>Product Category</label>
           <select id="register-category" name="category" required>
-            <option value="">Select…</option>
-            <option value="LED TV">LED TV</option>
-            <option value="Washing Machine">Washing Machine</option>
-            <option value="Geyser">Geyser</option>
-            <option value="Solar Water Heater">Solar Water Heater</option>
-            <option value="Other">Other</option>
+            <option value="">Select brand first…</option>
           </select>
         </div>
       </div>
@@ -782,6 +777,37 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const registerModelText = document.getElementById('register-model-text');
   const REGISTER_BRAND_NAME_TO_ID = { MakWell: 'makwell', Flyvision: 'flyvision', Skevia: 'skevia' };
 
+  // Populates Category from the real Category Master for the chosen
+  // brand — this is what the Model lookup below actually needs to be
+  // reliable: a real categoryId, not a hardcoded name that has to
+  // happen to match whatever was typed when the category was created.
+  async function loadRegisterCategories() {
+    registerCategory.innerHTML = '<option value="">Loading…</option>';
+    registerModelSelect.innerHTML = '<option value="">Select brand and category first…</option>';
+    registerModelText.style.display = 'none';
+    const brandId = REGISTER_BRAND_NAME_TO_ID[registerBrand.value];
+    if (!brandId) {
+      registerCategory.innerHTML = '<option value="">Select brand first…</option>';
+      return;
+    }
+    try {
+      const catSnap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
+      const cats = [];
+      catSnap.forEach(c => { const d = c.data(); if (d.status !== 'inactive') cats.push({ id: c.id, name: d.name }); });
+      cats.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (cats.length === 0) {
+        registerCategory.innerHTML = '<option value="">No categories set up for this brand yet</option>';
+        return;
+      }
+      registerCategory.innerHTML = '<option value="">Select…</option>' +
+        cats.map(c => `<option value="${c.id}" data-name="${c.name}">${c.name}</option>`).join('');
+    } catch (err) {
+      console.warn('Could not load categories:', err.message);
+      registerCategory.innerHTML = '<option value="">Couldn\'t load categories</option>';
+    }
+  }
+  registerBrand.addEventListener('change', loadRegisterCategories);
+
   // Populates the Model dropdown from the real Product/Model masters
   // for whichever Brand + Category is currently selected, instead of
   // letting the customer free-type a model number that may not match
@@ -791,25 +817,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     registerModelSelect.innerHTML = '<option value="">Loading…</option>';
     registerModelText.style.display = 'none';
     const brandId = REGISTER_BRAND_NAME_TO_ID[registerBrand.value];
-    const categoryName = registerCategory.value;
-    if (!brandId || !categoryName) {
+    const categoryId = registerCategory.value;
+    if (!brandId || !categoryId) {
       registerModelSelect.innerHTML = '<option value="">Select brand and category first…</option>';
       return;
     }
     try {
-      const catSnap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
-      let categoryId = null;
-      catSnap.forEach(c => { if ((c.data().name || '').toLowerCase() === categoryName.toLowerCase()) categoryId = c.id; });
       let models = [];
-      if (categoryId) {
-        const prodSnap = await getDocs(query(collection(db, 'products'), where('brandId', '==', brandId), where('categoryId', '==', categoryId)));
-        const productIds = [];
-        prodSnap.forEach(p => productIds.push(p.id));
-        if (productIds.length > 0) {
-          // 'in' supports up to 30 values — plenty for one category's product list
-          const modelSnap = await getDocs(query(collection(db, 'productModels'), where('productId', 'in', productIds.slice(0, 30))));
-          modelSnap.forEach(m => { const d = m.data(); if (d.modelNumber) models.push(d.modelNumber); });
-        }
+      const prodSnap = await getDocs(query(collection(db, 'products'), where('brandId', '==', brandId), where('categoryId', '==', categoryId)));
+      const productIds = [];
+      prodSnap.forEach(p => productIds.push(p.id));
+      if (productIds.length > 0) {
+        // 'in' supports up to 30 values — plenty for one category's product list
+        const modelSnap = await getDocs(query(collection(db, 'productModels'), where('productId', 'in', productIds.slice(0, 30))));
+        modelSnap.forEach(m => { const d = m.data(); if (d.modelNumber) models.push(d.modelNumber); });
       }
       models = [...new Set(models)].sort();
       if (models.length === 0) {
@@ -829,7 +850,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       registerModelText.required = true;
     }
   }
-  registerBrand.addEventListener('change', loadRegisterModels);
   registerCategory.addEventListener('change', loadRegisterModels);
   registerModelSelect.addEventListener('change', () => {
     const isOther = registerModelSelect.value === '__other__';
@@ -853,6 +873,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     registerSuccess.classList.remove('show');
     registerTicketNote.textContent = '';
     registerInstallationRow.classList.add('step-hidden');
+    registerCategory.innerHTML = '<option value="">Select brand first…</option>';
+    registerModelSelect.innerHTML = '<option value="">Select brand and category first…</option>';
+    registerModelText.style.display = 'none';
     registerOverlay.classList.add('show');
   }
   function closeRegisterModal() { registerOverlay.classList.remove('show'); }
@@ -860,7 +883,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   registerOverlay.addEventListener('click', (e) => { if (e.target === registerOverlay) closeRegisterModal(); });
 
   registerCategory.addEventListener('change', () => {
-    const show = registerCategory.value === 'LED TV' || registerCategory.value === 'Washing Machine';
+    const selectedCatName = registerCategory.options[registerCategory.selectedIndex]?.dataset.name || '';
+    const show = selectedCatName === 'LED TV' || selectedCatName === 'Washing Machine';
     registerInstallationRow.classList.toggle('step-hidden', !show);
   });
 
@@ -903,11 +927,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       let matchedWarrantyComponents = null;
       if (brandId) {
         try {
-          let categoryId = null;
-          const catSnap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
-          catSnap.forEach(c => {
-            if ((c.data().name || '').toLowerCase() === registerCategory.value.toLowerCase()) categoryId = c.id;
-          });
+          const categoryId = registerCategory.value || null;
           const planSnap = await getDocs(query(collection(db, 'warrantyPlans'), where('brandId', '==', brandId), where('status', '==', 'active')));
           let categoryMatch = null, anyCategoryMatch = null;
           planSnap.forEach(p => {
@@ -934,10 +954,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         state: f.state.value.trim(),
         pincode: f.pincode.value.trim(),
         brand: f.brand.value,
-        category: registerCategory.value,
+        category: registerCategory.options[registerCategory.selectedIndex]?.dataset.name || '',
+        categoryId: registerCategory.value || null,
         modelNo: getRegisterModelValue(),
         serialNumber: f.serialNumber.value.trim(),
-        product: `${f.brand.value} ${registerCategory.value} — ${getRegisterModelValue()}`,
+        product: `${f.brand.value} ${registerCategory.options[registerCategory.selectedIndex]?.dataset.name || ''} — ${getRegisterModelValue()}`,
         purchaseDate: f.purchaseDate.value,
         dealerName: f.dealerName.value.trim(),
         installationRequired: document.getElementById('register-installation').checked,
