@@ -474,7 +474,7 @@
       <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" required></div>
       <div class="form-grid-2">
         <div class="form-row"><label>Brand</label>
-          <select name="brand" required>
+          <select id="register-brand" name="brand" required>
             <option value="">Select…</option>
             <option value="MakWell">MakWell</option>
             <option value="Flyvision">Flyvision</option>
@@ -496,7 +496,13 @@
         <div class="form-row"><label>Date of Purchase</label><input type="date" name="purchaseDate" required></div>
         <div class="form-row"><label>Purchased From (Dealer Name)</label><input type="text" name="dealerName" required></div>
       </div>
-      <div class="form-row"><label>Product Model No</label><input type="text" name="modelNo" required></div>
+      <div class="form-row">
+        <label>Product Model No</label>
+        <select id="register-model-select" name="modelNo" required>
+          <option value="">Select brand and category first…</option>
+        </select>
+        <input type="text" id="register-model-text" name="modelNoText" placeholder="Type your model number" style="display:none;margin-top:8px;">
+      </div>
       <div class="form-row"><label>Product Serial No <span class="hint">(not mandatory)</span></label><input type="text" name="serialNumber"></div>
       <div class="form-row"><label>Invoice Copy <span class="hint">(not mandatory — online upload coming soon, we'll follow up if needed)</span></label><input type="file" name="invoice" disabled style="opacity:0.5;"></div>
       <div class="checkbox-row step-hidden" id="register-installation-row">
@@ -771,6 +777,72 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const registerSuccess = document.getElementById('register-success');
   const registerTicketNote = document.getElementById('register-ticket-note');
   const registerCategory = document.getElementById('register-category');
+  const registerBrand = document.getElementById('register-brand');
+  const registerModelSelect = document.getElementById('register-model-select');
+  const registerModelText = document.getElementById('register-model-text');
+  const REGISTER_BRAND_NAME_TO_ID = { MakWell: 'makwell', Flyvision: 'flyvision', Skevia: 'skevia' };
+
+  // Populates the Model dropdown from the real Product/Model masters
+  // for whichever Brand + Category is currently selected, instead of
+  // letting the customer free-type a model number that may not match
+  // anything on record. Falls back to free text only when a category
+  // genuinely has no models entered yet — never blocks registration.
+  async function loadRegisterModels() {
+    registerModelSelect.innerHTML = '<option value="">Loading…</option>';
+    registerModelText.style.display = 'none';
+    const brandId = REGISTER_BRAND_NAME_TO_ID[registerBrand.value];
+    const categoryName = registerCategory.value;
+    if (!brandId || !categoryName) {
+      registerModelSelect.innerHTML = '<option value="">Select brand and category first…</option>';
+      return;
+    }
+    try {
+      const catSnap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', brandId)));
+      let categoryId = null;
+      catSnap.forEach(c => { if ((c.data().name || '').toLowerCase() === categoryName.toLowerCase()) categoryId = c.id; });
+      let models = [];
+      if (categoryId) {
+        const prodSnap = await getDocs(query(collection(db, 'products'), where('brandId', '==', brandId), where('categoryId', '==', categoryId)));
+        const productIds = [];
+        prodSnap.forEach(p => productIds.push(p.id));
+        if (productIds.length > 0) {
+          // 'in' supports up to 30 values — plenty for one category's product list
+          const modelSnap = await getDocs(query(collection(db, 'productModels'), where('productId', 'in', productIds.slice(0, 30))));
+          modelSnap.forEach(m => { const d = m.data(); if (d.modelNumber) models.push(d.modelNumber); });
+        }
+      }
+      models = [...new Set(models)].sort();
+      if (models.length === 0) {
+        registerModelSelect.innerHTML = '<option value="">— No models listed yet, type it in below —</option>';
+        registerModelText.style.display = 'block';
+        registerModelText.required = true;
+      } else {
+        registerModelSelect.innerHTML = '<option value="">Select…</option>' +
+          models.map(m => `<option value="${m}">${m}</option>`).join('') +
+          '<option value="__other__">Not listed — type it in</option>';
+        registerModelText.required = false;
+      }
+    } catch (err) {
+      console.warn('Could not load models, falling back to free text:', err.message);
+      registerModelSelect.innerHTML = '<option value="">— Type your model below —</option>';
+      registerModelText.style.display = 'block';
+      registerModelText.required = true;
+    }
+  }
+  registerBrand.addEventListener('change', loadRegisterModels);
+  registerCategory.addEventListener('change', loadRegisterModels);
+  registerModelSelect.addEventListener('change', () => {
+    const isOther = registerModelSelect.value === '__other__';
+    registerModelText.style.display = isOther ? 'block' : 'none';
+    registerModelText.required = isOther;
+  });
+  function getRegisterModelValue() {
+    if (registerModelSelect.value === '__other__' || registerModelText.style.display === 'block') {
+      return registerModelText.value.trim();
+    }
+    return registerModelSelect.value.trim();
+  }
+
   const registerInstallationRow = document.getElementById('register-installation-row');
   wirePhoneSanitizer(registerPhone);
 
@@ -863,9 +935,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         pincode: f.pincode.value.trim(),
         brand: f.brand.value,
         category: registerCategory.value,
-        modelNo: f.modelNo.value.trim(),
+        modelNo: getRegisterModelValue(),
         serialNumber: f.serialNumber.value.trim(),
-        product: `${f.brand.value} ${registerCategory.value} — ${f.modelNo.value.trim()}`,
+        product: `${f.brand.value} ${registerCategory.value} — ${getRegisterModelValue()}`,
         purchaseDate: f.purchaseDate.value,
         dealerName: f.dealerName.value.trim(),
         installationRequired: document.getElementById('register-installation').checked,
