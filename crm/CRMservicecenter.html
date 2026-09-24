@@ -243,6 +243,10 @@
     <h3>Add technician to roster</h3>
     <form id="tech-form">
       <div class="form-row">
+        <label>Link to an existing Technician account <span class="hint">(optional — gives real skills, brand authorization, and availability)</span></label>
+        <select id="tech-link-account"><option value="">— Not linked, informal entry —</option></select>
+      </div>
+      <div class="form-row">
         <label>Name</label>
         <input type="text" id="tech-name" required>
       </div>
@@ -250,7 +254,7 @@
         <label>Phone</label>
         <input type="tel" id="tech-phone" required>
       </div>
-      <div class="form-row">
+      <div class="form-row" id="tech-skills-row">
         <label>Skills (optional)</label>
         <input type="text" id="tech-skills" placeholder="e.g. Geyser repair, installation">
       </div>
@@ -826,12 +830,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     if (!currentUser) return;
     try {
       const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
-      snap.forEach(d => {
+      const roster = [];
+      snap.forEach(d => roster.push({ id: d.id, ...d.data() }));
+      for (const r of roster) {
+        let suspended = false;
+        if (r.technicianUid) {
+          try {
+            const availSnap = await getDoc(doc(db, 'technicianAvailability', r.technicianUid));
+            suspended = availSnap.exists() && availSnap.data().suspended === true;
+          } catch (err) { /* non-fatal */ }
+        }
+        if (suspended) continue; // suspended technicians can't be assigned new work
         const opt = document.createElement('option');
-        opt.value = d.data().name;
-        opt.textContent = d.data().name;
+        opt.value = `${r.name}|${r.technicianUid || ''}`;
+        opt.textContent = r.technicianUid ? `${r.name} ✓` : r.name;
         reqTechSelect.appendChild(opt);
-      });
+      }
     } catch (err) {
       console.error('Load technicians for request form failed:', err);
     }
@@ -859,7 +873,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqSubmitBtn.textContent = 'Saving…';
     try {
       const requestId = await generateRequestId();
-      const technicianName = reqTechSelect.value;
+      const [technicianName, technicianUid] = reqTechSelect.value ? reqTechSelect.value.split('|') : [null, null];
       await addDoc(collection(db, 'centerRequests'), {
         requestId,
         serviceCenterUid: currentUser.uid,
@@ -870,6 +884,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         product: document.getElementById('req-product').value.trim(),
         issue: document.getElementById('req-issue').value.trim(),
         technicianName: technicianName || null,
+        technicianUid: technicianUid || null,
         scheduledDate: document.getElementById('req-scheduled-date').value || null,
         status: technicianName ? 'assigned' : 'new',
         createdAt: serverTimestamp(),
@@ -906,8 +921,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Phone</th><th>Skills</th></tr></thead>
-            <tbody id="tech-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Phone</th><th>Skills</th><th>Account</th></tr></thead>
+            <tbody id="tech-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -921,7 +936,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No technicians on your roster yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No technicians on your roster yet.</td></tr>`;
         return;
       }
       let docs = [];
@@ -930,12 +945,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.innerHTML = '';
       docs.forEach(d => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.skills || '—'}</td>`;
+        const accountLabel = d.technicianUid
+          ? '<span class="status-pill ok">Linked</span>'
+          : '<span class="status-pill low">Informal</span>';
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.skills || '—'}</td><td>${accountLabel}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load technicians failed:', err);
-      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load roster. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load roster. Check console for details.</td></tr>`;
     }
   }
 
@@ -944,6 +962,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const techError = document.getElementById('tech-error');
   const techSuccess = document.getElementById('tech-success');
   const techSubmitBtn = document.getElementById('submit-tech');
+  const techLinkSelect = document.getElementById('tech-link-account');
+  let linkableTechAccounts = [];
+
+  async function populateTechLinkOptions() {
+    techLinkSelect.innerHTML = '<option value="">— Not linked, informal entry —</option>';
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
+      linkableTechAccounts = [];
+      snap.forEach(d => linkableTechAccounts.push({ uid: d.id, ...d.data() }));
+      linkableTechAccounts.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.uid;
+        opt.textContent = t.name || t.email;
+        techLinkSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.warn('Could not load linkable technician accounts:', err.message);
+    }
+  }
 
   function openTechModal() {
     techForm.reset();
@@ -951,11 +988,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techSuccess.classList.remove('show');
     techSubmitBtn.disabled = false;
     techSubmitBtn.textContent = 'Add technician';
+    document.getElementById('tech-skills-row').classList.remove('step-hidden');
+    populateTechLinkOptions();
     techOverlay.classList.add('show');
   }
   function closeTechModal() { techOverlay.classList.remove('show'); }
   document.getElementById('cancel-tech').addEventListener('click', closeTechModal);
   techOverlay.addEventListener('click', (e) => { if (e.target === techOverlay) closeTechModal(); });
+
+  // Linking pre-fills name/phone (when known) from the real account
+  // and hides the free-text skills field — skills come from the
+  // account's own Skills list once linked, not a duplicate entry here.
+  techLinkSelect.addEventListener('change', (e) => {
+    const account = linkableTechAccounts.find(t => t.uid === e.target.value);
+    if (account) {
+      document.getElementById('tech-name').value = account.name || '';
+      if (account.phone) document.getElementById('tech-phone').value = account.phone;
+      document.getElementById('tech-skills-row').classList.add('step-hidden');
+    } else {
+      document.getElementById('tech-skills-row').classList.remove('step-hidden');
+    }
+  });
 
   techForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -965,11 +1018,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techSubmitBtn.disabled = true;
     techSubmitBtn.textContent = 'Saving…';
     try {
+      const linkedUid = techLinkSelect.value || null;
       await addDoc(collection(db, 'centerTechnicians'), {
         serviceCenterUid: currentUser.uid,
         name: document.getElementById('tech-name').value.trim(),
         phone: document.getElementById('tech-phone').value.trim(),
-        skills: document.getElementById('tech-skills').value.trim(),
+        skills: linkedUid ? '' : document.getElementById('tech-skills').value.trim(),
+        technicianUid: linkedUid,
         createdAt: serverTimestamp()
       });
       techSuccess.textContent = 'Added.';

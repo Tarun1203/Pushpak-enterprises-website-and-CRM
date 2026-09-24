@@ -89,7 +89,10 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Technician profiles are also readable by any signed-in staff
+      // member — Service Center needs to list and link real
+      // technician accounts to their own roster.
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin() || resource.data.role == 'technician');
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
