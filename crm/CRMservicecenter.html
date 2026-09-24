@@ -186,6 +186,43 @@
 </div>
 
 <!-- New Center Request modal -->
+<!-- Job closure modal — required before a request can be marked complete -->
+<div class="modal-overlay" id="sc-closure-overlay">
+  <div class="modal">
+    <h3>Complete request</h3>
+    <div id="sc-closure-job-label" style="font-size:12.5px;color:var(--stone);margin-bottom:14px;"></div>
+    <form id="sc-closure-form">
+      <input type="hidden" id="sc-closure-job-id">
+      <div class="form-row">
+        <label>Closure code</label>
+        <select id="sc-closure-code" required>
+          <option value="">Select…</option>
+          <option value="repaired">Repaired</option>
+          <option value="replaced">Part(s) Replaced</option>
+          <option value="no_fault_found">No Fault Found</option>
+          <option value="unable_to_repair">Unable to Repair — Escalated</option>
+          <option value="customer_cancelled">Customer Cancelled</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Action taken</label>
+        <textarea id="sc-closure-notes" rows="3" placeholder="What was actually done" required></textarea>
+      </div>
+      <div class="form-row">
+        <label>Parts used</label>
+        <div id="sc-closure-linked-parts" style="font-size:12.5px;color:var(--stone);margin-bottom:8px;"></div>
+        <input type="text" id="sc-closure-parts-notes" placeholder="Any parts used that weren't requested through the system, or type 'None'">
+      </div>
+      <div class="modal-error" id="sc-closure-error"></div>
+      <div class="modal-success" id="sc-closure-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sc-closure">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sc-closure">Mark Complete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="req-overlay">
   <div class="modal">
     <h3>Log a new request</h3>
@@ -426,6 +463,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     appId: "1:673518655103:web:1805d10de3c63eca23914a",
     measurementId: "G-YLM91W3YF1"
   };
+
+  // Escapes text before it's interpolated into an innerHTML template.
+  // Public-facing forms (Book a Service, Register a Product, Contact,
+  // Dealer Enquiry) accept free text from anonymous visitors with no
+  // server-side validation — anything they type could otherwise
+  // execute as a stored XSS payload the moment staff view it here.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -674,8 +726,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
           <td style="text-transform:capitalize;">${d.type || 'repair'}</td>
-          <td>${d.customerName || '—'}</td>
-          <td>${d.customerPhone || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td>${escapeHtml(d.customerPhone || '—')}</td>
           <td>${d.technicianName || '—'}</td>
           <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;
@@ -683,7 +735,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       });
       tbody.querySelectorAll('.req-assign-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'assigned', typeFilter)));
       tbody.querySelectorAll('.req-progress-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
-      tbody.querySelectorAll('.req-complete-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'completed', typeFilter)));
+      tbody.querySelectorAll('.req-complete-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const jobDoc = docs.find(x => x.id === b.dataset.id);
+          if (jobDoc) openScClosureModal(jobDoc, typeFilter);
+        });
+      });
       tbody.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'cancelled', typeFilter)));
       tbody.querySelectorAll('.req-resume-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
       tbody.querySelectorAll('.req-spare-btn').forEach(b => {
@@ -707,6 +764,84 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       alert('Could not update this request. Check the console for details.');
     }
   }
+
+  // Same closure requirement as the Technician portal — a request
+  // can't move to Completed without a closure code, what was done,
+  // and parts used recorded.
+  const scClosureOverlay = document.getElementById('sc-closure-overlay');
+  const scClosureForm = document.getElementById('sc-closure-form');
+  const scClosureError = document.getElementById('sc-closure-error');
+  const scClosureSuccess = document.getElementById('sc-closure-success');
+  const scClosureSubmitBtn = document.getElementById('submit-sc-closure');
+  let scClosureTypeFilter = 'all';
+
+  async function openScClosureModal(jobDoc, typeFilter) {
+    scClosureForm.reset();
+    scClosureError.classList.remove('show');
+    scClosureSuccess.classList.remove('show');
+    scClosureSubmitBtn.disabled = false;
+    scClosureSubmitBtn.textContent = 'Mark Complete';
+    scClosureTypeFilter = typeFilter;
+    document.getElementById('sc-closure-job-id').value = jobDoc.id;
+    document.getElementById('sc-closure-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
+    const linkedEl = document.getElementById('sc-closure-linked-parts');
+    linkedEl.textContent = 'Checking linked spare requests…';
+    try {
+      const snap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', jobDoc.id)));
+      if (snap.empty) {
+        linkedEl.textContent = 'No spare parts were requested through the system for this job.';
+      } else {
+        const items = [];
+        snap.forEach(d => items.push(`${escapeHtml(d.data().item)} (${d.data().status})`));
+        linkedEl.textContent = `Requested through the system: ${items.join(', ')}`;
+      }
+    } catch (err) {
+      linkedEl.textContent = '';
+    }
+    scClosureOverlay.classList.add('show');
+  }
+  function closeScClosureModal() { scClosureOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sc-closure').addEventListener('click', closeScClosureModal);
+  scClosureOverlay.addEventListener('click', (e) => { if (e.target === scClosureOverlay) closeScClosureModal(); });
+
+  scClosureForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    scClosureError.classList.remove('show');
+    scClosureSuccess.classList.remove('show');
+    const jobId = document.getElementById('sc-closure-job-id').value;
+    const closureCode = document.getElementById('sc-closure-code').value;
+    const notes = document.getElementById('sc-closure-notes').value.trim();
+    const partsNotes = document.getElementById('sc-closure-parts-notes').value.trim();
+    if (!closureCode || !notes || !partsNotes) {
+      scClosureError.textContent = 'Closure code, action taken, and parts used are all required — type "None" if no parts were used.';
+      scClosureError.classList.add('show');
+      return;
+    }
+    scClosureSubmitBtn.disabled = true;
+    scClosureSubmitBtn.textContent = 'Saving…';
+    try {
+      await updateDoc(doc(db, 'centerRequests', jobId), {
+        status: 'completed',
+        closureCode,
+        actionTaken: notes,
+        partsUsedNotes: partsNotes,
+        closedByUid: currentUser.uid,
+        closedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      scClosureSuccess.textContent = 'Completed.';
+      scClosureSuccess.classList.add('show');
+      scClosureSubmitBtn.textContent = 'Done';
+      loadCenterRequests(scClosureTypeFilter);
+      setTimeout(closeScClosureModal, 800);
+    } catch (err) {
+      console.error('Close request failed:', err);
+      scClosureError.textContent = 'Could not complete this request. Check the console for details.';
+      scClosureError.classList.add('show');
+      scClosureSubmitBtn.disabled = false;
+      scClosureSubmitBtn.textContent = 'Mark Complete';
+    }
+  });
 
   // ---------------------------------------------------------------
   // Request a spare part linked to a specific job — same pattern as
@@ -755,7 +890,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     spareReqSubmitBtn.textContent = 'Request Spare';
     spareReqTypeFilter = typeFilter;
     document.getElementById('spare-req-job-id').value = jobDoc.id;
-    document.getElementById('spare-req-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'} (${jobDoc.product || jobDoc.type || 'job'})`;
+    document.getElementById('spare-req-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${escapeHtml(jobDoc.customerName || 'customer')} (${escapeHtml(jobDoc.product) || jobDoc.type || 'job'})`;
     const parts = await getSparePartsListCache();
     const select = document.getElementById('spare-req-part');
     select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${p.name}">${p.partCode ? p.partCode + ' — ' : ''}${p.name}</option>`).join('');
@@ -794,7 +929,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         priority: 'normal',
         notes: `Requested from Center Requests — ${jobData.requestId || jobId}`,
         sourceJobId: jobId,
-        sourceJobLabel: `${jobData.requestId || jobId} — ${jobData.customerName || 'customer'} (${jobData.product || jobData.type || 'job'})`,
+        sourceJobLabel: `${jobData.requestId || jobId} — ${escapeHtml(jobData.customerName || 'customer')} (${escapeHtml(jobData.product) || jobData.type || 'job'})`,
         sourceJobCollection: 'centerRequests',
         requestedByUid: currentUser.uid,
         status: 'new',
@@ -948,7 +1083,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const accountLabel = d.technicianUid
           ? '<span class="status-pill ok">Linked</span>'
           : '<span class="status-pill low">Informal</span>';
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.skills || '—'}</td><td>${accountLabel}</td>`;
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -1078,7 +1213,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         tr.innerHTML = `
           <td><b>${d.scheduledDate}</b></td>
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
-          <td>${d.customerName || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${d.technicianName || '—'}</td>
           <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
         tbody.appendChild(tr);
@@ -1345,7 +1480,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
           <td>${part ? part.name : d.partId}</td>
           <td>${d.quantity ?? '—'}</td>
-          <td>${d.reason || '—'}</td>`;
+          <td>${escapeHtml(d.reason || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {

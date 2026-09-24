@@ -820,6 +820,21 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     measurementId: "G-YLM91W3YF1"
   };
 
+  // Escapes text before it's interpolated into an innerHTML template.
+  // Public-facing forms (Book a Service, Register a Product, Contact,
+  // Dealer Enquiry) accept free text from anonymous visitors with no
+  // server-side validation — anything they type could otherwise
+  // execute as a stored XSS payload the moment staff view it here.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -1106,7 +1121,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const el = document.createElement('div');
         el.className = 'notif-item' + (n.read ? '' : ' unread');
         const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
-        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${n.message || ''}</div><div class="time">${dateStr}</div>`;
+        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
         el.addEventListener('click', async () => {
           if (!n.read) {
             try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }
@@ -1716,11 +1731,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12px;color:var(--stone);">${d.ticketId || docSnap.id}</td>
           <td>${d.name || '—'}</td>
           <td>${d.phone || '—'}</td>
-          <td>${d.subject || '—'}</td>
+          <td>${escapeHtml(d.subject || '—')}</td>
           <td style="font-size:12.5px;">${productBits || '—'}</td>
-          <td style="font-size:12.5px;">${d.dealerName || '—'}</td>
+          <td style="font-size:12.5px;">${escapeHtml(d.dealerName || '—')}</td>
           <td style="font-size:12.5px;max-width:180px;">${locationBits || '—'}</td>
-          <td style="max-width:240px;">${d.message || '—'}</td>`;
+          <td style="max-width:240px;">${escapeHtml(d.message || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -2401,7 +2416,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${p.id}</b></td>
-          <td>${p.area || '—'}</td>
+          <td>${escapeHtml(p.area || '—')}</td>
           <td>${p.city || '—'}</td>
           <td>${p.taluk || '—'}</td>
           <td>${p.district || '—'}</td>
@@ -3147,8 +3162,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.registrationId || '—'}</td>
-          <td>${d.customerName || '—'}</td>
-          <td>${d.product || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.serialNumber || '—'}</td>
           <td>${d.purchaseDate || '—'}</td>
           <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
@@ -3718,11 +3733,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rows = [];
       jobsSnap.forEach(d => {
         const j = d.data();
-        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt });
+        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, closureCode: j.closureCode, actionTaken: j.actionTaken, partsUsedNotes: j.partsUsedNotes });
       });
       requestsSnap.forEach(d => {
         const r = d.data();
-        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt });
+        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, closureCode: r.closureCode, actionTaken: r.actionTaken, partsUsedNotes: r.partsUsedNotes });
       });
       publicSnap.forEach(d => {
         const p = d.data();
@@ -3742,9 +3757,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         let actionHtml = '—';
         if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
           if (r.status === 'completed') {
-            actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="verification">Move to Verification</button>`;
+            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="verification">Move to Verification</button></div>`;
           } else if (r.status === 'verification') {
-            actionHtml = `<button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button>`;
+            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button></div>`;
           } else if (r.status === 'closed') {
             actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="reopened">Reopen</button>`;
           }
@@ -3757,6 +3772,21 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
+        const evidenceBtn = tr.querySelector('.svc-evidence-btn');
+        if (evidenceBtn) {
+          evidenceBtn.addEventListener('click', () => {
+            const existing = tr.nextElementSibling;
+            if (existing && existing.classList.contains('evidence-detail-row')) { existing.remove(); return; }
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'evidence-detail-row';
+            detailRow.innerHTML = `<td colspan="6" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
+              <b>Closure code:</b> ${r.closureCode || '—'}<br>
+              <b>Action taken:</b> ${escapeHtml(r.actionTaken) || '—'}<br>
+              <b>Parts used:</b> ${escapeHtml(r.partsUsedNotes) || '—'}
+            </td>`;
+            tr.after(detailRow);
+          });
+        }
       });
       tbody.querySelectorAll('.svc-advance-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -3989,7 +4019,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${d.type}</span></td>
           <td style="text-transform:capitalize;">${d.location || '—'}</td>
           <td>${d.quantity ?? '—'}</td>
-          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+          <td style="color:var(--stone);">${escapeHtml(d.reason) || '—'}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -4301,7 +4331,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = docSnap.data();
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td>`;
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.address || '—')}</td>`;
         tr.addEventListener('click', () => {
           document.getElementById('c360-phone-input').value = d.phone || '';
           loadCustomer360(d.phone || '');
@@ -4371,7 +4401,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div class="panel-body" style="padding:0;"><table><thead><tr><th>Reg. ID</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty</th></tr></thead><tbody>`;
         registrations.forEach(r => {
           const status = warrantyStatus(r.purchaseDate, r.warrantyMonths);
-          html += `<tr><td style="font-size:12px;color:var(--stone);">${r.registrationId || '—'}</td><td>${r.product || '—'}</td><td>${r.serialNumber || '—'}</td><td>${r.purchaseDate || '—'}</td><td><span class="status-pill ${status.cls}">${status.label}</span></td></tr>`;
+          html += `<tr><td style="font-size:12px;color:var(--stone);">${r.registrationId || '—'}</td><td>${escapeHtml(r.product || '—')}</td><td>${r.serialNumber || '—'}</td><td>${r.purchaseDate || '—'}</td><td><span class="status-pill ${status.cls}">${status.label}</span></td></tr>`;
         });
         html += `</tbody></table></div></div>`;
       }
@@ -4394,7 +4424,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Website Enquiries</h2></div>
           <div class="panel-body" style="padding:0;"><table><thead><tr><th>Ticket ID</th><th>Subject</th><th>Message</th></tr></thead><tbody>`;
         enquiries.forEach(e => {
-          html += `<tr><td style="font-size:12px;color:var(--stone);">${e.ticketId || '—'}</td><td>${e.subject || '—'}</td><td style="max-width:280px;">${e.message || '—'}</td></tr>`;
+          html += `<tr><td style="font-size:12px;color:var(--stone);">${e.ticketId || '—'}</td><td>${escapeHtml(e.subject || '—')}</td><td style="max-width:280px;">${escapeHtml(e.message || '—')}</td></tr>`;
         });
         html += `</tbody></table></div></div>`;
       }
@@ -4529,7 +4559,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       await addDoc(collection(db, 'notifications'), {
         recipientType: 'uid', recipientValue: centerUid,
-        title: 'New service request routed to you', message: `${d.customerName || 'A customer'} — ${productLabel}`,
+        title: 'New service request routed to you', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
         read: false, createdAt: serverTimestamp()
       });
     } catch (notifErr) {
@@ -4639,7 +4669,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             : (d.city ? ' — ' + d.city : '');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${locationLabel}${d.pincode ? ' ' + d.pincode : ''}${d.brand ? ' — ' + d.brand : ''}</span></td>
-            <td>${d.customerName || '—'}</td>
+            <td>${escapeHtml(d.customerName || '—')}</td>
             <td>${productLabel}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
             <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
@@ -4681,7 +4711,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           }).join('');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
-            <td>${d.customerName || '—'}</td>
+            <td>${escapeHtml(d.customerName || '—')}</td>
             <td>${productLabel}</td>
             <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
             <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
@@ -4697,7 +4727,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               try {
                 await addDoc(collection(db, 'notifications'), {
                   recipientType: 'uid', recipientValue: uid,
-                  title: 'New job assigned', message: `${d.customerName || 'A customer'} — ${productLabel}`,
+                  title: 'New job assigned', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
                   read: false, createdAt: serverTimestamp()
                 });
               } catch (notifErr) {
@@ -5009,8 +5039,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.rmaId || docSnap.id}</td>
-          <td>${d.customerName || '—'}</td>
-          <td>${d.product || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.serialNumber || '—'}</td>
           <td><span class="status-pill ${d.status}">${RMA_STATUS_LABELS[d.status] || d.status}</span></td>
           <td><div class="row-actions">${actions || '—'}</div></td>`;

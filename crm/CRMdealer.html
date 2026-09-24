@@ -275,6 +275,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     measurementId: "G-YLM91W3YF1"
   };
 
+  // Escapes text before it's interpolated into an innerHTML template.
+  // Public-facing forms (Book a Service, Register a Product, Contact,
+  // Dealer Enquiry) accept free text from anonymous visitors with no
+  // server-side validation — anything they type could otherwise
+  // execute as a stored XSS payload the moment staff view it here.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -486,7 +501,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.innerHTML = '';
       docs.forEach(d => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${d.address || '—'}</td><td style="color:var(--stone);">${d.notes || '—'}</td>`;
+        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.address || '—')}</td><td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -594,10 +609,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.orderId || d.id}</td>
-          <td>${d.product || '—'}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.quantity ?? '—'}</td>
           <td><span class="status-pill ${d.status}">${ORDER_STATUS_LABELS[d.status] || d.status}</span></td>
-          <td style="color:var(--stone);">${d.notes || '—'}</td>`;
+          <td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -704,8 +719,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.saleId || d.id}</td>
-          <td>${d.customerName || '—'}</td>
-          <td>${d.product || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.quantity ?? '—'}</td>
           <td>₹${d.amount ?? '—'}</td>
           <td>${d.saleDate || '—'}</td>`;
@@ -852,8 +867,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.registrationId || d.id}</td>
-          <td>${d.customerName || '—'}</td>
-          <td>${d.product || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.serialNumber || '—'}</td>
           <td>${d.purchaseDate || '—'}</td>
           <td>${d.warrantyMonths ?? '—'} mo</td>`;
@@ -966,9 +981,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.customerName || '—'}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${d.phone || '—'}</td>
-          <td>${d.subject || '—'}</td>
+          <td>${escapeHtml(d.subject || '—')}</td>
           <td><span class="status-pill ${d.status}">${ENQ_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
