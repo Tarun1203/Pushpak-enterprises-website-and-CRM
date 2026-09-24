@@ -32,7 +32,7 @@
     display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
   }
   .sidebar-header{padding:22px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
-  .sidebar-header img{width:30px;height:30px;flex-shrink:0;}
+  .sidebar-header img{width:30px;height:30px;flex-shrink:0;object-fit:contain;}
   .sidebar-header .name{font-size:13px;font-weight:700;}
   .sidebar-header .role{font-size:11px;color:#9A9BA3;}
   .nav-group{padding:14px 10px 4px;}
@@ -4398,26 +4398,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       if (registrations.length) {
         html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Registrations & Warranty</h2></div>
-          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Reg. ID</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty</th></tr></thead><tbody>`;
-        registrations.forEach(r => {
-          const status = warrantyStatus(r.purchaseDate, r.warrantyMonths);
-          html += `<tr><td style="font-size:12px;color:var(--stone);">${r.registrationId || '—'}</td><td>${escapeHtml(r.product || '—')}</td><td>${r.serialNumber || '—'}</td><td>${r.purchaseDate || '—'}</td><td><span class="status-pill ${status.cls}">${status.label}</span></td></tr>`;
-        });
-        html += `</tbody></table></div></div>`;
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Reg. ID</th><th>Product</th><th>Serial</th><th>Purchase Date</th><th>Warranty</th><th></th></tr></thead><tbody id="c360-regs-tbody"></tbody></table></div></div>`;
       }
 
       const allServiceRecords = [
-        ...jobs.map(j => ({ source: 'Technician', id: j.jobId, status: j.status, detail: j.issue || j.product })),
-        ...centerReqs.map(r => ({ source: 'Service Center', id: r.requestId, status: r.status, detail: r.product || r.type })),
-        ...publicSvc.map(p => ({ source: 'Website', id: p.requestId, status: p.status, detail: p.issueDescription || p.requestType })),
+        ...jobs.map(j => ({ source: 'Technician', id: j.jobId, status: j.status, detail: j.issue || j.product, full: j })),
+        ...centerReqs.map(r => ({ source: 'Service Center', id: r.requestId, status: r.status, detail: r.product || r.type, full: r })),
+        ...publicSvc.map(p => ({ source: 'Website', id: p.requestId, status: p.status, detail: p.issueDescription || p.requestType, full: p })),
       ];
       if (allServiceRecords.length) {
         html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Service Activity</h2></div>
-          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Source</th><th>ID</th><th>Detail</th><th>Status</th></tr></thead><tbody>`;
-        allServiceRecords.forEach(s => {
-          html += `<tr><td>${s.source}</td><td style="font-size:12px;color:var(--stone);">${s.id || '—'}</td><td>${s.detail || '—'}</td><td><span class="status-pill ${s.status}">${s.status}</span></td></tr>`;
-        });
-        html += `</tbody></table></div></div>`;
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Source</th><th>ID</th><th>Detail</th><th>Status</th><th></th></tr></thead><tbody id="c360-service-tbody"></tbody></table></div></div>`;
       }
 
       if (enquiries.length) {
@@ -4435,10 +4426,102 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
 
       profileEl.innerHTML = html;
+      if (registrations.length) renderC360Registrations(registrations, allServiceRecords);
+      if (allServiceRecords.length) renderC360ServiceActivity(allServiceRecords);
     } catch (err) {
       console.error('Customer 360 search failed:', err);
       profileEl.innerHTML = `<div class="panel"><div class="panel-body" style="color:var(--err);">Search failed. Check console for details.</div></div>`;
     }
+  }
+
+  // Clicking a registration expands full product detail — dealer,
+  // installation flag, full per-component warranty breakdown — plus
+  // every service record that shares its serial number, so "history
+  // for this product" is a real answer, not just a flat activity list
+  // with no connection back to which product it was about.
+  function renderC360Registrations(registrations, allServiceRecords) {
+    const tbody = document.getElementById('c360-regs-tbody');
+    tbody.innerHTML = '';
+    registrations.forEach(r => {
+      const status = warrantyStatus(r.purchaseDate, r.warrantyMonths);
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.innerHTML = `
+        <td style="font-size:12px;color:var(--stone);">${r.registrationId || '—'}</td>
+        <td>${escapeHtml(r.product || '—')}</td>
+        <td>${r.serialNumber || '—'}</td>
+        <td>${r.purchaseDate || '—'}</td>
+        <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+        <td><button class="btn-secondary">Details</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('button').addEventListener('click', () => {
+        const existing = tr.nextElementSibling;
+        if (existing && existing.classList.contains('c360-detail-row')) { existing.remove(); return; }
+        const linkedHistory = r.serialNumber
+          ? allServiceRecords.filter(s => (s.full.serialNumber || s.full.serialNo || '') === r.serialNumber)
+          : [];
+        let componentsHtml = '';
+        if (r.warrantyComponents && r.warrantyComponents.length) {
+          componentsHtml = '<div style="margin-top:10px;"><b>Warranty by component</b><br>' +
+            r.warrantyComponents.map(c => {
+              const cStatus = warrantyStatus(r.purchaseDate, (c.durationYears || 0) * 12);
+              return `${escapeHtml(c.componentName)}: <span class="status-pill ${cStatus.cls}">${cStatus.label}</span>`;
+            }).join(' &nbsp; ') + '</div>';
+        }
+        const historyHtml = linkedHistory.length
+          ? '<div style="margin-top:10px;"><b>Service history for this serial</b><br>' +
+            linkedHistory.map(s => `${s.source} — ${s.id || '—'}: ${escapeHtml(s.detail) || '—'} (${s.status})`).join('<br>') + '</div>'
+          : '<div style="margin-top:10px;color:var(--stone);">No linked service history for this serial number.</div>';
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'c360-detail-row';
+        detailRow.innerHTML = `<td colspan="6" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
+          <b>Brand:</b> ${escapeHtml(r.brand) || '—'} &nbsp; <b>Category:</b> ${escapeHtml(r.category) || '—'} &nbsp; <b>Model:</b> ${escapeHtml(r.modelNo) || '—'}<br>
+          <b>Dealer:</b> ${escapeHtml(r.dealerName) || '—'} &nbsp; <b>Installation requested:</b> ${r.installationRequired ? 'Yes' : 'No'}
+          ${componentsHtml}
+          ${historyHtml}
+        </td>`;
+        tr.after(detailRow);
+      });
+    });
+  }
+
+  // Clicking a service record expands its full detail, including
+  // closure evidence when the job has been completed — same evidence
+  // captured by the closure-requirement flow, visible here too rather
+  // than only in the Service overview.
+  function renderC360ServiceActivity(allServiceRecords) {
+    const tbody = document.getElementById('c360-service-tbody');
+    tbody.innerHTML = '';
+    allServiceRecords.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.innerHTML = `
+        <td>${s.source}</td>
+        <td style="font-size:12px;color:var(--stone);">${s.id || '—'}</td>
+        <td>${escapeHtml(s.detail) || '—'}</td>
+        <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[s.status] || ''}">${SVC_STATUS_LABELS[s.status] || s.status}</span></td>
+        <td><button class="btn-secondary">Details</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('button').addEventListener('click', () => {
+        const existing = tr.nextElementSibling;
+        if (existing && existing.classList.contains('c360-detail-row')) { existing.remove(); return; }
+        const f = s.full;
+        let closureHtml = '';
+        if (f.closureCode) {
+          closureHtml = `<div style="margin-top:10px;"><b>Closure code:</b> ${f.closureCode}<br>
+            <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
+            <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
+        }
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'c360-detail-row';
+        detailRow.innerHTML = `<td colspan="5" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
+          <b>Address:</b> ${escapeHtml(f.address) || '—'} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}<br>
+          <b>Assigned to:</b> ${escapeHtml(f.technicianEmail || f.technicianName) || '—'}
+          ${closureHtml}
+        </td>`;
+        tr.after(detailRow);
+      });
+    });
   }
 
   // =================================================================

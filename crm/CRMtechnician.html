@@ -29,7 +29,7 @@
     display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
   }
   .sidebar-header{padding:22px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
-  .sidebar-header img{width:30px;height:30px;flex-shrink:0;}
+  .sidebar-header img{width:30px;height:30px;flex-shrink:0;object-fit:contain;}
   .sidebar-header .name{font-size:13px;font-weight:700;}
   .sidebar-header .role{font-size:11px;color:#C9D6E4;}
   .nav-group{padding:14px 10px 4px;}
@@ -260,6 +260,10 @@
       <div class="form-row">
         <label>Product / brand</label>
         <input type="text" id="job-product" placeholder="e.g. MakWell geyser 15L">
+      </div>
+      <div class="form-row">
+        <label>Serial number <span style="font-weight:400;color:var(--stone);">(links this job to the customer's registration, if any)</span></label>
+        <input type="text" id="job-serial" placeholder="e.g. MK3201NML0123456">
       </div>
       <div class="form-row">
         <label>Issue description</label>
@@ -833,6 +837,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         pincode: document.getElementById('job-pincode').value.trim(),
         type: document.getElementById('job-type').value,
         product: document.getElementById('job-product').value.trim(),
+        serialNumber: document.getElementById('job-serial').value.trim(),
         issue: document.getElementById('job-issue').value.trim(),
         scheduledDate: document.getElementById('job-scheduled-date').value || null,
         scheduledStartTime: document.getElementById('job-scheduled-start').value || null,
