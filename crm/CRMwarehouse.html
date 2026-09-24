@@ -228,6 +228,43 @@
 </div>
 
 <!-- Add/Edit Spare Part modal -->
+<!-- Transfer stock modal -->
+<div class="modal-overlay" id="transfer-overlay">
+  <div class="modal">
+    <h3>Transfer stock</h3>
+    <form id="transfer-form">
+      <div class="form-row"><label>Part</label><select id="transfer-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>To</label><select id="transfer-destination" required><option value="">Select destination…</option></select></div>
+      <div class="form-row"><label>Quantity</label><input type="number" id="transfer-qty" min="1" value="1" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="transfer-reason" placeholder="e.g. Restocking ahead of season"></div>
+      <div class="modal-error" id="transfer-error"></div>
+      <div class="modal-success" id="transfer-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-transfer">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-transfer">Transfer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Stock adjustment modal (dedicated Adjustment screen) -->
+<div class="modal-overlay" id="wh-adjust-overlay">
+  <div class="modal">
+    <h3>Adjust stock</h3>
+    <form id="wh-adjust-form">
+      <div class="form-row"><label>Part</label><select id="wh-adjust-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>Change <span style="font-weight:400;color:var(--stone);">(positive to add, negative to remove — e.g. -3)</span></label><input type="number" id="wh-adjust-delta" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="wh-adjust-reason" placeholder="e.g. Physical count correction" required></div>
+      <div class="modal-error" id="wh-adjust-error"></div>
+      <div class="modal-success" id="wh-adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-wh-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-wh-adjust">Save adjustment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="part-overlay">
   <div class="modal">
     <h3 id="part-modal-title">Add spare part</h3>
@@ -535,7 +572,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned"}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer"}, {"id": "move-adjust", "label": "Adjustment"}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data"}, {"id": "reports", "label": "Reports"}, {"id": "auditlogs", "label": "Audit Logs"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -603,6 +640,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
       pageSub.textContent = 'Not populated yet';
       renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
+    } else if (id === 'inv-damaged') {
+      pageSub.textContent = 'Parts written off through Returns & Defects — disposed or currently defective';
+      renderDamagedInventory();
     } else if (id === 'move-history') {
       pageSub.textContent = 'Full log, all movement types';
       renderMovementHistory(null, label);
@@ -612,6 +652,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'move-issue') {
       pageSub.textContent = 'Stock issued out of Warehouse';
       renderMovementHistory('issue', label);
+    } else if (id === 'move-transfer') {
+      pageSub.textContent = 'Move stock from Warehouse to a Service Center or Technician';
+      renderTransfer();
+    } else if (id === 'move-adjust') {
+      pageSub.textContent = 'Manual stock corrections — physical counts, write-offs';
+      renderAdjustment();
     } else if (LOCAL_PURCHASE_TABS[id]) {
       pageSub.textContent = 'Local Purchase';
       renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
@@ -627,6 +673,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'routing') {
       pageSub.textContent = 'Assign unassigned requests to a service center or technician';
       renderRouting();
+    } else if (id === 'masterdata') {
+      pageSub.textContent = 'Bulk import spare parts from a CSV file';
+      renderWhMasterData();
+    } else if (id === 'reports') {
+      pageSub.textContent = 'Warehouse summary';
+      renderWhReports();
+    } else if (id === 'auditlogs') {
+      pageSub.textContent = 'Every recorded change, company-wide';
+      renderWhAuditLogs();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
@@ -966,6 +1021,525 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } catch (err) {
       console.error('Load routing queue failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the queue. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // DAMAGED / RETURNED — read-only view over Returns & Defects data
+  // that's already tracked (disposed/defective status), aggregated by
+  // part. Not a separate tracking mechanism — just a different lens
+  // on data that already exists.
+  // =================================================================
+
+  async function renderDamagedInventory() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Damaged / written off, by part</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Part</th><th>Defective (unresolved)</th><th>Disposed (written off)</th><th>Total Qty</th></tr></thead>
+            <tbody id="damaged-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('damaged-tbody');
+    try {
+      const [returnsSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', 'in', ['defective', 'disposed']))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      const byPart = {};
+      returnsSnap.forEach(d => {
+        const r = d.data();
+        const key = r.partId || '(unknown part)';
+        if (!byPart[key]) byPart[key] = { defective: 0, disposed: 0 };
+        byPart[key][r.status] += Number(r.quantity) || 0;
+      });
+      const keys = Object.keys(byPart);
+      if (keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing damaged or disposed on record.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      keys.forEach(partId => {
+        const part = partMap[partId];
+        const row = byPart[partId];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${part ? `${part.partCode} — ${part.name}` : partId}</td>
+          <td>${row.defective || 0}</td>
+          <td>${row.disposed || 0}</td>
+          <td><b>${row.defective + row.disposed}</b></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load damaged inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load this view. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // TRANSFER — moves stock from Warehouse to a Service Center or
+  // Technician. Source is always Warehouse, matching how this system
+  // actually works (Warehouse is the hub). This also has a useful
+  // side effect: it starts populating real inventory data at
+  // sc_{uid}/tech_{uid} locations, which is exactly what the
+  // Service Center Stock / Technician Stock placeholder views need
+  // to eventually become real.
+  // =================================================================
+
+  async function renderTransfer() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Transfer stock</h2>
+          <button class="btn-primary" id="open-transfer">+ New Transfer</button>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">From Warehouse to a Service Center or Technician.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Transfer history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Part</th><th>To</th><th>Qty</th><th>Reason</th></tr></thead>
+            <tbody id="transfer-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-transfer').addEventListener('click', openTransferModal);
+    loadTransferHistory();
+  }
+
+  async function loadTransferHistory() {
+    const tbody = document.getElementById('transfer-tbody');
+    try {
+      const [movSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'transfer'))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      let docs = [];
+      movSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No transfers logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? part.name : d.partId}</td>
+          <td>${d.toLabel || d.location || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load transfer history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load transfer history. Check console for details.</td></tr>`;
+    }
+  }
+
+  const transferOverlay = document.getElementById('transfer-overlay');
+  const transferForm = document.getElementById('transfer-form');
+  const transferError = document.getElementById('transfer-error');
+  const transferSuccess = document.getElementById('transfer-success');
+  const transferSubmitBtn = document.getElementById('submit-transfer');
+
+  async function openTransferModal() {
+    transferForm.reset();
+    transferError.classList.remove('show');
+    transferSuccess.classList.remove('show');
+    transferSubmitBtn.disabled = false;
+    transferSubmitBtn.textContent = 'Transfer';
+    const [parts, centers, techs] = await Promise.all([
+      getDocs(collection(db, 'spareParts')),
+      getWhServiceCentersCache(),
+      getWhTechniciansCache(),
+    ]);
+    const partSelect = document.getElementById('transfer-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    const destSelect = document.getElementById('transfer-destination');
+    destSelect.innerHTML = '<option value="">Select destination…</option>';
+    centers.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = `sc_${c.uid}|${c.name || c.email} (Service Center)`;
+      opt.textContent = `${c.name || c.email} — Service Center`;
+      destSelect.appendChild(opt);
+    });
+    techs.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = `tech_${t.uid}|${t.name || t.email} (Technician)`;
+      opt.textContent = `${t.name || t.email} — Technician`;
+      destSelect.appendChild(opt);
+    });
+    transferOverlay.classList.add('show');
+  }
+  function closeTransferModal() { transferOverlay.classList.remove('show'); }
+  document.getElementById('cancel-transfer').addEventListener('click', closeTransferModal);
+  transferOverlay.addEventListener('click', (e) => { if (e.target === transferOverlay) closeTransferModal(); });
+
+  transferForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    transferError.classList.remove('show');
+    transferSuccess.classList.remove('show');
+    const partId = document.getElementById('transfer-part').value;
+    const destValue = document.getElementById('transfer-destination').value;
+    const qty = Number(document.getElementById('transfer-qty').value) || 0;
+    const reason = document.getElementById('transfer-reason').value.trim();
+    if (!partId || !destValue || qty <= 0) {
+      transferError.textContent = 'Select a part, a destination, and a quantity greater than 0.';
+      transferError.classList.add('show');
+      return;
+    }
+    const [destLocation, destLabel] = destValue.split('|');
+    transferSubmitBtn.disabled = true;
+    transferSubmitBtn.textContent = 'Transferring…';
+    try {
+      const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
+      const toRef = doc(db, 'inventory', `${destLocation}_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const fromSnap = await transaction.get(fromRef);
+        const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
+        if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
+        const toSnap = await transaction.get(toRef);
+        const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
+        transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(toRef, { partId, location: destLocation, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'transfer', location: 'warehouse', quantity: qty,
+        toLocation: destLocation, toLabel: destLabel, reason: reason || 'Stock transfer',
+        createdAt: serverTimestamp()
+      });
+      transferSuccess.textContent = 'Transferred.';
+      transferSuccess.classList.add('show');
+      transferSubmitBtn.textContent = 'Done';
+      if (document.getElementById('transfer-tbody')) loadTransferHistory();
+      setTimeout(closeTransferModal, 900);
+    } catch (err) {
+      console.error('Transfer failed:', err);
+      transferError.textContent = err.message || 'Could not complete this transfer. Check console for details.';
+      transferError.classList.add('show');
+      transferSubmitBtn.disabled = false;
+      transferSubmitBtn.textContent = 'Transfer';
+    }
+  });
+
+  // =================================================================
+  // ADJUSTMENT — manual stock correction at any location (physical
+  // count differences, write-offs found outside the Returns flow).
+  // =================================================================
+
+  async function renderAdjustment() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Stock adjustment</h2>
+          <button class="btn-primary" id="open-wh-adjust">+ New Adjustment</button>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">For corrections — physical counts, write-offs found outside the Returns process.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Adjustment history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Part</th><th>Change</th><th>Reason</th></tr></thead>
+            <tbody id="wh-adjust-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-wh-adjust').addEventListener('click', openWhAdjustModal);
+    loadAdjustHistory();
+  }
+
+  async function loadAdjustHistory() {
+    const tbody = document.getElementById('wh-adjust-tbody');
+    try {
+      const [movSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'adjustment'))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      let docs = [];
+      movSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No adjustments logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? part.name : d.partId}</td>
+          <td><span class="status-pill ${d.quantity < 0 ? 'backorder' : 'ok'}">${d.quantity > 0 ? '+' : ''}${d.quantity}</span></td>
+          <td style="color:var(--stone);">${d.reason || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load adjustment history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load adjustment history. Check console for details.</td></tr>`;
+    }
+  }
+
+  const whAdjustOverlay = document.getElementById('wh-adjust-overlay');
+  const whAdjustForm = document.getElementById('wh-adjust-form');
+  const whAdjustError = document.getElementById('wh-adjust-error');
+  const whAdjustSuccess = document.getElementById('wh-adjust-success');
+  const whAdjustSubmitBtn = document.getElementById('submit-wh-adjust');
+
+  async function openWhAdjustModal() {
+    whAdjustForm.reset();
+    whAdjustError.classList.remove('show');
+    whAdjustSuccess.classList.remove('show');
+    whAdjustSubmitBtn.disabled = false;
+    whAdjustSubmitBtn.textContent = 'Save adjustment';
+    const parts = await getDocs(collection(db, 'spareParts'));
+    const partSelect = document.getElementById('wh-adjust-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    whAdjustOverlay.classList.add('show');
+  }
+  function closeWhAdjustModal() { whAdjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-wh-adjust').addEventListener('click', closeWhAdjustModal);
+  whAdjustOverlay.addEventListener('click', (e) => { if (e.target === whAdjustOverlay) closeWhAdjustModal(); });
+
+  whAdjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    whAdjustError.classList.remove('show');
+    whAdjustSuccess.classList.remove('show');
+    const partId = document.getElementById('wh-adjust-part').value;
+    const delta = Number(document.getElementById('wh-adjust-delta').value);
+    const reason = document.getElementById('wh-adjust-reason').value.trim();
+    if (!partId || !delta || !reason) {
+      whAdjustError.textContent = 'Select a part, a non-zero change, and a reason.';
+      whAdjustError.classList.add('show');
+      return;
+    }
+    whAdjustSubmitBtn.disabled = true;
+    whAdjustSubmitBtn.textContent = 'Saving…';
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const next = current + delta;
+        if (next < 0) throw new Error(`This would take stock negative (currently ${current}).`);
+        transaction.set(invRef, { partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason, createdAt: serverTimestamp()
+      });
+      whAdjustSuccess.textContent = 'Saved.';
+      whAdjustSuccess.classList.add('show');
+      whAdjustSubmitBtn.textContent = 'Saved';
+      if (document.getElementById('wh-adjust-tbody')) loadAdjustHistory();
+      setTimeout(closeWhAdjustModal, 900);
+    } catch (err) {
+      console.error('Adjustment failed:', err);
+      whAdjustError.textContent = err.message || 'Could not save this adjustment. Check console for details.';
+      whAdjustError.classList.add('show');
+      whAdjustSubmitBtn.disabled = false;
+      whAdjustSubmitBtn.textContent = 'Save adjustment';
+    }
+  });
+
+  // =================================================================
+  // MASTER DATA — bulk import spare parts from a CSV, same pattern
+  // as Super Admin's product catalog import. Uses the same shared
+  // part-code counter as the regular Add Part flow, so codes stay
+  // sequential no matter which path a part came in through.
+  // =================================================================
+
+  function renderWhMasterData() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Download sample file</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">Columns: name, category, brandCompatibility, price, reorderLevel.</p>
+          <button class="btn-secondary" id="download-wh-sample-csv">Download sample CSV</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Import spare parts</h2></div>
+        <div class="panel-body">
+          <input type="file" id="wh-csv-file-input" accept=".csv" style="margin-bottom:14px;">
+          <div id="wh-csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="wh-import-csv-btn" disabled>Import</button>
+          <div class="modal-error" id="wh-import-error"></div>
+          <div class="modal-success" id="wh-import-success"></div>
+        </div>
+      </div>`;
+    document.getElementById('download-wh-sample-csv').addEventListener('click', () => {
+      const csv = 'name,category,brandCompatibility,price,reorderLevel\nGeyser thermostat 15L,Thermostat,All,180,10\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'spare-parts-sample.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+    let parsedRows = [];
+    document.getElementById('wh-csv-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+        const headers = lines[0].split(',').map(h => h.trim());
+        parsedRows = lines.slice(1).map(line => {
+          const cells = line.split(',').map(c => c.trim());
+          const row = {};
+          headers.forEach((h, i) => { row[h] = cells[i] || ''; });
+          return row;
+        });
+        document.getElementById('wh-csv-preview').textContent = `${parsedRows.length} row(s) ready to import.`;
+        document.getElementById('wh-import-csv-btn').disabled = parsedRows.length === 0;
+      };
+      reader.readAsText(file);
+    });
+    document.getElementById('wh-import-csv-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('wh-import-csv-btn');
+      const errEl = document.getElementById('wh-import-error');
+      const successEl = document.getElementById('wh-import-success');
+      errEl.classList.remove('show');
+      successEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Importing…';
+      let successCount = 0, failCount = 0;
+      for (const row of parsedRows) {
+        if (!row.name) { failCount++; continue; }
+        try {
+          const partCode = await generatePartCode();
+          await addDoc(collection(db, 'spareParts'), {
+            name: row.name, category: row.category || '', brandCompatibility: row.brandCompatibility || 'All',
+            price: row.price ? Number(row.price) : null, reorderLevel: row.reorderLevel ? Number(row.reorderLevel) : 5,
+            partCode, createdAt: serverTimestamp()
+          });
+          successCount++;
+        } catch (err) {
+          console.error('Import row failed:', err);
+          failCount++;
+        }
+      }
+      successEl.textContent = `Imported ${successCount} part(s)${failCount ? `, ${failCount} failed` : ''}.`;
+      successEl.classList.add('show');
+      btn.textContent = 'Import';
+      btn.disabled = false;
+    });
+  }
+
+  // =================================================================
+  // REPORTS — Warehouse summary. Company-wide reports live in Super
+  // Admin; this is scoped to what Warehouse actually operates.
+  // =================================================================
+
+  async function renderWhReports() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Warehouse summary</h2></div>
+        <div class="panel-body" id="wh-reports-body" style="font-size:13.5px;color:var(--stone);line-height:2;">Loading…</div>
+      </div>`;
+    try {
+      const [partsSnap, invSnap, requestsSnap, lpSnap, movSnap, returnsSnap] = await Promise.all([
+        getDocs(collection(db, 'spareParts')),
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'warehouse'))),
+        getDocs(collection(db, 'spareRequests')),
+        getDocs(collection(db, 'localPurchases')),
+        getDocs(collection(db, 'stockMovements')),
+        getDocs(query(collection(db, 'returns'), where('status', 'in', ['defective', 'disposed']))),
+      ]);
+      let totalStockUnits = 0;
+      invSnap.forEach(d => { totalStockUnits += Number(d.data().quantity) || 0; });
+      let openRequests = 0;
+      requestsSnap.forEach(d => { if (!['fulfilled', 'cancelled'].includes(d.data().status)) openRequests++; });
+      let pendingLp = 0;
+      lpSnap.forEach(d => { if (!['reimbursed'].includes(d.data().status)) pendingLp++; });
+      let damagedQty = 0;
+      returnsSnap.forEach(d => { damagedQty += Number(d.data().quantity) || 0; });
+      const now = Date.now();
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+      let movementsLast30 = 0;
+      movSnap.forEach(d => {
+        const ts = d.data().createdAt?.toDate ? d.data().createdAt.toDate().getTime() : 0;
+        if (ts >= thirtyDaysAgo) movementsLast30++;
+      });
+      document.getElementById('wh-reports-body').innerHTML = `
+        <div>Parts in catalog: <b>${partsSnap.size}</b></div>
+        <div>Total stock units at Warehouse: <b>${totalStockUnits}</b></div>
+        <div>Open spare requests: <b>${openRequests}</b></div>
+        <div>Pending local purchases: <b>${pendingLp}</b></div>
+        <div>Stock movements, last 30 days: <b>${movementsLast30}</b></div>
+        <div>Damaged / disposed units on record: <b>${damagedQty}</b></div>`;
+    } catch (err) {
+      console.error('Load warehouse reports failed:', err);
+      document.getElementById('wh-reports-body').innerHTML = `<span style="color:var(--err);">Couldn't load the summary. Check console for details.</span>`;
+    }
+  }
+
+  // =================================================================
+  // AUDIT LOGS — same view as Super Admin's, since it's the same
+  // underlying collection and Warehouse has isAdmin() read access.
+  // =================================================================
+
+  async function renderWhAuditLogs() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Audit log</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Action</th><th>By</th><th>Details</th></tr></thead>
+            <tbody id="wh-audit-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('wh-audit-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No audit entries yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
+          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${d.action || '—'}</span></td>
+          <td style="font-size:12px;">${d.performedBy || '—'}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load audit logs failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the audit log. Check console for details.</td></tr>`;
     }
   }
 
