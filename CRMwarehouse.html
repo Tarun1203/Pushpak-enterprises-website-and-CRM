@@ -1,0 +1,3065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse / Warehouse — Pushpak Enterprises CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+    --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
+    --blue:#1C6FBA;--blue-deep:#0F4C88;
+    --err:#B3261E;--ok:#1C7A46;--sidebar-w:264px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+
+  #gate{
+    position:fixed;inset:0;background:var(--paper);z-index:100;
+    display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--stone);
+  }
+  #app{display:none;}
+
+  .layout{display:flex;min-height:100vh;}
+  .sidebar{
+    width:var(--sidebar-w);flex-shrink:0;background:var(--blue-deep);color:var(--paper);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .sidebar-header{padding:22px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.1);}
+  .sidebar-header img{width:30px;height:30px;flex-shrink:0;object-fit:contain;}
+  .sidebar-header .name{font-size:13px;font-weight:700;}
+  .sidebar-header .role{font-size:11px;color:#C9D6E4;}
+  .nav-group{padding:14px 10px 4px;}
+  .nav-group-label{font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#9FB4C8;padding:6px 12px;text-transform:uppercase;}
+  .nav-item{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 12px;border-radius:3px;font-size:13px;font-weight:500;color:#E3EAF1;
+    cursor:pointer;transition:background .15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.08);color:#fff;}
+  .nav-item.active{background:rgba(255,255,255,0.16);color:#fff;font-weight:600;}
+  .nav-badge{font-size:9.5px;background:rgba(255,255,255,0.12);color:#C9D6E4;padding:2px 6px;border-radius:20px;}
+  .sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,0.1);}
+  .sidebar-footer .email{font-size:11.5px;color:#C9D6E4;margin-bottom:10px;word-break:break-all;}
+  .logout-btn{
+    width:100%;background:transparent;border:1px solid rgba(255,255,255,0.25);color:#E3EAF1;
+    padding:9px;border-radius:3px;font-size:12.5px;font-weight:600;
+  }
+  .logout-btn:hover{background:rgba(255,255,255,0.1);}
+
+  .main{flex:1;min-width:0;}
+  .topbar{
+    padding:18px 32px;border-bottom:1px solid var(--hairline);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .topbar h1{font-size:20px;font-weight:800;letter-spacing:-0.01em;}
+  .topbar .sub{font-size:13px;color:var(--stone);margin-top:2px;}
+  .content{padding:32px;}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-bottom:32px;}
+  .stat-card{background:var(--paper);padding:22px 20px;}
+  .stat-card .label{font-size:12px;color:var(--stone);font-weight:600;margin-bottom:8px;}
+  .stat-card .value{font-size:28px;font-weight:800;letter-spacing:-0.01em;}
+  .stat-card .hint{font-size:11.5px;color:var(--stone);margin-top:4px;}
+  @media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .panel{border:1px solid var(--hairline);border-radius:2px;}
+  .panel-header{padding:18px 22px;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;}
+  .panel-header h2{font-size:15px;font-weight:700;}
+  .panel-body{padding:22px;}
+
+  .coming-soon{
+    border:1px dashed var(--hairline);border-radius:2px;padding:60px 30px;text-align:center;color:var(--stone);
+  }
+  .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+  .coming-soon .small{font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13.5px;padding:10px 18px;border:none;border-radius:2px;}
+  .btn-primary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+  .btn-danger{background:transparent;border:1px solid var(--err);color:var(--err);font-weight:600;font-size:12.5px;padding:8px 14px;border-radius:2px;}
+
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.approved{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.picking{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.packing{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
+  .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
+  .status-pill.received{background:#D9EEE0;color:var(--ok);}
+  .status-pill.backorder{background:#F6DCDC;color:var(--err);}
+  .status-pill.ok{background:#D9EEE0;color:var(--ok);}
+  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.out{background:#F6DCDC;color:var(--err);}
+  .status-pill.assigned{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.in_progress{background:#FBEAD2;color:#9A6A15;}
+  .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+
+  .priority-tag{font-size:10.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;}
+  .priority-tag.urgent{color:var(--err);}
+  .priority-tag.normal{color:var(--stone);}
+
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
+    align-items:center;justify-content:center;z-index:50;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:3px;padding:28px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row input,.form-row select,.form-row textarea{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;font-family:inherit;background:#fff;}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .modal-error{font-size:12.5px;color:var(--err);margin-top:6px;display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{font-size:12.5px;color:var(--ok);margin-top:6px;display:none;}
+  .modal-success.show{display:block;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
+
+  .notif-bell{position:relative;background:none;border:1px solid var(--hairline);border-radius:2px;padding:9px 12px;cursor:pointer;font-size:15px;}
+  .notif-badge{position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;}
+  .notif-panel{
+    position:absolute;top:100%;right:0;margin-top:8px;width:340px;max-height:400px;overflow-y:auto;
+    background:var(--paper);border:1px solid var(--hairline);border-radius:2px;box-shadow:0 8px 24px rgba(0,0,0,0.12);
+    z-index:60;display:none;
+  }
+  .notif-panel.show{display:block;}
+  .notif-panel-header{padding:12px 16px;border-bottom:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;}
+  .notif-panel-header h4{font-size:13px;font-weight:700;}
+  .notif-panel-header button{background:none;border:none;font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:600;}
+  .notif-item{padding:12px 16px;border-bottom:1px solid var(--hairline);cursor:pointer;}
+  .notif-item:last-child{border-bottom:none;}
+  .notif-item.unread{background:var(--paper-deep);}
+  .notif-item .title{font-size:12.5px;font-weight:700;margin-bottom:3px;}
+  .notif-item .msg{font-size:12px;color:var(--stone);}
+  .notif-item .time{font-size:10.5px;color:var(--stone);margin-top:4px;}
+  .notif-empty{padding:24px 16px;text-align:center;font-size:12.5px;color:var(--stone);}
+</style>
+</head>
+<body>
+
+<div id="gate">Checking your session…</div>
+
+<div id="app">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="../assets/logos/pushpak-enterprises-icon.png" alt="">
+        <div>
+          <div class="name">Pushpak Enterprises</div>
+          <div class="role">Warehouse / Warehouse</div>
+        </div>
+      </div>
+
+      <div id="nav-container"></div>
+
+      <div class="sidebar-footer">
+        <div class="email" id="user-email"></div>
+        <button class="logout-btn" id="logout-btn">Sign out</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Dashboard</h1>
+          <div class="sub" id="page-sub">Welcome back</div>
+        </div>
+        <div style="position:relative;">
+          <button class="notif-bell" id="notif-bell-btn">🔔<span class="notif-badge" id="notif-badge" style="display:none;">0</span></button>
+          <div class="notif-panel" id="notif-panel">
+            <div class="notif-panel-header"><h4>Notifications</h4><button id="notif-mark-all">Mark all read</button></div>
+            <div id="notif-list"><div class="notif-empty">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- New Spare Request modal -->
+<div class="modal-overlay" id="new-request-overlay">
+  <div class="modal">
+    <h3>New spare request</h3>
+    <form id="new-request-form">
+      <div class="form-row">
+        <label>Requesting Service Center</label>
+        <input type="text" id="req-center" placeholder="e.g. Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Part / item</label>
+        <input type="text" id="req-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="req-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Priority</label>
+        <select id="req-priority">
+          <option value="normal">Normal</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="req-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="new-request-error"></div>
+      <div class="modal-success" id="new-request-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-new-request">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-new-request">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add/Edit Spare Part modal -->
+<!-- Transfer stock modal -->
+<div class="modal-overlay" id="transfer-overlay">
+  <div class="modal">
+    <h3>Transfer stock</h3>
+    <form id="transfer-form">
+      <div class="form-row"><label>Part</label><select id="transfer-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>To</label><select id="transfer-destination" required><option value="">Select destination…</option></select></div>
+      <div class="form-row"><label>Quantity</label><input type="number" id="transfer-qty" min="1" value="1" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="transfer-reason" placeholder="e.g. Restocking ahead of season"></div>
+      <div class="modal-error" id="transfer-error"></div>
+      <div class="modal-success" id="transfer-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-transfer">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-transfer">Transfer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Stock adjustment modal (dedicated Adjustment screen) -->
+<div class="modal-overlay" id="wh-adjust-overlay">
+  <div class="modal">
+    <h3>Adjust stock</h3>
+    <form id="wh-adjust-form">
+      <div class="form-row"><label>Part</label><select id="wh-adjust-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>Change <span style="font-weight:400;color:var(--stone);">(positive to add, negative to remove — e.g. -3)</span></label><input type="number" id="wh-adjust-delta" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="wh-adjust-reason" placeholder="e.g. Physical count correction" required></div>
+      <div class="modal-error" id="wh-adjust-error"></div>
+      <div class="modal-success" id="wh-adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-wh-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-wh-adjust">Save adjustment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="part-overlay">
+  <div class="modal">
+    <h3 id="part-modal-title">Add spare part</h3>
+    <form id="part-form">
+      <input type="hidden" id="part-editing-id">
+      <div class="form-row">
+        <label>Part name</label>
+        <input type="text" id="part-name" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Category</label>
+        <input type="text" id="part-category" placeholder="e.g. Thermostat, Heating Element, Valve">
+      </div>
+      <div class="form-row">
+        <label>Brand compatibility</label>
+        <select id="part-brand">
+          <option value="All">All brands</option>
+          <option value="MakWell">MakWell</option>
+          <option value="Flyvision">Flyvision</option>
+          <option value="Skevia">Skevia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Price (₹)</label>
+        <input type="number" id="part-price" min="0" step="0.01">
+      </div>
+      <div class="form-row">
+        <label>Reorder level</label>
+        <input type="number" id="part-reorder" min="0" value="5">
+      </div>
+      <div class="modal-error" id="part-error"></div>
+      <div class="modal-success" id="part-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-part">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-part">Save part</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Adjust Stock modal -->
+<div class="modal-overlay" id="adjust-overlay">
+  <div class="modal">
+    <h3>Adjust Warehouse stock</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="adjust-part-label"></div>
+    <form id="adjust-form">
+      <input type="hidden" id="adjust-part-id">
+      <div class="form-row">
+        <label>Action</label>
+        <select id="adjust-type">
+          <option value="add">Add stock (received)</option>
+          <option value="remove">Remove stock (issued/used)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="adjust-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Reason / notes (optional)</label>
+        <input type="text" id="adjust-reason" placeholder="e.g. Purchased from supplier, or issued to SC-Hubli">
+      </div>
+      <div class="modal-error" id="adjust-error"></div>
+      <div class="modal-success" id="adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-adjust">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Local Purchase modal -->
+<div class="modal-overlay" id="lp-overlay">
+  <div class="modal">
+    <h3>New local purchase request</h3>
+    <form id="lp-form">
+      <div class="form-row">
+        <label>Item / part needed</label>
+        <input type="text" id="lp-item" placeholder="e.g. Geyser thermostat, 15L" required>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="lp-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Estimated amount (₹)</label>
+        <input type="number" id="lp-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Requested by</label>
+        <input type="text" id="lp-requestedby" placeholder="e.g. your name or center name" required>
+      </div>
+      <div class="form-row">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="lp-emergency-flag" style="width:auto;">
+          This is an emergency purchase
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="lp-notes" placeholder="Why this is needed, vendor info, etc."></textarea>
+      </div>
+      <div class="modal-error" id="lp-error"></div>
+      <div class="modal-success" id="lp-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp">Create request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Invoice submission modal -->
+<div class="modal-overlay" id="lp-invoice-overlay">
+  <div class="modal">
+    <h3>Submit invoice</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="lp-invoice-label"></div>
+    <form id="lp-invoice-form">
+      <input type="hidden" id="lp-invoice-doc-id">
+      <div class="form-row">
+        <label>Vendor name</label>
+        <input type="text" id="lp-vendor" required>
+      </div>
+      <div class="form-row">
+        <label>Invoice number</label>
+        <input type="text" id="lp-invoice-number" required>
+      </div>
+      <div class="form-row">
+        <label>Actual amount (₹)</label>
+        <input type="number" id="lp-actual-amount" min="0" step="0.01" required>
+      </div>
+      <div class="modal-error" id="lp-invoice-error"></div>
+      <div class="modal-success" id="lp-invoice-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-lp-invoice">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-lp-invoice">Submit invoice</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Payment Details modal (used for both Mark Settled and Mark Reimbursed) -->
+<div class="modal-overlay" id="payment-overlay">
+  <div class="modal">
+    <h3>Record payment</h3>
+    <div style="font-size:13px;color:var(--stone);margin-bottom:16px;" id="payment-label"></div>
+    <form id="payment-form">
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="payment-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Method</label>
+        <select id="payment-method">
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="UPI">UPI</option>
+          <option value="Cash">Cash</option>
+          <option value="Cheque">Cheque</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Reference number <span class="hint">(UPI ref, cheque no., transaction ID)</span></label>
+        <input type="text" id="payment-reference">
+      </div>
+      <div class="form-row">
+        <label>Paid date</label>
+        <input type="date" id="payment-date" required>
+      </div>
+      <div class="modal-error" id="payment-error"></div>
+      <div class="modal-success" id="payment-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-payment">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-payment">Record payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Claim modal -->
+<div class="modal-overlay" id="claim-overlay">
+  <div class="modal">
+    <h3>New claim</h3>
+    <form id="claim-form">
+      <div class="form-row">
+        <label>Claimant type</label>
+        <select id="claim-type" required>
+          <option value="technician">Technician</option>
+          <option value="servicecenter">Service Center</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Claimant name</label>
+        <input type="text" id="claim-name" placeholder="e.g. Ramesh K., or Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="claim-description" placeholder="e.g. Travel expense for on-site repair" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="claim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="claim-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="claim-error"></div>
+      <div class="modal-success" id="claim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-claim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-claim">Create claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Return modal -->
+<div class="modal-overlay" id="return-overlay">
+  <div class="modal">
+    <h3 id="return-modal-title">Log a return</h3>
+    <form id="return-form">
+      <div class="form-row">
+        <label>Part</label>
+        <select id="return-part-id" required>
+          <option value="">Select a part…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="return-qty" min="1" value="1" required>
+      </div>
+      <div class="form-row">
+        <label>Returned from</label>
+        <input type="text" id="return-source" placeholder="e.g. Service Center - Hubli, or Technician - Ramesh" required>
+      </div>
+      <div class="form-row">
+        <label>Reason</label>
+        <input type="text" id="return-reason" placeholder="e.g. Damaged in transit, excess stock, wrong part" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="return-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="return-error"></div>
+      <div class="modal-success" id="return-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-return">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-return">Log return</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+    authDomain: "makwell-websiteandcrm.firebaseapp.com",
+    projectId: "makwell-websiteandcrm",
+    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+    messagingSenderId: "673518655103",
+    appId: "1:673518655103:web:1805d10de3c63eca23914a",
+    measurementId: "G-YLM91W3YF1"
+  };
+
+  // Escapes text before it's interpolated into an innerHTML template.
+  // Public-facing forms (Book a Service, Register a Product, Contact,
+  // Dealer Enquiry) accept free text from anonymous visitors with no
+  // server-side validation — anything they type could otherwise
+  // execute as a stored XSS payload the moment staff view it here.
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const gate = document.getElementById('gate');
+  const appEl = document.getElementById('app');
+  const userEmailEl = document.getElementById('user-email');
+
+  const ALLOWED_ROLE = 'warehouse';
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = 'login.html';
+      return;
+    }
+    try {
+      const roleSnap = await getDoc(doc(db, 'users', user.uid));
+      if (!roleSnap.exists() || roleSnap.data().role !== ALLOWED_ROLE) {
+        await signOut(auth);
+        window.location.href = 'login.html';
+        return;
+      }
+    } catch (err) {
+      console.error('Role check failed:', err);
+      window.location.href = 'login.html';
+      return;
+    }
+    userEmailEl.textContent = user.email;
+    gate.style.display = 'none';
+    appEl.style.display = 'block';
+    renderDashboard();
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'login.html';
+  });
+
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+
+  const navContainer = document.getElementById('nav-container');
+  const pageTitle = document.getElementById('page-title');
+  const pageSub = document.getElementById('page-sub');
+  const contentEl = document.getElementById('content');
+
+  function renderNav() {
+    navContainer.innerHTML = '';
+    NAV.forEach(group => {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'nav-group';
+      const label = document.createElement('div');
+      label.className = 'nav-group-label';
+      label.textContent = group.group;
+      groupEl.appendChild(label);
+      group.items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'nav-item';
+        el.dataset.id = item.id;
+        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.addEventListener('click', () => selectSection(item.id, item.label));
+        groupEl.appendChild(el);
+      });
+      navContainer.appendChild(groupEl);
+    });
+  }
+
+  function setActiveNav(id) {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+  }
+
+  const SPARE_REQUEST_TABS = {
+    'requests-new': 'new',
+    'requests-approved': 'approved',
+    'requests-picking': 'picking',
+    'requests-packing': 'packing',
+    'requests-dispatch': 'dispatched',
+    'requests-transit': 'intransit',
+    'requests-backorder': 'backorder',
+  };
+
+  function selectSection(id, label) {
+    setActiveNav(id);
+    pageTitle.textContent = label;
+    if (id === 'dashboard') {
+      pageSub.textContent = 'Welcome back';
+      renderDashboard();
+    } else if (SPARE_REQUEST_TABS[id]) {
+      pageSub.textContent = 'Spare Requests & Dispatch';
+      renderSpareRequests(SPARE_REQUEST_TABS[id], label);
+    } else if (id === 'spareparts') {
+      pageSub.textContent = 'Part master list';
+      renderSpareParts();
+    } else if (id === 'inv-warehouse') {
+      pageSub.textContent = 'Current stock at Warehouse';
+      renderInventory('warehouse');
+    } else if (id === 'inv-summary') {
+      pageSub.textContent = 'Stock across all parts';
+      renderInventory('summary');
+    } else if (id === 'inv-lowstock') {
+      pageSub.textContent = 'Parts at or below reorder level';
+      renderInventory('low');
+    } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
+      pageSub.textContent = 'Not populated yet';
+      renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
+    } else if (id === 'inv-damaged') {
+      pageSub.textContent = 'Parts written off through Returns & Defects — disposed or currently defective';
+      renderDamagedInventory();
+    } else if (id === 'move-history') {
+      pageSub.textContent = 'Full log, all movement types';
+      renderMovementHistory(null, label);
+    } else if (id === 'move-receive') {
+      pageSub.textContent = 'Stock received into Warehouse';
+      renderMovementHistory('receive', label);
+    } else if (id === 'move-issue') {
+      pageSub.textContent = 'Stock issued out of Warehouse';
+      renderMovementHistory('issue', label);
+    } else if (id === 'move-transfer') {
+      pageSub.textContent = 'Move stock from Warehouse to a Service Center or Technician';
+      renderTransfer();
+    } else if (id === 'move-adjust') {
+      pageSub.textContent = 'Manual stock corrections — physical counts, write-offs';
+      renderAdjustment();
+    } else if (LOCAL_PURCHASE_TABS[id]) {
+      pageSub.textContent = 'Local Purchase';
+      renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
+    } else if (CLAIMS_TABS[id]) {
+      pageSub.textContent = 'Claims';
+      renderClaims(CLAIMS_TABS[id], id, label);
+    } else if (RETURNS_TABS[id]) {
+      pageSub.textContent = 'Returns & Defects';
+      renderReturns(RETURNS_TABS[id], id, label);
+    } else if (id === 'servicevis') {
+      pageSub.textContent = 'All service activity, company-wide';
+      renderServiceOverview();
+    } else if (id === 'routing') {
+      pageSub.textContent = 'Assign unassigned requests to a service center or technician';
+      renderRouting();
+    } else if (id === 'masterdata') {
+      pageSub.textContent = 'Bulk import spare parts from a CSV file';
+      renderWhMasterData();
+    } else if (id === 'reports') {
+      pageSub.textContent = 'Warehouse summary';
+      renderWhReports();
+    } else if (id === 'auditlogs') {
+      pageSub.textContent = 'Every recorded change, company-wide';
+      renderWhAuditLogs();
+    } else {
+      pageSub.textContent = 'Not built yet';
+      renderComingSoon(label);
+    }
+  }
+
+  function renderNoLocationData(label, portalName) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">No ${label.toLowerCase()} data yet</div>
+        <div class="small">This will populate automatically once the ${portalName} portal is built and starts tracking its own stock.</div>
+      </div>`;
+  }
+
+  // =================================================================
+  // SERVICE — company-wide serviceJobs + centerRequests + website
+  // submissions, combined. Same module as Super Admin's — Warehouse
+  // has the same isAdmin() access, so this works identically here.
+  // =================================================================
+
+  const WH_SVC_STATUS_LABELS = {
+    new: 'New', assigned: 'Assigned', assigned_to_center: 'Assigned to Center', accepted: 'Accepted',
+    on_the_way: 'On the Way', at_customer: 'At Customer', in_progress: 'In Progress', waiting_spare: 'Waiting for Spare',
+    completed: 'Completed', verification: 'Verification', closed: 'Closed',
+    reassignment_required: 'Reassignment Requested', cancelled: 'Cancelled', reopened: 'Reopened'
+  };
+  const WH_SVC_STATUS_PILL_CLASS = {
+    new: 'new', assigned: 'new', assigned_to_center: 'new', accepted: 'assigned', on_the_way: 'assigned',
+    at_customer: 'assigned', in_progress: 'in_progress', waiting_spare: 'backorder', completed: 'ok',
+    verification: 'ok', closed: 'ok', reassignment_required: 'out', cancelled: 'cancelled', reopened: 'new'
+  };
+
+  async function renderServiceOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All service activity</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="service-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadWhServiceOverview();
+  }
+
+  async function loadWhServiceOverview() {
+    const tbody = document.getElementById('service-tbody');
+    try {
+      const [jobsSnap, requestsSnap, publicSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'centerRequests'), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'publicServiceRequests')),
+      ]);
+      const rows = [];
+      jobsSnap.forEach(d => {
+        const j = d.data();
+        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, closureCode: j.closureCode, actionTaken: j.actionTaken, partsUsedNotes: j.partsUsedNotes });
+      });
+      requestsSnap.forEach(d => {
+        const r = d.data();
+        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, closureCode: r.closureCode, actionTaken: r.actionTaken, partsUsedNotes: r.partsUsedNotes });
+      });
+      publicSnap.forEach(d => {
+        const p = d.data();
+        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || p.serviceCenterName || '—', status: p.status, createdAt: p.createdAt });
+      });
+      rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No service activity yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
+          if (r.status === 'completed') {
+            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="verification">Move to Verification</button></div>`;
+          } else if (r.status === 'verification') {
+            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button></div>`;
+          } else if (r.status === 'closed') {
+            actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="reopened">Reopen</button>`;
+          } else if (r.coll === 'centerRequests' && r.status === 'new') {
+            actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
+          }
+        } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
+          actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
+        }
+        tr.innerHTML = `
+          <td>${r.source}</td>
+          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${r.customer || '—'}</td>
+          <td>${r.assigned || '—'}</td>
+          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+        const gotoRoutingBtn = tr.querySelector('.svc-goto-routing-btn');
+        if (gotoRoutingBtn) {
+          gotoRoutingBtn.addEventListener('click', () => selectSection('routing', 'Service Request Routing'));
+        }
+        const evidenceBtn = tr.querySelector('.svc-evidence-btn');
+        if (evidenceBtn) {
+          evidenceBtn.addEventListener('click', () => {
+            const existing = tr.nextElementSibling;
+            if (existing && existing.classList.contains('evidence-detail-row')) { existing.remove(); return; }
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'evidence-detail-row';
+            detailRow.innerHTML = `<td colspan="6" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
+              <b>Closure code:</b> ${r.closureCode || '—'}<br>
+              <b>Action taken:</b> ${escapeHtml(r.actionTaken) || '—'}<br>
+              <b>Parts used:</b> ${escapeHtml(r.partsUsedNotes) || '—'}
+            </td>`;
+            tr.after(detailRow);
+          });
+        }
+      });
+      tbody.querySelectorAll('.svc-advance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const { coll, id, next } = btn.dataset;
+          try {
+            const payload = { status: next, updatedAt: serverTimestamp() };
+            if (next === 'reopened') payload.status = 'assigned';
+            await updateDoc(doc(db, coll, id), payload);
+            try {
+              await addDoc(collection(db, 'auditLogs'), {
+                entityType: 'serviceJob', entityId: id, action: 'status_changed',
+                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+                details: `${coll} status changed to "${payload.status}"`,
+                createdAt: serverTimestamp()
+              });
+            } catch (auditErr) {
+              console.warn('Audit log write failed (non-blocking):', auditErr.message);
+            }
+            loadWhServiceOverview();
+          } catch (err) {
+            console.error('Update service status failed:', err);
+            alert('Could not update this job. Check the console for details.');
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load service overview failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // SERVICE REQUEST ROUTING — website submissions route to a Service
+  // Center first (who assign their own technician); exact pincode
+  // matches auto-route with no click needed. Same module as Super
+  // Admin's — ported here since Warehouse has identical isAdmin()
+  // access to create/update these records.
+  // =================================================================
+
+  let whTechniciansCache = null;
+  let whServiceCentersCache = null;
+
+  async function getWhTechniciansCache() {
+    if (whTechniciansCache) return whTechniciansCache;
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
+    whTechniciansCache = [];
+    for (const d of snap.docs) {
+      let suspended = false;
+      try {
+        const availSnap = await getDoc(doc(db, 'technicianAvailability', d.id));
+        suspended = availSnap.exists() && availSnap.data().suspended === true;
+      } catch (err) { /* non-fatal — treat as not suspended */ }
+      whTechniciansCache.push({ uid: d.id, ...d.data(), suspended });
+    }
+    return whTechniciansCache;
+  }
+
+  async function getWhServiceCentersCache() {
+    if (whServiceCentersCache) return whServiceCentersCache;
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
+    whServiceCentersCache = [];
+    snap.forEach(d => whServiceCentersCache.push({ uid: d.id, ...d.data() }));
+    return whServiceCentersCache;
+  }
+
+  async function whRouteRequestToCenter(d, centerUid, centerName, productLabel) {
+    const requestId = d.requestId || d.id;
+    await addDoc(collection(db, 'centerRequests'), {
+      requestId,
+      serviceCenterUid: centerUid,
+      serviceCenterName: centerName,
+      customerName: d.customerName || '',
+      customerPhone: d.customerPhone || '',
+      address: d.address || '',
+      city: d.city || '',
+      pincode: d.pincode || '',
+      product: productLabel,
+      brand: d.brand || '',
+      category: d.category || '',
+      modelNo: d.modelNo || '',
+      serialNumber: d.serialNo || '',
+      type: d.requestType === 'installation' ? 'installation' : 'service',
+      issue: d.issueDescription || '',
+      status: 'new',
+      sourceRequestId: d.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'publicServiceRequests', d.id), {
+      serviceCenterUid: centerUid, serviceCenterName: centerName, status: 'assigned_to_center', updatedAt: serverTimestamp()
+    });
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'uid', recipientValue: centerUid,
+        title: 'New service request routed to you', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
+        read: false, createdAt: serverTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn('Notification write failed (non-blocking):', notifErr.message);
+    }
+  }
+
+  async function whAutoRouteExactPincodeMatches() {
+    const centers = await getWhServiceCentersCache();
+    const publicSnap = await getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new')));
+    let routedCount = 0;
+    for (const docSnap of publicSnap.docs) {
+      const d = { ...docSnap.data(), id: docSnap.id };
+      const pincode = (d.pincode || '').trim();
+      if (!pincode) continue;
+      const match = centers.find(c => (c.pincodesCovered || []).includes(pincode));
+      if (!match) continue;
+      const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+      try {
+        await whRouteRequestToCenter(d, match.uid, match.name || match.email, productLabel);
+        routedCount++;
+      } catch (err) {
+        console.error(`Auto-route failed for ${d.id}:`, err);
+      }
+    }
+    const notice = document.getElementById('routing-auto-notice');
+    if (notice && routedCount > 0) {
+      notice.innerHTML = `<div class="modal-success show" style="margin-bottom:16px;">Auto-routed ${routedCount} request(s) by exact pincode match — sent straight to the covering service center.</div>`;
+    }
+  }
+
+  async function renderRouting() {
+    contentEl.innerHTML = `
+      <div id="routing-auto-notice"></div>
+      <div class="panel">
+        <div class="panel-header"><h2>Unassigned requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Customer</th><th>Product</th><th>Assign to</th><th></th></tr></thead>
+            <tbody id="routing-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadWhRoutingQueue();
+  }
+
+  async function loadWhRoutingQueue() {
+    const tbody = document.getElementById('routing-tbody');
+    try {
+      await whAutoRouteExactPincodeMatches();
+      const [centerSnap, publicSnap, techs, centers] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new'))),
+        getWhTechniciansCache(),
+        getWhServiceCentersCache(),
+      ]);
+      const docs = [];
+      centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ ...d.data(), id: d.id, source: 'centerRequests' }); });
+      publicSnap.forEach(d => { docs.push({ ...d.data(), id: d.id, source: 'publicServiceRequests' }); });
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing unassigned right now.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+
+        if (d.source === 'publicServiceRequests') {
+          const city = (d.city || '').trim().toLowerCase();
+          function matchLevel(c) {
+            if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
+            return 0;
+          }
+          const sorted = [...centers].sort((a, b) => matchLevel(b) - matchLevel(a));
+          const options = sorted.map(c => {
+            const level = matchLevel(c);
+            const matchFlag = level === 1 ? ' ✓ covers this city' : '';
+            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
+          }).join('');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}${d.pincode ? ' ' + d.pincode : ''}</span></td>
+            <td>${escapeHtml(d.customerName || '—')}</td>
+            <td>${productLabel}</td>
+            <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
+            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
+          tbody.appendChild(tr);
+          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
+            const select = tr.querySelector('.routing-center-select');
+            if (!select.value) { alert('Select a service center first.'); return; }
+            const [centerUid, centerName] = select.value.split('|');
+            try {
+              await whRouteRequestToCenter(d, centerUid, centerName, productLabel);
+              loadWhRoutingQueue();
+            } catch (err) {
+              console.error('Route to center failed:', err);
+              alert('Could not route this request. Check the console for details.');
+            }
+          });
+        } else {
+          const brandId = (d.brand || '').toLowerCase();
+          const category = d.category || '';
+          function techMatchLevel(t) {
+            const brandOk = !brandId || (t.brandsAuthorized || []).includes(brandId);
+            const skillOk = !category || (t.skills || []).some(s => s.category === category);
+            if (brandOk && skillOk && (brandId || category)) return 2;
+            if (brandOk || skillOk) return 1;
+            return 0;
+          }
+          const eligibleTechs = techs.filter(t => !t.suspended);
+          const sortedTechs = [...eligibleTechs].sort((a, b) => techMatchLevel(b) - techMatchLevel(a));
+          const options = sortedTechs.map(t => {
+            const level = techMatchLevel(t);
+            const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
+            return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
+          }).join('');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
+            <td>${escapeHtml(d.customerName || '—')}</td>
+            <td>${productLabel}</td>
+            <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
+            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
+          tbody.appendChild(tr);
+          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
+            const select = tr.querySelector('.routing-tech-select');
+            if (!select.value) { alert('Select a technician first.'); return; }
+            const [uid, name] = select.value.split('|');
+            try {
+              await updateDoc(doc(db, 'centerRequests', d.id), {
+                technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
+              });
+              try {
+                await addDoc(collection(db, 'notifications'), {
+                  recipientType: 'uid', recipientValue: uid,
+                  title: 'New job assigned', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
+                  read: false, createdAt: serverTimestamp()
+                });
+              } catch (notifErr) {
+                console.warn('Notification write failed (non-blocking):', notifErr.message);
+              }
+              loadWhRoutingQueue();
+            } catch (err) {
+              console.error('Assign failed:', err);
+              alert('Could not assign this request. Check the console for details.');
+            }
+          });
+        }
+      });
+    } catch (err) {
+      console.error('Load routing queue failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the queue. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // DAMAGED / RETURNED — read-only view over Returns & Defects data
+  // that's already tracked (disposed/defective status), aggregated by
+  // part. Not a separate tracking mechanism — just a different lens
+  // on data that already exists.
+  // =================================================================
+
+  async function renderDamagedInventory() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Damaged / written off, by part</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Part</th><th>Defective (unresolved)</th><th>Disposed (written off)</th><th>Total Qty</th></tr></thead>
+            <tbody id="damaged-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('damaged-tbody');
+    try {
+      const [returnsSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', 'in', ['defective', 'disposed']))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      const byPart = {};
+      returnsSnap.forEach(d => {
+        const r = d.data();
+        const key = r.partId || '(unknown part)';
+        if (!byPart[key]) byPart[key] = { defective: 0, disposed: 0 };
+        byPart[key][r.status] += Number(r.quantity) || 0;
+      });
+      const keys = Object.keys(byPart);
+      if (keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing damaged or disposed on record.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      keys.forEach(partId => {
+        const part = partMap[partId];
+        const row = byPart[partId];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${part ? `${part.partCode} — ${part.name}` : partId}</td>
+          <td>${row.defective || 0}</td>
+          <td>${row.disposed || 0}</td>
+          <td><b>${row.defective + row.disposed}</b></td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load damaged inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load this view. Check console for details.</td></tr>`;
+    }
+  }
+
+  // =================================================================
+  // TRANSFER — moves stock from Warehouse to a Service Center or
+  // Technician. Source is always Warehouse, matching how this system
+  // actually works (Warehouse is the hub). This also has a useful
+  // side effect: it starts populating real inventory data at
+  // sc_{uid}/tech_{uid} locations, which is exactly what the
+  // Service Center Stock / Technician Stock placeholder views need
+  // to eventually become real.
+  // =================================================================
+
+  async function renderTransfer() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Transfer stock</h2>
+          <button class="btn-primary" id="open-transfer">+ New Transfer</button>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">From Warehouse to a Service Center or Technician.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Transfer history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Part</th><th>To</th><th>Qty</th><th>Reason</th></tr></thead>
+            <tbody id="transfer-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-transfer').addEventListener('click', openTransferModal);
+    loadTransferHistory();
+  }
+
+  async function loadTransferHistory() {
+    const tbody = document.getElementById('transfer-tbody');
+    try {
+      const [movSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'transfer'))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      let docs = [];
+      movSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No transfers logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? part.name : d.partId}</td>
+          <td>${d.toLabel || d.location || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load transfer history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load transfer history. Check console for details.</td></tr>`;
+    }
+  }
+
+  const transferOverlay = document.getElementById('transfer-overlay');
+  const transferForm = document.getElementById('transfer-form');
+  const transferError = document.getElementById('transfer-error');
+  const transferSuccess = document.getElementById('transfer-success');
+  const transferSubmitBtn = document.getElementById('submit-transfer');
+
+  async function openTransferModal() {
+    transferForm.reset();
+    transferError.classList.remove('show');
+    transferSuccess.classList.remove('show');
+    transferSubmitBtn.disabled = false;
+    transferSubmitBtn.textContent = 'Transfer';
+    const [parts, centers, techs] = await Promise.all([
+      getDocs(collection(db, 'spareParts')),
+      getWhServiceCentersCache(),
+      getWhTechniciansCache(),
+    ]);
+    const partSelect = document.getElementById('transfer-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    const destSelect = document.getElementById('transfer-destination');
+    destSelect.innerHTML = '<option value="">Select destination…</option>';
+    centers.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = `sc_${c.uid}|${c.name || c.email} (Service Center)`;
+      opt.textContent = `${c.name || c.email} — Service Center`;
+      destSelect.appendChild(opt);
+    });
+    techs.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = `tech_${t.uid}|${t.name || t.email} (Technician)`;
+      opt.textContent = `${t.name || t.email} — Technician`;
+      destSelect.appendChild(opt);
+    });
+    transferOverlay.classList.add('show');
+  }
+  function closeTransferModal() { transferOverlay.classList.remove('show'); }
+  document.getElementById('cancel-transfer').addEventListener('click', closeTransferModal);
+  transferOverlay.addEventListener('click', (e) => { if (e.target === transferOverlay) closeTransferModal(); });
+
+  transferForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    transferError.classList.remove('show');
+    transferSuccess.classList.remove('show');
+    const partId = document.getElementById('transfer-part').value;
+    const destValue = document.getElementById('transfer-destination').value;
+    const qty = Number(document.getElementById('transfer-qty').value) || 0;
+    const reason = document.getElementById('transfer-reason').value.trim();
+    if (!partId || !destValue || qty <= 0) {
+      transferError.textContent = 'Select a part, a destination, and a quantity greater than 0.';
+      transferError.classList.add('show');
+      return;
+    }
+    const [destLocation, destLabel] = destValue.split('|');
+    transferSubmitBtn.disabled = true;
+    transferSubmitBtn.textContent = 'Transferring…';
+    try {
+      const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
+      const toRef = doc(db, 'inventory', `${destLocation}_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const fromSnap = await transaction.get(fromRef);
+        const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
+        if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
+        const toSnap = await transaction.get(toRef);
+        const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
+        transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(toRef, { partId, location: destLocation, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'transfer', location: 'warehouse', quantity: qty,
+        toLocation: destLocation, toLabel: destLabel, reason: reason || 'Stock transfer',
+        createdAt: serverTimestamp()
+      });
+      transferSuccess.textContent = 'Transferred.';
+      transferSuccess.classList.add('show');
+      transferSubmitBtn.textContent = 'Done';
+      if (document.getElementById('transfer-tbody')) loadTransferHistory();
+      setTimeout(closeTransferModal, 900);
+    } catch (err) {
+      console.error('Transfer failed:', err);
+      transferError.textContent = err.message || 'Could not complete this transfer. Check console for details.';
+      transferError.classList.add('show');
+      transferSubmitBtn.disabled = false;
+      transferSubmitBtn.textContent = 'Transfer';
+    }
+  });
+
+  // =================================================================
+  // ADJUSTMENT — manual stock correction at any location (physical
+  // count differences, write-offs found outside the Returns flow).
+  // =================================================================
+
+  async function renderAdjustment() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Stock adjustment</h2>
+          <button class="btn-primary" id="open-wh-adjust">+ New Adjustment</button>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">For corrections — physical counts, write-offs found outside the Returns process.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Adjustment history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Part</th><th>Change</th><th>Reason</th></tr></thead>
+            <tbody id="wh-adjust-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-wh-adjust').addEventListener('click', openWhAdjustModal);
+    loadAdjustHistory();
+  }
+
+  async function loadAdjustHistory() {
+    const tbody = document.getElementById('wh-adjust-tbody');
+    try {
+      const [movSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'adjustment'))),
+        getDocs(collection(db, 'spareParts')),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      let docs = [];
+      movSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No adjustments logged yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? part.name : d.partId}</td>
+          <td><span class="status-pill ${d.quantity < 0 ? 'backorder' : 'ok'}">${d.quantity > 0 ? '+' : ''}${d.quantity}</span></td>
+          <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load adjustment history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load adjustment history. Check console for details.</td></tr>`;
+    }
+  }
+
+  const whAdjustOverlay = document.getElementById('wh-adjust-overlay');
+  const whAdjustForm = document.getElementById('wh-adjust-form');
+  const whAdjustError = document.getElementById('wh-adjust-error');
+  const whAdjustSuccess = document.getElementById('wh-adjust-success');
+  const whAdjustSubmitBtn = document.getElementById('submit-wh-adjust');
+
+  async function openWhAdjustModal() {
+    whAdjustForm.reset();
+    whAdjustError.classList.remove('show');
+    whAdjustSuccess.classList.remove('show');
+    whAdjustSubmitBtn.disabled = false;
+    whAdjustSubmitBtn.textContent = 'Save adjustment';
+    const parts = await getDocs(collection(db, 'spareParts'));
+    const partSelect = document.getElementById('wh-adjust-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    whAdjustOverlay.classList.add('show');
+  }
+  function closeWhAdjustModal() { whAdjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-wh-adjust').addEventListener('click', closeWhAdjustModal);
+  whAdjustOverlay.addEventListener('click', (e) => { if (e.target === whAdjustOverlay) closeWhAdjustModal(); });
+
+  whAdjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    whAdjustError.classList.remove('show');
+    whAdjustSuccess.classList.remove('show');
+    const partId = document.getElementById('wh-adjust-part').value;
+    const delta = Number(document.getElementById('wh-adjust-delta').value);
+    const reason = document.getElementById('wh-adjust-reason').value.trim();
+    if (!partId || !delta || !reason) {
+      whAdjustError.textContent = 'Select a part, a non-zero change, and a reason.';
+      whAdjustError.classList.add('show');
+      return;
+    }
+    whAdjustSubmitBtn.disabled = true;
+    whAdjustSubmitBtn.textContent = 'Saving…';
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const next = current + delta;
+        if (next < 0) throw new Error(`This would take stock negative (currently ${current}).`);
+        transaction.set(invRef, { partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason, createdAt: serverTimestamp()
+      });
+      whAdjustSuccess.textContent = 'Saved.';
+      whAdjustSuccess.classList.add('show');
+      whAdjustSubmitBtn.textContent = 'Saved';
+      if (document.getElementById('wh-adjust-tbody')) loadAdjustHistory();
+      setTimeout(closeWhAdjustModal, 900);
+    } catch (err) {
+      console.error('Adjustment failed:', err);
+      whAdjustError.textContent = err.message || 'Could not save this adjustment. Check console for details.';
+      whAdjustError.classList.add('show');
+      whAdjustSubmitBtn.disabled = false;
+      whAdjustSubmitBtn.textContent = 'Save adjustment';
+    }
+  });
+
+  // =================================================================
+  // MASTER DATA — bulk import spare parts from a CSV, same pattern
+  // as Super Admin's product catalog import. Uses the same shared
+  // part-code counter as the regular Add Part flow, so codes stay
+  // sequential no matter which path a part came in through.
+  // =================================================================
+
+  function renderWhMasterData() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Download sample file</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">Columns: name, category, brandCompatibility, price, reorderLevel.</p>
+          <button class="btn-secondary" id="download-wh-sample-csv">Download sample CSV</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Import spare parts</h2></div>
+        <div class="panel-body">
+          <input type="file" id="wh-csv-file-input" accept=".csv" style="margin-bottom:14px;">
+          <div id="wh-csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="wh-import-csv-btn" disabled>Import</button>
+          <div class="modal-error" id="wh-import-error"></div>
+          <div class="modal-success" id="wh-import-success"></div>
+        </div>
+      </div>`;
+    document.getElementById('download-wh-sample-csv').addEventListener('click', () => {
+      const csv = 'name,category,brandCompatibility,price,reorderLevel\nGeyser thermostat 15L,Thermostat,All,180,10\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'spare-parts-sample.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+    let parsedRows = [];
+    document.getElementById('wh-csv-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const lines = ev.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+        const headers = lines[0].split(',').map(h => h.trim());
+        parsedRows = lines.slice(1).map(line => {
+          const cells = line.split(',').map(c => c.trim());
+          const row = {};
+          headers.forEach((h, i) => { row[h] = cells[i] || ''; });
+          return row;
+        });
+        document.getElementById('wh-csv-preview').textContent = `${parsedRows.length} row(s) ready to import.`;
+        document.getElementById('wh-import-csv-btn').disabled = parsedRows.length === 0;
+      };
+      reader.readAsText(file);
+    });
+    document.getElementById('wh-import-csv-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('wh-import-csv-btn');
+      const errEl = document.getElementById('wh-import-error');
+      const successEl = document.getElementById('wh-import-success');
+      errEl.classList.remove('show');
+      successEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Importing…';
+      let successCount = 0, failCount = 0;
+      for (const row of parsedRows) {
+        if (!row.name) { failCount++; continue; }
+        try {
+          const partCode = await generatePartCode();
+          await addDoc(collection(db, 'spareParts'), {
+            name: row.name, category: row.category || '', brandCompatibility: row.brandCompatibility || 'All',
+            price: row.price ? Number(row.price) : null, reorderLevel: row.reorderLevel ? Number(row.reorderLevel) : 5,
+            partCode, createdAt: serverTimestamp()
+          });
+          successCount++;
+        } catch (err) {
+          console.error('Import row failed:', err);
+          failCount++;
+        }
+      }
+      successEl.textContent = `Imported ${successCount} part(s)${failCount ? `, ${failCount} failed` : ''}.`;
+      successEl.classList.add('show');
+      btn.textContent = 'Import';
+      btn.disabled = false;
+    });
+  }
+
+  // =================================================================
+  // REPORTS — Warehouse summary. Company-wide reports live in Super
+  // Admin; this is scoped to what Warehouse actually operates.
+  // =================================================================
+
+  async function renderWhReports() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Warehouse summary</h2></div>
+        <div class="panel-body" id="wh-reports-body" style="font-size:13.5px;color:var(--stone);line-height:2;">Loading…</div>
+      </div>`;
+    try {
+      const [partsSnap, invSnap, requestsSnap, lpSnap, movSnap, returnsSnap] = await Promise.all([
+        getDocs(collection(db, 'spareParts')),
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'warehouse'))),
+        getDocs(collection(db, 'spareRequests')),
+        getDocs(collection(db, 'localPurchases')),
+        getDocs(collection(db, 'stockMovements')),
+        getDocs(query(collection(db, 'returns'), where('status', 'in', ['defective', 'disposed']))),
+      ]);
+      let totalStockUnits = 0;
+      invSnap.forEach(d => { totalStockUnits += Number(d.data().quantity) || 0; });
+      let openRequests = 0;
+      requestsSnap.forEach(d => { if (!['fulfilled', 'cancelled'].includes(d.data().status)) openRequests++; });
+      let pendingLp = 0;
+      lpSnap.forEach(d => { if (!['reimbursed'].includes(d.data().status)) pendingLp++; });
+      let damagedQty = 0;
+      returnsSnap.forEach(d => { damagedQty += Number(d.data().quantity) || 0; });
+      const now = Date.now();
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+      let movementsLast30 = 0;
+      movSnap.forEach(d => {
+        const ts = d.data().createdAt?.toDate ? d.data().createdAt.toDate().getTime() : 0;
+        if (ts >= thirtyDaysAgo) movementsLast30++;
+      });
+      document.getElementById('wh-reports-body').innerHTML = `
+        <div>Parts in catalog: <b>${partsSnap.size}</b></div>
+        <div>Total stock units at Warehouse: <b>${totalStockUnits}</b></div>
+        <div>Open spare requests: <b>${openRequests}</b></div>
+        <div>Pending local purchases: <b>${pendingLp}</b></div>
+        <div>Stock movements, last 30 days: <b>${movementsLast30}</b></div>
+        <div>Damaged / disposed units on record: <b>${damagedQty}</b></div>`;
+    } catch (err) {
+      console.error('Load warehouse reports failed:', err);
+      document.getElementById('wh-reports-body').innerHTML = `<span style="color:var(--err);">Couldn't load the summary. Check console for details.</span>`;
+    }
+  }
+
+  // =================================================================
+  // AUDIT LOGS — same view as Super Admin's, since it's the same
+  // underlying collection and Warehouse has isAdmin() read access.
+  // =================================================================
+
+  async function renderWhAuditLogs() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Audit log</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Action</th><th>By</th><th>Details</th></tr></thead>
+            <tbody id="wh-audit-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('wh-audit-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc')));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No audit entries yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
+          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${d.action || '—'}</span></td>
+          <td style="font-size:12px;">${d.performedBy || '—'}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load audit logs failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the audit log. Check console for details.</td></tr>`;
+    }
+  }
+
+  function renderComingSoon(label) {
+    contentEl.innerHTML = `
+      <div class="coming-soon">
+        <div class="big">${label} isn't built yet</div>
+        <div class="small">This module is on the roadmap — it'll be built out next, module by module.</div>
+      </div>`;
+  }
+
+  async function renderDashboard() {
+    contentEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">New Requests</div>
+          <div class="value" id="stat-new">…</div>
+          <div class="hint">Awaiting approval</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Back Order</div>
+          <div class="value" id="stat-backorder">…</div>
+          <div class="hint">Stuck, needs attention</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">In Transit</div>
+          <div class="value" id="stat-transit">…</div>
+          <div class="hint">Currently dispatched</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Alerts</div>
+          <div class="value">—</div>
+          <div class="hint">Module not built yet</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Getting started</h2></div>
+        <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
+          <b style="color:var(--blue)">Spare Requests & Dispatch</b> is fully working — use the sidebar tabs to move requests
+          through New → Approved → Picking → Packing → Dispatch → In Transit, or mark them Back Order.
+          Other sections in the sidebar will fill in module by module.
+        </div>
+      </div>`;
+    try {
+      const [newSnap, backorderSnap, transitSnap] = await Promise.all([
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'new'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'backorder'))),
+        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'intransit'))),
+      ]);
+      document.getElementById('stat-new').textContent = newSnap.size;
+      document.getElementById('stat-backorder').textContent = backorderSnap.size;
+      document.getElementById('stat-transit').textContent = transitSnap.size;
+    } catch (err) {
+      console.error('Dashboard stats failed:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Spare Requests & Dispatch
+  // ---------------------------------------------------------------
+
+  const STATUS_LABELS = {
+    new: 'New', approved: 'Approved', picking: 'Picking', packing: 'Packing',
+    dispatched: 'Dispatched', intransit: 'In Transit', received: 'Received', backorder: 'Back Order'
+  };
+
+  // Each status's forward action(s) and, where relevant, a side action
+  // (e.g. flagging Back Order from New/Approved, or retrying from Back Order).
+  const STATUS_ACTIONS = {
+    new:        [{ label: 'Approve', next: 'approved' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    approved:   [{ label: 'Start Picking', next: 'picking' }, { label: 'Back Order', next: 'backorder', variant: 'danger' }],
+    picking:    [{ label: 'Mark Packed', next: 'packing' }],
+    packing:    [{ label: 'Dispatch', next: 'dispatched' }],
+    dispatched: [{ label: 'Mark In Transit', next: 'intransit' }],
+    intransit:  [{ label: 'Mark Received', next: 'received' }],
+    backorder:  [{ label: 'Retry (back to New)', next: 'new' }],
+  };
+
+  async function renderSpareRequests(status, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-new-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Qty</th><th>Priority</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="requests-tbody">
+              <tr><td colspan="7" class="empty-row">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-new-request').addEventListener('click', openNewRequestModal);
+    loadSpareRequests(status);
+  }
+
+  async function loadSpareRequests(status) {
+    const tbody = document.getElementById('requests-tbody');
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'spareRequests'),
+        where('status', '==', status)
+      ));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No requests in this stage.</td></tr>`;
+        return;
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const actions = (STATUS_ACTIONS[status] || []).map(a =>
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${d.id}" data-next="${a.next}">${a.label}</button>`
+        ).join('');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${d.sourceJobLabel || d.serviceCenter || d.sourceJobId}` : (d.serviceCenter || '—')}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><span class="priority-tag ${d.priority || 'normal'}">${(d.priority || 'normal').toUpperCase()}</span></td>
+          <td><span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><div class="row-actions">${actions}</div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.action-btn').forEach(btn => {
+        btn.addEventListener('click', () => advanceRequest(btn.dataset.uid, btn.dataset.next, status));
+      });
+    } catch (err) {
+      console.error('Load spare requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceRequest(uid, nextStatus, currentTabStatus) {
+    try {
+      await updateDoc(doc(db, 'spareRequests', uid), {
+        status: nextStatus,
+        updatedAt: serverTimestamp()
+      });
+      loadSpareRequests(currentTabStatus);
+    } catch (err) {
+      console.error('Update request status failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // Request ID format matches the site's ticket convention:
+  // PE-SR-{YYYYMMDD}-{Serial}-{Mode}. Serial resets monthly via an
+  // atomic Firestore transaction (counters/sparerequest-{YYYYMM}),
+  // same collision-safe pattern used for public enquiry tickets.
+  function todayYYYYMMDD() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function currentYYYYMM() {
+    const d = new Date();
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  async function nextMonthlySerial(counterKey) {
+    const counterRef = doc(db, 'counters', counterKey);
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: next });
+      else transaction.set(counterRef, { value: next });
+      return next;
+    });
+  }
+  async function generateRequestId() {
+    const serial = await nextMonthlySerial(`sparerequest-${currentYYYYMM()}`);
+    return `PE-SR-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-Warehouse`;
+  }
+
+  const newRequestOverlay = document.getElementById('new-request-overlay');
+  const newRequestForm = document.getElementById('new-request-form');
+  const newRequestError = document.getElementById('new-request-error');
+  const newRequestSuccess = document.getElementById('new-request-success');
+  const newRequestSubmitBtn = document.getElementById('submit-new-request');
+
+  function openNewRequestModal() {
+    newRequestForm.reset();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = false;
+    newRequestSubmitBtn.textContent = 'Create request';
+    newRequestOverlay.classList.add('show');
+  }
+  function closeNewRequestModal() {
+    newRequestOverlay.classList.remove('show');
+  }
+  document.getElementById('cancel-new-request').addEventListener('click', closeNewRequestModal);
+  newRequestOverlay.addEventListener('click', (e) => { if (e.target === newRequestOverlay) closeNewRequestModal(); });
+
+  newRequestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    newRequestError.classList.remove('show');
+    newRequestSuccess.classList.remove('show');
+    newRequestSubmitBtn.disabled = true;
+    newRequestSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: document.getElementById('req-center').value.trim(),
+        item: document.getElementById('req-item').value.trim(),
+        quantity: Number(document.getElementById('req-qty').value) || 1,
+        priority: document.getElementById('req-priority').value,
+        notes: document.getElementById('req-notes').value.trim(),
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      newRequestSuccess.textContent = `Created — ${requestId}`;
+      newRequestSuccess.classList.add('show');
+      newRequestSubmitBtn.textContent = 'Create request';
+      newRequestSubmitBtn.disabled = false;
+      // Refresh the currently open tab if it's the "New" tab
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && activeItem.dataset.id === 'requests-new') loadSpareRequests('new');
+      setTimeout(closeNewRequestModal, 1000);
+    } catch (err) {
+      console.error('Create request failed:', err);
+      newRequestError.textContent = 'Could not create request. Check console for details.';
+      newRequestError.classList.add('show');
+      newRequestSubmitBtn.disabled = false;
+      newRequestSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Spare Parts (master list)
+  // ---------------------------------------------------------------
+
+  async function generatePartCode() {
+    const counterRef = doc(db, 'counters', 'sparepart-master');
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `SP-${String(next).padStart(4, '0')}`;
+  }
+
+  async function renderSpareParts() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Spare parts master list</h2>
+          <button class="btn-primary" id="open-add-part">+ Add part</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Name</th><th>Category</th><th>Brand</th><th>Price</th><th>Reorder Level</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="parts-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-add-part').addEventListener('click', () => openPartModal(null));
+    loadSpareParts();
+  }
+
+  let sparePartsCache = [];
+
+  async function loadSpareParts() {
+    const tbody = document.getElementById('parts-tbody');
+    try {
+      const snap = await getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc')));
+      sparePartsCache = [];
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No parts yet — add your first one.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      snap.forEach(docSnap => {
+        const d = { id: docSnap.id, ...docSnap.data() };
+        sparePartsCache.push(d);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
+          <td>${d.name || '—'}</td>
+          <td>${d.category || '—'}</td>
+          <td>${d.brandCompatibility || 'All'}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td>
+          <td>${d.reorderLevel ?? '—'}</td>
+          <td><button class="btn-secondary edit-part-btn" data-id="${d.id}">Edit</button></td>`;
+        tbody.appendChild(tr);
+        tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
+      });
+    } catch (err) {
+      console.error('Load spare parts failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load parts. Check console for details.</td></tr>`;
+    }
+  }
+
+  const partOverlay = document.getElementById('part-overlay');
+  const partForm = document.getElementById('part-form');
+  const partError = document.getElementById('part-error');
+  const partSuccess = document.getElementById('part-success');
+  const partSubmitBtn = document.getElementById('submit-part');
+  const partModalTitle = document.getElementById('part-modal-title');
+
+  function openPartModal(existing) {
+    partForm.reset();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = false;
+    if (existing) {
+      partModalTitle.textContent = `Edit ${existing.partCode || 'part'}`;
+      document.getElementById('part-editing-id').value = existing.id;
+      document.getElementById('part-name').value = existing.name || '';
+      document.getElementById('part-category').value = existing.category || '';
+      document.getElementById('part-brand').value = existing.brandCompatibility || 'All';
+      document.getElementById('part-price').value = existing.price ?? '';
+      document.getElementById('part-reorder').value = existing.reorderLevel ?? 5;
+      partSubmitBtn.textContent = 'Save changes';
+    } else {
+      partModalTitle.textContent = 'Add spare part';
+      document.getElementById('part-editing-id').value = '';
+      document.getElementById('part-reorder').value = 5;
+      partSubmitBtn.textContent = 'Save part';
+    }
+    partOverlay.classList.add('show');
+  }
+  function closePartModal() { partOverlay.classList.remove('show'); }
+  document.getElementById('cancel-part').addEventListener('click', closePartModal);
+  partOverlay.addEventListener('click', (e) => { if (e.target === partOverlay) closePartModal(); });
+
+  partForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    partError.classList.remove('show');
+    partSuccess.classList.remove('show');
+    partSubmitBtn.disabled = true;
+    partSubmitBtn.textContent = 'Saving…';
+    const editingId = document.getElementById('part-editing-id').value;
+    const payload = {
+      name: document.getElementById('part-name').value.trim(),
+      category: document.getElementById('part-category').value.trim(),
+      brandCompatibility: document.getElementById('part-brand').value,
+      price: document.getElementById('part-price').value ? Number(document.getElementById('part-price').value) : null,
+      reorderLevel: Number(document.getElementById('part-reorder').value) || 0,
+    };
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'spareParts', editingId), payload);
+      } else {
+        const partCode = await generatePartCode();
+        await addDoc(collection(db, 'spareParts'), { ...payload, partCode, createdAt: serverTimestamp() });
+      }
+      partSuccess.textContent = 'Saved.';
+      partSuccess.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+      loadSpareParts();
+      setTimeout(closePartModal, 800);
+    } catch (err) {
+      console.error('Save part failed:', err);
+      partError.textContent = 'Could not save this part. Check console for details.';
+      partError.classList.add('show');
+      partSubmitBtn.disabled = false;
+      partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Inventory — Warehouse stock, Stock Summary, Low/Out of Stock.
+  // One inventory doc per part at Warehouse, id = `warehouse_{partId}`,
+  // so adjustments upsert cleanly. Each adjustment also logs a
+  // stockMovements entry — groundwork for the future Stock Movement /
+  // Movement History module.
+  // ---------------------------------------------------------------
+
+  async function getHeadOfficeInventoryMap() {
+    const snap = await getDocs(query(collection(db, 'inventory'), where('location', '==', 'warehouse')));
+    const map = {};
+    snap.forEach(d => { map[d.data().partId] = { id: d.id, ...d.data() }; });
+    return map;
+  }
+
+  function stockStatus(qty, reorderLevel) {
+    if (qty <= 0) return { cls: 'out', label: 'Out of stock' };
+    if (qty <= reorderLevel) return { cls: 'low', label: 'Low' };
+    return { cls: 'ok', label: 'OK' };
+  }
+
+  async function renderInventory(view) {
+    const titles = {
+      warehouse: 'Warehouse stock',
+      summary: 'Stock summary',
+      low: 'Low / out of stock'
+    };
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${titles[view]}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>Part</th><th>Category</th><th>Qty (WH)</th><th>Reorder Level</th><th>Status</th>${view === 'warehouse' ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="inventory-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadInventory(view);
+  }
+
+  async function loadInventory(view) {
+    const tbody = document.getElementById('inventory-tbody');
+    try {
+      const [partsSnap, invMap] = await Promise.all([
+        getDocs(query(collection(db, 'spareParts'), orderBy('createdAt', 'desc'))),
+        getHeadOfficeInventoryMap()
+      ]);
+      let rows = [];
+      partsSnap.forEach(docSnap => {
+        const part = { id: docSnap.id, ...docSnap.data() };
+        const inv = invMap[part.id];
+        const qty = inv ? inv.quantity : 0;
+        rows.push({ part, qty });
+      });
+      if (view === 'low') {
+        rows = rows.filter(r => r.qty <= (r.part.reorderLevel || 0));
+      }
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${sparePartsCache.length === 0 && rows.length === 0 ? 'No parts in the master list yet — add parts first.' : 'Nothing to show here.'}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(({ part, qty }) => {
+        const status = stockStatus(qty, part.reorderLevel || 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${part.partCode || part.id}</td>
+          <td>${part.name || '—'}</td>
+          <td>${part.category || '—'}</td>
+          <td><b>${qty}</b></td>
+          <td>${part.reorderLevel ?? 0}</td>
+          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
+        tbody.appendChild(tr);
+        if (view === 'warehouse') {
+          tr.querySelector('.adjust-btn').addEventListener('click', (e) => {
+            openAdjustModal(e.target.dataset.id, e.target.dataset.name, e.target.dataset.code);
+          });
+        }
+      });
+    } catch (err) {
+      console.error('Load inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load inventory. Check console for details.</td></tr>`;
+    }
+  }
+
+  const adjustOverlay = document.getElementById('adjust-overlay');
+  const adjustForm = document.getElementById('adjust-form');
+  const adjustError = document.getElementById('adjust-error');
+  const adjustSuccess = document.getElementById('adjust-success');
+  const adjustSubmitBtn = document.getElementById('submit-adjust');
+  const adjustPartLabel = document.getElementById('adjust-part-label');
+
+  function openAdjustModal(partId, partName, partCode) {
+    adjustForm.reset();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    adjustSubmitBtn.disabled = false;
+    adjustSubmitBtn.textContent = 'Save';
+    document.getElementById('adjust-part-id').value = partId;
+    adjustPartLabel.textContent = `${partCode ? partCode + ' — ' : ''}${partName}`;
+    adjustOverlay.classList.add('show');
+  }
+  function closeAdjustModal() { adjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-adjust').addEventListener('click', closeAdjustModal);
+  adjustOverlay.addEventListener('click', (e) => { if (e.target === adjustOverlay) closeAdjustModal(); });
+
+  adjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    adjustError.classList.remove('show');
+    adjustSuccess.classList.remove('show');
+    const partId = document.getElementById('adjust-part-id').value;
+    const type = document.getElementById('adjust-type').value;
+    const qty = Number(document.getElementById('adjust-qty').value) || 0;
+    const reason = document.getElementById('adjust-reason').value.trim();
+    if (qty <= 0) {
+      adjustError.textContent = 'Enter a quantity greater than 0.';
+      adjustError.classList.add('show');
+      return;
+    }
+    adjustSubmitBtn.disabled = true;
+    adjustSubmitBtn.textContent = 'Saving…';
+    const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const delta = type === 'add' ? qty : -qty;
+        const next = Math.max(0, current + delta);
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: type === 'add' ? 'receive' : 'issue',
+        location: 'warehouse', quantity: qty, reason,
+        createdAt: serverTimestamp()
+      });
+      adjustSuccess.textContent = 'Stock updated.';
+      adjustSuccess.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+      const activeItem = document.querySelector('.nav-item.active');
+      const activeId = activeItem ? activeItem.dataset.id : null;
+      const viewMap = { 'inv-warehouse': 'warehouse', 'inv-summary': 'summary', 'inv-lowstock': 'low' };
+      if (activeId && viewMap[activeId]) loadInventory(viewMap[activeId]);
+      setTimeout(closeAdjustModal, 800);
+    } catch (err) {
+      console.error('Adjust stock failed:', err);
+      adjustError.textContent = 'Could not update stock. Check console for details.';
+      adjustError.classList.add('show');
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Stock Movement — Movement History (plus Receive/Issue as
+  // filtered views of the same log). Every adjustment made from
+  // Inventory > Warehouse Stock already writes a stockMovements
+  // entry, so this view is populated automatically — no separate
+  // data-entry step needed for Receive/Issue.
+  // ---------------------------------------------------------------
+
+  const MOVEMENT_TYPE_LABELS = { receive: 'Receive', issue: 'Issue', transfer: 'Transfer', adjustment: 'Adjustment' };
+
+  async function renderMovementHistory(typeFilter, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>${label}</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Type</th><th>Part</th><th>Qty</th><th>Location</th><th>Reason / Notes</th></tr>
+            </thead>
+            <tbody id="movement-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadMovementHistory(typeFilter);
+  }
+
+  async function loadMovementHistory(typeFilter) {
+    const tbody = document.getElementById('movement-tbody');
+    try {
+      const baseQuery = typeFilter
+        ? query(collection(db, 'stockMovements'), where('type', '==', typeFilter))
+        : query(collection(db, 'stockMovements'), orderBy('createdAt', 'desc'));
+      const [movementsSnap, partsSnap] = await Promise.all([
+        getDocs(baseQuery),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (movementsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No movements recorded yet.</td></tr>`;
+        return;
+      }
+      let moveDocs = [];
+      movementsSnap.forEach(d => moveDocs.push({ id: d.id, ...d.data() }));
+      moveDocs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      tbody.innerHTML = '';
+      moveDocs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${MOVEMENT_TYPE_LABELS[d.type] || d.type}</span></td>
+          <td>${part ? (part.partCode + ' — ' + part.name) : (d.partId || '—')}</td>
+          <td><b>${d.quantity ?? '—'}</b></td>
+          <td style="text-transform:capitalize;">${d.location || '—'}</td>
+          <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load movement history failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load movement history. Check console for details.</td></tr>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Local Purchase — Requests → Invoice Submitted → Verified →
+  // Reimbursed, plus an Emergency cross-filter and a full History log.
+  // ---------------------------------------------------------------
+
+  const LOCAL_PURCHASE_TABS = {
+    'lp-new': 'requested',
+    'lp-emergency': 'EMERGENCY',
+    'lp-invoice': 'invoice_submitted',
+    'lp-claims': 'verified',
+    'lp-history': 'ALL',
+  };
+  const LP_STATUS_LABELS = {
+    requested: 'Requested', invoice_submitted: 'Invoice Submitted', verified: 'Verified', reimbursed: 'Reimbursed'
+  };
+  const LP_STATUS_PILL_CLASS = {
+    requested: 'new', invoice_submitted: 'low', verified: 'ok', reimbursed: 'ok'
+  };
+
+  async function generateLocalPurchaseId() {
+    const counterKey = `localpurchase-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-LP-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderLocalPurchase(filterValue, tabId, label) {
+    const showActions = tabId !== 'lp-history';
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-lp-request">+ New Request</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Item</th><th>Qty</th><th>Requested By</th><th>Amount</th><th>Emergency</th><th>Status</th>${showActions ? '<th>Actions</th>' : ''}</tr>
+            </thead>
+            <tbody id="lp-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-lp-request').addEventListener('click', openLpModal);
+    loadLocalPurchases(filterValue, tabId, showActions);
+  }
+
+  async function loadLocalPurchases(filterValue, tabId, showActions) {
+    const tbody = document.getElementById('lp-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'EMERGENCY') {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('emergency', '==', true)));
+      } else {
+        snap = await getDocs(query(collection(db, 'localPurchases'), where('status', '==', filterValue)));
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (filterValue === 'EMERGENCY') {
+        docs = docs.filter(d => d.status !== 'reimbursed');
+      }
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (showActions) {
+          if (d.status === 'requested') {
+            actionHtml = `<button class="btn-secondary lp-invoice-btn" data-id="${d.id}" data-item="${(d.item || '').replace(/"/g, '&quot;')}" data-requestid="${d.requestId || ''}">Submit Invoice</button>`;
+          } else if (d.status === 'invoice_submitted') {
+            actionHtml = `<button class="btn-secondary lp-verify-btn" data-id="${d.id}">Verify Invoice</button>`;
+          } else if (d.status === 'verified') {
+            actionHtml = `<button class="btn-primary lp-reimburse-btn" data-id="${d.id}">Mark Reimbursed</button>`;
+          } else {
+            actionHtml = '—';
+          }
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${d.item || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.requestedBy || '—'}</td>
+          <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
+          <td>${d.emergency ? '<span class="priority-tag urgent">URGENT</span>' : '—'}</td>
+          <td><span class="status-pill ${LP_STATUS_PILL_CLASS[d.status] || ''}">${LP_STATUS_LABELS[d.status] || d.status}</span></td>
+          ${showActions ? `<td>${actionHtml}</td>` : ''}`;
+        tbody.appendChild(tr);
+      });
+      if (showActions) {
+        tbody.querySelectorAll('.lp-invoice-btn').forEach(btn => {
+          btn.addEventListener('click', () => openLpInvoiceModal(btn.dataset.id, btn.dataset.item, btn.dataset.requestid));
+        });
+        tbody.querySelectorAll('.lp-verify-btn').forEach(btn => {
+          btn.addEventListener('click', () => advanceLocalPurchase(btn.dataset.id, 'verified', tabId));
+        });
+        tbody.querySelectorAll('.lp-reimburse-btn').forEach(btn => {
+          btn.addEventListener('click', () => openPaymentModal('localPurchase', btn.dataset.id, tabId));
+        });
+      }
+    } catch (err) {
+      console.error('Load local purchases failed:', err);
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceLocalPurchase(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'localPurchases', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
+    } catch (err) {
+      console.error('Update local purchase failed:', err);
+      alert('Could not update this request. Check the console for details.');
+    }
+  }
+
+  // New Local Purchase Request modal
+  const lpOverlay = document.getElementById('lp-overlay');
+  const lpForm = document.getElementById('lp-form');
+  const lpError = document.getElementById('lp-error');
+  const lpSuccess = document.getElementById('lp-success');
+  const lpSubmitBtn = document.getElementById('submit-lp');
+
+  function openLpModal() {
+    lpForm.reset();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = false;
+    lpSubmitBtn.textContent = 'Create request';
+    lpOverlay.classList.add('show');
+  }
+  function closeLpModal() { lpOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp').addEventListener('click', closeLpModal);
+  lpOverlay.addEventListener('click', (e) => { if (e.target === lpOverlay) closeLpModal(); });
+
+  lpForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpError.classList.remove('show');
+    lpSuccess.classList.remove('show');
+    lpSubmitBtn.disabled = true;
+    lpSubmitBtn.textContent = 'Creating…';
+    try {
+      const requestId = await generateLocalPurchaseId();
+      await addDoc(collection(db, 'localPurchases'), {
+        requestId,
+        item: document.getElementById('lp-item').value.trim(),
+        quantity: Number(document.getElementById('lp-qty').value) || 1,
+        estimatedAmount: Number(document.getElementById('lp-amount').value) || 0,
+        requestedBy: document.getElementById('lp-requestedby').value.trim(),
+        emergency: document.getElementById('lp-emergency-flag').checked,
+        notes: document.getElementById('lp-notes').value.trim(),
+        status: 'requested',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      lpSuccess.textContent = `Created — ${requestId}`;
+      lpSuccess.classList.add('show');
+      lpSubmitBtn.textContent = 'Create request';
+      lpSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpModal, 1000);
+    } catch (err) {
+      console.error('Create local purchase failed:', err);
+      lpError.textContent = 'Could not create request. Check console for details.';
+      lpError.classList.add('show');
+      lpSubmitBtn.disabled = false;
+      lpSubmitBtn.textContent = 'Create request';
+    }
+  });
+
+  // Invoice submission modal
+  const lpInvoiceOverlay = document.getElementById('lp-invoice-overlay');
+  const lpInvoiceForm = document.getElementById('lp-invoice-form');
+  const lpInvoiceError = document.getElementById('lp-invoice-error');
+  const lpInvoiceSuccess = document.getElementById('lp-invoice-success');
+  const lpInvoiceSubmitBtn = document.getElementById('submit-lp-invoice');
+  const lpInvoiceLabel = document.getElementById('lp-invoice-label');
+
+  function openLpInvoiceModal(docId, item, requestId) {
+    lpInvoiceForm.reset();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = false;
+    lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    document.getElementById('lp-invoice-doc-id').value = docId;
+    lpInvoiceLabel.textContent = `${requestId ? requestId + ' — ' : ''}${item}`;
+    lpInvoiceOverlay.classList.add('show');
+  }
+  function closeLpInvoiceModal() { lpInvoiceOverlay.classList.remove('show'); }
+  document.getElementById('cancel-lp-invoice').addEventListener('click', closeLpInvoiceModal);
+  lpInvoiceOverlay.addEventListener('click', (e) => { if (e.target === lpInvoiceOverlay) closeLpInvoiceModal(); });
+
+  lpInvoiceForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lpInvoiceError.classList.remove('show');
+    lpInvoiceSuccess.classList.remove('show');
+    lpInvoiceSubmitBtn.disabled = true;
+    lpInvoiceSubmitBtn.textContent = 'Saving…';
+    const docId = document.getElementById('lp-invoice-doc-id').value;
+    try {
+      await updateDoc(doc(db, 'localPurchases', docId), {
+        status: 'invoice_submitted',
+        vendor: document.getElementById('lp-vendor').value.trim(),
+        invoiceNumber: document.getElementById('lp-invoice-number').value.trim(),
+        actualAmount: Number(document.getElementById('lp-actual-amount').value) || 0,
+        updatedAt: serverTimestamp()
+      });
+      lpInvoiceSuccess.textContent = 'Invoice submitted.';
+      lpInvoiceSuccess.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && LOCAL_PURCHASE_TABS[activeItem.dataset.id]) {
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[activeItem.dataset.id], activeItem.dataset.id, activeItem.dataset.id !== 'lp-history');
+      }
+      setTimeout(closeLpInvoiceModal, 800);
+    } catch (err) {
+      console.error('Submit invoice failed:', err);
+      lpInvoiceError.textContent = 'Could not submit invoice. Check console for details.';
+      lpInvoiceError.classList.add('show');
+      lpInvoiceSubmitBtn.disabled = false;
+      lpInvoiceSubmitBtn.textContent = 'Submit invoice';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Claims — Technician / Service Center reimbursement claims.
+  // Submitted → Verified → Settled, with Reject available from
+  // Submitted or Verified, and Reopen from Rejected.
+  // ---------------------------------------------------------------
+
+  const CLAIMS_TABS = {
+    'claims-technician': 'technician',
+    'claims-servicecenter': 'servicecenter',
+    'claims-verification': 'VERIFICATION',
+    'claims-history': 'ALL',
+  };
+  const CLAIM_STATUS_LABELS = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+  const CLAIM_STATUS_PILL_CLASS = { submitted: 'new', verified: 'low', settled: 'ok', rejected: 'backorder' };
+
+  async function generateClaimId() {
+    const counterKey = `claim-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderClaims(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-primary" id="open-claim-request">+ New Claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="claims-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-claim-request').addEventListener('click', openClaimModal);
+    loadClaims(filterValue, tabId);
+  }
+
+  async function loadClaims(filterValue, tabId) {
+    const tbody = document.getElementById('claims-tbody');
+    try {
+      let snap;
+      if (filterValue === 'ALL') {
+        snap = await getDocs(query(collection(db, 'claims'), orderBy('createdAt', 'desc')));
+      } else if (filterValue === 'VERIFICATION') {
+        snap = await getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted')));
+      } else {
+        snap = await getDocs(query(collection(db, 'claims'), where('claimantType', '==', filterValue)));
+      }
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        let actionHtml = '—';
+        if (d.status === 'submitted') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'verified') {
+          actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'rejected') {
+          actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+          <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
+          <td>${d.claimantName || '—'}</td>
+          <td>${d.description || '—'}</td>
+          <td>₹${d.amount ?? '—'}</td>
+          <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'verified', tabId)));
+      tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', () => openPaymentModal('claim', btn.dataset.id, tabId)));
+      tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'rejected', tabId)));
+      tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'submitted', tabId)));
+    } catch (err) {
+      console.error('Load claims failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceClaim(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'claims', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadClaims(CLAIMS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update claim failed:', err);
+      alert('Could not update this claim. Check the console for details.');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Payments — a real settlement record (method, reference, paid
+  // date), created whenever a claim is marked Settled or a local
+  // purchase marked Reimbursed. Replaces what used to be a bare
+  // status flip with no payment trail.
+  // ---------------------------------------------------------------
+
+  const paymentOverlay = document.getElementById('payment-overlay');
+  const paymentForm = document.getElementById('payment-form');
+  const paymentError = document.getElementById('payment-error');
+  const paymentSuccess = document.getElementById('payment-success');
+  const paymentSubmitBtn = document.getElementById('submit-payment');
+  const paymentLabel = document.getElementById('payment-label');
+  let paymentContext = null;
+
+  async function openPaymentModal(sourceType, sourceId, tabId) {
+    paymentForm.reset();
+    paymentError.classList.remove('show');
+    paymentSuccess.classList.remove('show');
+    paymentSubmitBtn.disabled = false;
+    paymentSubmitBtn.textContent = 'Record payment';
+    document.getElementById('payment-date').value = new Date().toISOString().slice(0, 10);
+
+    const collectionName = sourceType === 'claim' ? 'claims' : 'localPurchases';
+    try {
+      const snap = await getDoc(doc(db, collectionName, sourceId));
+      const d = snap.exists() ? snap.data() : {};
+      const refId = sourceType === 'claim' ? (d.claimId || sourceId) : (d.requestId || sourceId);
+      const amount = sourceType === 'claim' ? d.amount : (d.actualAmount ?? d.estimatedAmount);
+      paymentLabel.textContent = `${refId} — ${d.description || d.item || ''}`;
+      document.getElementById('payment-amount').value = amount ?? '';
+      paymentContext = { sourceType, sourceId, tabId, refId, description: d.description || d.item || '' };
+    } catch (err) {
+      console.error('Load payment context failed:', err);
+      paymentContext = { sourceType, sourceId, tabId, refId: sourceId, description: '' };
+    }
+    paymentOverlay.classList.add('show');
+  }
+  function closePaymentModal() { paymentOverlay.classList.remove('show'); }
+  document.getElementById('cancel-payment').addEventListener('click', closePaymentModal);
+  paymentOverlay.addEventListener('click', (e) => { if (e.target === paymentOverlay) closePaymentModal(); });
+
+  paymentForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    paymentError.classList.remove('show');
+    paymentSuccess.classList.remove('show');
+    if (!paymentContext) return;
+    paymentSubmitBtn.disabled = true;
+    paymentSubmitBtn.textContent = 'Recording…';
+    const { sourceType, sourceId, tabId, refId, description } = paymentContext;
+    try {
+      await addDoc(collection(db, 'payments'), {
+        sourceType,
+        sourceId,
+        sourceRef: refId,
+        description,
+        amount: Number(document.getElementById('payment-amount').value) || 0,
+        method: document.getElementById('payment-method').value,
+        referenceNumber: document.getElementById('payment-reference').value.trim(),
+        paidDate: document.getElementById('payment-date').value,
+        createdAt: serverTimestamp()
+      });
+      if (sourceType === 'claim') {
+        await updateDoc(doc(db, 'claims', sourceId), { status: 'settled', updatedAt: serverTimestamp() });
+        loadClaims(CLAIMS_TABS[tabId], tabId);
+      } else {
+        await updateDoc(doc(db, 'localPurchases', sourceId), { status: 'reimbursed', updatedAt: serverTimestamp() });
+        loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
+      }
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'payment', entityId: sourceId, action: 'settled',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Recorded ₹${document.getElementById('payment-amount').value} payment (${document.getElementById('payment-method').value}) for ${refId}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      paymentSuccess.textContent = 'Payment recorded.';
+      paymentSuccess.classList.add('show');
+      paymentSubmitBtn.disabled = false;
+      paymentSubmitBtn.textContent = 'Record payment';
+      setTimeout(closePaymentModal, 900);
+    } catch (err) {
+      console.error('Record payment failed:', err);
+      paymentError.textContent = 'Could not record this payment. Check console for details.';
+      paymentError.classList.add('show');
+      paymentSubmitBtn.disabled = false;
+      paymentSubmitBtn.textContent = 'Record payment';
+    }
+  });
+
+  const claimOverlay = document.getElementById('claim-overlay');
+  const claimForm = document.getElementById('claim-form');
+  const claimError = document.getElementById('claim-error');
+  const claimSuccess = document.getElementById('claim-success');
+  const claimSubmitBtn = document.getElementById('submit-claim');
+
+  function openClaimModal() {
+    claimForm.reset();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = false;
+    claimSubmitBtn.textContent = 'Create claim';
+    claimOverlay.classList.add('show');
+  }
+  function closeClaimModal() { claimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-claim').addEventListener('click', closeClaimModal);
+  claimOverlay.addEventListener('click', (e) => { if (e.target === claimOverlay) closeClaimModal(); });
+
+  claimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    claimError.classList.remove('show');
+    claimSuccess.classList.remove('show');
+    claimSubmitBtn.disabled = true;
+    claimSubmitBtn.textContent = 'Creating…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: document.getElementById('claim-type').value,
+        claimantName: document.getElementById('claim-name').value.trim(),
+        description: document.getElementById('claim-description').value.trim(),
+        amount: Number(document.getElementById('claim-amount').value) || 0,
+        notes: document.getElementById('claim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      claimSuccess.textContent = `Created — ${claimId}`;
+      claimSuccess.classList.add('show');
+      claimSubmitBtn.textContent = 'Create claim';
+      claimSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && CLAIMS_TABS[activeItem.dataset.id]) {
+        loadClaims(CLAIMS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeClaimModal, 1000);
+    } catch (err) {
+      console.error('Create claim failed:', err);
+      claimError.textContent = 'Could not create claim. Check console for details.';
+      claimError.classList.add('show');
+      claimSubmitBtn.disabled = false;
+      claimSubmitBtn.textContent = 'Create claim';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Returns & Defects — intake → inspect (defective or restock) →
+  // for defective items, send to supplier or dispose.
+  // ---------------------------------------------------------------
+
+  const RETURNS_TABS = {
+    'returns-requests': 'requested',
+    'returns-intake': 'received',
+    'returns-defective': 'defective',
+    'returns-rejected': 'rejected',
+    'returns-refurbished': 'refurbished',
+    'returns-supplier': 'supplier_return',
+    'returns-disposal': 'disposed',
+  };
+  const RETURN_STATUS_LABELS = {
+    requested: 'Requested', received: 'Received', defective: 'Defective', rejected: 'Rejected',
+    refurbished: 'Refurbished', supplier_return: 'Sent to Supplier',
+    disposed: 'Disposed', restocked: 'Restocked'
+  };
+  const RETURN_STATUS_PILL_CLASS = {
+    requested: 'new', received: 'new', defective: 'backorder', rejected: 'out',
+    refurbished: 'ok', supplier_return: 'low', disposed: 'out', restocked: 'ok'
+  };
+
+  async function generateReturnId() {
+    const counterKey = `return-${currentYYYYMM()}`;
+    const counterRef = doc(db, 'counters', counterKey);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    return `PE-RT-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  async function renderReturns(filterValue, tabId, label) {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="open-return-request">+ Request Return</button>
+            <button class="btn-primary" id="open-return-accept">+ Accept Return</button>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Return ID</th><th>Part</th><th>Qty</th><th>Source</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="returns-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('open-return-request').addEventListener('click', () => openReturnModal('request'));
+    document.getElementById('open-return-accept').addEventListener('click', () => openReturnModal('accept'));
+    loadReturns(filterValue, tabId);
+  }
+
+  async function loadReturns(filterValue, tabId) {
+    const tbody = document.getElementById('returns-tbody');
+    try {
+      const [returnsSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', '==', filterValue))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+
+      if (returnsSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+        return;
+      }
+      let returnDocs = [];
+      returnsSnap.forEach(d => returnDocs.push({ id: d.id, ...d.data() }));
+      returnDocs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      tbody.innerHTML = '';
+      returnDocs.forEach(d => {
+        const part = partMap[d.partId];
+        const partLabel = part ? `${part.partCode} — ${part.name}` : (d.partId || '—');
+        let actionHtml = '—';
+        if (d.status === 'requested') {
+          actionHtml = `<button class="btn-secondary return-received-btn" data-id="${d.id}">Mark Received</button>`;
+        } else if (d.status === 'received') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${d.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${d.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button><button class="btn-danger return-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        } else if (d.status === 'defective') {
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-refurbish-btn" data-id="${d.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Refurbish</button><button class="btn-secondary return-supplier-btn" data-id="${d.id}">Send to Supplier</button><button class="btn-secondary return-claim-btn" data-id="${d.id}" data-partid="${d.partId}">File Claim</button><button class="btn-danger return-dispose-btn" data-id="${d.id}">Dispose</button></div>`;
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.returnId || d.id}</td>
+          <td>${partLabel}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td>${d.source || '—'}</td>
+          <td>${escapeHtml(d.reason || '—')}</td>
+          <td><span class="status-pill ${RETURN_STATUS_PILL_CLASS[d.status] || ''}">${RETURN_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${actionHtml}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.return-received-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'received', tabId)));
+      tbody.querySelectorAll('.return-defective-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'defective', tabId)));
+      tbody.querySelectorAll('.return-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'rejected', tabId)));
+      tbody.querySelectorAll('.return-supplier-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'supplier_return', tabId)));
+      tbody.querySelectorAll('.return-dispose-btn').forEach(btn => btn.addEventListener('click', () => advanceReturn(btn.dataset.id, 'disposed', tabId)));
+      tbody.querySelectorAll('.return-restock-btn').forEach(btn => {
+        btn.addEventListener('click', () => restockReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+      tbody.querySelectorAll('.return-refurbish-btn').forEach(btn => {
+        btn.addEventListener('click', () => refurbishReturn(btn.dataset.id, btn.dataset.partid, Number(btn.dataset.qty), tabId));
+      });
+      tbody.querySelectorAll('.return-claim-btn').forEach(btn => {
+        btn.addEventListener('click', () => fileClaimFromReturn(btn.dataset.id, btn.dataset.partid));
+      });
+    } catch (err) {
+      console.error('Load returns failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load returns. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function advanceReturn(id, nextStatus, tabId) {
+    try {
+      await updateDoc(doc(db, 'returns', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Update return failed:', err);
+      alert('Could not update this return. Check the console for details.');
+    }
+  }
+
+  // "Return to Stock" both closes out the return AND adds the
+  // quantity back into Warehouse inventory — same atomic pattern
+  // as Inventory's Adjust Stock, plus a stockMovements log entry.
+  async function restockReturn(returnDocId, partId, qty, tabId) {
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'receive', location: 'warehouse', quantity: qty,
+        reason: 'Returned to stock (inspected, found OK)', createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'returns', returnDocId), { status: 'restocked', updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Restock return failed:', err);
+      alert('Could not restock this item. Check the console for details.');
+    }
+  }
+
+  // Refurbish: same effect as restocking (repaired in-house, usable
+  // again) but tracked as its own terminal status so it's visible
+  // separately from "returned, found already OK" — useful for
+  // knowing how much repair work is actually happening.
+  async function refurbishReturn(returnDocId, partId, qty, tabId) {
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        transaction.set(invRef, {
+          partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'receive', location: 'warehouse', quantity: qty,
+        reason: 'Refurbished and returned to stock', createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'returns', returnDocId), { status: 'refurbished', updatedAt: serverTimestamp() });
+      loadReturns(RETURNS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Refurbish return failed:', err);
+      alert('Could not refurbish this item. Check the console for details.');
+    }
+  }
+
+  // Files a real claims entry referencing this return, so it flows
+  // into the existing Claims Verification pipeline for processing —
+  // for a defective part that's genuinely the source/dealer's fault
+  // (not just excess stock), rather than a silent dead end.
+  async function fileClaimFromReturn(returnDocId, partId) {
+    try {
+      const returnSnap = await getDoc(doc(db, 'returns', returnDocId));
+      if (!returnSnap.exists()) { alert('Could not find this return.'); return; }
+      const r = returnSnap.data();
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantUid: null,
+        claimantType: 'warehouse',
+        partId,
+        description: `Defective part claim — ${escapeHtml(r.reason || 'no reason given')} (from return ${r.returnId || returnDocId})`,
+        amount: null,
+        sourceReturnId: returnDocId,
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      alert(`Claim filed — ${claimId}. Find it under Claim Processing / Claims Verification.`);
+    } catch (err) {
+      console.error('File claim from return failed:', err);
+      alert('Could not file a claim for this return. Check the console for details.');
+    }
+  }
+
+  const returnOverlay = document.getElementById('return-overlay');
+  const returnForm = document.getElementById('return-form');
+  const returnError = document.getElementById('return-error');
+  const returnSuccess = document.getElementById('return-success');
+  const returnSubmitBtn = document.getElementById('submit-return');
+  const returnPartSelect = document.getElementById('return-part-id');
+
+  async function populateReturnPartOptions() {
+    if (returnPartSelect.dataset.loaded === 'true') return;
+    try {
+      const snap = await getDocs(collection(db, 'spareParts'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        const opt = document.createElement('option');
+        opt.value = docSnap.id;
+        opt.textContent = `${d.partCode} — ${d.name}`;
+        returnPartSelect.appendChild(opt);
+      });
+      returnPartSelect.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Load parts for return form failed:', err);
+    }
+  }
+
+  function openReturnModal(mode) {
+    returnForm.reset();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    returnSubmitBtn.disabled = false;
+    returnForm.dataset.mode = mode;
+    if (mode === 'request') {
+      document.getElementById('return-modal-title').textContent = 'Request a return';
+      returnSubmitBtn.textContent = 'Send request';
+    } else {
+      document.getElementById('return-modal-title').textContent = 'Accept a return';
+      returnSubmitBtn.textContent = 'Accept return';
+    }
+    populateReturnPartOptions();
+    returnOverlay.classList.add('show');
+  }
+  function closeReturnModal() { returnOverlay.classList.remove('show'); }
+  document.getElementById('cancel-return').addEventListener('click', closeReturnModal);
+  returnOverlay.addEventListener('click', (e) => { if (e.target === returnOverlay) closeReturnModal(); });
+
+  returnForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    returnError.classList.remove('show');
+    returnSuccess.classList.remove('show');
+    if (!returnPartSelect.value) {
+      returnError.textContent = 'Select a part.';
+      returnError.classList.add('show');
+      return;
+    }
+    const mode = returnForm.dataset.mode || 'accept';
+    const initialStatus = mode === 'request' ? 'requested' : 'received';
+    returnSubmitBtn.disabled = true;
+    returnSubmitBtn.textContent = 'Saving…';
+    try {
+      const returnId = await generateReturnId();
+      await addDoc(collection(db, 'returns'), {
+        returnId,
+        partId: returnPartSelect.value,
+        quantity: Number(document.getElementById('return-qty').value) || 1,
+        source: document.getElementById('return-source').value.trim(),
+        reason: document.getElementById('return-reason').value.trim(),
+        notes: document.getElementById('return-notes').value.trim(),
+        status: initialStatus,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      returnSuccess.textContent = `Saved — ${returnId}`;
+      returnSuccess.classList.add('show');
+      returnSubmitBtn.textContent = mode === 'request' ? 'Send request' : 'Accept return';
+      returnSubmitBtn.disabled = false;
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && RETURNS_TABS[activeItem.dataset.id]) {
+        loadReturns(RETURNS_TABS[activeItem.dataset.id], activeItem.dataset.id);
+      }
+      setTimeout(closeReturnModal, 1000);
+    } catch (err) {
+      console.error('Log return failed:', err);
+      returnError.textContent = 'Could not log this return. Check console for details.';
+      returnError.classList.add('show');
+      returnSubmitBtn.disabled = false;
+      returnSubmitBtn.textContent = 'Log return';
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Notifications — role-targeted, for Warehouse. Achievable slice of "Communication"
+  // without a real WhatsApp/SMS/Email provider connected.
+  // ---------------------------------------------------------------
+
+  let notifUnsubscribeTimer = null;
+
+  function notifQueryConfig() {
+    return { type: 'role', value: 'warehouse' };
+  }
+
+  async function loadNotifications() {
+    const cfg = notifQueryConfig();
+    if (!cfg) return;
+    const listEl = document.getElementById('notif-list');
+    const badgeEl = document.getElementById('notif-badge');
+    try {
+      // No orderBy here on purpose — combining it with the two where()
+      // clauses needs a composite index that doesn't exist by default
+      // in Firestore. Sorting client-side avoids that requirement
+      // entirely; a person's notification list is small enough that
+      // this costs nothing in practice.
+      const snap = await getDocs(query(
+        collection(db, 'notifications'),
+        where('recipientType', '==', cfg.type),
+        where('recipientValue', '==', cfg.value)
+      ));
+      const items = [];
+      snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const at = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+        const bt = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+        return bt - at;
+      });
+      const unreadCount = items.filter(n => !n.read).length;
+      if (unreadCount > 0) {
+        badgeEl.textContent = unreadCount > 9 ? '9+' : unreadCount;
+        badgeEl.style.display = 'block';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+      if (items.length === 0) {
+        listEl.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      items.slice(0, 25).forEach(n => {
+        const el = document.createElement('div');
+        el.className = 'notif-item' + (n.read ? '' : ' unread');
+        const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
+        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
+        el.addEventListener('click', async () => {
+          if (!n.read) {
+            try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }
+          }
+        });
+        listEl.appendChild(el);
+      });
+    } catch (err) {
+      console.error('Load notifications failed:', err);
+      listEl.innerHTML = '<div class="notif-empty">Couldn\'t load notifications.</div>';
+    }
+  }
+
+  const notifBellBtn = document.getElementById('notif-bell-btn');
+  const notifPanel = document.getElementById('notif-panel');
+  if (notifBellBtn) {
+    notifBellBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifPanel.classList.toggle('show');
+      if (notifPanel.classList.contains('show')) loadNotifications();
+    });
+    document.addEventListener('click', (e) => {
+      if (!notifPanel.contains(e.target) && e.target !== notifBellBtn) notifPanel.classList.remove('show');
+    });
+    document.getElementById('notif-mark-all').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cfg = notifQueryConfig();
+      if (!cfg) return;
+      try {
+        const snap = await getDocs(query(collection(db, 'notifications'), where('recipientType', '==', cfg.type), where('recipientValue', '==', cfg.value), where('read', '==', false)));
+        await Promise.all(snap.docs.map(d => updateDoc(doc(db, 'notifications', d.id), { read: true })));
+        loadNotifications();
+      } catch (err) { console.error('Mark all read failed:', err); }
+    });
+  }
+
+  if (notifUnsubscribeTimer) clearInterval(notifUnsubscribeTimer);
+  notifUnsubscribeTimer = setInterval(loadNotifications, 60000);
+
+  renderNav();
+  setActiveNav('dashboard');
+</script>
+</body>
+</html>
