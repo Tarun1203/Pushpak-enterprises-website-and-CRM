@@ -1301,7 +1301,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // (see loadKnownLocations below), not guessed.
   // -----------------------------------------------------------------
 
-  function createChipInput(chipsContainerId, inputId, addBtnId) {
+  function createChipInput(chipsContainerId, inputId, addBtnId, onChange) {
     let values = [];
     const chipsEl = document.getElementById(chipsContainerId);
     const inputEl = document.getElementById(inputId);
@@ -1319,6 +1319,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         });
         chipsEl.appendChild(chip);
       });
+      if (onChange) onChange(values);
     }
     function addFromInput() {
       const v = inputEl.value.trim();
@@ -1339,9 +1340,27 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     };
   }
 
-  const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add');
+  // Once a district is added, the pincode dropdown narrows to only
+  // that district's pincodes — picking a district first, then a
+  // pincode within it, rather than scrolling every pincode company-
+  // wide. Falls back to the full list when no district is selected
+  // yet, or when a pincode's district isn't set in the master.
+  async function filterPincodeOptionsByDistricts(selectId, districts) {
+    await loadKnownLocations(); // idempotent — ensures the base list has settled before narrowing it, regardless of call order elsewhere
+    const select = document.getElementById(selectId);
+    const master = await getPincodesCache(false);
+    const pool = districts.length
+      ? master.filter(p => districts.some(d => (p.district || '').toLowerCase() === d.toLowerCase()))
+      : master;
+    const options = pool.map(p => p.id).sort();
+    select.innerHTML = '<option value="">Pincode…</option>' + options.map(p => `<option value="${p}">${p}</option>`).join('');
+  }
+
+  const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add',
+    (districts) => filterPincodeOptionsByDistricts('new-user-pincode-input', districts));
   const newUserPincodesChip = createChipInput('new-user-pincodes-chips', 'new-user-pincode-input', 'new-user-pincode-add');
-  const editUserDistrictsChip = createChipInput('edit-user-districts-chips', 'edit-user-district-input', 'edit-user-district-add');
+  const editUserDistrictsChip = createChipInput('edit-user-districts-chips', 'edit-user-district-input', 'edit-user-district-add',
+    (districts) => filterPincodeOptionsByDistricts('edit-user-pincode-input', districts));
   const editUserPincodesChip = createChipInput('edit-user-pincodes-chips', 'edit-user-pincode-input', 'edit-user-pincode-add');
 
   // Skills — a repeatable list of {category, level} pairs, shown for
