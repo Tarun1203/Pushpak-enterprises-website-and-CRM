@@ -522,6 +522,17 @@
 </div>
 
 <!-- Customer 360 record detail popup — used for both Registrations and Service Activity -->
+<div class="modal-overlay" id="svc-ticket-overlay">
+  <div class="modal modal-wide">
+    <h3 id="svc-ticket-title">Ticket details</h3>
+    <div id="svc-ticket-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div id="svc-ticket-actions" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-svc-ticket">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="c360-detail-overlay">
   <div class="modal modal-wide">
     <h3 id="c360-detail-title">Record details</h3>
@@ -909,7 +920,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     ]},
     { group: 'Service Operations', items: [
       { id: 'service', label: 'Service', built: true },
-      { id: 'routing', label: 'Service Request Routing', built: true },
       { id: 'centers', label: 'Service Centers', built: true },
       { id: 'technicians', label: 'Technicians', built: true },
       { id: 'pincodes', label: 'Pincode Master', built: true },
@@ -1055,9 +1065,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'reports') {
       pageSub.textContent = 'Company-wide summary';
       renderReportsOverview();
-    } else if (id === 'routing') {
-      pageSub.textContent = 'Assign unassigned requests to a technician';
-      renderRouting();
     } else if (id === 'sla') {
       pageSub.textContent = 'Requests open too long';
       renderSlaEscalation();
@@ -3773,12 +3780,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function renderServiceOverview() {
     contentEl.innerHTML = `
+      <div id="routing-auto-notice"></div>
       <div class="panel">
         <div class="panel-header"><h2>All service activity</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="service-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
+            <tbody id="service-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3788,6 +3796,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function loadServiceOverview() {
     const tbody = document.getElementById('service-tbody');
     try {
+      // Same auto-routing pass Routing used to run on its own load —
+      // exact pincode matches get sent straight to the covering
+      // center before anything else renders.
+      await autoRouteExactPincodeMatches();
       const [jobsSnap, requestsSnap, publicSnap] = await Promise.all([
         getDocs(query(collection(db, 'serviceJobs'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'centerRequests'), orderBy('createdAt', 'desc'))),
@@ -3796,102 +3808,203 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rows = [];
       jobsSnap.forEach(d => {
         const j = d.data();
-        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, closureCode: j.closureCode, actionTaken: j.actionTaken, partsUsedNotes: j.partsUsedNotes });
+        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, full: j });
       });
       requestsSnap.forEach(d => {
         const r = d.data();
-        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, closureCode: r.closureCode, actionTaken: r.actionTaken, partsUsedNotes: r.partsUsedNotes });
+        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, full: r });
       });
       publicSnap.forEach(d => {
         const p = d.data();
-        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || '—', status: p.status, createdAt: p.createdAt });
+        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || '—', status: p.status, createdAt: p.createdAt, full: p });
       });
       rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No service activity yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No service activity yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        // Verify/Close/Reopen only make sense on serviceJobs and
-        // centerRequests — the two collections that actually go
-        // through the full technician-facing lifecycle.
-        let actionHtml = '—';
-        if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
-          if (r.status === 'completed') {
-            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="verification">Move to Verification</button></div>`;
-          } else if (r.status === 'verification') {
-            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button></div>`;
-          } else if (r.status === 'closed') {
-            actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="reopened">Reopen</button>`;
-          } else if (r.coll === 'centerRequests' && r.status === 'new') {
-            // Sitting unassigned to a technician — this is exactly
-            // what Routing's queue handles, so link straight there
-            // instead of leaving this row with nothing to do.
-            actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
-          }
-        } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
-          // Not yet routed to a center at all.
-          actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
-        }
         tr.innerHTML = `
           <td>${r.source}</td>
-          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
-          <td>${r.customer || '—'}</td>
-          <td>${r.assigned || '—'}</td>
-          <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
-          <td>${actionHtml}</td>`;
+          <td><a href="#" class="c360-open-link" style="font-size:12px;">${r.id || '—'}</a></td>
+          <td>${escapeHtml(r.customer) || '—'}</td>
+          <td>${escapeHtml(r.assigned) || '—'}</td>
+          <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>`;
         tbody.appendChild(tr);
-        const gotoRoutingBtn = tr.querySelector('.svc-goto-routing-btn');
-        if (gotoRoutingBtn) {
-          gotoRoutingBtn.addEventListener('click', () => selectSection('routing', 'Service Request Routing', true));
-        }
-        const evidenceBtn = tr.querySelector('.svc-evidence-btn');
-        if (evidenceBtn) {
-          evidenceBtn.addEventListener('click', () => {
-            const existing = tr.nextElementSibling;
-            if (existing && existing.classList.contains('evidence-detail-row')) { existing.remove(); return; }
-            const detailRow = document.createElement('tr');
-            detailRow.className = 'evidence-detail-row';
-            detailRow.innerHTML = `<td colspan="6" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
-              <b>Closure code:</b> ${r.closureCode || '—'}<br>
-              <b>Action taken:</b> ${escapeHtml(r.actionTaken) || '—'}<br>
-              <b>Parts used:</b> ${escapeHtml(r.partsUsedNotes) || '—'}
-            </td>`;
-            tr.after(detailRow);
-          });
-        }
-      });
-      tbody.querySelectorAll('.svc-advance-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const { coll, id, next } = btn.dataset;
-          try {
-            const payload = { status: next, updatedAt: serverTimestamp() };
-            // Reopening restarts the technician's own flow from the top.
-            if (next === 'reopened') payload.status = 'assigned';
-            await updateDoc(doc(db, coll, id), payload);
-            try {
-              await addDoc(collection(db, 'auditLogs'), {
-                entityType: 'serviceJob', entityId: id, action: 'status_changed',
-                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-                details: `${coll} status changed to "${payload.status}"`,
-                createdAt: serverTimestamp()
-              });
-            } catch (auditErr) {
-              console.warn('Audit log write failed (non-blocking):', auditErr.message);
-            }
-            loadServiceOverview();
-          } catch (err) {
-            console.error('Update service status failed:', err);
-            alert('Could not update this job. Check the console for details.');
-          }
+        tr.querySelector('.c360-open-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          openSvcTicketPopup(r);
         });
       });
     } catch (err) {
       console.error('Load service overview failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
     }
+  }
+
+  const svcTicketOverlay = document.getElementById('svc-ticket-overlay');
+  const svcTicketTitle = document.getElementById('svc-ticket-title');
+  const svcTicketBody = document.getElementById('svc-ticket-body');
+  const svcTicketActions = document.getElementById('svc-ticket-actions');
+  document.getElementById('close-svc-ticket').addEventListener('click', () => svcTicketOverlay.classList.remove('show'));
+  svcTicketOverlay.addEventListener('click', (e) => { if (e.target === svcTicketOverlay) svcTicketOverlay.classList.remove('show'); });
+
+  // The single popup every ticket opens into. What's shown in the
+  // actions slot depends entirely on the ticket's current state:
+  // unassigned → routing controls (what Routing used to be its own
+  // screen for); completed/verification/closed → the same
+  // Verify/Close/Reopen flow as before; anything mid-flight → just
+  // the detail, nothing to do yet.
+  async function openSvcTicketPopup(r) {
+    const f = r.full;
+    svcTicketTitle.textContent = r.id || 'Service ticket';
+    svcTicketBody.innerHTML = `
+      <div><b>Source:</b> ${r.source} &nbsp; <b>Status:</b> <span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></div>
+      <div><b>Customer:</b> ${escapeHtml(r.customer) || '—'} &nbsp; <b>Phone:</b> ${escapeHtml(f.customerPhone) || '—'}</div>
+      <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
+      <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
+      <div><b>Issue:</b> ${escapeHtml(f.issue || f.issueDescription) || '—'}</div>
+      <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>`;
+    svcTicketActions.innerHTML = '';
+
+    if (f.closureCode) {
+      svcTicketBody.innerHTML += `
+        <div style="margin-top:10px;"><b>Closure code:</b> ${f.closureCode}<br>
+        <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
+        <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
+    }
+
+    if ((r.coll === 'serviceJobs' || r.coll === 'centerRequests') && ['completed', 'verification', 'closed'].includes(r.status)) {
+      // Same closing flow Service always had.
+      let btnHtml = '';
+      if (r.status === 'completed') btnHtml = `<button class="btn-primary" id="svc-popup-advance" data-next="verification">Move to Verification</button>`;
+      else if (r.status === 'verification') btnHtml = `<button class="btn-primary" id="svc-popup-advance" data-next="closed">Close Job</button>`;
+      else if (r.status === 'closed') btnHtml = `<button class="btn-secondary" id="svc-popup-advance" data-next="reopened">Reopen</button>`;
+      svcTicketActions.innerHTML = btnHtml;
+      const btn = document.getElementById('svc-popup-advance');
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          const next = btn.dataset.next;
+          btn.disabled = true;
+          try {
+            const payload = { status: next, updatedAt: serverTimestamp() };
+            if (next === 'reopened') payload.status = 'assigned';
+            await updateDoc(doc(db, r.coll, r.docId), payload);
+            try {
+              await addDoc(collection(db, 'auditLogs'), {
+                entityType: 'serviceJob', entityId: r.docId, action: 'status_changed',
+                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+                details: `${r.coll} status changed to "${payload.status}"`,
+                createdAt: serverTimestamp()
+              });
+            } catch (auditErr) { console.warn('Audit log write failed (non-blocking):', auditErr.message); }
+            svcTicketOverlay.classList.remove('show');
+            loadServiceOverview();
+          } catch (err) {
+            console.error('Update service status failed:', err);
+            alert('Could not update this job. Check the console for details.');
+            btn.disabled = false;
+          }
+        });
+      }
+    } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
+      await renderRoutingControlsForPublicRequest(f, r.docId);
+    } else if (r.coll === 'centerRequests' && r.status === 'new' && !f.technicianName) {
+      await renderRoutingControlsForCenterRequest(f, r.docId);
+    }
+
+    svcTicketOverlay.classList.add('show');
+  }
+
+  // Routing controls for a not-yet-routed website submission — same
+  // matching/sorting Routing's queue used (district/brand flags).
+  async function renderRoutingControlsForPublicRequest(d, docId) {
+    const [centers, pincodeMaster] = await Promise.all([getServiceCentersCache(), getPincodesCache(false)]);
+    const resolvedPincode = pincodeMaster.find(p => p.id === (d.pincode || '').trim());
+    const city = (d.city || '').trim().toLowerCase();
+    const district = resolvedPincode ? (resolvedPincode.district || '').toLowerCase() : '';
+    const requestBrandId = (d.brand || '').toLowerCase();
+    function locationLevel(c) {
+      if (district && (c.districtsCovered || []).some(dist => dist.toLowerCase() === district)) return 2;
+      if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
+      return 0;
+    }
+    function brandOk(c) { return !requestBrandId || (c.brandsAuthorized || []).includes(requestBrandId); }
+    const sorted = [...centers].sort((a, b) => (locationLevel(b) * 10 + (brandOk(b) ? 1 : 0)) - (locationLevel(a) * 10 + (brandOk(a) ? 1 : 0)));
+    const options = sorted.map(c => {
+      const level = locationLevel(c);
+      const locFlag = level === 2 ? '✓ district' : level === 1 ? '✓ city' : '';
+      const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
+      const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
+      return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${flags ? ' — ' + flags : ''}</option>`;
+    }).join('');
+    svcTicketActions.innerHTML = `
+      <div style="margin-bottom:8px;"><b>Route to service center</b></div>
+      <select id="svc-popup-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Select service center…</option>${options}</select>
+      <button class="btn-primary" id="svc-popup-route-btn">Assign</button>`;
+    document.getElementById('svc-popup-route-btn').addEventListener('click', async () => {
+      const select = document.getElementById('svc-popup-center-select');
+      if (!select.value) { alert('Select a service center first.'); return; }
+      const [centerUid, centerName] = select.value.split('|');
+      const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+      try {
+        await routeRequestToCenter({ ...d, id: docId }, centerUid, centerName, productLabel);
+        svcTicketOverlay.classList.remove('show');
+        loadServiceOverview();
+      } catch (err) {
+        console.error('Route to center failed:', err);
+        alert('Could not route this request. Check the console for details.');
+      }
+    });
+  }
+
+  // Routing controls for a center's own unassigned request — pick a
+  // technician cross-center, same override tool Routing offered.
+  async function renderRoutingControlsForCenterRequest(d, docId) {
+    const techs = await getTechniciansCache();
+    const brandId = (d.brand || '').toLowerCase();
+    const category = d.category || '';
+    function techMatchLevel(t) {
+      const brandOk = !brandId || (t.brandsAuthorized || []).includes(brandId);
+      const skillOk = !category || (t.skills || []).some(s => s.category === category);
+      if (brandOk && skillOk && (brandId || category)) return 2;
+      if (brandOk || skillOk) return 1;
+      return 0;
+    }
+    const eligibleTechs = techs.filter(t => !t.suspended);
+    const sortedTechs = [...eligibleTechs].sort((a, b) => techMatchLevel(b) - techMatchLevel(a));
+    const options = sortedTechs.map(t => {
+      const level = techMatchLevel(t);
+      const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
+      return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
+    }).join('');
+    svcTicketActions.innerHTML = `
+      <div style="margin-bottom:8px;"><b>Assign a technician</b></div>
+      <select id="svc-popup-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Select technician…</option>${options}</select>
+      <button class="btn-primary" id="svc-popup-tech-btn">Assign</button>`;
+    document.getElementById('svc-popup-tech-btn').addEventListener('click', async () => {
+      const select = document.getElementById('svc-popup-tech-select');
+      if (!select.value) { alert('Select a technician first.'); return; }
+      const [uid, name] = select.value.split('|');
+      const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+      try {
+        await updateDoc(doc(db, 'centerRequests', docId), { technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp() });
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            recipientType: 'uid', recipientValue: uid,
+            title: 'New job assigned', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
+            read: false, createdAt: serverTimestamp()
+          });
+        } catch (notifErr) { console.warn('Notification write failed (non-blocking):', notifErr.message); }
+        svcTicketOverlay.classList.remove('show');
+        loadServiceOverview();
+      } catch (err) {
+        console.error('Assign failed:', err);
+        alert('Could not assign this request. Check the console for details.');
+      }
+    });
   }
 
   // =================================================================
@@ -4659,21 +4772,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // assignable directly to any technician account (cross-center).
   // =================================================================
 
-  async function renderRouting() {
-    contentEl.innerHTML = `
-      <div id="routing-auto-notice"></div>
-      <div class="panel">
-        <div class="panel-header"><h2>Unassigned requests</h2></div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>Request ID</th><th>Customer</th><th>Product</th><th>Assign to</th><th></th></tr></thead>
-            <tbody id="routing-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
-    loadRoutingQueue();
-  }
-
   let techniciansCache = null;
   let serviceCentersCache = null;
 
@@ -4783,141 +4881,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         html += `<div class="modal-error show" style="margin-bottom:16px;">${skippedNoCapability} request(s) matched a pincode but not a brand-authorized center — left below for manual routing.</div>`;
       }
       notice.innerHTML = html;
-    }
-  }
-
-  async function loadRoutingQueue() {
-    const tbody = document.getElementById('routing-tbody');
-    try {
-      await autoRouteExactPincodeMatches();
-      const [centerSnap, publicSnap, techs, centers] = await Promise.all([
-        getDocs(query(collection(db, 'centerRequests'), where('status', '==', 'new'))),
-        getDocs(query(collection(db, 'publicServiceRequests'), where('status', '==', 'new'))),
-        getTechniciansCache(),
-        getServiceCentersCache(),
-      ]);
-      const pincodeMaster = await getPincodesCache(false);
-      const docs = [];
-      centerSnap.forEach(d => { if (!d.data().technicianName) docs.push({ ...d.data(), id: d.id, source: 'centerRequests' }); });
-      publicSnap.forEach(d => { docs.push({ ...d.data(), id: d.id, source: 'publicServiceRequests' }); });
-      if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing unassigned right now.</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = '';
-      docs.forEach(d => {
-        const tr = document.createElement('tr');
-        const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
-
-        if (d.source === 'publicServiceRequests') {
-          // These have no exact pincode match (otherwise they'd have
-          // been auto-routed above) — district (resolved via the
-          // Pincode Master, when available) is a stronger fallback
-          // signal than raw city-text; shown to staff either way.
-          const resolvedPincode = pincodeMaster.find(p => p.id === (d.pincode || '').trim());
-          const city = (d.city || '').trim().toLowerCase();
-          const district = resolvedPincode ? (resolvedPincode.district || '').toLowerCase() : '';
-          const requestBrandId = (d.brand || '').toLowerCase();
-          function locationLevel(c) {
-            if (district && (c.districtsCovered || []).some(dist => dist.toLowerCase() === district)) return 2;
-            if (city && (c.districtsCovered || []).some(dist => dist.toLowerCase() === city)) return 1;
-            return 0;
-          }
-          function brandOk(c) {
-            return !requestBrandId || (c.brandsAuthorized || []).includes(requestBrandId);
-          }
-          const sorted = [...centers].sort((a, b) => {
-            const aScore = locationLevel(a) * 10 + (brandOk(a) ? 1 : 0);
-            const bScore = locationLevel(b) * 10 + (brandOk(b) ? 1 : 0);
-            return bScore - aScore;
-          });
-          const options = sorted.map(c => {
-            const level = locationLevel(c);
-            const locFlag = level === 2 ? '✓ district' : level === 1 ? '✓ city' : '';
-            const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
-            const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
-            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${flags ? ' — ' + flags : ''}</option>`;
-          }).join('');
-          const locationLabel = resolvedPincode
-            ? ` — ${resolvedPincode.city || d.city || ''}${resolvedPincode.district ? ', ' + resolvedPincode.district + ' District' : ''}`
-            : (d.city ? ' — ' + d.city : '');
-          tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${locationLabel}${d.pincode ? ' ' + d.pincode : ''}${d.brand ? ' — ' + d.brand : ''}</span></td>
-            <td>${escapeHtml(d.customerName || '—')}</td>
-            <td>${productLabel}</td>
-            <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
-            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
-          tbody.appendChild(tr);
-          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
-            const select = tr.querySelector('.routing-center-select');
-            if (!select.value) { alert('Select a service center first.'); return; }
-            const [centerUid, centerName] = select.value.split('|');
-            try {
-              await routeRequestToCenter(d, centerUid, centerName, productLabel);
-              loadRoutingQueue();
-            } catch (err) {
-              console.error('Route to center failed:', err);
-              alert('Could not route this request. Check the console for details.');
-            }
-          });
-        } else {
-          // Already belongs to a service center (they created it
-          // themselves) and just needs a technician — Super Admin can
-          // assign cross-center as an override/escalation tool.
-          // Suspended technicians are excluded entirely; skill/brand
-          // matches are flagged and sorted first, same pattern as the
-          // Service Center match flags above.
-          const brandId = (d.brand || '').toLowerCase();
-          const category = d.category || '';
-          function techMatchLevel(t) {
-            const brandOk = !brandId || (t.brandsAuthorized || []).includes(brandId);
-            const skillOk = !category || (t.skills || []).some(s => s.category === category);
-            if (brandOk && skillOk && (brandId || category)) return 2;
-            if (brandOk || skillOk) return 1;
-            return 0;
-          }
-          const eligibleTechs = techs.filter(t => !t.suspended);
-          const sortedTechs = [...eligibleTechs].sort((a, b) => techMatchLevel(b) - techMatchLevel(a));
-          const options = sortedTechs.map(t => {
-            const level = techMatchLevel(t);
-            const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
-            return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
-          }).join('');
-          tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
-            <td>${escapeHtml(d.customerName || '—')}</td>
-            <td>${productLabel}</td>
-            <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
-            <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
-          tbody.appendChild(tr);
-          tr.querySelector('.routing-assign-btn').addEventListener('click', async () => {
-            const select = tr.querySelector('.routing-tech-select');
-            if (!select.value) { alert('Select a technician first.'); return; }
-            const [uid, name] = select.value.split('|');
-            try {
-              await updateDoc(doc(db, 'centerRequests', d.id), {
-                technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
-              });
-              try {
-                await addDoc(collection(db, 'notifications'), {
-                  recipientType: 'uid', recipientValue: uid,
-                  title: 'New job assigned', message: `${escapeHtml(d.customerName || 'A customer')} — ${productLabel}`,
-                  read: false, createdAt: serverTimestamp()
-                });
-              } catch (notifErr) {
-                console.warn('Notification write failed (non-blocking):', notifErr.message);
-              }
-              loadRoutingQueue();
-            } catch (err) {
-              console.error('Assign failed:', err);
-              alert('Could not assign this request. Check the console for details.');
-            }
-          });
-        }
-      });
-    } catch (err) {
-      console.error('Load routing queue failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the queue. Check console for details.</td></tr>`;
     }
   }
 
