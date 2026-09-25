@@ -900,12 +900,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     ]},
     { group: 'Customers & Sales', items: [
       { id: 'customers', label: 'Customer 360', built: true },
-      { id: 'brands', label: 'Brands', built: true },
-      { id: 'products', label: 'Products', built: true },
-      { id: 'categories', label: 'Categories', built: true },
       { id: 'serials', label: 'Serial & Registration', built: true },
       { id: 'warranty', label: 'Warranty', built: true },
       { id: 'dealers', label: 'Dealers', built: true },
+    ]},
+    { group: 'Product Catalog', items: [
+      { id: 'brands', label: 'Brands', built: true },
+      { id: 'products', label: 'Products', built: true },
+      { id: 'categories', label: 'Categories', built: true },
+      { id: 'warrantyplans', label: 'Warranty Plans', built: true },
     ]},
     { group: 'Service Operations', items: [
       { id: 'service', label: 'Service', built: true },
@@ -1001,6 +1004,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'warranty') {
       pageSub.textContent = 'Warranty status across registrations';
       renderWarranty();
+    } else if (id === 'warrantyplans') {
+      pageSub.textContent = 'Multi-component warranty coverage, by brand and category';
+      renderWarrantyPlans();
     } else if (id === 'dealers') {
       pageSub.textContent = 'All dealer accounts';
       renderDealersOverview();
@@ -3128,15 +3134,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <button data-filter="active">Active</button>
         <button data-filter="low">Expiring Soon</button>
         <button data-filter="expired">Expired</button>
-        <button data-filter="plans">Warranty Plans</button>
       </div>
       <div id="warranty-content"></div>`;
     document.querySelectorAll('#warranty-tabs button').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#warranty-tabs button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        if (btn.dataset.filter === 'plans') renderWarrantyPlans();
-        else renderWarrantyStatusTable(btn.dataset.filter);
+        renderWarrantyStatusTable(btn.dataset.filter);
       });
     });
     renderWarrantyStatusTable('all');
@@ -3221,7 +3225,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
 
   async function renderWarrantyPlans() {
-    document.getElementById('warranty-content').innerHTML = `
+    contentEl.innerHTML = `
       <div class="panel">
         <div class="panel-header">
           <h2>Warranty plans</h2>
@@ -3423,8 +3427,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All service centers</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Requests</th><th>Technicians</th></tr></thead>
-            <tbody id="centers-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Brands</th><th>Categories</th><th>Coverage</th><th>Requests</th><th>Technicians</th><th>Actions</th></tr></thead>
+            <tbody id="centers-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3432,7 +3436,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No service center accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No service center accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -3442,13 +3446,29 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', userDoc.id))),
           getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', userDoc.id))),
         ]);
+        const brandsLabel = (d.brandsAuthorized || []).map(b => BRAND_LABELS[b] || b).join(', ') || '—';
+        const categoriesLabel = (d.categoriesAuthorized || []).join(', ') || '—';
+        const districtCount = (d.districtsCovered || []).length;
+        const pincodeCount = (d.pincodesCovered || []).length;
+        const coverageLabel = (districtCount || pincodeCount)
+          ? `${districtCount} district(s), ${pincodeCount} pincode(s)`
+          : '—';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.email || '—'}</td><td>${reqSnap.size}</td><td>${techSnap.size}</td>`;
+        tr.innerHTML = `
+          <td>${escapeHtml(d.name) || '—'}</td>
+          <td>${escapeHtml(d.email) || '—'}</td>
+          <td style="font-size:12.5px;">${escapeHtml(brandsLabel)}</td>
+          <td style="font-size:12.5px;max-width:180px;">${escapeHtml(categoriesLabel)}</td>
+          <td style="font-size:12.5px;">${coverageLabel}</td>
+          <td>${reqSnap.size}</td>
+          <td>${techSnap.size}</td>
+          <td><button class="btn-secondary center-edit-btn">Edit</button></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.center-edit-btn').addEventListener('click', () => openEditUserModal(userDoc.id, d));
       }
     } catch (err) {
       console.error('Load service centers failed:', err);
-      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
     }
   }
 
