@@ -230,10 +230,10 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(one at a time — suggestions come from actual customer registrations)</span></label>
+        <label>Cities / districts covered <span class="hint">(one at a time — from the Pincode Master)</span></label>
         <div class="chip-list" id="new-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="new-user-district-input" list="known-districts-list" placeholder="e.g. Hubli" style="flex:1;">
+          <select id="new-user-district-input" style="flex:1;"><option value="">District…</option></select>
           <button type="button" class="btn-secondary" id="new-user-district-add">Add</button>
         </div>
       </div>
@@ -241,7 +241,7 @@
         <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
         <div class="chip-list" id="new-user-pincodes-chips"></div>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="new-user-pincode-input" list="known-pincodes-list" placeholder="e.g. 580020" inputmode="numeric" maxlength="6" style="flex:1;">
+          <select id="new-user-pincode-input" style="flex:1;"><option value="">Pincode…</option></select>
           <button type="button" class="btn-secondary" id="new-user-pincode-add">Add</button>
         </div>
       </div>
@@ -310,10 +310,10 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(one at a time — suggestions come from actual customer registrations)</span></label>
+        <label>Cities / districts covered <span class="hint">(one at a time — from the Pincode Master)</span></label>
         <div class="chip-list" id="edit-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="edit-user-district-input" list="known-districts-list" placeholder="e.g. Hubli" style="flex:1;">
+          <select id="edit-user-district-input" style="flex:1;"><option value="">District…</option></select>
           <button type="button" class="btn-secondary" id="edit-user-district-add">Add</button>
         </div>
       </div>
@@ -321,7 +321,7 @@
         <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
         <div class="chip-list" id="edit-user-pincodes-chips"></div>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="edit-user-pincode-input" list="known-pincodes-list" placeholder="e.g. 580020" inputmode="numeric" maxlength="6" style="flex:1;">
+          <select id="edit-user-pincode-input" style="flex:1;"><option value="">Pincode…</option></select>
           <button type="button" class="btn-secondary" id="edit-user-pincode-add">Add</button>
         </div>
       </div>
@@ -369,9 +369,6 @@
 </div>
 
 <!-- Shared suggestion lists — populated from real customer registrations -->
-<datalist id="known-districts-list"></datalist>
-<datalist id="known-pincodes-list"></datalist>
-
 <!-- Edit Site Content modal -->
 <div class="modal-overlay" id="sitecontent-overlay">
   <div class="modal" style="max-width:520px;">
@@ -1443,10 +1440,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         if (p.city) cities.add(p.city);
         if (p.district) cities.add(p.district);
       });
-      const citiesList = document.getElementById('known-districts-list');
-      const pincodesList = document.getElementById('known-pincodes-list');
-      citiesList.innerHTML = [...cities].sort().map(c => `<option value="${c}">`).join('');
-      pincodesList.innerHTML = [...pincodes].sort().map(p => `<option value="${p}">`).join('');
+      const cityOptions = '<option value="">District…</option>' + [...cities].sort().map(c => `<option value="${c}">${c}</option>`).join('');
+      const pincodeOptions = '<option value="">Pincode…</option>' + [...pincodes].sort().map(p => `<option value="${p}">${p}</option>`).join('');
+      document.getElementById('new-user-district-input').innerHTML = cityOptions;
+      document.getElementById('edit-user-district-input').innerHTML = cityOptions;
+      document.getElementById('new-user-pincode-input').innerHTML = pincodeOptions;
+      document.getElementById('edit-user-pincode-input').innerHTML = pincodeOptions;
     } catch (err) {
       console.warn('Could not load known locations for suggestions:', err.message);
     }
@@ -3427,8 +3426,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All service centers</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Requests</th><th>Technicians</th></tr></thead>
-            <tbody id="centers-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Brands</th><th>Categories</th><th>Coverage</th><th>Requests</th><th>Technicians</th><th>Actions</th></tr></thead>
+            <tbody id="centers-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3436,7 +3435,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-row">No service center accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No service center accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -3446,13 +3445,29 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', userDoc.id))),
           getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', userDoc.id))),
         ]);
+        const brandsLabel = (d.brandsAuthorized || []).map(b => BRAND_LABELS[b] || b).join(', ') || '—';
+        const categoriesLabel = (d.categoriesAuthorized || []).join(', ') || '—';
+        const districtCount = (d.districtsCovered || []).length;
+        const pincodeCount = (d.pincodesCovered || []).length;
+        const coverageLabel = (districtCount || pincodeCount)
+          ? `${districtCount} district(s), ${pincodeCount} pincode(s)`
+          : '—';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.email || '—'}</td><td>${reqSnap.size}</td><td>${techSnap.size}</td>`;
+        tr.innerHTML = `
+          <td>${escapeHtml(d.name) || '—'}</td>
+          <td>${escapeHtml(d.email) || '—'}</td>
+          <td style="font-size:12.5px;">${escapeHtml(brandsLabel)}</td>
+          <td style="font-size:12.5px;max-width:180px;">${escapeHtml(categoriesLabel)}</td>
+          <td style="font-size:12.5px;">${coverageLabel}</td>
+          <td>${reqSnap.size}</td>
+          <td>${techSnap.size}</td>
+          <td><button class="btn-secondary center-edit-btn">Edit</button></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.center-edit-btn').addEventListener('click', () => openEditUserModal(userDoc.id, d));
       }
     } catch (err) {
       console.error('Load service centers failed:', err);
-      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
     }
   }
 
