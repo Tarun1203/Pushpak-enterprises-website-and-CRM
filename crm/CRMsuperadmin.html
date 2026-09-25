@@ -230,18 +230,18 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(one at a time — from the Pincode Master)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
         <div class="chip-list" id="new-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
-          <select id="new-user-district-input" style="flex:1;"><option value="">District…</option></select>
+          <select id="new-user-district-input" multiple size="6" style="flex:1;"></select>
           <button type="button" class="btn-secondary" id="new-user-district-add">Add</button>
         </div>
       </div>
       <div class="form-row step-hidden" id="new-user-pincodes-row">
-        <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
+        <label>Pincodes covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
         <div class="chip-list" id="new-user-pincodes-chips"></div>
         <div style="display:flex;gap:8px;">
-          <select id="new-user-pincode-input" style="flex:1;"><option value="">Pincode…</option></select>
+          <select id="new-user-pincode-input" multiple size="6" style="flex:1;"></select>
           <button type="button" class="btn-secondary" id="new-user-pincode-add">Add</button>
         </div>
       </div>
@@ -310,18 +310,18 @@
         </select>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(one at a time — from the Pincode Master)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
         <div class="chip-list" id="edit-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
-          <select id="edit-user-district-input" style="flex:1;"><option value="">District…</option></select>
+          <select id="edit-user-district-input" multiple size="6" style="flex:1;"></select>
           <button type="button" class="btn-secondary" id="edit-user-district-add">Add</button>
         </div>
       </div>
       <div class="form-row step-hidden" id="edit-user-pincodes-row">
-        <label>Pincodes covered <span class="hint">(one at a time — most precise match against a registration)</span></label>
+        <label>Pincodes covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
         <div class="chip-list" id="edit-user-pincodes-chips"></div>
         <div style="display:flex;gap:8px;">
-          <select id="edit-user-pincode-input" style="flex:1;"><option value="">Pincode…</option></select>
+          <select id="edit-user-pincode-input" multiple size="6" style="flex:1;"></select>
           <button type="button" class="btn-secondary" id="edit-user-pincode-add">Add</button>
         </div>
       </div>
@@ -1322,12 +1322,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (onChange) onChange(values);
     }
     function addFromInput() {
-      const v = inputEl.value.trim();
-      if (v && !values.includes(v)) {
-        values.push(v);
-        render();
+      if (inputEl.multiple) {
+        // Multi-select: add every currently-selected option in one
+        // click, rather than one-at-a-time select-then-Add-then-repeat.
+        let added = false;
+        Array.from(inputEl.selectedOptions).forEach(opt => {
+          const v = opt.value.trim();
+          if (v && !values.includes(v)) { values.push(v); added = true; }
+        });
+        if (added) render();
+        Array.from(inputEl.options).forEach(opt => { opt.selected = false; });
+      } else {
+        const v = inputEl.value.trim();
+        if (v && !values.includes(v)) {
+          values.push(v);
+          render();
+        }
+        inputEl.value = '';
       }
-      inputEl.value = '';
       inputEl.focus();
     }
     addBtnEl.addEventListener('click', addFromInput);
@@ -1353,7 +1365,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       ? master.filter(p => districts.some(d => (p.district || '').toLowerCase() === d.toLowerCase()))
       : master;
     const options = pool.map(p => p.id).sort();
-    select.innerHTML = '<option value="">Pincode…</option>' + options.map(p => `<option value="${p}">${p}</option>`).join('');
+    select.innerHTML = options.map(p => `<option value="${p}">${p}</option>`).join('');
   }
 
   const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add',
@@ -1459,8 +1471,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         if (p.city) cities.add(p.city);
         if (p.district) cities.add(p.district);
       });
-      const cityOptions = '<option value="">District…</option>' + [...cities].sort().map(c => `<option value="${c}">${c}</option>`).join('');
-      const pincodeOptions = '<option value="">Pincode…</option>' + [...pincodes].sort().map(p => `<option value="${p}">${p}</option>`).join('');
+      const cityOptions = [...cities].sort().map(c => `<option value="${c}">${c}</option>`).join('');
+      const pincodeOptions = [...pincodes].sort().map(p => `<option value="${p}">${p}</option>`).join('');
       document.getElementById('new-user-district-input').innerHTML = cityOptions;
       document.getElementById('edit-user-district-input').innerHTML = cityOptions;
       document.getElementById('new-user-pincode-input').innerHTML = pincodeOptions;
