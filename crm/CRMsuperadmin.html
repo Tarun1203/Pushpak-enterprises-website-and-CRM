@@ -107,6 +107,7 @@
   .chip button:hover{color:var(--err);}
   .modal h3{font-size:16px;font-weight:800;margin-bottom:18px;}
   .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .step-hidden{display:none !important;}
   .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
   .form-row input,.form-row select{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
@@ -229,6 +230,17 @@
           <option value="dealer">Dealer</option>
         </select>
       </div>
+      <div class="form-row step-hidden" id="new-user-accounttype-row">
+        <label>Account type</label>
+        <select id="new-user-account-type">
+          <option value="permanent">Permanent</option>
+          <option value="temporary">Temporary / Contractor</option>
+        </select>
+        <div id="new-user-contract-end-wrap" class="step-hidden" style="margin-top:10px;">
+          <label>Contract end date <span style="font-weight:400;color:var(--stone);">(after this date, excluded from new assignments)</span></label>
+          <input type="date" id="new-user-contract-end">
+        </div>
+      </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
         <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
         <div class="chip-list" id="new-user-districts-chips"></div>
@@ -308,6 +320,17 @@
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
         </select>
+      </div>
+      <div class="form-row step-hidden" id="edit-user-accounttype-row">
+        <label>Account type</label>
+        <select id="edit-user-account-type">
+          <option value="permanent">Permanent</option>
+          <option value="temporary">Temporary / Contractor</option>
+        </select>
+        <div id="edit-user-contract-end-wrap" class="step-hidden" style="margin-top:10px;">
+          <label>Contract end date <span style="font-weight:400;color:var(--stone);">(after this date, excluded from new assignments)</span></label>
+          <input type="date" id="edit-user-contract-end">
+        </div>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
         <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
@@ -1506,6 +1529,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-brands-row').classList.add('step-hidden');
     document.getElementById('new-user-categories-row').classList.add('step-hidden');
     document.getElementById('new-user-skills-row').classList.add('step-hidden');
+    document.getElementById('new-user-accounttype-row').classList.add('step-hidden');
+    document.getElementById('new-user-account-type').value = 'permanent';
+    document.getElementById('new-user-contract-end-wrap').classList.add('step-hidden');
+    document.getElementById('new-user-contract-end').value = '';
     newUserDistrictsChip.set([]);
     newUserPincodesChip.set([]);
     newUserSkills.set([]);
@@ -1519,12 +1546,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
   document.getElementById('cancel-add-user').addEventListener('click', closeAddUserModal);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeAddUserModal(); });
+  document.getElementById('new-user-account-type').addEventListener('change', (e) => {
+    document.getElementById('new-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
+  });
   document.getElementById('new-user-role').addEventListener('change', (e) => {
     document.getElementById('new-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
+    document.getElementById('new-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
   });
 
@@ -1565,8 +1596,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const brandsAuthorized = ['technician', 'servicecenter'].includes(role) ? getCheckedBrands('new-user-brand-cb') : [];
       const skills = role === 'technician' ? newUserSkills.get() : [];
       const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
+      const accountType = ['technician', 'servicecenter'].includes(role) ? document.getElementById('new-user-account-type').value : 'permanent';
+      const contractEndDate = accountType === 'temporary' ? document.getElementById('new-user-contract-end').value : null;
       await setDoc(doc(db, 'users', newUid), {
-        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, categoriesAuthorized, createdAt: new Date().toISOString()
+        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, categoriesAuthorized, accountType, contractEndDate, createdAt: new Date().toISOString()
       });
 
       try {
@@ -1635,11 +1668,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     editUserSkills.set(data.skills || []);
     editUserCategoriesChip.set(data.categoriesAuthorized || []);
     setCheckedBrands('edit-user-brand-cb', data.brandsAuthorized || []);
+    document.getElementById('edit-user-account-type').value = data.accountType || 'permanent';
+    document.getElementById('edit-user-contract-end').value = data.contractEndDate || '';
+    document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', (data.accountType || 'permanent') !== 'temporary');
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
+    document.getElementById('edit-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
     if (data.role === 'technician' || data.role === 'servicecenter') loadSkillCategoryOptions();
     loadKnownLocations();
     editUserError.classList.remove('show');
@@ -1653,12 +1690,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
   document.getElementById('cancel-edit-user').addEventListener('click', closeEditUserModal);
   editOverlay.addEventListener('click', (e) => { if (e.target === editOverlay) closeEditUserModal(); });
+  document.getElementById('edit-user-account-type').addEventListener('change', (e) => {
+    document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
+  });
   editRoleSelect.addEventListener('change', (e) => {
     document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
+    document.getElementById('edit-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
   });
 
@@ -1678,6 +1719,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const brandsAuthorized = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? getCheckedBrands('edit-user-brand-cb') : [];
     const skills = editRoleSelect.value === 'technician' ? editUserSkills.get() : [];
     const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
+    const accountType = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? document.getElementById('edit-user-account-type').value : 'permanent';
+    const contractEndDate = accountType === 'temporary' ? document.getElementById('edit-user-contract-end').value : null;
     try {
       await updateDoc(doc(db, 'users', editingUid), {
         name: editNameInput.value.trim(),
@@ -1686,7 +1729,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         pincodesCovered,
         brandsAuthorized,
         skills,
-        categoriesAuthorized
+        categoriesAuthorized,
+        accountType,
+        contractEndDate
       });
       try {
         const roleChanged = editingOriginalRole !== editRoleSelect.value;
@@ -3464,8 +3509,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All service centers</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Brands</th><th>Categories</th><th>Coverage</th><th>Requests</th><th>Technicians</th><th>Actions</th></tr></thead>
-            <tbody id="centers-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Brands</th><th>Categories</th><th>Coverage</th><th>Requests</th><th>Technicians</th><th>Actions</th></tr></thead>
+            <tbody id="centers-tbody"><tr><td colspan="9" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3473,7 +3518,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No service center accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No service center accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -3490,10 +3535,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const coverageLabel = (districtCount || pincodeCount)
           ? `${districtCount} district(s), ${pincodeCount} pincode(s)`
           : '—';
+        const expired = isContractExpired(d);
+        const typeLabel = d.accountType === 'temporary'
+          ? `<span class="status-pill ${expired ? 'out' : 'low'}">Temporary${d.contractEndDate ? ' — ends ' + d.contractEndDate : ''}${expired ? ' (expired)' : ''}</span>`
+          : `<span class="status-pill ok">Permanent</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${escapeHtml(d.name) || '—'}</td>
           <td>${escapeHtml(d.email) || '—'}</td>
+          <td>${typeLabel}</td>
           <td style="font-size:12.5px;">${escapeHtml(brandsLabel)}</td>
           <td style="font-size:12.5px;max-width:180px;">${escapeHtml(categoriesLabel)}</td>
           <td style="font-size:12.5px;">${coverageLabel}</td>
@@ -3505,7 +3555,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     } catch (err) {
       console.error('Load service centers failed:', err);
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
     }
   }
 
@@ -3515,8 +3565,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All technicians</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Brands</th><th>Skills</th><th>Jobs</th><th>Availability</th><th>Actions</th></tr></thead>
-            <tbody id="techs-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Brands</th><th>Skills</th><th>Jobs</th><th>Availability</th><th>Actions</th></tr></thead>
+            <tbody id="techs-tbody"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3524,7 +3574,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No technician accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-row">No technician accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -3540,10 +3590,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const availMeta = TECH_AVAILABILITY_DISPLAY[availStatus] || { label: availStatus, cls: 'cancelled' };
         const brandsLabel = (d.brandsAuthorized || []).map(b => BRAND_LABELS[b] || b).join(', ') || '—';
         const skillsLabel = (d.skills || []).map(s => `${s.category} (${s.level})`).join(', ') || '—';
+        const expired = isContractExpired(d);
+        const typeLabel = d.accountType === 'temporary'
+          ? `<span class="status-pill ${expired ? 'out' : 'low'}">Temporary${d.contractEndDate ? ' — ends ' + d.contractEndDate : ''}${expired ? ' (expired)' : ''}</span>`
+          : `<span class="status-pill ok">Permanent</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${d.name || '—'}</td>
           <td>${d.email || '—'}</td>
+          <td>${typeLabel}</td>
           <td style="font-size:12.5px;">${brandsLabel}</td>
           <td style="font-size:12.5px;max-width:220px;">${skillsLabel}</td>
           <td>${jobSnap.size}</td>
@@ -3569,7 +3624,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     } catch (err) {
       console.error('Load technicians failed:', err);
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load technicians. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load technicians. Check console for details.</td></tr>`;
     }
   }
 
@@ -3816,7 +3871,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       });
       publicSnap.forEach(d => {
         const p = d.data();
-        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || '—', status: p.status, createdAt: p.createdAt, full: p });
+        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.serviceCenterName || p.technicianName || '—', status: p.status, createdAt: p.createdAt, full: p });
       });
       rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (rows.length === 0) {
@@ -3909,8 +3964,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           }
         });
       }
-    } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
-      await renderRoutingControlsForPublicRequest(f, r.docId);
+    } else if (r.coll === 'publicServiceRequests' && (r.status === 'new' || r.status === 'assigned_to_center')) {
+      await renderRoutingControlsForPublicRequest(f, r.docId, r.status === 'assigned_to_center');
+      if (r.status === 'assigned_to_center') {
+        // Already at a center, but Super Admin can also push it
+        // straight to a technician directly — an escalation path for
+        // when a ticket needs to move faster than waiting on the
+        // center to pick their own roster.
+        const linkedSnap = await getDocs(query(collection(db, 'centerRequests'), where('sourceRequestId', '==', r.docId)));
+        let linkedDoc = null;
+        linkedSnap.forEach(ld => { if (!ld.data().technicianUid) linkedDoc = { id: ld.id, ...ld.data() }; });
+        if (linkedDoc) {
+          const divider = document.createElement('div');
+          divider.style.cssText = 'margin:16px 0;border-top:1px solid var(--hairline);padding-top:16px;';
+          divider.innerHTML = `<div style="margin-bottom:8px;"><b>Or assign a technician directly</b> <span style="font-weight:400;color:var(--stone);">(bypasses waiting on the center)</span></div>`;
+          svcTicketActions.appendChild(divider);
+          await renderRoutingControlsForCenterRequest(linkedDoc, linkedDoc.id, divider);
+        }
+      }
     } else if (r.coll === 'centerRequests' && r.status === 'new' && !f.technicianName) {
       await renderRoutingControlsForCenterRequest(f, r.docId);
     }
@@ -3920,7 +3991,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   // Routing controls for a not-yet-routed website submission — same
   // matching/sorting Routing's queue used (district/brand flags).
-  async function renderRoutingControlsForPublicRequest(d, docId) {
+  async function renderRoutingControlsForPublicRequest(d, docId, isReassign) {
     const [centers, pincodeMaster] = await Promise.all([getServiceCentersCache(), getPincodesCache(false)]);
     const resolvedPincode = pincodeMaster.find(p => p.id === (d.pincode || '').trim());
     const city = (d.city || '').trim().toLowerCase();
@@ -3932,37 +4003,53 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return 0;
     }
     function brandOk(c) { return !requestBrandId || (c.brandsAuthorized || []).includes(requestBrandId); }
-    const sorted = [...centers].sort((a, b) => (locationLevel(b) * 10 + (brandOk(b) ? 1 : 0)) - (locationLevel(a) * 10 + (brandOk(a) ? 1 : 0)));
+    const sorted = centers.filter(c => !c.contractExpired).sort((a, b) => (locationLevel(b) * 10 + (brandOk(b) ? 1 : 0)) - (locationLevel(a) * 10 + (brandOk(a) ? 1 : 0)));
     const options = sorted.map(c => {
       const level = locationLevel(c);
       const locFlag = level === 2 ? '✓ district' : level === 1 ? '✓ city' : '';
       const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
       const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
-      return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${flags ? ' — ' + flags : ''}</option>`;
+      const current = isReassign && c.name === d.serviceCenterName ? ' (current)' : '';
+      return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${current}${flags ? ' — ' + flags : ''}</option>`;
     }).join('');
     svcTicketActions.innerHTML = `
-      <div style="margin-bottom:8px;"><b>Route to service center</b></div>
+      <div style="margin-bottom:8px;"><b>${isReassign ? `Reassign — currently at ${escapeHtml(d.serviceCenterName) || 'a center'}` : 'Route to service center'}</b></div>
       <select id="svc-popup-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Select service center…</option>${options}</select>
-      <button class="btn-primary" id="svc-popup-route-btn">Assign</button>`;
+      <button class="btn-primary" id="svc-popup-route-btn">${isReassign ? 'Reassign' : 'Assign'}</button>`;
     document.getElementById('svc-popup-route-btn').addEventListener('click', async () => {
       const select = document.getElementById('svc-popup-center-select');
       if (!select.value) { alert('Select a service center first.'); return; }
       const [centerUid, centerName] = select.value.split('|');
       const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+      const btn = document.getElementById('svc-popup-route-btn');
+      btn.disabled = true;
       try {
+        if (isReassign) {
+          // Cancel the prior routing if the original center hasn't
+          // started work yet — otherwise both centers would end up
+          // with a live entry for the same ticket.
+          const priorSnap = await getDocs(query(collection(db, 'centerRequests'), where('sourceRequestId', '==', docId), where('status', '==', 'new')));
+          for (const priorDoc of priorSnap.docs) {
+            await updateDoc(doc(db, 'centerRequests', priorDoc.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+          }
+          if (priorSnap.empty) {
+            console.warn('No still-new prior routing found to cancel — the original center may have already started work. Reassigning anyway; check that center manually if needed.');
+          }
+        }
         await routeRequestToCenter({ ...d, id: docId }, centerUid, centerName, productLabel);
         svcTicketOverlay.classList.remove('show');
         loadServiceOverview();
       } catch (err) {
         console.error('Route to center failed:', err);
         alert('Could not route this request. Check the console for details.');
+        btn.disabled = false;
       }
     });
   }
 
   // Routing controls for a center's own unassigned request — pick a
   // technician cross-center, same override tool Routing offered.
-  async function renderRoutingControlsForCenterRequest(d, docId) {
+  async function renderRoutingControlsForCenterRequest(d, docId, mountEl) {
     const techs = await getTechniciansCache();
     const brandId = (d.brand || '').toLowerCase();
     const category = d.category || '';
@@ -3980,10 +4067,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
       return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
     }).join('');
-    svcTicketActions.innerHTML = `
-      <div style="margin-bottom:8px;"><b>Assign a technician</b></div>
+    const controlsHtml = `
+      ${mountEl ? '' : '<div style="margin-bottom:8px;"><b>Assign a technician</b></div>'}
       <select id="svc-popup-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Select technician…</option>${options}</select>
       <button class="btn-primary" id="svc-popup-tech-btn">Assign</button>`;
+    if (mountEl) mountEl.insertAdjacentHTML('beforeend', controlsHtml);
+    else svcTicketActions.innerHTML = controlsHtml;
     document.getElementById('svc-popup-tech-btn').addEventListener('click', async () => {
       const select = document.getElementById('svc-popup-tech-select');
       if (!select.value) { alert('Select a technician first.'); return; }
@@ -4775,6 +4864,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   let techniciansCache = null;
   let serviceCentersCache = null;
 
+  function isContractExpired(d) {
+    if (d.accountType !== 'temporary' || !d.contractEndDate) return false;
+    return d.contractEndDate < new Date().toISOString().slice(0, 10);
+  }
+
   async function getTechniciansCache() {
     if (techniciansCache) return techniciansCache;
     const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
@@ -4785,7 +4879,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const availSnap = await getDoc(doc(db, 'technicianAvailability', d.id));
         suspended = availSnap.exists() && availSnap.data().suspended === true;
       } catch (err) { /* non-fatal — treat as not suspended */ }
-      techniciansCache.push({ uid: d.id, ...d.data(), suspended });
+      const data = d.data();
+      techniciansCache.push({ uid: d.id, ...data, suspended: suspended || isContractExpired(data) });
     }
     return techniciansCache;
   }
@@ -4794,7 +4889,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (serviceCentersCache) return serviceCentersCache;
     const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
     serviceCentersCache = [];
-    snap.forEach(d => serviceCentersCache.push({ uid: d.id, ...d.data() }));
+    snap.forEach(d => {
+      const data = d.data();
+      serviceCentersCache.push({ uid: d.id, ...data, contractExpired: isContractExpired(data) });
+    });
     return serviceCentersCache;
   }
 
@@ -4855,7 +4953,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const pincode = (d.pincode || '').trim();
       if (!pincode) continue;
       const requestBrandId = (d.brand || '').toLowerCase();
-      const pincodeMatches = centers.filter(c => (c.pincodesCovered || []).includes(pincode));
+      const pincodeMatches = centers.filter(c => (c.pincodesCovered || []).includes(pincode) && !c.contractExpired);
       if (pincodeMatches.length === 0) continue;
       // Validation: a pincode match alone isn't enough — the center
       // also has to actually be authorized for this brand. Auto-route
