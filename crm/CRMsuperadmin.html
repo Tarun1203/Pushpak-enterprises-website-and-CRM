@@ -566,6 +566,43 @@
   </div>
 </div>
 
+<!-- Transfer stock modal -->
+<div class="modal-overlay" id="sa-transfer-overlay">
+  <div class="modal">
+    <h3>Transfer stock</h3>
+    <form id="sa-transfer-form">
+      <div class="form-row"><label>Part</label><select id="sa-transfer-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>To</label><select id="sa-transfer-destination" required><option value="">Select destination…</option></select></div>
+      <div class="form-row"><label>Quantity</label><input type="number" id="sa-transfer-qty" min="1" value="1" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="sa-transfer-reason" placeholder="e.g. Restocking ahead of season"></div>
+      <div class="modal-error" id="sa-transfer-error"></div>
+      <div class="modal-success" id="sa-transfer-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sa-transfer">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sa-transfer">Transfer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Stock adjustment modal -->
+<div class="modal-overlay" id="sa-adjust-overlay">
+  <div class="modal">
+    <h3>Adjust stock</h3>
+    <form id="sa-adjust-form">
+      <div class="form-row"><label>Part</label><select id="sa-adjust-part" required><option value="">Select part…</option></select></div>
+      <div class="form-row"><label>Change <span style="font-weight:400;color:var(--stone);">(positive to add, negative to remove — e.g. -3)</span></label><input type="number" id="sa-adjust-delta" required></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="sa-adjust-reason" placeholder="e.g. Physical count correction" required></div>
+      <div class="modal-error" id="sa-adjust-error"></div>
+      <div class="modal-success" id="sa-adjust-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sa-adjust">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sa-adjust">Save adjustment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay" id="pincode-overlay">
   <div class="modal">
     <h3 id="pincode-modal-title">Add pincode</h3>
@@ -4270,6 +4307,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function renderStockMovementOverview() {
     contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>Log a movement</h2>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="open-sa-transfer">+ Transfer</button>
+            <button class="btn-secondary" id="open-sa-adjust">+ Adjustment</button>
+          </div>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">Receive and Issue movements are logged automatically elsewhere (Local Purchase, Returns, Spare Dispatch) — Transfer and Adjustment are the two manual entry points.</div>
+      </div>
       <div class="panel">
         <div class="panel-header"><h2>Full movement log</h2></div>
         <div class="panel-body" style="padding:0;">
@@ -4279,6 +4326,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
+    document.getElementById('open-sa-transfer').addEventListener('click', openSaTransferModal);
+    document.getElementById('open-sa-adjust').addEventListener('click', openSaAdjustModal);
+    loadStockMovementLog();
+  }
+
+  async function loadStockMovementLog() {
     const tbody = document.getElementById('sm-tbody');
     try {
       const snap = await getDocs(query(collection(db, 'stockMovements'), orderBy('createdAt', 'desc')));
@@ -4304,6 +4357,167 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load movement log. Check console for details.</td></tr>`;
     }
   }
+
+  const saTransferOverlay = document.getElementById('sa-transfer-overlay');
+  const saTransferForm = document.getElementById('sa-transfer-form');
+  const saTransferError = document.getElementById('sa-transfer-error');
+  const saTransferSuccess = document.getElementById('sa-transfer-success');
+  const saTransferSubmitBtn = document.getElementById('submit-sa-transfer');
+
+  async function openSaTransferModal() {
+    saTransferForm.reset();
+    saTransferError.classList.remove('show');
+    saTransferSuccess.classList.remove('show');
+    saTransferSubmitBtn.disabled = false;
+    saTransferSubmitBtn.textContent = 'Transfer';
+    const [parts, centers, techs] = await Promise.all([
+      getDocs(collection(db, 'spareParts')),
+      getServiceCentersCache(),
+      getTechniciansCache(),
+    ]);
+    const partSelect = document.getElementById('sa-transfer-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    const destSelect = document.getElementById('sa-transfer-destination');
+    destSelect.innerHTML = '<option value="">Select destination…</option>';
+    centers.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = `sc_${c.uid}|${c.name || c.email} (Service Center)`;
+      opt.textContent = `${c.name || c.email} — Service Center`;
+      destSelect.appendChild(opt);
+    });
+    techs.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = `tech_${t.uid}|${t.name || t.email} (Technician)`;
+      opt.textContent = `${t.name || t.email} — Technician`;
+      destSelect.appendChild(opt);
+    });
+    saTransferOverlay.classList.add('show');
+  }
+  function closeSaTransferModal() { saTransferOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sa-transfer').addEventListener('click', closeSaTransferModal);
+  saTransferOverlay.addEventListener('click', (e) => { if (e.target === saTransferOverlay) closeSaTransferModal(); });
+
+  saTransferForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saTransferError.classList.remove('show');
+    saTransferSuccess.classList.remove('show');
+    const partId = document.getElementById('sa-transfer-part').value;
+    const destValue = document.getElementById('sa-transfer-destination').value;
+    const qty = Number(document.getElementById('sa-transfer-qty').value) || 0;
+    const reason = document.getElementById('sa-transfer-reason').value.trim();
+    if (!partId || !destValue || qty <= 0) {
+      saTransferError.textContent = 'Select a part, a destination, and a quantity greater than 0.';
+      saTransferError.classList.add('show');
+      return;
+    }
+    const [destLocation, destLabel] = destValue.split('|');
+    saTransferSubmitBtn.disabled = true;
+    saTransferSubmitBtn.textContent = 'Transferring…';
+    try {
+      const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
+      const toRef = doc(db, 'inventory', `${destLocation}_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const fromSnap = await transaction.get(fromRef);
+        const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
+        if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
+        const toSnap = await transaction.get(toRef);
+        const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
+        transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(toRef, { partId, location: destLocation, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'transfer', location: 'warehouse', quantity: qty,
+        toLocation: destLocation, toLabel: destLabel, reason: reason || 'Stock transfer',
+        createdAt: serverTimestamp()
+      });
+      saTransferSuccess.textContent = 'Transferred.';
+      saTransferSuccess.classList.add('show');
+      saTransferSubmitBtn.textContent = 'Done';
+      if (document.getElementById('sm-tbody')) loadStockMovementLog();
+      setTimeout(closeSaTransferModal, 900);
+    } catch (err) {
+      console.error('Transfer failed:', err);
+      saTransferError.textContent = err.message || 'Could not complete this transfer. Check console for details.';
+      saTransferError.classList.add('show');
+      saTransferSubmitBtn.disabled = false;
+      saTransferSubmitBtn.textContent = 'Transfer';
+    }
+  });
+
+  const saAdjustOverlay = document.getElementById('sa-adjust-overlay');
+  const saAdjustForm = document.getElementById('sa-adjust-form');
+  const saAdjustError = document.getElementById('sa-adjust-error');
+  const saAdjustSuccess = document.getElementById('sa-adjust-success');
+  const saAdjustSubmitBtn = document.getElementById('submit-sa-adjust');
+
+  async function openSaAdjustModal() {
+    saAdjustForm.reset();
+    saAdjustError.classList.remove('show');
+    saAdjustSuccess.classList.remove('show');
+    saAdjustSubmitBtn.disabled = false;
+    saAdjustSubmitBtn.textContent = 'Save adjustment';
+    const parts = await getDocs(collection(db, 'spareParts'));
+    const partSelect = document.getElementById('sa-adjust-part');
+    partSelect.innerHTML = '<option value="">Select part…</option>';
+    parts.forEach(d => {
+      const p = d.data();
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = `${p.partCode} — ${p.name}`;
+      partSelect.appendChild(opt);
+    });
+    saAdjustOverlay.classList.add('show');
+  }
+  function closeSaAdjustModal() { saAdjustOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sa-adjust').addEventListener('click', closeSaAdjustModal);
+  saAdjustOverlay.addEventListener('click', (e) => { if (e.target === saAdjustOverlay) closeSaAdjustModal(); });
+
+  saAdjustForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saAdjustError.classList.remove('show');
+    saAdjustSuccess.classList.remove('show');
+    const partId = document.getElementById('sa-adjust-part').value;
+    const delta = Number(document.getElementById('sa-adjust-delta').value);
+    const reason = document.getElementById('sa-adjust-reason').value.trim();
+    if (!partId || !delta || !reason) {
+      saAdjustError.textContent = 'Select a part, a non-zero change, and a reason.';
+      saAdjustError.classList.add('show');
+      return;
+    }
+    saAdjustSubmitBtn.disabled = true;
+    saAdjustSubmitBtn.textContent = 'Saving…';
+    try {
+      const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        const next = current + delta;
+        if (next < 0) throw new Error(`This would take stock negative (currently ${current}).`);
+        transaction.set(invRef, { partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason, createdAt: serverTimestamp()
+      });
+      saAdjustSuccess.textContent = 'Saved.';
+      saAdjustSuccess.classList.add('show');
+      saAdjustSubmitBtn.textContent = 'Saved';
+      if (document.getElementById('sm-tbody')) loadStockMovementLog();
+      setTimeout(closeSaAdjustModal, 900);
+    } catch (err) {
+      console.error('Adjustment failed:', err);
+      saAdjustError.textContent = err.message || 'Could not save this adjustment. Check console for details.';
+      saAdjustError.classList.add('show');
+      saAdjustSubmitBtn.disabled = false;
+      saAdjustSubmitBtn.textContent = 'Save adjustment';
+    }
+  });
 
   async function renderSpareRequestOverview() {
     contentEl.innerHTML = `
