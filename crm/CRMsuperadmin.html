@@ -3825,7 +3825,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button></div>`;
           } else if (r.status === 'closed') {
             actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="reopened">Reopen</button>`;
+          } else if (r.coll === 'centerRequests' && r.status === 'new') {
+            // Sitting unassigned to a technician — this is exactly
+            // what Routing's queue handles, so link straight there
+            // instead of leaving this row with nothing to do.
+            actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
           }
+        } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
+          // Not yet routed to a center at all.
+          actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
         }
         tr.innerHTML = `
           <td>${r.source}</td>
@@ -3835,6 +3843,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
+        const gotoRoutingBtn = tr.querySelector('.svc-goto-routing-btn');
+        if (gotoRoutingBtn) {
+          gotoRoutingBtn.addEventListener('click', () => selectSection('routing', 'Service Request Routing', true));
+        }
         const evidenceBtn = tr.querySelector('.svc-evidence-btn');
         if (evidenceBtn) {
           evidenceBtn.addEventListener('click', () => {
