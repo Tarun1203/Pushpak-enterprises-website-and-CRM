@@ -566,6 +566,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="sr-detail-overlay">
+  <div class="modal modal-wide">
+    <h3 id="sr-detail-title">Spare request details</h3>
+    <div id="sr-detail-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div id="sr-detail-actions" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-sr-detail">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Transfer stock modal -->
 <div class="modal-overlay" id="sa-transfer-overlay">
   <div class="modal">
@@ -4519,6 +4530,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   });
 
+  const SR_STATUS_LABELS = {
+    new: 'New', approved: 'Approved', picking: 'Picking', packing: 'Packing',
+    dispatched: 'Dispatched', intransit: 'In Transit', received: 'Received', backorder: 'Back Order'
+  };
+  // Forward pipeline used by the "Advance" buttons in the popup once
+  // stock has already been transferred (mirrors Warehouse's own
+  // STATUS_ACTIONS so a request advanced from either screen stays consistent).
+  const SR_STATUS_ACTIONS = {
+    dispatched: [{ label: 'Mark In Transit', next: 'intransit' }],
+    intransit:  [{ label: 'Mark Received', next: 'received' }],
+    backorder:  [{ label: 'Retry (back to New)', next: 'new' }],
+  };
+
   async function renderSpareRequestOverview() {
     contentEl.innerHTML = `
       <div class="panel">
@@ -4542,15 +4566,214 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = docSnap.data();
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
-          <td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td>${d.quantity ?? '—'}</td>
-          <td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          <td><a href="#" class="c360-open-link sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || docSnap.id)}</a></td>
+          <td>${escapeHtml(d.serviceCenter) || '—'}</td><td>${escapeHtml(d.item) || '—'}</td><td>${d.quantity ?? '—'}</td>
+          <td><span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></td>`;
+        tr.querySelector('.sr-open-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          openSpareRequestPopup(docSnap.id);
+        });
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load spare requests failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load spare requests. Check console for details.</td></tr>`;
     }
+  }
+
+  // =================================================================
+  // Spare request detail popup — click a Request ID above to open it.
+  // For a request that still needs stock moved (new/approved/picking/
+  // packing/backorder) this shows a real Transfer Stock control that
+  // debits the warehouse and credits the requesting service center's
+  // inventory in one transaction (same pattern as the Stock Movement
+  // Transfer modal), writes a stockMovements audit entry, and advances
+  // the request straight to "Dispatched". Once stock has moved, the
+  // popup instead shows the remaining logistics pipeline (Warehouse's
+  // Mark In Transit / Mark Received) so the request can be tracked to
+  // completion from either screen.
+  // =================================================================
+
+  const srDetailOverlay = document.getElementById('sr-detail-overlay');
+  document.getElementById('close-sr-detail').addEventListener('click', () => srDetailOverlay.classList.remove('show'));
+  srDetailOverlay.addEventListener('click', (e) => { if (e.target === srDetailOverlay) srDetailOverlay.classList.remove('show'); });
+
+  async function openSpareRequestPopup(docId) {
+    const body = document.getElementById('sr-detail-body');
+    const actions = document.getElementById('sr-detail-actions');
+    body.innerHTML = 'Loading…';
+    actions.innerHTML = '';
+    srDetailOverlay.classList.add('show');
+    let snap;
+    try {
+      snap = await getDoc(doc(db, 'spareRequests', docId));
+    } catch (err) {
+      console.error('Load spare request failed:', err);
+      body.innerHTML = `<span style="color:var(--err);">Couldn't load this request. Check console for details.</span>`;
+      return;
+    }
+    if (!snap.exists()) {
+      body.innerHTML = `<span style="color:var(--err);">This request no longer exists.</span>`;
+      return;
+    }
+    const d = snap.data();
+    document.getElementById('sr-detail-title').textContent = `Spare Request — ${d.requestId || docId}`;
+    body.innerHTML = `
+      <div><strong>Service Center:</strong> ${escapeHtml(d.serviceCenter) || '—'}</div>
+      <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
+      <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
+      <div><strong>Priority:</strong> ${escapeHtml(d.priority) || 'normal'}</div>
+      <div><strong>Status:</strong> <span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></div>
+      ${d.sourceJobLabel ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel)}</div>` : ''}
+      ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
+    `;
+
+    const stockMovedStatuses = ['dispatched', 'intransit', 'received'];
+
+    if (stockMovedStatuses.includes(d.status)) {
+      const nextActions = SR_STATUS_ACTIONS[d.status] || [];
+      actions.innerHTML = `
+        <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Stock for this request has already been transferred.</div>
+        ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${a.next}">${a.label}</button>`).join(' ')}
+      `;
+      actions.querySelectorAll('.sr-advance-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await updateDoc(doc(db, 'spareRequests', docId), { status: btn.dataset.next, updatedAt: serverTimestamp() });
+            openSpareRequestPopup(docId);
+            if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
+          } catch (err) {
+            console.error('Advance spare request failed:', err);
+            alert('Could not update this request. Check console for details.');
+            btn.disabled = false;
+          }
+        });
+      });
+      return;
+    }
+
+    if (d.status === 'backorder') {
+      actions.innerHTML = `
+        <div style="font-size:12.5px;color:var(--err);margin-bottom:8px;">Marked as back order — insufficient or no stock available.</div>
+        <button type="button" class="btn-secondary sr-advance-btn" data-next="new">Retry (back to New)</button>
+      `;
+      actions.querySelector('.sr-advance-btn').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        try {
+          await updateDoc(doc(db, 'spareRequests', docId), { status: 'new', updatedAt: serverTimestamp() });
+          openSpareRequestPopup(docId);
+          if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
+        } catch (err) {
+          console.error('Retry spare request failed:', err);
+          alert('Could not update this request. Check console for details.');
+          e.target.disabled = false;
+        }
+      });
+      return;
+    }
+
+    // Not yet transferred — resolve the requesting center's uid (spare
+    // requests store the email, matching what's shown in the table).
+    const centers = await getServiceCentersCache();
+    const center = centers.find(c => c.email === d.serviceCenter);
+
+    let partId = d.partId || '';
+    if (!partId) {
+      // Older/free-text-only requests carry no partId — require the
+      // admin to pick the real matching part before a transfer can run,
+      // rather than guessing from the free-text item name.
+      const partsSnap = await getDocs(collection(db, 'spareParts'));
+      const partsOptions = partsSnap.docs.map(pd => {
+        const p = pd.data();
+        return `<option value="${pd.id}">${escapeHtml(p.partCode) || ''} — ${escapeHtml(p.name) || ''}</option>`;
+      }).join('');
+      actions.innerHTML = `
+        <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">This request has no linked spare-part record yet — select the matching part before stock can be transferred.</div>
+        <div class="form-row"><label>Matching part</label><select id="sr-resolve-part"><option value="">Select part…</option>${partsOptions}</select></div>
+        <button type="button" class="btn-primary" id="sr-resolve-part-btn">Save part & continue</button>
+      `;
+      document.getElementById('sr-resolve-part-btn').addEventListener('click', async () => {
+        const chosen = document.getElementById('sr-resolve-part').value;
+        if (!chosen) { alert('Select a part first.'); return; }
+        try {
+          await updateDoc(doc(db, 'spareRequests', docId), { partId: chosen, updatedAt: serverTimestamp() });
+          openSpareRequestPopup(docId);
+        } catch (err) {
+          console.error('Save resolved part failed:', err);
+          alert('Could not save this part. Check console for details.');
+        }
+      });
+      return;
+    }
+
+    if (!center) {
+      actions.innerHTML = `<div style="font-size:12.5px;color:var(--err);">Couldn't find a Service Center account matching "${escapeHtml(d.serviceCenter)}" — stock can't be routed automatically. Use Stock Movement → Transfer manually if needed.</div>`;
+      return;
+    }
+
+    let warehouseQty = 0;
+    try {
+      const invSnap = await getDoc(doc(db, 'inventory', `warehouse_${partId}`));
+      warehouseQty = invSnap.exists() ? (invSnap.data().quantity || 0) : 0;
+    } catch (err) { /* non-fatal — shown as 0 */ }
+
+    actions.innerHTML = `
+      <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Warehouse stock for this part: <strong>${warehouseQty}</strong></div>
+      <div class="form-row"><label>Quantity to transfer</label><input type="number" id="sr-transfer-qty" min="1" value="${d.quantity || 1}"></div>
+      <div class="modal-error" id="sr-transfer-error"></div>
+      <button type="button" class="btn-primary" id="sr-transfer-btn">Transfer Stock &amp; Dispatch</button>
+      <button type="button" class="btn-danger" id="sr-backorder-btn" style="margin-left:8px;">Mark Back Order</button>
+    `;
+
+    document.getElementById('sr-backorder-btn').addEventListener('click', async () => {
+      try {
+        await updateDoc(doc(db, 'spareRequests', docId), { status: 'backorder', updatedAt: serverTimestamp() });
+        openSpareRequestPopup(docId);
+        if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
+      } catch (err) {
+        console.error('Back order spare request failed:', err);
+        alert('Could not update this request. Check console for details.');
+      }
+    });
+
+    document.getElementById('sr-transfer-btn').addEventListener('click', async () => {
+      const errEl = document.getElementById('sr-transfer-error');
+      errEl.textContent = '';
+      const qty = Number(document.getElementById('sr-transfer-qty').value) || 0;
+      if (qty <= 0) { errEl.textContent = 'Enter a quantity greater than 0.'; return; }
+      const btn = document.getElementById('sr-transfer-btn');
+      btn.disabled = true;
+      btn.textContent = 'Transferring…';
+      try {
+        const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
+        const toRef = doc(db, 'inventory', `sc_${center.uid}_${partId}`);
+        await runTransaction(db, async (transaction) => {
+          const fromSnap = await transaction.get(fromRef);
+          const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
+          if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
+          const toSnap = await transaction.get(toRef);
+          const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
+          transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
+          transaction.set(toRef, { partId, location: `sc_${center.uid}`, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+        });
+        await addDoc(collection(db, 'stockMovements'), {
+          partId, type: 'transfer', location: 'warehouse', quantity: qty,
+          toLocation: `sc_${center.uid}`, toLabel: `${center.name || center.email} (Service Center)`,
+          reason: `Spare request ${d.requestId || docId}`, sourceRequestId: docId,
+          createdAt: serverTimestamp()
+        });
+        await updateDoc(doc(db, 'spareRequests', docId), { status: 'dispatched', updatedAt: serverTimestamp() });
+        openSpareRequestPopup(docId);
+        if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
+        if (document.getElementById('sm-tbody')) loadStockMovementLog();
+      } catch (err) {
+        console.error('Transfer stock for spare request failed:', err);
+        errEl.textContent = err.message || 'Could not complete this transfer. Check console for details.';
+        btn.disabled = false;
+        btn.textContent = 'Transfer Stock & Dispatch';
+      }
+    });
   }
 
   async function renderLocalPurchaseOverview() {
