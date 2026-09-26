@@ -4617,6 +4617,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     const d = snap.data();
+    const t = d.transport || null;
     document.getElementById('sr-detail-title').textContent = `Spare Request — ${d.requestId || docId}`;
     body.innerHTML = `
       <div><strong>Service Center:</strong> ${escapeHtml(d.serviceCenter) || '—'}</div>
@@ -4626,12 +4627,98 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><strong>Status:</strong> <span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></div>
       ${d.sourceJobLabel ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel)}</div>` : ''}
       ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
+      ${t ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);">
+          <div><strong>Transporter:</strong> ${escapeHtml(t.transporterName) || '—'}</div>
+          <div><strong>Docket / LR / AWB No.:</strong> ${escapeHtml(t.docketNumber) || '—'}</div>
+          ${t.vehicleNumber ? `<div><strong>Vehicle No.:</strong> ${escapeHtml(t.vehicleNumber)}</div>` : ''}
+          <div><strong>Dispatched:</strong> ${escapeHtml(t.dispatchDate) || '—'}</div>
+          ${t.docketPhotoUrl ? `<div><strong>Receipt:</strong> <a href="${t.docketPhotoUrl}" target="_blank" rel="noopener" class="c360-open-link">View docket / LR receipt / challan photo</a></div>` : ''}
+        </div>
+      ` : ''}
     `;
+
+    // Shared transport/docket capture form — used both when stock is
+    // first dispatched, and as a backfill gate for requests already
+    // marked Dispatched before this field existed (no docket on file).
+    function transportFormHtml(submitLabel) {
+      const today = new Date().toISOString().slice(0, 10);
+      return `
+        <div style="font-size:12.5px;color:var(--stone);margin:10px 0 6px;">Transport / docket details (required before dispatch is confirmed)</div>
+        <div class="form-row"><label>Transporter / courier name</label><input type="text" id="sr-transport-name" placeholder="e.g. VRL Logistics" required></div>
+        <div class="form-row"><label>Docket / LR / AWB No.</label><input type="text" id="sr-transport-docket" placeholder="e.g. VRL-4471123" required></div>
+        <div class="form-row"><label>Vehicle No. (optional)</label><input type="text" id="sr-transport-vehicle" placeholder="e.g. KA36 AB 1234"></div>
+        <div class="form-row"><label>Dispatch date</label><input type="date" id="sr-transport-date" value="${today}" required></div>
+        <div class="form-row"><label>Booking docket / LR receipt / delivery challan photo (optional)</label><input type="file" id="sr-transport-photo" accept="image/*,application/pdf"></div>
+        <div class="modal-error" id="sr-transport-error"></div>
+        <button type="button" class="btn-primary" id="sr-transport-submit">${submitLabel}</button>
+      `;
+    }
+    // Validates the required fields and, if a receipt photo was chosen,
+    // uploads it to Storage first — the returned object's docketPhotoUrl
+    // is only set once the upload actually succeeds. Returns null (with
+    // the error already shown) on validation failure or a failed upload.
+    async function readTransportForm(docId) {
+      const errEl = document.getElementById('sr-transport-error');
+      const transporterName = document.getElementById('sr-transport-name').value.trim();
+      const docketNumber = document.getElementById('sr-transport-docket').value.trim();
+      const vehicleNumber = document.getElementById('sr-transport-vehicle').value.trim();
+      const dispatchDate = document.getElementById('sr-transport-date').value;
+      if (!transporterName || !docketNumber || !dispatchDate) {
+        errEl.textContent = 'Enter transporter name, docket/LR/AWB number, and dispatch date — these are required for a valid shipment record.';
+        return null;
+      }
+      const transport = { transporterName, docketNumber, vehicleNumber, dispatchDate };
+      const photoInput = document.getElementById('sr-transport-photo');
+      const file = photoInput && photoInput.files && photoInput.files[0];
+      if (file) {
+        if (file.size > 10 * 1024 * 1024) {
+          errEl.textContent = `"${file.name}" is over 10MB — choose a smaller file.`;
+          return null;
+        }
+        try {
+          const filePath = `spareRequests/${docId}/docket/${Date.now()}_${file.name}`;
+          const fileRef = storageRef(storage, filePath);
+          await uploadBytes(fileRef, file);
+          transport.docketPhotoUrl = await getDownloadURL(fileRef);
+        } catch (err) {
+          console.error('Docket photo upload failed:', err);
+          errEl.textContent = 'Could not upload the receipt photo. Check console for details.';
+          return null;
+        }
+      }
+      return transport;
+    }
 
     const stockMovedStatuses = ['dispatched', 'intransit', 'received'];
 
     if (stockMovedStatuses.includes(d.status)) {
       const nextActions = SR_STATUS_ACTIONS[d.status] || [];
+      if (!t) {
+        // Already dispatched, but no docket on file yet (e.g. requests
+        // moved before this field existed) — require it before any
+        // further logistics step can proceed.
+        actions.innerHTML = `
+          <div style="font-size:12.5px;color:var(--err);margin-bottom:8px;">Stock has been transferred, but no valid transport/docket record is on file for this shipment. Add one to continue.</div>
+          ${transportFormHtml('Save transport details')}
+        `;
+        document.getElementById('sr-transport-submit').addEventListener('click', async () => {
+          const btn = document.getElementById('sr-transport-submit');
+          btn.disabled = true;
+          btn.textContent = 'Saving…';
+          const transport = await readTransportForm(docId);
+          if (!transport) { btn.disabled = false; btn.textContent = 'Save transport details'; return; }
+          try {
+            await updateDoc(doc(db, 'spareRequests', docId), { transport, updatedAt: serverTimestamp() });
+            openSpareRequestPopup(docId);
+          } catch (err) {
+            console.error('Save transport details failed:', err);
+            document.getElementById('sr-transport-error').textContent = 'Could not save these details. Check console for details.';
+            btn.disabled = false;
+          }
+        });
+        return;
+      }
       actions.innerHTML = `
         <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Stock for this request has already been transferred.</div>
         ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${a.next}">${a.label}</button>`).join(' ')}
@@ -4721,8 +4808,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     actions.innerHTML = `
       <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Warehouse stock for this part: <strong>${warehouseQty}</strong></div>
       <div class="form-row"><label>Quantity to transfer</label><input type="number" id="sr-transfer-qty" min="1" value="${d.quantity || 1}"></div>
-      <div class="modal-error" id="sr-transfer-error"></div>
-      <button type="button" class="btn-primary" id="sr-transfer-btn">Transfer Stock &amp; Dispatch</button>
+      ${transportFormHtml('Transfer Stock & Dispatch').replace('sr-transport-submit', 'sr-transfer-btn')}
       <button type="button" class="btn-danger" id="sr-backorder-btn" style="margin-left:8px;">Mark Back Order</button>
     `;
 
@@ -4738,12 +4824,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
 
     document.getElementById('sr-transfer-btn').addEventListener('click', async () => {
-      const errEl = document.getElementById('sr-transfer-error');
+      const errEl = document.getElementById('sr-transport-error');
       errEl.textContent = '';
       const qty = Number(document.getElementById('sr-transfer-qty').value) || 0;
       if (qty <= 0) { errEl.textContent = 'Enter a quantity greater than 0.'; return; }
       const btn = document.getElementById('sr-transfer-btn');
       btn.disabled = true;
+      btn.textContent = 'Uploading…';
+      const transport = await readTransportForm(docId);
+      if (!transport) { btn.disabled = false; btn.textContent = 'Transfer Stock & Dispatch'; return; }
       btn.textContent = 'Transferring…';
       try {
         const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
@@ -4761,9 +4850,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           partId, type: 'transfer', location: 'warehouse', quantity: qty,
           toLocation: `sc_${center.uid}`, toLabel: `${center.name || center.email} (Service Center)`,
           reason: `Spare request ${d.requestId || docId}`, sourceRequestId: docId,
+          transport,
           createdAt: serverTimestamp()
         });
-        await updateDoc(doc(db, 'spareRequests', docId), { status: 'dispatched', updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, 'spareRequests', docId), { status: 'dispatched', transport, updatedAt: serverTimestamp() });
         openSpareRequestPopup(docId);
         if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
         if (document.getElementById('sm-tbody')) loadStockMovementLog();

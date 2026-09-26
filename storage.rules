@@ -35,6 +35,21 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // ---------------------------------------------------------------
+    // Spare request dispatch proof — a photo of the booking docket,
+    // LR receipt, or delivery challan attached when Super Admin
+    // records transport details for a spare request. Internal-only,
+    // same as diagnosis photos; allows PDF too since a challan is
+    // sometimes scanned as one.
+    // ---------------------------------------------------------------
+
+    match /spareRequests/{requestId}/docket/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;
