@@ -5119,6 +5119,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const finClaimError = document.getElementById('fin-claim-error');
   const finClaimSuccess = document.getElementById('fin-claim-success');
   const finClaimSubmitBtn = document.getElementById('submit-fin-claim');
+  const finClaimNameInput = document.getElementById('fin-claim-name');
   const finClaimTicketSearch = document.getElementById('fin-claim-ticket-search');
   const finClaimTicketResults = document.getElementById('fin-claim-ticket-results');
   const finClaimTicketPreview = document.getElementById('fin-claim-ticket-preview');
@@ -5163,8 +5164,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     renderFinClaimTicketResults(finClaimTicketSearch.value);
   });
   finClaimTicketSearch.addEventListener('focus', () => { if (finClaimTicketSearch.value.trim()) renderFinClaimTicketResults(finClaimTicketSearch.value); });
+  // Claimant name doubles as a ticket search too — typing "Ramesh K."
+  // or a service center's name here searches the same eligible-ticket
+  // list (it already matches on technicianName/serviceCenterName),
+  // so the claimant doesn't have to be looked up twice in two boxes.
+  finClaimNameInput.addEventListener('input', () => {
+    finClaimSelectedTicket = null;
+    renderFinClaimTicketResults(finClaimNameInput.value);
+  });
+  finClaimNameInput.addEventListener('focus', () => { if (finClaimNameInput.value.trim()) renderFinClaimTicketResults(finClaimNameInput.value); });
   document.addEventListener('click', (e) => {
-    if (!finClaimTicketResults.contains(e.target) && e.target !== finClaimTicketSearch) finClaimTicketResults.style.display = 'none';
+    if (!finClaimTicketResults.contains(e.target) && e.target !== finClaimTicketSearch && e.target !== finClaimNameInput) finClaimTicketResults.style.display = 'none';
   });
   function selectFinClaimTicket(key) {
     const rec = finClaimEligibleTickets.find(t => `${t.coll}|${t.docId}` === key);
@@ -5172,6 +5182,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     finClaimSelectedTicket = rec;
     finClaimTicketSearch.value = rec.ticketId;
     finClaimTicketResults.style.display = 'none';
+    // Prefill claimant name/type from whichever picked ticket — a
+    // Service Center request names the center, a Technician job
+    // names the technician — so the two fields stay in sync however
+    // the claim was found.
+    if (rec.serviceCenterName) {
+      finClaimNameInput.value = rec.serviceCenterName;
+      document.getElementById('fin-claim-type').value = 'servicecenter';
+    } else if (rec.technicianName) {
+      finClaimNameInput.value = rec.technicianName;
+      document.getElementById('fin-claim-type').value = 'technician';
+    }
     const who = rec.serviceCenterName ? `Requested from Service Center: ${escapeHtml(rec.serviceCenterName)}` : (rec.technicianName ? `Technician: ${escapeHtml(rec.technicianName)}` : '');
     const modelDisplay = rec.modelNo || rec.product || '—';
     finClaimTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Model No: ${escapeHtml(modelDisplay)} &nbsp; | &nbsp; Status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || rec.status}${who ? ' &nbsp; | &nbsp; ' + who : ''}`;
