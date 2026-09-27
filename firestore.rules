@@ -29,6 +29,10 @@ service cloud.firestore {
         ['superadmin', 'warehouse', 'servicecenter', 'technician'];
     }
 
+    function isDistributor() {
+      return isSignedIn() && callerRole() == 'distributor';
+    }
+
     // ---------------------------------------------------------------
     // Public website content — readable by anyone, writable only
     // by Super Admin / Warehouse via the CRM's Website Management.
@@ -107,7 +111,14 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /serviceJobs/{jobId} {
-      allow read, update: if isAdmin()
+      // Distributor read is scoped to only still-open (SLA-clock)
+      // statuses — an escalation view needs to see these, but a
+      // distributor has no reason to read closed job history.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
+        || (isDistributor() && resource.data.status in
+            ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
+      allow update: if isAdmin()
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
@@ -120,7 +131,13 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /centerRequests/{reqId} {
-      allow read, update: if isAdmin()
+      // Same distributor carve-out as serviceJobs above — open
+      // (SLA-clock) tickets only, for the escalation view.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
+        || (isDistributor() && resource.data.status in
+            ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
+      allow update: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
@@ -149,11 +166,17 @@ service cloud.firestore {
     }
 
     match /dealerOrders/{id} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+      // A Dealer "Under a Distributor" has their order stamped with
+      // that Distributor's uid at creation (CRMdealer.html) — the
+      // Distributor can then see and progress (confirm/dispatch/
+      // deliver) that one order, same as Warehouse/Super Admin can
+      // any order, without opening up every dealer's order history.
+      allow read, update: if isAdmin()
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid)
+        || (isDistributor() && resource.data.distributorUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
-      allow update, delete: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /dealerSales/{id} {
@@ -504,8 +527,24 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /slaRules/{ruleId} {
-      allow read: if isStaff();
+      allow read: if isStaff() || isDistributor();
       allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // SLA escalations — a Distributor's note/nudge raised against a
+    // breached service ticket in their coverage area. Kept as its own
+    // collection rather than writing onto the ticket doc itself, so a
+    // Distributor never gets write access to serviceJobs/centerRequests
+    // (they stay read-only there, scoped to open tickets — see above).
+    // ---------------------------------------------------------------
+
+    match /slaEscalations/{id} {
+      allow read: if isAdmin() || isStaff()
+        || (isDistributor() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isDistributor() && request.resource.data.distributorUid == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------

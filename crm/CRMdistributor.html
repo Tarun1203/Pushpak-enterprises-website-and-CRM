@@ -301,6 +301,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const ALLOWED_ROLE = 'distributor';
 
   let currentUser = null;
+  let currentDistributorData = null;
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -314,6 +315,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         window.location.href = 'login.html';
         return;
       }
+      currentDistributorData = roleSnap.data();
     } catch (err) {
       console.error('Role check failed:', err);
       window.location.href = 'login.html';
@@ -331,7 +333,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -386,6 +388,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'registration') {
       pageSub.textContent = 'Register a product for warranty';
       renderRegistrations();
+    } else if (id === 'incoming-orders') {
+      pageSub.textContent = 'Orders from dealers under you';
+      renderIncomingOrders();
+    } else if (id === 'sla-escalations') {
+      pageSub.textContent = 'Breached service tickets in your coverage area';
+      renderSlaEscalations();
     } else if (id === 'enquiries') {
       pageSub.textContent = 'Your leads and enquiries';
       renderEnquiries();
@@ -618,6 +626,216 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } catch (err) {
       console.error('Load orders failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load orders. Check console for details.</td></tr>`;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Incoming Dealer Orders — orders placed by a Dealer whose account
+  // is set to "Under a Distributor" (this one), stamped with
+  // distributorUid at creation time in CRMdealer.html. This
+  // Distributor fulfills these from their own stock (confirm →
+  // dispatch → deliver), same status flow as Warehouse/Super Admin
+  // would use for a Direct dealer's order.
+  // -----------------------------------------------------------------
+
+  async function renderIncomingOrders() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Incoming dealer orders</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Order ID</th><th>Dealer</th><th>Product</th><th>Qty</th><th>Status</th><th>Notes</th></tr></thead>
+            <tbody id="incoming-orders-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadIncomingOrders();
+  }
+
+  async function loadIncomingOrders() {
+    const tbody = document.getElementById('incoming-orders-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'dealerOrders'), where('distributorUid', '==', currentUser.uid)));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No incoming orders yet.</td></tr>`;
+        return;
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)); // oldest-to-newest, same convention as every other pending list this session
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const locked = d.status === 'delivered' || d.status === 'cancelled';
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.orderId || d.id}</td>
+          <td>${escapeHtml(d.dealerName || d.dealerEmail || '—')}</td>
+          <td>${escapeHtml(d.product || '—')}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><select class="incoming-order-status" data-id="${d.id}" ${locked ? 'disabled' : ''}>
+            ${Object.keys(ORDER_STATUS_LABELS).map(k => `<option value="${k}" ${k === d.status ? 'selected' : ''}>${ORDER_STATUS_LABELS[k]}</option>`).join('')}
+          </select></td>
+          <td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.incoming-order-status').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          const id = e.target.dataset.id;
+          const newStatus = e.target.value;
+          e.target.disabled = true;
+          try {
+            await updateDoc(doc(db, 'dealerOrders', id), { status: newStatus, updatedAt: serverTimestamp() });
+          } catch (err) {
+            console.error('Update order status failed:', err);
+            alert('Could not update this order. Check console for details.');
+          }
+          loadIncomingOrders();
+        });
+      });
+    } catch (err) {
+      console.error('Load incoming orders failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load incoming orders. Check console for details.</td></tr>`;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // SLA Escalations — breached service tickets (Technician or Service
+  // Center jobs) whose pincode falls inside this Distributor's own
+  // coverage area. Read-only on the ticket itself (Distributor never
+  // gets write access to serviceJobs/centerRequests — see
+  // firestore.rules); acting on it means raising a note against the
+  // ticket in the separate slaEscalations collection.
+  // -----------------------------------------------------------------
+
+  const DIST_SLA_DEFAULT = { dueSoonHours: 24, breachedHours: 48 };
+  const DIST_SVC_STATUS_LABELS = {
+    new: 'New', assigned: 'Assigned', accepted: 'Accepted', on_the_way: 'On the Way',
+    at_customer: 'At Customer', in_progress: 'In Progress', waiting_spare: 'Waiting for Spare'
+  };
+
+  async function renderSlaEscalations() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>SLA escalations — breached tickets in your coverage area</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Source</th><th>Ticket ID</th><th>Customer</th><th>Open</th><th>Status</th><th>Escalation</th></tr></thead>
+            <tbody id="sla-esc-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadSlaEscalations();
+  }
+
+  async function loadSlaEscalations() {
+    const tbody = document.getElementById('sla-esc-tbody');
+    if (!currentUser || !currentDistributorData) return;
+    const myPincodes = currentDistributorData.pincodesCovered || [];
+    if (!myPincodes.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No coverage pincodes set on your account yet — ask Super Admin to add them under Users &amp; Access.</td></tr>`;
+      return;
+    }
+    try {
+      const [jobsSnap, requestsSnap, pincodeSnap, rulesSnap, escSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('status', 'in', ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']))),
+        getDocs(query(collection(db, 'centerRequests'), where('status', 'in', ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']))),
+        getDocs(collection(db, 'pincodes')),
+        getDocs(collection(db, 'slaRules')),
+        getDocs(query(collection(db, 'slaEscalations'), where('distributorUid', '==', currentUser.uid))),
+      ]);
+      const pincodeMaster = [];
+      pincodeSnap.forEach(d => pincodeMaster.push({ id: d.id, ...d.data() }));
+      const rules = [];
+      rulesSnap.forEach(d => rules.push({ id: d.id, ...d.data() }));
+      const escalations = [];
+      escSnap.forEach(d => escalations.push({ id: d.id, ...d.data() }));
+
+      function resolveRule(district, serviceType) {
+        if (district) {
+          const m = rules.find(r => r.matchType === 'district' && (r.matchValue || '').toLowerCase() === district.toLowerCase());
+          if (m) return m;
+        }
+        if (serviceType) {
+          const m = rules.find(r => r.matchType === 'servicetype' && (r.matchValue || '').toLowerCase() === serviceType.toLowerCase());
+          if (m) return m;
+        }
+        return null;
+      }
+
+      const now = Date.now();
+      const rows = [];
+      function pushRow(source, sourceCollection, ticketId, docId, customer, status, createdAt, pincode, serviceType) {
+        if (!pincode || !myPincodes.includes(pincode)) return;
+        const openedMs = createdAt && createdAt.toDate ? createdAt.toDate().getTime() : now;
+        const hoursOpen = (now - openedMs) / (1000 * 60 * 60);
+        const resolved = pincodeMaster.find(p => p.id === pincode);
+        const district = resolved ? resolved.district : '';
+        const rule = resolveRule(district, serviceType);
+        const thresholds = rule || DIST_SLA_DEFAULT;
+        if (hoursOpen <= thresholds.breachedHours) return; // only breached belongs on this screen
+        rows.push({ source, sourceCollection, ticketId, docId, customer, status, hoursOpen });
+      }
+      jobsSnap.forEach(d => { const j = d.data(); pushRow('Technician', 'serviceJobs', j.jobId, d.id, j.customerName, j.status, j.createdAt, j.pincode, j.type); });
+      requestsSnap.forEach(d => { const r = d.data(); pushRow('Service Center', 'centerRequests', r.requestId, d.id, r.customerName, r.status, r.createdAt, r.pincode, r.type); });
+
+      rows.sort((a, b) => b.hoursOpen - a.hoursOpen);
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No breached tickets in your coverage area right now.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const existing = escalations.filter(e => e.ticketDocId === r.docId).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.source}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(r.ticketId || r.docId)}</td>
+          <td>${escapeHtml(r.customer || '—')}</td>
+          <td><span class="status-pill cancelled">${Math.round(r.hoursOpen)}h</span></td>
+          <td>${DIST_SVC_STATUS_LABELS[r.status] || r.status}</td>
+          <td>
+            ${existing ? `<div style="font-size:12px;color:var(--stone);margin-bottom:6px;">Last note: <b>${escapeHtml(existing.note)}</b></div>` : ''}
+            <div style="display:flex;gap:6px;">
+              <input type="text" class="esc-note-input" placeholder="${existing ? 'Add follow-up note…' : 'Escalation note…'}" style="flex:1;font-size:12px;padding:6px 8px;">
+              <button type="button" class="btn-secondary esc-submit-btn" data-doc-id="${r.docId}" data-source="${r.sourceCollection}" data-ticket-id="${escapeHtml(r.ticketId || r.docId)}" data-customer="${escapeHtml(r.customer || '')}">${existing ? 'Follow up' : 'Escalate'}</button>
+            </div>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.esc-submit-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const target = e.currentTarget;
+          const row = target.closest('tr');
+          const input = row.querySelector('.esc-note-input');
+          const note = input.value.trim();
+          if (!note) { input.focus(); return; }
+          target.disabled = true;
+          target.textContent = 'Sending…';
+          try {
+            await addDoc(collection(db, 'slaEscalations'), {
+              ticketDocId: target.dataset.docId,
+              ticketSource: target.dataset.source,
+              ticketId: target.dataset.ticketId,
+              customer: target.dataset.customer,
+              distributorUid: currentUser.uid,
+              distributorName: currentDistributorData.name || currentUser.email,
+              note,
+              status: 'open',
+              createdAt: serverTimestamp()
+            });
+            loadSlaEscalations();
+          } catch (err) {
+            console.error('Escalate failed:', err);
+            alert('Could not send this escalation. Check console for details.');
+            target.disabled = false;
+            target.textContent = 'Escalate';
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load SLA escalations failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load escalations. Check console for details.</td></tr>`;
     }
   }
 

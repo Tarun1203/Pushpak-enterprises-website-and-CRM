@@ -1657,8 +1657,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // that district's pincodes — picking a district first, then a
   // pincode within it, rather than scrolling every pincode company-
   // wide. Falls back to the full list when no district is selected
-  // yet, or when a pincode's district isn't set in the master.
-  async function filterPincodeOptionsByDistricts(selectId, districts) {
+  // yet, or when a pincode's district isn't set in the master. Every
+  // pincode under the selected district(s) is also auto-added as a
+  // chip, so picking a district covers it fully by default — the
+  // admin can still remove individual pincodes afterward if a
+  // district should only be partially covered.
+  async function filterPincodeOptionsByDistricts(selectId, districts, pincodeChipApi) {
     await loadKnownLocations(); // idempotent — ensures the base list has settled before narrowing it, regardless of call order elsewhere
     const select = document.getElementById(selectId);
     const master = await getPincodesCache(false);
@@ -1667,14 +1671,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       : master;
     const options = pool.map(p => p.id).sort();
     select.innerHTML = options.map(p => `<option value="${p}">${p}</option>`).join('');
+    if (pincodeChipApi && districts.length) {
+      const autoIds = pool.map(p => p.id);
+      const merged = [...new Set([...pincodeChipApi.get(), ...autoIds])];
+      pincodeChipApi.set(merged);
+    }
   }
 
-  const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add',
-    (districts) => filterPincodeOptionsByDistricts('new-user-pincode-input', districts));
   const newUserPincodesChip = createChipInput('new-user-pincodes-chips', 'new-user-pincode-input', 'new-user-pincode-add');
-  const editUserDistrictsChip = createChipInput('edit-user-districts-chips', 'edit-user-district-input', 'edit-user-district-add',
-    (districts) => filterPincodeOptionsByDistricts('edit-user-pincode-input', districts));
+  const newUserDistrictsChip = createChipInput('new-user-districts-chips', 'new-user-district-input', 'new-user-district-add',
+    (districts) => filterPincodeOptionsByDistricts('new-user-pincode-input', districts, newUserPincodesChip));
   const editUserPincodesChip = createChipInput('edit-user-pincodes-chips', 'edit-user-pincode-input', 'edit-user-pincode-add');
+  const editUserDistrictsChip = createChipInput('edit-user-districts-chips', 'edit-user-district-input', 'edit-user-district-add',
+    (districts) => filterPincodeOptionsByDistricts('edit-user-pincode-input', districts, editUserPincodesChip));
 
   // Skills — a repeatable list of {category, level} pairs, shown for
   // Technician accounts. Category options are pulled from the real
@@ -1755,6 +1764,62 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       document.getElementById('edit-user-distributor').innerHTML = optionsHtml;
     } catch (err) {
       console.warn('Could not load distributor options:', err.message);
+    }
+  }
+
+  // Pincode-based auto-linking: whenever a Distributor's coverage
+  // area changes, or a Dealer/Service Center's own coverage pincodes
+  // change, re-sync who falls under which distributor. A Dealer or
+  // Service Center is only ever auto-managed while it has pincode
+  // coverage data of its own to match on — one with none is left
+  // exactly as the admin set it, so this never clobbers a manual pick
+  // made before pincodes were tracked.
+  async function runDistributorAutoLink() {
+    try {
+      const [distSnap, dealerSnap, scSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'distributor'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'dealer'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter'))),
+      ]);
+      const distributors = [];
+      distSnap.forEach(d => distributors.push({ uid: d.id, ...d.data() }));
+
+      function findMatch(pincodes) {
+        if (!pincodes || !pincodes.length) return null;
+        return distributors.find(dist => (dist.pincodesCovered || []).some(p => pincodes.includes(p))) || null;
+      }
+
+      const updates = [];
+      dealerSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const pins = d.pincodesCovered || [];
+        if (!pins.length) return; // no location data — leave whatever the admin set manually
+        const match = findMatch(pins);
+        const newType = match ? 'underDistributor' : 'direct';
+        const newUid = match ? match.uid : '';
+        const newName = match ? (match.name || match.email || '') : '';
+        if (d.distributionType !== newType || d.distributorUid !== newUid) {
+          updates.push(updateDoc(doc(db, 'users', docSnap.id), {
+            distributionType: newType, distributorUid: newUid, distributorName: newName
+          }));
+        }
+      });
+      scSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        const pins = d.pincodesCovered || [];
+        if (!pins.length) return; // no coverage set yet — leave as-is
+        const match = findMatch(pins);
+        const newUid = match ? match.uid : '';
+        const newName = match ? (match.name || match.email || '') : '';
+        if ((d.distributorUid || '') !== newUid) {
+          updates.push(updateDoc(doc(db, 'users', docSnap.id), {
+            distributorUid: newUid, distributorName: newName
+          }));
+        }
+      });
+      if (updates.length) await Promise.all(updates);
+    } catch (err) {
+      console.warn('Distributor auto-link pass failed (non-blocking):', err.message);
     }
   }
 
@@ -1845,8 +1910,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   document.getElementById('new-user-role').addEventListener('change', (e) => {
-    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
-    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
+    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
     document.getElementById('new-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -1891,8 +1956,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       // Write the role doc using the PRIMARY app's Firestore instance,
       // authenticated as the admin — so it passes the isAdmin() rule.
-      const districtsCovered = role === 'servicecenter' ? newUserDistrictsChip.get() : [];
-      const pincodesCovered = role === 'servicecenter' ? newUserPincodesChip.get() : [];
+      const districtsCovered = ['servicecenter', 'distributor', 'dealer'].includes(role) ? newUserDistrictsChip.get() : [];
+      const pincodesCovered = ['servicecenter', 'distributor', 'dealer'].includes(role) ? newUserPincodesChip.get() : [];
       const brandsAuthorized = ['technician', 'servicecenter'].includes(role) ? getCheckedBrands('new-user-brand-cb') : [];
       const skills = role === 'technician' ? newUserSkills.get() : [];
       const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
@@ -1924,6 +1989,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       addUserSuccess.classList.add('show');
       submitBtn.textContent = 'Create account';
       submitBtn.disabled = false;
+      await runDistributorAutoLink();
       loadUsersTable();
       initDashboardStats();
       setTimeout(closeAddUserModal, 1200);
@@ -1975,8 +2041,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-account-type').value = data.accountType || 'permanent';
     document.getElementById('edit-user-contract-end').value = data.contractEndDate || '';
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', (data.accountType || 'permanent') !== 'temporary');
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(data.role));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(data.role));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
@@ -2006,8 +2072,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   editRoleSelect.addEventListener('change', (e) => {
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -2031,8 +2097,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     editSubmitBtn.disabled = true;
     editSubmitBtn.textContent = 'Saving…';
-    const districtsCovered = editRoleSelect.value === 'servicecenter' ? editUserDistrictsChip.get() : [];
-    const pincodesCovered = editRoleSelect.value === 'servicecenter' ? editUserPincodesChip.get() : [];
+    const districtsCovered = ['servicecenter', 'distributor', 'dealer'].includes(editRoleSelect.value) ? editUserDistrictsChip.get() : [];
+    const pincodesCovered = ['servicecenter', 'distributor', 'dealer'].includes(editRoleSelect.value) ? editUserPincodesChip.get() : [];
     const brandsAuthorized = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? getCheckedBrands('edit-user-brand-cb') : [];
     const skills = editRoleSelect.value === 'technician' ? editUserSkills.get() : [];
     const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
@@ -2075,7 +2141,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       editUserSuccess.classList.add('show');
       editSubmitBtn.textContent = 'Save changes';
       editSubmitBtn.disabled = false;
+      await runDistributorAutoLink();
       loadUsersTable();
+      initDashboardStats();
       setTimeout(closeEditUserModal, 900);
     } catch (err) {
       console.error('Update user failed:', err);
@@ -3837,18 +3905,26 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All distributors</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
-            <tbody id="distributors-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Districts covered</th><th>Pincodes covered</th><th>Linked dealers</th><th>Linked service centers</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
+            <tbody id="distributors-tbody"><tr><td colspan="9" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
     const tbody = document.getElementById('distributors-tbody');
     try {
-      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'distributor')));
+      const [usersSnap, dealersSnap, centersSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('role', '==', 'distributor'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'dealer'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter'))),
+      ]);
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No distributor accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No distributor accounts yet.</td></tr>`;
         return;
       }
+      // Filtered client-side (rather than a second where() clause) to
+      // avoid needing a composite Firestore index for role+distributorUid.
+      const allDealers = dealersSnap.docs.map(d => d.data());
+      const allCenters = centersSnap.docs.map(d => d.data());
       tbody.innerHTML = '';
       for (const userDoc of usersSnap.docs) {
         const d = userDoc.data();
@@ -3857,10 +3933,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           getDocs(query(collection(db, 'distributorOrders'), where('distributorUid', '==', userDoc.id))),
           getDocs(query(collection(db, 'distributorSales'), where('distributorUid', '==', userDoc.id))),
         ]);
+        const linkedDealerCount = allDealers.filter(x => x.distributorUid === userDoc.id).length;
+        const linkedCenterCount = allCenters.filter(x => x.distributorUid === userDoc.id).length;
+        const districtsList = (d.districtsCovered || []).join(', ') || '—';
+        const pincodesList = (d.pincodesCovered || []).join(', ') || '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${d.name || '—'}</td>
           <td>${d.email || '—'}</td>
+          <td>${escapeHtml(districtsList)}</td>
+          <td>${escapeHtml(pincodesList)}</td>
+          <td>${linkedDealerCount} <span class="hint">(auto, by pincode)</span></td>
+          <td>${linkedCenterCount} <span class="hint">(auto, by pincode)</span></td>
           <td>${custSnap.size}</td>
           <td>${orderSnap.size}</td>
           <td>${saleSnap.size}</td>`;
@@ -3868,7 +3952,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     } catch (err) {
       console.error('Load distributors failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load distributors. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-row" style="color:var(--err);">Couldn't load distributors. Check console for details.</td></tr>`;
     }
   }
 

@@ -301,6 +301,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const ALLOWED_ROLE = 'dealer';
 
   let currentUser = null;
+  let currentDealerData = null;
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -314,6 +315,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         window.location.href = 'login.html';
         return;
       }
+      currentDealerData = roleSnap.data();
     } catch (err) {
       console.error('Role check failed:', err);
       window.location.href = 'login.html';
@@ -583,8 +585,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Notes</th></tr></thead>
-            <tbody id="order-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Routed to</th><th>Notes</th></tr></thead>
+            <tbody id="order-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -598,7 +600,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', currentUser.uid)));
       if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No orders placed yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No orders placed yet.</td></tr>`;
         return;
       }
       let docs = [];
@@ -612,12 +614,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.quantity ?? '—'}</td>
           <td><span class="status-pill ${d.status}">${ORDER_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td style="color:var(--stone);">${d.distributorUid ? escapeHtml(d.distributorName || 'Distributor') : 'Pushpak Warehouse'}</td>
           <td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
       console.error('Load orders failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load orders. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load orders. Check console for details.</td></tr>`;
     }
   }
 
@@ -648,14 +651,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     orderSubmitBtn.textContent = 'Placing…';
     try {
       const orderId = await generateOrderId();
+      // Routed straight to the Distributor this dealer falls under
+      // (Super Admin sets this automatically from pincode coverage —
+      // see Users & Access). A Direct dealer's order has no
+      // distributorUid, so it stays with Warehouse/Super Admin as
+      // before.
+      const underDistributor = currentDealerData && currentDealerData.distributionType === 'underDistributor' && currentDealerData.distributorUid;
       await addDoc(collection(db, 'dealerOrders'), {
         orderId,
         dealerUid: currentUser.uid,
         dealerEmail: currentUser.email,
+        dealerName: (currentDealerData && currentDealerData.name) || '',
         product: document.getElementById('order-product').value.trim(),
         quantity: Number(document.getElementById('order-qty').value) || 1,
         notes: document.getElementById('order-notes').value.trim(),
         status: 'placed',
+        distributorUid: underDistributor ? currentDealerData.distributorUid : '',
+        distributorName: underDistributor ? (currentDealerData.distributorName || '') : '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
