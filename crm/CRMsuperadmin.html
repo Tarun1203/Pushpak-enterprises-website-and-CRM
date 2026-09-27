@@ -5388,16 +5388,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       snap.forEach(docSnap => {
         const d = docSnap.data();
         if (d.status === 'settled' || d.status === 'rejected') return;
-        saPaymentPendingItems.push({ id: docSnap.id, refId: d.claimId || docSnap.id, description: d.description || '', who: d.claimantName || '', amount: Number(d.amount) || 0 });
+        saPaymentPendingItems.push({ id: docSnap.id, refId: d.claimId || docSnap.id, description: d.description || '', who: d.claimantName || '', amount: Number(d.amount) || 0, createdAt: d.createdAt?.seconds || 0 });
       });
     } else {
       const snap = await getDocs(collection(db, 'localPurchases'));
       snap.forEach(docSnap => {
         const d = docSnap.data();
         if (d.status === 'reimbursed') return;
-        saPaymentPendingItems.push({ id: docSnap.id, refId: d.requestId || docSnap.id, description: d.item || '', who: d.requestedBy || '', amount: Number(d.actualAmount ?? d.estimatedAmount) || 0 });
+        saPaymentPendingItems.push({ id: docSnap.id, refId: d.requestId || docSnap.id, description: d.item || '', who: d.requestedBy || '', amount: Number(d.actualAmount ?? d.estimatedAmount) || 0, createdAt: d.createdAt?.seconds || 0 });
       });
     }
+    // Oldest first — work through the longest-outstanding claims/
+    // local purchases before today's, instead of them getting buried.
+    saPaymentPendingItems.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }
 
   function renderSaPaymentResults(query) {
@@ -5596,17 +5599,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         This is a read-only overview — approve/verify/settle actions happen in the Warehouse portal.
       </div>`;
 
+    // All three lists sort oldest-first (by createdAt, client-side —
+    // avoids needing a Firestore composite index for status + date)
+    // so the longest-outstanding item is what's seen first, not
+    // buried under today's.
     try {
       const claimsSnap = await getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted')));
       const tbody1 = document.getElementById('appr-claims-tbody');
       if (claimsSnap.empty) {
         tbody1.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing pending.</td></tr>`;
       } else {
+        const rows = [];
+        claimsSnap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+        rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         tbody1.innerHTML = '';
-        claimsSnap.forEach(docSnap => {
-          const d = docSnap.data();
+        rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || docSnap.id}</td><td>${d.claimantType || '—'}</td><td>${d.claimantName || '—'}</td><td>₹${d.amount ?? '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${d.claimantType || '—'}</td><td>${d.claimantName || '—'}</td><td>₹${d.amount ?? '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
           tbody1.appendChild(tr);
         });
       }
@@ -5618,11 +5627,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (lpSnap.empty) {
         tbody2.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing pending.</td></tr>`;
       } else {
+        const rows = [];
+        lpSnap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+        rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         tbody2.innerHTML = '';
-        lpSnap.forEach(docSnap => {
-          const d = docSnap.data();
+        rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td><td>${d.item || '—'}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.item || '—'}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
           tbody2.appendChild(tr);
         });
       }
@@ -5634,11 +5645,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (srSnap.empty) {
         tbody3.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing pending.</td></tr>`;
       } else {
+        const rows = [];
+        srSnap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+        rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         tbody3.innerHTML = '';
-        srSnap.forEach(docSnap => {
-          const d = docSnap.data();
+        rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td><td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
           tbody3.appendChild(tr);
         });
       }
@@ -6428,13 +6441,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const out = [];
     jobsSnap.forEach(d => {
       const j = d.data();
-      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', modelNo: j.modelNo || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '', serviceCenterName: '', technicianName: j.technicianEmail || j.technicianName || '' });
+      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', modelNo: j.modelNo || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '', serviceCenterName: '', technicianName: j.technicianEmail || j.technicianName || '', createdAt: j.createdAt?.seconds || 0 });
     });
     requestsSnap.forEach(d => {
       const r = d.data();
-      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', modelNo: r.modelNo || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '', serviceCenterName: r.serviceCenterName || '', technicianName: r.technicianName || '' });
+      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', modelNo: r.modelNo || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '', serviceCenterName: r.serviceCenterName || '', technicianName: r.technicianName || '', createdAt: r.createdAt?.seconds || 0 });
     });
-    out.sort((a, b) => (b.ticketId || '').localeCompare(a.ticketId || ''));
+    // Oldest first — the older, still-unresolved tickets surface
+    // before today's, so nothing old quietly sits at the bottom of a
+    // long search-result list.
+    out.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || (a.ticketId || '').localeCompare(b.ticketId || ''));
     return out;
   }
 
