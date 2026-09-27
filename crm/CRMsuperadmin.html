@@ -288,6 +288,17 @@
           <button type="button" class="btn-secondary" id="new-user-skill-add">Add</button>
         </div>
       </div>
+      <div class="form-row step-hidden" id="new-user-distribution-row">
+        <label>Distribution</label>
+        <select id="new-user-distribution-type">
+          <option value="direct">Direct (buys straight from Pushpak Enterprises)</option>
+          <option value="underDistributor">Under a Distributor</option>
+        </select>
+        <div id="new-user-distributor-wrap" class="step-hidden" style="margin-top:10px;">
+          <label>Distributor</label>
+          <select id="new-user-distributor"><option value="">Select a distributor…</option></select>
+        </div>
+      </div>
       <div class="modal-error" id="add-user-error"></div>
       <div class="modal-success" id="add-user-success"></div>
       <div class="modal-actions">
@@ -378,6 +389,17 @@
             <option value="expert">Expert</option>
           </select>
           <button type="button" class="btn-secondary" id="edit-user-skill-add">Add</button>
+        </div>
+      </div>
+      <div class="form-row step-hidden" id="edit-user-distribution-row">
+        <label>Distribution</label>
+        <select id="edit-user-distribution-type">
+          <option value="direct">Direct (buys straight from Pushpak Enterprises)</option>
+          <option value="underDistributor">Under a Distributor</option>
+        </select>
+        <div id="edit-user-distributor-wrap" class="step-hidden" style="margin-top:10px;">
+          <label>Distributor</label>
+          <select id="edit-user-distributor"><option value="">Select a distributor…</option></select>
         </div>
       </div>
       <div class="modal-error" id="edit-user-error"></div>
@@ -1716,6 +1738,26 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   }
 
+  // Populates the Distributor picker (shown under a Dealer account's
+  // "Distribution" field) from real distributor accounts — cached
+  // the same way as skill categories above, not reloaded every open.
+  let distributorOptionsLoaded = false;
+  async function loadDistributorOptions() {
+    if (distributorOptionsLoaded) return;
+    distributorOptionsLoaded = true;
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'distributor')));
+      const rows = [];
+      snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
+      rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const optionsHtml = '<option value="">Select a distributor…</option>' + rows.map(r => `<option value="${r.uid}">${escapeHtml(r.name || r.email || r.uid)}</option>`).join('');
+      document.getElementById('new-user-distributor').innerHTML = optionsHtml;
+      document.getElementById('edit-user-distributor').innerHTML = optionsHtml;
+    } catch (err) {
+      console.warn('Could not load distributor options:', err.message);
+    }
+  }
+
   function getCheckedBrands(checkboxClass) {
     return Array.from(document.querySelectorAll(`.${checkboxClass}:checked`)).map(cb => cb.value);
   }
@@ -1782,6 +1824,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-account-type').value = 'permanent';
     document.getElementById('new-user-contract-end-wrap').classList.add('step-hidden');
     document.getElementById('new-user-contract-end').value = '';
+    document.getElementById('new-user-distribution-row').classList.add('step-hidden');
+    document.getElementById('new-user-distribution-type').value = 'direct';
+    document.getElementById('new-user-distributor-wrap').classList.add('step-hidden');
+    document.getElementById('new-user-distributor').value = '';
     newUserDistrictsChip.set([]);
     newUserPincodesChip.set([]);
     newUserSkills.set([]);
@@ -1805,7 +1851,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
     document.getElementById('new-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
+    document.getElementById('new-user-distribution-row').classList.toggle('step-hidden', e.target.value !== 'dealer');
     if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
+    if (e.target.value === 'dealer') loadDistributorOptions();
+  });
+  document.getElementById('new-user-distribution-type').addEventListener('change', (e) => {
+    document.getElementById('new-user-distributor-wrap').classList.toggle('step-hidden', e.target.value !== 'underDistributor');
   });
 
   addUserForm.addEventListener('submit', async (e) => {
@@ -1847,8 +1898,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
       const accountType = ['technician', 'servicecenter'].includes(role) ? document.getElementById('new-user-account-type').value : 'permanent';
       const contractEndDate = accountType === 'temporary' ? document.getElementById('new-user-contract-end').value : null;
+      const distributionType = role === 'dealer' ? document.getElementById('new-user-distribution-type').value : null;
+      const distributorSelect = document.getElementById('new-user-distributor');
+      const distributorUid = (role === 'dealer' && distributionType === 'underDistributor') ? distributorSelect.value : '';
+      const distributorName = (role === 'dealer' && distributionType === 'underDistributor' && distributorUid) ? (distributorSelect.options[distributorSelect.selectedIndex]?.textContent || '') : '';
       await setDoc(doc(db, 'users', newUid), {
-        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, categoriesAuthorized, accountType, contractEndDate, createdAt: new Date().toISOString()
+        name, email, role, districtsCovered, pincodesCovered, brandsAuthorized, skills, categoriesAuthorized, accountType, contractEndDate, distributionType, distributorUid, distributorName, createdAt: new Date().toISOString()
       });
 
       try {
@@ -1926,7 +1981,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
     document.getElementById('edit-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
+    document.getElementById('edit-user-distribution-row').classList.toggle('step-hidden', data.role !== 'dealer');
+    document.getElementById('edit-user-distribution-type').value = data.distributionType || 'direct';
+    document.getElementById('edit-user-distributor-wrap').classList.toggle('step-hidden', (data.distributionType || 'direct') !== 'underDistributor');
     if (data.role === 'technician' || data.role === 'servicecenter') loadSkillCategoryOptions();
+    if (data.role === 'dealer') {
+      loadDistributorOptions().then(() => {
+        document.getElementById('edit-user-distributor').value = data.distributorUid || '';
+      });
+    }
     loadKnownLocations();
     editUserError.classList.remove('show');
     editUserSuccess.classList.remove('show');
@@ -1949,7 +2012,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
     document.getElementById('edit-user-accounttype-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
+    document.getElementById('edit-user-distribution-row').classList.toggle('step-hidden', e.target.value !== 'dealer');
     if (e.target.value === 'technician' || e.target.value === 'servicecenter') loadSkillCategoryOptions();
+    if (e.target.value === 'dealer') loadDistributorOptions();
+  });
+  document.getElementById('edit-user-distribution-type').addEventListener('change', (e) => {
+    document.getElementById('edit-user-distributor-wrap').classList.toggle('step-hidden', e.target.value !== 'underDistributor');
   });
 
   editUserForm.addEventListener('submit', async (e) => {
@@ -1970,6 +2038,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
     const accountType = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? document.getElementById('edit-user-account-type').value : 'permanent';
     const contractEndDate = accountType === 'temporary' ? document.getElementById('edit-user-contract-end').value : null;
+    const distributionType = editRoleSelect.value === 'dealer' ? document.getElementById('edit-user-distribution-type').value : null;
+    const editDistributorSelect = document.getElementById('edit-user-distributor');
+    const distributorUid = (editRoleSelect.value === 'dealer' && distributionType === 'underDistributor') ? editDistributorSelect.value : '';
+    const distributorName = (editRoleSelect.value === 'dealer' && distributionType === 'underDistributor' && distributorUid) ? (editDistributorSelect.options[editDistributorSelect.selectedIndex]?.textContent || '') : '';
     try {
       await updateDoc(doc(db, 'users', editingUid), {
         name: editNameInput.value.trim(),
@@ -1980,7 +2052,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         skills,
         categoriesAuthorized,
         accountType,
-        contractEndDate
+        contractEndDate,
+        distributionType,
+        distributorUid,
+        distributorName
       });
       try {
         const roleChanged = editingOriginalRole !== editRoleSelect.value;
@@ -3717,8 +3792,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All dealers</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
-            <tbody id="dealers-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Distribution</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
+            <tbody id="dealers-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -3726,7 +3801,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'dealer')));
       if (usersSnap.empty) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No dealer accounts yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No dealer accounts yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
@@ -3737,10 +3812,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           getDocs(query(collection(db, 'dealerOrders'), where('dealerUid', '==', userDoc.id))),
           getDocs(query(collection(db, 'dealerSales'), where('dealerUid', '==', userDoc.id))),
         ]);
+        const distributionLabel = d.distributionType === 'underDistributor'
+          ? `Under: ${escapeHtml(d.distributorName || 'Unknown distributor')}`
+          : 'Direct';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${d.name || '—'}</td>
           <td>${d.email || '—'}</td>
+          <td>${distributionLabel}</td>
           <td>${custSnap.size}</td>
           <td>${orderSnap.size}</td>
           <td>${saleSnap.size}</td>`;
@@ -3748,7 +3827,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     } catch (err) {
       console.error('Load dealers failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load dealers. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load dealers. Check console for details.</td></tr>`;
     }
   }
 
