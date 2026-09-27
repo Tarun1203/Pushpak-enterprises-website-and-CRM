@@ -1359,49 +1359,149 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // ---------------------------------------------------------------
   let dashboardStatsCache = null;
 
+  // Every "pending" count below reuses the exact same status logic as
+  // its own screen (Approvals, RMA, Payments, Spare Request, SLA,
+  // Appointments) rather than inventing a separate definition of
+  // "pending" here — so the dashboard number always matches what
+  // you'd actually see if you clicked into that screen.
   async function initDashboardStats() {
     try {
-      const [enquiriesSnap, brandsSnap, usersSnap] = await Promise.all([
+      const [
+        enquiriesSnap, brandsSnap, usersSnap,
+        claimsSnap, lpSnap, srSnap, rmaSnap, dealerOrdersSnap,
+        jobsSnap, requestsSnap, pincodeMaster, slaRules,
+      ] = await Promise.all([
         getDocs(collection(db, 'contactEnquiries')),
         getDocs(collection(db, 'brands')),
         getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'claims')),
+        getDocs(collection(db, 'localPurchases')),
+        getDocs(collection(db, 'spareRequests')),
+        getDocs(collection(db, 'rmaRequests')),
+        getDocs(collection(db, 'dealerOrders')),
+        getDocs(collection(db, 'serviceJobs')),
+        getDocs(collection(db, 'centerRequests')),
+        getPincodesCache(false),
+        getSlaRulesCache(false),
       ]);
+
+      // Claims — same "not settled, not rejected" as the Payments
+      // pending-item picker; "submitted" alone is what Approvals counts.
+      let approvalsClaims = 0, pendingClaims = 0;
+      claimsSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status !== 'settled' && d.status !== 'rejected') pendingClaims++;
+        if (d.status === 'submitted') approvalsClaims++;
+      });
+
+      // Local purchase — same split as above.
+      let approvalsLp = 0, pendingLp = 0;
+      lpSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status !== 'reimbursed') pendingLp++;
+        if (d.status === 'requested' || d.status === 'invoice_submitted') approvalsLp++;
+      });
+
+      // Spare requests — "not received yet" for the logistics tile;
+      // "new" alone is what Approvals counts.
+      let approvalsSr = 0, pendingSr = 0;
+      srSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status !== 'received') pendingSr++;
+        if (d.status === 'new') approvalsSr++;
+      });
+
+      let pendingRma = 0;
+      rmaSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status !== 'replaced' && d.status !== 'rejected') pendingRma++;
+      });
+
+      let pendingDealerOrders = 0;
+      dealerOrdersSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status !== 'delivered' && d.status !== 'cancelled') pendingDealerOrders++;
+      });
+
+      // Service tickets / Installation-Demo / SLA — same three status
+      // sets as Appointments and the SLA screen: "still open" excludes
+      // completed/closed/cancelled/verification, while the narrower
+      // SLA-clock set (matching loadSlaView) is what the due-soon/
+      // breached hours are measured against.
+      const isOpenTicket = status => !['completed', 'closed', 'cancelled', 'verification'].includes(status);
+      const slaClockStatuses = ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
+      let serviceTickets = 0, installationDemo = 0, slaAlerts = 0;
+      const now = Date.now();
+      function tally(d) {
+        if (!isOpenTicket(d.status)) return;
+        if (d.type === 'installation') installationDemo++; else serviceTickets++;
+        if (slaClockStatuses.includes(d.status)) {
+          const openedMs = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().getTime() : now;
+          const hoursOpen = (now - openedMs) / (1000 * 60 * 60);
+          const resolved = d.pincode ? pincodeMaster.find(p => p.id === d.pincode) : null;
+          const rule = resolveSlaRule(slaRules, resolved ? resolved.district : '', d.type);
+          const thresholds = rule || SLA_DEFAULT;
+          if (hoursOpen > thresholds.dueSoonHours) slaAlerts++; // due soon or already breached
+        }
+      }
+      jobsSnap.forEach(docSnap => tally(docSnap.data()));
+      requestsSnap.forEach(docSnap => tally(docSnap.data()));
+
       dashboardStatsCache = {
         enquiries: enquiriesSnap.size,
         brands: brandsSnap.size,
         users: usersSnap.size,
+        approvals: approvalsClaims + approvalsLp + approvalsSr,
+        rma: pendingRma,
+        payments: pendingClaims + pendingLp,
+        claims: pendingClaims,
+        localPurchase: pendingLp,
+        spareRequest: pendingSr,
+        sla: slaAlerts,
+        serviceTickets,
+        installationDemo,
+        dealerOrders: pendingDealerOrders,
       };
     } catch (err) {
       console.error('Dashboard stats failed:', err);
-      dashboardStatsCache = { enquiries: '—', brands: '—', users: '—' };
+      dashboardStatsCache = {
+        enquiries: '—', brands: '—', users: '—', approvals: '—', rma: '—', payments: '—',
+        claims: '—', localPurchase: '—', spareRequest: '—', sla: '—', serviceTickets: '—',
+        installationDemo: '—', dealerOrders: '—',
+      };
     }
     renderDashboard();
   }
 
+  // Each tile names the nav id it drills into on click, so the count
+  // is never a dead end — same click-to-open pattern used everywhere
+  // else this session (ticket popups, claim links, etc.).
+  const DASHBOARD_TILES = [
+    { key: 'enquiries', label: 'Pending Contact Enquiries', hint: 'From the public website form', nav: 'website' },
+    { key: 'approvals', label: 'Pending Approvals', hint: 'Claims, local purchase & spare requests awaiting a decision', nav: 'approvals' },
+    { key: 'rma', label: 'Pending RMA & Replacement', hint: 'Not yet Replaced or Rejected', nav: 'rma' },
+    { key: 'payments', label: 'Pending Payments', hint: 'Claims + local purchases awaiting settlement', nav: 'payments' },
+    { key: 'claims', label: 'Pending Claims', hint: 'Not yet Settled or Rejected', nav: 'finance' },
+    { key: 'localPurchase', label: 'Pending Local Purchase Claims', hint: 'Not yet Reimbursed', nav: 'localpurchase' },
+    { key: 'spareRequest', label: 'Spare Request & Logistics', hint: 'Not yet Received at the requesting center', nav: 'sparerequest' },
+    { key: 'sla', label: 'SLA Alerts', hint: 'Open tickets due soon or breached', nav: 'sla' },
+    { key: 'serviceTickets', label: 'Service Tickets', hint: 'Open, non-installation jobs & center requests', nav: 'service' },
+    { key: 'installationDemo', label: 'Installation / Demo', hint: 'Open installation-type jobs & center requests', nav: 'service' },
+    { key: 'dealerOrders', label: 'Pending Dealer Orders', hint: 'Not yet Delivered or Cancelled', nav: 'dealers' },
+    { key: 'brands', label: 'Brands', hint: 'MakWell, Flyvision, Skevia', nav: 'brands' },
+    { key: 'users', label: 'CRM Users', hint: 'Across all roles', nav: 'users' },
+  ];
+
   function renderDashboard() {
-    const s = dashboardStatsCache || { enquiries: '…', brands: '…', users: '…' };
+    const s = dashboardStatsCache || {};
     contentEl.innerHTML = `
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="label">Contact Enquiries</div>
-          <div class="value">${s.enquiries}</div>
-          <div class="hint">From the public website form</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Brands</div>
-          <div class="value">${s.brands}</div>
-          <div class="hint">MakWell, Flyvision, Skevia</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">CRM Users</div>
-          <div class="value">${s.users}</div>
-          <div class="hint">Across all roles</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Service Activity</div>
-          <div class="value">See Service →</div>
-          <div class="hint">Jobs, center requests & website submissions, combined</div>
-        </div>
+        ${DASHBOARD_TILES.map(t => `
+          <div class="stat-card dash-tile" data-nav="${t.nav}" style="cursor:pointer;">
+            <div class="label">${t.label}</div>
+            <div class="value">${s[t.key] ?? '…'}</div>
+            <div class="hint">${t.hint}</div>
+          </div>`).join('')}
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
@@ -1411,6 +1511,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           Technicians, and Dealers instead of doing it manually in the Firebase Console.
         </div>
       </div>`;
+    contentEl.querySelectorAll('.dash-tile').forEach(el => {
+      el.addEventListener('click', () => {
+        const navEl = document.querySelector(`.nav-item[data-id="${el.dataset.nav}"]`);
+        if (navEl) navEl.click();
+      });
+    });
   }
 
   // ---------------------------------------------------------------
