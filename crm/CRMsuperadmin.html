@@ -887,6 +887,12 @@
         <input type="text" id="fin-claim-name" placeholder="e.g. Ramesh K., or Hubli Service Center" required>
       </div>
       <div class="form-row">
+        <label>Service ticket (optional)</label>
+        <input type="text" id="fin-claim-ticket-search" placeholder="Search by ticket ID, customer, phone, product, or service center…" autocomplete="off">
+        <div id="fin-claim-ticket-results" style="border:1px solid var(--hairline);border-radius:2px;max-height:220px;overflow-y:auto;margin-top:4px;display:none;"></div>
+      </div>
+      <div id="fin-claim-ticket-preview" style="font-size:12.5px;color:var(--stone);margin:-6px 0 10px;"></div>
+      <div class="form-row">
         <label>Description</label>
         <input type="text" id="fin-claim-description" placeholder="e.g. Travel expense for on-site repair" required>
       </div>
@@ -5046,6 +5052,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <div><b>Amount:</b> ${c.amount != null ? '₹' + c.amount : '—'}</div>
               <div><b>Status:</b> <span class="status-pill ${FIN_CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${FIN_CLAIM_STATUS_LABELS[c.status] || c.status}</span></div>
               ${c.notes ? `<div><b>Notes:</b> ${escapeHtml(c.notes)}</div>` : ''}
+              ${c.sourceTicketId ? `<div><b>Service ticket:</b> ${escapeHtml(c.sourceTicketId)}</div>` : ''}
               ${c.sourceReturnId ? `<div><b>Linked return:</b> ${escapeHtml(c.sourceReturnId)}</div>` : ''}
             `;
             c360DetailOverlay.classList.add('show');
@@ -5112,14 +5119,76 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const finClaimError = document.getElementById('fin-claim-error');
   const finClaimSuccess = document.getElementById('fin-claim-success');
   const finClaimSubmitBtn = document.getElementById('submit-fin-claim');
+  const finClaimTicketSearch = document.getElementById('fin-claim-ticket-search');
+  const finClaimTicketResults = document.getElementById('fin-claim-ticket-results');
+  const finClaimTicketPreview = document.getElementById('fin-claim-ticket-preview');
+  let finClaimEligibleTickets = [];
+  let finClaimSelectedTicket = null;
 
-  function openFinClaimModal() {
+  // Optional link back to a real service ticket, so a claim (a
+  // technician's travel expense, a service center's part cost, etc.)
+  // can be traced to the job it came from — not required, since some
+  // claims (e.g. a defective-part claim off a return) aren't tied to
+  // one. Reuses the same eligible-ticket fetch as RMA rather than
+  // duplicating the serviceJobs/centerRequests query.
+  function renderFinClaimTicketResults(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) { finClaimTicketResults.style.display = 'none'; finClaimTicketResults.innerHTML = ''; return; }
+    const matches = finClaimEligibleTickets.filter(t =>
+      (t.ticketId || '').toLowerCase().includes(q) ||
+      (t.customerName || '').toLowerCase().includes(q) ||
+      (t.customerPhone || '').toLowerCase().includes(q) ||
+      (t.modelNo || '').toLowerCase().includes(q) ||
+      (t.product || '').toLowerCase().includes(q) ||
+      (t.serviceCenterName || '').toLowerCase().includes(q) ||
+      (t.technicianName || '').toLowerCase().includes(q)
+    ).slice(0, 20);
+    if (!matches.length) {
+      finClaimTicketResults.innerHTML = `<div style="padding:8px 10px;font-size:12.5px;color:var(--stone);">No matching tickets.</div>`;
+      finClaimTicketResults.style.display = 'block';
+      return;
+    }
+    finClaimTicketResults.innerHTML = matches.map(t =>
+      `<div class="fin-claim-ticket-result" data-key="${t.coll}|${t.docId}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
+    ).join('');
+    finClaimTicketResults.style.display = 'block';
+    finClaimTicketResults.querySelectorAll('.fin-claim-ticket-result').forEach(row => {
+      row.addEventListener('click', () => selectFinClaimTicket(row.dataset.key));
+      row.addEventListener('mouseenter', () => row.style.background = '#EFE8D4');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+    });
+  }
+  finClaimTicketSearch.addEventListener('input', () => {
+    finClaimSelectedTicket = null;
+    renderFinClaimTicketResults(finClaimTicketSearch.value);
+  });
+  finClaimTicketSearch.addEventListener('focus', () => { if (finClaimTicketSearch.value.trim()) renderFinClaimTicketResults(finClaimTicketSearch.value); });
+  document.addEventListener('click', (e) => {
+    if (!finClaimTicketResults.contains(e.target) && e.target !== finClaimTicketSearch) finClaimTicketResults.style.display = 'none';
+  });
+  function selectFinClaimTicket(key) {
+    const rec = finClaimEligibleTickets.find(t => `${t.coll}|${t.docId}` === key);
+    if (!rec) return;
+    finClaimSelectedTicket = rec;
+    finClaimTicketSearch.value = rec.ticketId;
+    finClaimTicketResults.style.display = 'none';
+    const who = rec.serviceCenterName ? `Requested from Service Center: ${escapeHtml(rec.serviceCenterName)}` : (rec.technicianName ? `Technician: ${escapeHtml(rec.technicianName)}` : '');
+    const modelDisplay = rec.modelNo || rec.product || '—';
+    finClaimTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Model No: ${escapeHtml(modelDisplay)} &nbsp; | &nbsp; Status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || rec.status}${who ? ' &nbsp; | &nbsp; ' + who : ''}`;
+  }
+
+  async function openFinClaimModal() {
     finClaimForm.reset();
     finClaimError.classList.remove('show');
     finClaimSuccess.classList.remove('show');
     finClaimSubmitBtn.disabled = false;
     finClaimSubmitBtn.textContent = 'Create claim';
+    finClaimSelectedTicket = null;
+    finClaimTicketSearch.value = '';
+    finClaimTicketResults.style.display = 'none';
+    finClaimTicketPreview.textContent = '';
     finClaimOverlay.classList.add('show');
+    finClaimEligibleTickets = await getEligibleServiceRecordsForRma();
   }
   function closeFinClaimModal() { finClaimOverlay.classList.remove('show'); }
   document.getElementById('cancel-fin-claim').addEventListener('click', closeFinClaimModal);
@@ -5133,6 +5202,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     finClaimSubmitBtn.textContent = 'Creating…';
     try {
       const claimId = await generateClaimId();
+      const t = finClaimSelectedTicket;
       await addDoc(collection(db, 'claims'), {
         claimId,
         claimantType: document.getElementById('fin-claim-type').value,
@@ -5140,6 +5210,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         description: document.getElementById('fin-claim-description').value.trim(),
         amount: Number(document.getElementById('fin-claim-amount').value) || 0,
         notes: document.getElementById('fin-claim-notes').value.trim(),
+        sourceTicketId: t ? t.ticketId : '',
+        sourceJobId: t ? t.docId : '',
+        sourceJobCollection: t ? t.coll : '',
         status: 'submitted',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
