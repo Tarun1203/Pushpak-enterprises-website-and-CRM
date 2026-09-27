@@ -854,7 +854,7 @@
     <form id="rma-form">
       <div class="form-row">
         <label>Service ticket</label>
-        <select id="rma-ticket-select" required><option value="">Select a completed service ticket…</option></select>
+        <select id="rma-ticket-select" required><option value="">Select a service ticket…</option></select>
       </div>
       <div id="rma-ticket-preview" style="font-size:12.5px;color:var(--stone);margin:-6px 0 10px;"></div>
       <div class="form-row"><label>Reason</label><textarea id="rma-reason" required></textarea></div>
@@ -3986,20 +3986,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (r.status === 'completed') btnHtml = `<button class="btn-primary" id="svc-popup-advance" data-next="verification">Move to Verification</button>`;
       else if (r.status === 'verification') btnHtml = `<button class="btn-primary" id="svc-popup-advance" data-next="closed">Close Job</button>`;
       else if (r.status === 'closed') btnHtml = `<button class="btn-secondary" id="svc-popup-advance" data-next="reopened">Reopen</button>`;
-      btnHtml += ` <button class="btn-secondary" id="svc-popup-raise-rma">Raise RMA</button>`;
       svcTicketActions.innerHTML = btnHtml;
-      const rmaBtn = document.getElementById('svc-popup-raise-rma');
-      if (rmaBtn) {
-        rmaBtn.addEventListener('click', () => {
-          svcTicketOverlay.classList.remove('show');
-          openRmaModal({
-            docId: r.docId, coll: r.coll, ticketId: r.id,
-            customerName: r.customer, customerPhone: f.customerPhone,
-            product: f.product || f.brand || '', category: f.category || '',
-            serialNumber: f.serialNumber || f.serialNo || ''
-          });
-        });
-      }
       const btn = document.getElementById('svc-popup-advance');
       if (btn) {
         btn.addEventListener('click', async () => {
@@ -4046,6 +4033,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
     } else if (r.coll === 'centerRequests' && r.status === 'new' && !f.technicianName) {
       await renderRoutingControlsForCenterRequest(f, r.docId);
+    }
+
+    // Raise RMA is available from any real, assigned job — not just
+    // ones that have already reached Completed/Verification/Closed —
+    // since a technician may diagnose a product as unrepairable
+    // before the job itself is formally closed out.
+    if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
+      svcTicketActions.insertAdjacentHTML('beforeend', `<div style="margin-top:10px;"><button class="btn-secondary" id="svc-popup-raise-rma">Raise RMA</button></div>`);
+      document.getElementById('svc-popup-raise-rma').addEventListener('click', () => {
+        svcTicketOverlay.classList.remove('show');
+        openRmaModal({
+          docId: r.docId, coll: r.coll, ticketId: r.id,
+          customerName: r.customer, customerPhone: f.customerPhone,
+          product: f.product || f.brand || '', category: f.category || '',
+          serialNumber: f.serialNumber || f.serialNo || ''
+        });
+      });
     }
 
     svcTicketOverlay.classList.add('show');
@@ -5948,26 +5952,25 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const rmaTicketPreview = document.getElementById('rma-ticket-preview');
   let rmaEligibleTickets = [];
 
-  // An RMA always traces back to a real, completed service job — no
-  // freehand customer/product/serial entry. Pulls from the same two
-  // collections the Service screen aggregates, restricted to jobs
-  // that have actually reached completed/verification/closed.
+  // An RMA always traces back to a real service job — no freehand
+  // customer/product/serial entry. Pulls from the same two
+  // collections the Service screen aggregates. Any real, assigned
+  // job is eligible (not just ones already Completed/Verification/
+  // Closed) — a technician can diagnose "unrepairable, needs RMA"
+  // at any stage, before the job itself is formally closed.
   async function getEligibleServiceRecordsForRma() {
     const [jobsSnap, requestsSnap] = await Promise.all([
       getDocs(collection(db, 'serviceJobs')),
       getDocs(collection(db, 'centerRequests')),
     ]);
-    const eligible = ['completed', 'verification', 'closed'];
     const out = [];
     jobsSnap.forEach(d => {
       const j = d.data();
-      if (!eligible.includes(j.status)) return;
-      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '' });
+      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '' });
     });
     requestsSnap.forEach(d => {
       const r = d.data();
-      if (!eligible.includes(r.status)) return;
-      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '' });
+      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '' });
     });
     out.sort((a, b) => (a.ticketId || '').localeCompare(b.ticketId || ''));
     return out;
@@ -5976,7 +5979,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function renderRmaTicketPreview() {
     const rec = rmaEligibleTickets.find(t => `${t.coll}|${t.docId}` === rmaTicketSelect.value);
     if (!rec) { rmaTicketPreview.textContent = ''; return; }
-    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Product: ${escapeHtml(rec.product)} ${escapeHtml(rec.category)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'}`;
+    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Product: ${escapeHtml(rec.product)} ${escapeHtml(rec.category)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'} &nbsp; | &nbsp; Ticket status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || escapeHtml(rec.status) || '—'}`;
   }
   rmaTicketSelect.addEventListener('change', renderRmaTicketPreview);
 
@@ -5993,12 +5996,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     rmaOverlay.classList.add('show');
     rmaEligibleTickets = await getEligibleServiceRecordsForRma();
     if (!rmaEligibleTickets.length) {
-      rmaTicketSelect.innerHTML = '<option value="">No completed service tickets yet</option>';
-      rmaTicketPreview.textContent = 'An RMA can only be raised against a service ticket that has reached Completed, Verification, or Closed — there are none yet.';
+      rmaTicketSelect.innerHTML = '<option value="">No service tickets yet</option>';
+      rmaTicketPreview.textContent = 'An RMA is always raised against a real service ticket (Technician or Service Center) — there are none in the database yet.';
       return;
     }
-    rmaTicketSelect.innerHTML = '<option value="">Select a completed service ticket…</option>' +
-      rmaEligibleTickets.map(t => `<option value="${t.coll}|${t.docId}">${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(t.product) || 'product'})</option>`).join('');
+    rmaTicketSelect.innerHTML = '<option value="">Select a service ticket…</option>' +
+      rmaEligibleTickets.map(t => `<option value="${t.coll}|${t.docId}">${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(t.product) || 'product'}) — ${escapeHtml(SVC_STATUS_LABELS[t.status]) || escapeHtml(t.status) || t.status}</option>`).join('');
     if (preselect) {
       rmaTicketSelect.value = `${preselect.coll}|${preselect.docId}`;
       renderRmaTicketPreview();
