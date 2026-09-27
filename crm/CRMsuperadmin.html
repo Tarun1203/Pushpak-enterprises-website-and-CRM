@@ -228,6 +228,7 @@
           <option value="servicecenter">Service Center</option>
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
+          <option value="distributor">Distributor</option>
         </select>
       </div>
       <div class="form-row step-hidden" id="new-user-accounttype-row">
@@ -319,6 +320,7 @@
           <option value="servicecenter">Service Center</option>
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
+          <option value="distributor">Distributor</option>
         </select>
       </div>
       <div class="form-row step-hidden" id="edit-user-accounttype-row">
@@ -1077,6 +1079,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'serials', label: 'Serial & Registration', built: true },
       { id: 'warranty', label: 'Warranty', built: true },
       { id: 'dealers', label: 'Dealers', built: true },
+      { id: 'distributors', label: 'Distributors', built: true },
     ]},
     { group: 'Product Catalog', items: [
       { id: 'brands', label: 'Brands', built: true },
@@ -1185,6 +1188,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'dealers') {
       pageSub.textContent = 'All dealer accounts';
       renderDealersOverview();
+    } else if (id === 'distributors') {
+      pageSub.textContent = 'All distributor accounts';
+      renderDistributorsOverview();
     } else if (id === 'centers') {
       pageSub.textContent = 'All service center accounts';
       renderCentersOverview();
@@ -3743,6 +3749,47 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } catch (err) {
       console.error('Load dealers failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load dealers. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function renderDistributorsOverview() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>All distributors</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Customers</th><th>Orders</th><th>Sales</th></tr></thead>
+            <tbody id="distributors-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    const tbody = document.getElementById('distributors-tbody');
+    try {
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'distributor')));
+      if (usersSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No distributor accounts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      for (const userDoc of usersSnap.docs) {
+        const d = userDoc.data();
+        const [custSnap, orderSnap, saleSnap] = await Promise.all([
+          getDocs(query(collection(db, 'distributorCustomers'), where('distributorUid', '==', userDoc.id))),
+          getDocs(query(collection(db, 'distributorOrders'), where('distributorUid', '==', userDoc.id))),
+          getDocs(query(collection(db, 'distributorSales'), where('distributorUid', '==', userDoc.id))),
+        ]);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.name || '—'}</td>
+          <td>${d.email || '—'}</td>
+          <td>${custSnap.size}</td>
+          <td>${orderSnap.size}</td>
+          <td>${saleSnap.size}</td>`;
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      console.error('Load distributors failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load distributors. Check console for details.</td></tr>`;
     }
   }
 

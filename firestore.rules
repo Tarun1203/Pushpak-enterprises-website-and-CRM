@@ -61,9 +61,9 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -161,6 +161,55 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------
+    // Distributor collections — same self-scoped pattern as Dealer
+    // above, kept as its own separate set of collections (not shared
+    // with dealerCustomers/dealerOrders/etc.) since a Distributor is
+    // a different account type with its own data, even though the
+    // portal is built the same way. distributorProductRegistrations
+    // is deliberately its own collection too, rather than writing
+    // into the shared productRegistrations collection below — that
+    // one is read by Super Admin/Warehouse expecting dealerUid/
+    // dealerName fields specifically (warranty tracking tied to an
+    // actual retail sale to an end customer).
+    // ---------------------------------------------------------------
+
+    match /distributorCustomers/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
+    }
+
+    match /distributorOrders/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /distributorSales/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
+    }
+
+    match /distributorProductRegistrations/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
+    }
+
+    match /distributorEnquiries/{id} {
+      allow read, update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
     }
 
     match /productRegistrations/{id} {
