@@ -4906,6 +4906,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // FINANCE — settled totals across claims and local purchase.
   // =================================================================
 
+  const FIN_CLAIM_STATUS_LABELS = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+  const FIN_CLAIM_STATUS_PILL_CLASS = { submitted: 'new', verified: 'low', settled: 'ok', rejected: 'backorder' };
+  const FIN_LP_STATUS_LABELS = { requested: 'Requested', invoice_submitted: 'Invoice Submitted', verified: 'Verified', reimbursed: 'Reimbursed' };
+  const FIN_LP_STATUS_PILL_CLASS = { requested: 'new', invoice_submitted: 'low', verified: 'ok', reimbursed: 'ok' };
+
   async function renderFinanceOverview() {
     contentEl.innerHTML = `
       <div class="stat-grid">
@@ -4913,6 +4918,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="stat-card"><div class="label">Local Purchases Reimbursed</div><div class="value" id="fin-lp-total">…</div><div class="hint">Total ₹ paid out</div></div>
         <div class="stat-card"><div class="label">Pending Claims</div><div class="value" id="fin-claims-pending">…</div><div class="hint">Submitted, not yet settled</div></div>
         <div class="stat-card"><div class="label">Pending Local Purchases</div><div class="value" id="fin-lp-pending">…</div><div class="hint">Not yet reimbursed</div></div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header"><h2>Claims</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Claim ID</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="fin-claims-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header"><h2>Local purchase requests</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Item</th><th>Requested By</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="fin-lp-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
       </div>`;
     try {
       const [claimsSnap, lpSnap] = await Promise.all([
@@ -4920,13 +4943,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         getDocs(collection(db, 'localPurchases')),
       ]);
       let claimsSettled = 0, claimsPending = 0, lpSettled = 0, lpPending = 0;
-      claimsSnap.forEach(d => {
-        const c = d.data();
+      const claims = [];
+      claimsSnap.forEach(docSnap => {
+        const c = docSnap.data();
+        claims.push({ id: docSnap.id, ...c });
         if (c.status === 'settled') claimsSettled += Number(c.amount) || 0;
         else if (c.status !== 'rejected') claimsPending++;
       });
-      lpSnap.forEach(d => {
-        const l = d.data();
+      const lps = [];
+      lpSnap.forEach(docSnap => {
+        const l = docSnap.data();
+        lps.push({ id: docSnap.id, ...l });
         if (l.status === 'reimbursed') lpSettled += Number(l.actualAmount || l.estimatedAmount) || 0;
         else lpPending++;
       });
@@ -4934,6 +4961,69 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       document.getElementById('fin-lp-total').textContent = '₹' + lpSettled;
       document.getElementById('fin-claims-pending').textContent = claimsPending;
       document.getElementById('fin-lp-pending').textContent = lpPending;
+
+      claims.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const claimsTbody = document.getElementById('fin-claims-tbody');
+      if (!claims.length) {
+        claimsTbody.innerHTML = `<tr><td colspan="5" class="empty-row">No claims raised yet.</td></tr>`;
+      } else {
+        claimsTbody.innerHTML = '';
+        claims.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><a href="#" class="c360-open-link fin-claim-link" style="font-size:12px;">${escapeHtml(c.claimId || c.id)}</a></td>
+            <td>${escapeHtml(c.claimantName) || '—'}</td>
+            <td>${escapeHtml(c.description) || '—'}</td>
+            <td>${c.amount != null ? '₹' + c.amount : '—'}</td>
+            <td><span class="status-pill ${FIN_CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${FIN_CLAIM_STATUS_LABELS[c.status] || c.status}</span></td>`;
+          tr.querySelector('.fin-claim-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            c360DetailTitle.textContent = c.claimId || 'Claim';
+            c360DetailBody.innerHTML = `
+              <div><b>Claimant:</b> ${escapeHtml(c.claimantName) || '—'} ${c.claimantType ? `(${escapeHtml(c.claimantType)})` : ''}</div>
+              <div><b>Description:</b> ${escapeHtml(c.description) || '—'}</div>
+              <div><b>Amount:</b> ${c.amount != null ? '₹' + c.amount : '—'}</div>
+              <div><b>Status:</b> <span class="status-pill ${FIN_CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${FIN_CLAIM_STATUS_LABELS[c.status] || c.status}</span></div>
+              ${c.notes ? `<div><b>Notes:</b> ${escapeHtml(c.notes)}</div>` : ''}
+              ${c.sourceReturnId ? `<div><b>Linked return:</b> ${escapeHtml(c.sourceReturnId)}</div>` : ''}
+            `;
+            c360DetailOverlay.classList.add('show');
+          });
+          claimsTbody.appendChild(tr);
+        });
+      }
+
+      lps.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const lpTbody = document.getElementById('fin-lp-tbody');
+      if (!lps.length) {
+        lpTbody.innerHTML = `<tr><td colspan="5" class="empty-row">No local purchase requests yet.</td></tr>`;
+      } else {
+        lpTbody.innerHTML = '';
+        lps.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><a href="#" class="c360-open-link fin-lp-link" style="font-size:12px;">${escapeHtml(l.requestId || l.id)}</a></td>
+            <td>${escapeHtml(l.item) || '—'}</td>
+            <td>${escapeHtml(l.requestedBy) || '—'}</td>
+            <td>${l.actualAmount != null ? '₹' + l.actualAmount : (l.estimatedAmount != null ? '~₹' + l.estimatedAmount : '—')}</td>
+            <td><span class="status-pill ${FIN_LP_STATUS_PILL_CLASS[l.status] || ''}">${FIN_LP_STATUS_LABELS[l.status] || l.status}</span></td>`;
+          tr.querySelector('.fin-lp-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            c360DetailTitle.textContent = l.requestId || 'Local purchase';
+            c360DetailBody.innerHTML = `
+              <div><b>Item:</b> ${escapeHtml(l.item) || '—'} &nbsp; <b>Qty:</b> ${l.quantity ?? '—'}</div>
+              <div><b>Requested by:</b> ${escapeHtml(l.requestedBy) || '—'}</div>
+              <div><b>Estimated amount:</b> ${l.estimatedAmount != null ? '₹' + l.estimatedAmount : '—'} &nbsp; <b>Actual amount:</b> ${l.actualAmount != null ? '₹' + l.actualAmount : '—'}</div>
+              <div><b>Emergency:</b> ${l.emergency ? 'Yes' : 'No'}</div>
+              <div><b>Status:</b> <span class="status-pill ${FIN_LP_STATUS_PILL_CLASS[l.status] || ''}">${FIN_LP_STATUS_LABELS[l.status] || l.status}</span></div>
+              ${l.notes ? `<div><b>Notes:</b> ${escapeHtml(l.notes)}</div>` : ''}
+              ${l.invoiceUrl ? `<div><b>Invoice:</b> <a href="${l.invoiceUrl}" target="_blank" rel="noopener">View invoice</a></div>` : ''}
+            `;
+            c360DetailOverlay.classList.add('show');
+          });
+          lpTbody.appendChild(tr);
+        });
+      }
     } catch (err) {
       console.error('Load finance overview failed:', err);
     }
