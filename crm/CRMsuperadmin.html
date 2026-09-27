@@ -914,6 +914,54 @@
   </div>
 </div>
 
+<!-- Record Payment modal -->
+<div class="modal-overlay" id="sa-payment-overlay">
+  <div class="modal">
+    <h3>Record payment</h3>
+    <form id="sa-payment-form">
+      <div class="form-row">
+        <label>Pay against</label>
+        <select id="sa-payment-source-type">
+          <option value="claim">Claim</option>
+          <option value="localPurchase">Local Purchase</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Search pending items <span class="hint">(pick as many as you're settling in this one payment)</span></label>
+        <input type="text" id="sa-payment-search" placeholder="Search by ID, claimant/requester, or description…" autocomplete="off">
+        <div id="sa-payment-results" style="border:1px solid var(--hairline);border-radius:2px;max-height:220px;overflow-y:auto;margin-top:4px;display:none;"></div>
+      </div>
+      <div id="sa-payment-selected-wrap" style="margin:-4px 0 12px;display:none;">
+        <div style="font-size:12px;color:var(--stone);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Selected — <span id="sa-payment-selected-count">0</span> item(s), total ₹<span id="sa-payment-selected-total">0</span></div>
+        <div id="sa-payment-selected-list" style="border:1px solid var(--hairline);border-radius:2px;"></div>
+      </div>
+      <div class="form-row">
+        <label>Method</label>
+        <select id="sa-payment-method">
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="UPI">UPI</option>
+          <option value="Cash">Cash</option>
+          <option value="Cheque">Cheque</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Reference number <span class="hint">(UPI ref, cheque no., transaction ID)</span></label>
+        <input type="text" id="sa-payment-reference">
+      </div>
+      <div class="form-row">
+        <label>Paid date</label>
+        <input type="date" id="sa-payment-date" required>
+      </div>
+      <div class="modal-error" id="sa-payment-error"></div>
+      <div class="modal-success" id="sa-payment-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-sa-payment">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-sa-payment">Record payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Add/Edit Template modal -->
 <div class="modal-overlay" id="template-overlay">
   <div class="modal">
@@ -5268,7 +5316,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="stat-card"><div class="label">Payments Recorded</div><div class="value" id="pay-count">…</div><div class="hint">All time</div></div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h2>Payment history</h2></div>
+        <div class="panel-header"><h2>Payment history</h2><button class="btn-primary" id="open-sa-payment">+ Record Payment</button></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Description</th><th>Amount</th><th>Method</th><th>Payment Ref.</th></tr></thead>
@@ -5276,6 +5324,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
+    document.getElementById('open-sa-payment').addEventListener('click', openSaPaymentModal);
     const tbody = document.getElementById('pay-tbody');
     try {
       const snap = await getDocs(query(collection(db, 'payments'), orderBy('createdAt', 'desc')));
@@ -5310,6 +5359,209 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load payments. Check console for details.</td></tr>`;
     }
   }
+
+  // Lets Super Admin record a payment directly, instead of that only
+  // being possible from the Warehouse portal — same effect as
+  // Warehouse's own "Record payment" (writes a payments doc, then
+  // flips the claim to Settled or the local purchase to Reimbursed),
+  // just reached by searching for the pending item here first.
+  const saPaymentOverlay = document.getElementById('sa-payment-overlay');
+  const saPaymentForm = document.getElementById('sa-payment-form');
+  const saPaymentError = document.getElementById('sa-payment-error');
+  const saPaymentSuccess = document.getElementById('sa-payment-success');
+  const saPaymentSubmitBtn = document.getElementById('submit-sa-payment');
+  const saPaymentSourceType = document.getElementById('sa-payment-source-type');
+  const saPaymentSearch = document.getElementById('sa-payment-search');
+  const saPaymentResults = document.getElementById('sa-payment-results');
+  const saPaymentSelectedWrap = document.getElementById('sa-payment-selected-wrap');
+  const saPaymentSelectedList = document.getElementById('sa-payment-selected-list');
+  const saPaymentSelectedCount = document.getElementById('sa-payment-selected-count');
+  const saPaymentSelectedTotal = document.getElementById('sa-payment-selected-total');
+  let saPaymentPendingItems = [];
+  let saPaymentSelectedItems = []; // multiple claims/local purchases can be settled in one payment run
+
+  async function loadSaPaymentPendingItems() {
+    const sourceType = saPaymentSourceType.value;
+    saPaymentPendingItems = [];
+    if (sourceType === 'claim') {
+      const snap = await getDocs(collection(db, 'claims'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status === 'settled' || d.status === 'rejected') return;
+        saPaymentPendingItems.push({ id: docSnap.id, refId: d.claimId || docSnap.id, description: d.description || '', who: d.claimantName || '', amount: Number(d.amount) || 0 });
+      });
+    } else {
+      const snap = await getDocs(collection(db, 'localPurchases'));
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.status === 'reimbursed') return;
+        saPaymentPendingItems.push({ id: docSnap.id, refId: d.requestId || docSnap.id, description: d.item || '', who: d.requestedBy || '', amount: Number(d.actualAmount ?? d.estimatedAmount) || 0 });
+      });
+    }
+  }
+
+  function renderSaPaymentResults(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) { saPaymentResults.style.display = 'none'; saPaymentResults.innerHTML = ''; return; }
+    const pickedIds = new Set(saPaymentSelectedItems.map(t => t.id));
+    const matches = saPaymentPendingItems.filter(t =>
+      !pickedIds.has(t.id) && (
+        (t.refId || '').toLowerCase().includes(q) ||
+        (t.description || '').toLowerCase().includes(q) ||
+        (t.who || '').toLowerCase().includes(q)
+      )
+    ).slice(0, 20);
+    if (!matches.length) {
+      saPaymentResults.innerHTML = `<div style="padding:8px 10px;font-size:12.5px;color:var(--stone);">No matching pending items.</div>`;
+      saPaymentResults.style.display = 'block';
+      return;
+    }
+    saPaymentResults.innerHTML = matches.map(t =>
+      `<div class="sa-payment-result" data-id="${t.id}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${escapeHtml(t.refId)} — ${escapeHtml(t.who) || 'unnamed'} — ${escapeHtml(t.description) || 'no description'} — ₹${t.amount}</div>`
+    ).join('');
+    saPaymentResults.style.display = 'block';
+    saPaymentResults.querySelectorAll('.sa-payment-result').forEach(row => {
+      row.addEventListener('click', () => addSaPaymentItem(row.dataset.id));
+      row.addEventListener('mouseenter', () => row.style.background = '#EFE8D4');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+    });
+  }
+  saPaymentSearch.addEventListener('input', () => renderSaPaymentResults(saPaymentSearch.value));
+  saPaymentSearch.addEventListener('focus', () => { if (saPaymentSearch.value.trim()) renderSaPaymentResults(saPaymentSearch.value); });
+  document.addEventListener('click', (e) => {
+    if (!saPaymentResults.contains(e.target) && e.target !== saPaymentSearch) saPaymentResults.style.display = 'none';
+  });
+  saPaymentSourceType.addEventListener('change', async () => {
+    saPaymentSelectedItems = [];
+    saPaymentSearch.value = '';
+    renderSaPaymentSelected();
+    await loadSaPaymentPendingItems();
+  });
+
+  // Adds a picked item to the selection (search box stays open/clears
+  // so the next one can be searched right away — this is how several
+  // claims get bundled into one payment run) rather than closing the
+  // modal on the first pick.
+  function addSaPaymentItem(id) {
+    const rec = saPaymentPendingItems.find(t => t.id === id);
+    if (!rec || saPaymentSelectedItems.some(t => t.id === id)) return;
+    saPaymentSelectedItems.push({ ...rec });
+    saPaymentSearch.value = '';
+    saPaymentResults.style.display = 'none';
+    renderSaPaymentSelected();
+  }
+  function removeSaPaymentItem(id) {
+    saPaymentSelectedItems = saPaymentSelectedItems.filter(t => t.id !== id);
+    renderSaPaymentSelected();
+  }
+  function updateSaPaymentItemAmount(id, value) {
+    const rec = saPaymentSelectedItems.find(t => t.id === id);
+    if (rec) rec.amount = Number(value) || 0;
+    saPaymentSelectedTotal.textContent = saPaymentSelectedItems.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  }
+  function renderSaPaymentSelected() {
+    if (!saPaymentSelectedItems.length) {
+      saPaymentSelectedWrap.style.display = 'none';
+      saPaymentSelectedList.innerHTML = '';
+      return;
+    }
+    saPaymentSelectedWrap.style.display = 'block';
+    saPaymentSelectedCount.textContent = saPaymentSelectedItems.length;
+    saPaymentSelectedTotal.textContent = saPaymentSelectedItems.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    saPaymentSelectedList.innerHTML = saPaymentSelectedItems.map(t => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px;border-bottom:1px solid var(--hairline);">
+        <div style="flex:1;">${escapeHtml(t.refId)} — ${escapeHtml(t.who) || 'unnamed'} — ${escapeHtml(t.description) || 'no description'}</div>
+        <input type="number" min="0" step="0.01" value="${t.amount}" data-id="${t.id}" class="sa-payment-item-amount" style="width:90px;">
+        <button type="button" data-id="${t.id}" class="sa-payment-item-remove" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:12.5px;">Remove</button>
+      </div>`).join('');
+    saPaymentSelectedList.querySelectorAll('.sa-payment-item-amount').forEach(inp => {
+      inp.addEventListener('input', () => updateSaPaymentItemAmount(inp.dataset.id, inp.value));
+    });
+    saPaymentSelectedList.querySelectorAll('.sa-payment-item-remove').forEach(btn => {
+      btn.addEventListener('click', () => removeSaPaymentItem(btn.dataset.id));
+    });
+  }
+
+  async function openSaPaymentModal() {
+    saPaymentForm.reset();
+    saPaymentError.classList.remove('show');
+    saPaymentSuccess.classList.remove('show');
+    saPaymentSubmitBtn.disabled = false;
+    saPaymentSubmitBtn.textContent = 'Record payment';
+    saPaymentSourceType.value = 'claim';
+    saPaymentSelectedItems = [];
+    saPaymentSearch.value = '';
+    saPaymentResults.style.display = 'none';
+    renderSaPaymentSelected();
+    document.getElementById('sa-payment-date').value = new Date().toISOString().slice(0, 10);
+    saPaymentOverlay.classList.add('show');
+    await loadSaPaymentPendingItems();
+  }
+  function closeSaPaymentModal() { saPaymentOverlay.classList.remove('show'); }
+  document.getElementById('cancel-sa-payment').addEventListener('click', closeSaPaymentModal);
+  saPaymentOverlay.addEventListener('click', (e) => { if (e.target === saPaymentOverlay) closeSaPaymentModal(); });
+
+  saPaymentForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    saPaymentError.classList.remove('show');
+    saPaymentSuccess.classList.remove('show');
+    if (!saPaymentSelectedItems.length) {
+      saPaymentError.textContent = 'Search for and select at least one claim or local purchase this payment is for.';
+      saPaymentError.classList.add('show');
+      return;
+    }
+    saPaymentSubmitBtn.disabled = true;
+    saPaymentSubmitBtn.textContent = 'Recording…';
+    const sourceType = saPaymentSourceType.value === 'claim' ? 'claim' : 'localPurchase';
+    const method = document.getElementById('sa-payment-method').value;
+    const referenceNumber = document.getElementById('sa-payment-reference').value.trim();
+    const paidDate = document.getElementById('sa-payment-date').value;
+    try {
+      // One payment doc per item (each keeps its own amount/status),
+      // sharing the same method/reference/date since in practice this
+      // is one bank transfer or cheque covering several claims at once.
+      for (const rec of saPaymentSelectedItems) {
+        await addDoc(collection(db, 'payments'), {
+          sourceType,
+          sourceId: rec.id,
+          sourceRef: rec.refId,
+          description: rec.description,
+          amount: Number(rec.amount) || 0,
+          method,
+          referenceNumber,
+          paidDate,
+          createdAt: serverTimestamp()
+        });
+        if (sourceType === 'claim') {
+          await updateDoc(doc(db, 'claims', rec.id), { status: 'settled', updatedAt: serverTimestamp() });
+        } else {
+          await updateDoc(doc(db, 'localPurchases', rec.id), { status: 'reimbursed', updatedAt: serverTimestamp() });
+        }
+        try {
+          await addDoc(collection(db, 'auditLogs'), {
+            entityType: 'payment', entityId: rec.id, action: 'settled',
+            performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+            details: `Recorded ₹${rec.amount} payment (${method}) for ${rec.refId}`,
+            createdAt: serverTimestamp()
+          });
+        } catch (auditErr) {
+          console.warn('Audit log write failed (non-blocking):', auditErr.message);
+        }
+      }
+      saPaymentSuccess.textContent = `Recorded ${saPaymentSelectedItems.length} payment(s).`;
+      saPaymentSuccess.classList.add('show');
+      saPaymentSubmitBtn.disabled = false;
+      saPaymentSubmitBtn.textContent = 'Record payment';
+      if (document.getElementById('pay-tbody')) renderPayments();
+      setTimeout(closeSaPaymentModal, 900);
+    } catch (err) {
+      console.error('Record payment failed:', err);
+      saPaymentError.textContent = 'Could not record one or more payments. Check console for details — already-recorded items in this batch are saved.';
+      saPaymentError.classList.add('show');
+      saPaymentSubmitBtn.disabled = false;
+      saPaymentSubmitBtn.textContent = 'Record payment';
+    }
+  });
 
   // =================================================================
   // APPROVALS — everything awaiting a decision, in one place.
