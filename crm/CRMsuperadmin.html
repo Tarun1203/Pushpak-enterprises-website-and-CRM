@@ -1502,14 +1502,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <div class="value">${s[t.key] ?? '…'}</div>
             <div class="hint">${t.hint}</div>
           </div>`).join('')}
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h2>Getting started</h2></div>
-        <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This dashboard will fill in as each module is built. Right now, <b style="color:var(--blue)">Users & Access</b>
-          is fully working — use it to create accounts for Warehouse, Area Managers, Service Centers,
-          Technicians, and Dealers instead of doing it manually in the Firebase Console.
-        </div>
       </div>`;
     contentEl.querySelectorAll('.dash-tile').forEach(el => {
       el.addEventListener('click', () => {
