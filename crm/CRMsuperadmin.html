@@ -869,6 +869,45 @@
   </div>
 </div>
 
+<!-- New Claim modal -->
+<div class="modal-overlay" id="fin-claim-overlay">
+  <div class="modal">
+    <h3>New claim</h3>
+    <form id="fin-claim-form">
+      <div class="form-row">
+        <label>Claimant type</label>
+        <select id="fin-claim-type" required>
+          <option value="technician">Technician</option>
+          <option value="servicecenter">Service Center</option>
+          <option value="warehouse">Warehouse</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Claimant name</label>
+        <input type="text" id="fin-claim-name" placeholder="e.g. Ramesh K., or Hubli Service Center" required>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <input type="text" id="fin-claim-description" placeholder="e.g. Travel expense for on-site repair" required>
+      </div>
+      <div class="form-row">
+        <label>Amount (₹)</label>
+        <input type="number" id="fin-claim-amount" min="0" step="0.01" required>
+      </div>
+      <div class="form-row">
+        <label>Notes (optional)</label>
+        <textarea id="fin-claim-notes" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="modal-error" id="fin-claim-error"></div>
+      <div class="modal-success" id="fin-claim-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-fin-claim">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-fin-claim">Create claim</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Add/Edit Template modal -->
 <div class="modal-overlay" id="template-overlay">
   <div class="modal">
@@ -4941,7 +4980,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="stat-card"><div class="label">Pending Local Purchases</div><div class="value" id="fin-lp-pending">…</div><div class="hint">Not yet reimbursed</div></div>
       </div>
       <div class="panel" style="margin-top:16px;">
-        <div class="panel-header"><h2>Claims</h2></div>
+        <div class="panel-header"><h2>Claims</h2><button class="btn-primary" id="open-fin-claim">+ Add Claim</button></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Claim ID</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead>
@@ -4958,6 +4997,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
+    document.getElementById('open-fin-claim').addEventListener('click', openFinClaimModal);
     try {
       const [claimsSnap, lpSnap] = await Promise.all([
         getDocs(collection(db, 'claims')),
@@ -5049,6 +5089,75 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       console.error('Load finance overview failed:', err);
     }
   }
+
+  // Same counters/runTransaction pattern as generateRmaId — a real,
+  // sequential claim ID rather than the raw Firestore doc ID.
+  async function generateClaimId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `claim-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-SuperAdmin`;
+  }
+
+  const finClaimOverlay = document.getElementById('fin-claim-overlay');
+  const finClaimForm = document.getElementById('fin-claim-form');
+  const finClaimError = document.getElementById('fin-claim-error');
+  const finClaimSuccess = document.getElementById('fin-claim-success');
+  const finClaimSubmitBtn = document.getElementById('submit-fin-claim');
+
+  function openFinClaimModal() {
+    finClaimForm.reset();
+    finClaimError.classList.remove('show');
+    finClaimSuccess.classList.remove('show');
+    finClaimSubmitBtn.disabled = false;
+    finClaimSubmitBtn.textContent = 'Create claim';
+    finClaimOverlay.classList.add('show');
+  }
+  function closeFinClaimModal() { finClaimOverlay.classList.remove('show'); }
+  document.getElementById('cancel-fin-claim').addEventListener('click', closeFinClaimModal);
+  finClaimOverlay.addEventListener('click', (e) => { if (e.target === finClaimOverlay) closeFinClaimModal(); });
+
+  finClaimForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    finClaimError.classList.remove('show');
+    finClaimSuccess.classList.remove('show');
+    finClaimSubmitBtn.disabled = true;
+    finClaimSubmitBtn.textContent = 'Creating…';
+    try {
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: document.getElementById('fin-claim-type').value,
+        claimantName: document.getElementById('fin-claim-name').value.trim(),
+        description: document.getElementById('fin-claim-description').value.trim(),
+        amount: Number(document.getElementById('fin-claim-amount').value) || 0,
+        notes: document.getElementById('fin-claim-notes').value.trim(),
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      finClaimSuccess.textContent = `Created — ${claimId}`;
+      finClaimSuccess.classList.add('show');
+      finClaimSubmitBtn.disabled = false;
+      finClaimSubmitBtn.textContent = 'Create claim';
+      if (document.getElementById('fin-claims-tbody')) renderFinanceOverview();
+      setTimeout(closeFinClaimModal, 1000);
+    } catch (err) {
+      console.error('Create claim failed:', err);
+      finClaimError.textContent = 'Could not create this claim. Check console for details.';
+      finClaimError.classList.add('show');
+      finClaimSubmitBtn.disabled = false;
+      finClaimSubmitBtn.textContent = 'Create claim';
+    }
+  });
 
   // =================================================================
   // PAYMENTS — every recorded settlement, with method and reference,
