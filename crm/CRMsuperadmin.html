@@ -5869,7 +5869,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>RMA ID</th><th>Customer</th><th>Product</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>RMA ID</th><th>Customer</th><th>Model No</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="rma-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -5911,7 +5911,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.rmaId || docSnap.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
-          <td>${escapeHtml(d.product || '—')}</td>
+          <td>${escapeHtml(d.modelNo || d.product || '—')}</td>
           <td>${d.serialNumber || '—'}</td>
           <td><span class="status-pill ${d.status}">${RMA_STATUS_LABELS[d.status] || d.status}</span></td>
           <td><div class="row-actions">${actions || '—'}</div></td>`;
@@ -5971,11 +5971,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const out = [];
     jobsSnap.forEach(d => {
       const j = d.data();
-      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '', serviceCenterName: '', technicianName: j.technicianEmail || j.technicianName || '' });
+      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', modelNo: j.modelNo || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '', serviceCenterName: '', technicianName: j.technicianEmail || j.technicianName || '' });
     });
     requestsSnap.forEach(d => {
       const r = d.data();
-      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '', serviceCenterName: r.serviceCenterName || '', technicianName: r.technicianName || '' });
+      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', modelNo: r.modelNo || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '', serviceCenterName: r.serviceCenterName || '', technicianName: r.technicianName || '' });
     });
     out.sort((a, b) => (b.ticketId || '').localeCompare(a.ticketId || ''));
     return out;
@@ -5983,7 +5983,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   function rmaTicketLine(t) {
     const who = t.serviceCenterName ? `Service Center: ${escapeHtml(t.serviceCenterName)}` : (t.technicianName ? `Technician: ${escapeHtml(t.technicianName)}` : '');
-    return `${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(t.product) || 'product'}) — ${escapeHtml(SVC_STATUS_LABELS[t.status]) || t.status}${who ? ' — ' + who : ''}`;
+    const modelDisplay = t.modelNo || t.product || 'model';
+    return `${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(modelDisplay)}) — ${escapeHtml(SVC_STATUS_LABELS[t.status]) || t.status}${who ? ' — ' + who : ''}`;
   }
 
   function renderRmaTicketResults(query) {
@@ -5993,6 +5994,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       (t.ticketId || '').toLowerCase().includes(q) ||
       (t.customerName || '').toLowerCase().includes(q) ||
       (t.customerPhone || '').toLowerCase().includes(q) ||
+      (t.modelNo || '').toLowerCase().includes(q) ||
       (t.product || '').toLowerCase().includes(q) ||
       (t.serviceCenterName || '').toLowerCase().includes(q) ||
       (t.technicianName || '').toLowerCase().includes(q)
@@ -6028,7 +6030,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     rmaTicketSearch.value = rec.ticketId;
     rmaTicketResults.style.display = 'none';
     const who = rec.serviceCenterName ? `Requested from Service Center: ${escapeHtml(rec.serviceCenterName)}` : (rec.technicianName ? `Technician: ${escapeHtml(rec.technicianName)}` : '');
-    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Product: ${escapeHtml(rec.product)} ${escapeHtml(rec.category)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'} &nbsp; | &nbsp; Status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || rec.status}${who ? ' &nbsp; | &nbsp; ' + who : ''}`;
+    const modelDisplay = rec.modelNo || rec.product || '—';
+    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Model No: ${escapeHtml(modelDisplay)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'} &nbsp; | &nbsp; Status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || rec.status}${who ? ' &nbsp; | &nbsp; ' + who : ''}`;
   }
 
   // preselect: an eligible-record object (from the service ticket
@@ -6080,6 +6083,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         rmaId,
         customerName: rec.customerName || '',
         customerPhone: rec.customerPhone || '',
+        modelNo: rec.modelNo || rec.product || '',
         product: `${rec.product || ''} ${rec.category || ''}`.trim(),
         serialNumber: rec.serialNumber || '',
         reason: document.getElementById('rma-reason').value.trim(),
