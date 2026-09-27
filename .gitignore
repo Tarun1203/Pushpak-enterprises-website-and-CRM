@@ -1,0 +1,7 @@
+# CRM app — internal staff tool, not part of the public brand sites.
+# Ignored going forward so future changes/new files under crm/ don't
+# get committed by accident. Note: crm/ files already committed in
+# this repo's history stay tracked and live on GitHub Pages until
+# explicitly removed (git rm --cached) — see chat for why that's a
+# separate, deliberate step.
+crm/
