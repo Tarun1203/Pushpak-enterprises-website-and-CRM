@@ -854,7 +854,8 @@
     <form id="rma-form">
       <div class="form-row">
         <label>Service ticket</label>
-        <select id="rma-ticket-select" required><option value="">Select a service ticket…</option></select>
+        <input type="text" id="rma-ticket-search" placeholder="Search by ticket ID, customer, phone, product, or service center…" autocomplete="off">
+        <div id="rma-ticket-results" style="border:1px solid var(--hairline);border-radius:2px;max-height:220px;overflow-y:auto;margin-top:4px;display:none;"></div>
       </div>
       <div id="rma-ticket-preview" style="font-size:12.5px;color:var(--stone);margin:-6px 0 10px;"></div>
       <div class="form-row"><label>Reason</label><textarea id="rma-reason" required></textarea></div>
@@ -5948,16 +5949,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const rmaError = document.getElementById('rma-error');
   const rmaSuccess = document.getElementById('rma-success');
   const rmaSubmitBtn = document.getElementById('submit-rma');
-  const rmaTicketSelect = document.getElementById('rma-ticket-select');
+  const rmaTicketSearch = document.getElementById('rma-ticket-search');
+  const rmaTicketResults = document.getElementById('rma-ticket-results');
   const rmaTicketPreview = document.getElementById('rma-ticket-preview');
   let rmaEligibleTickets = [];
+  let rmaSelectedTicket = null;
 
   // An RMA always traces back to a real service job — no freehand
   // customer/product/serial entry. Pulls from the same two
   // collections the Service screen aggregates. Any real, assigned
   // job is eligible (not just ones already Completed/Verification/
   // Closed) — a technician can diagnose "unrepairable, needs RMA"
-  // at any stage, before the job itself is formally closed.
+  // at any stage, before the job itself is formally closed. Search
+  // (not a plain dropdown) because this list only grows — a select
+  // with every ticket ever raised stops being usable fast.
   async function getEligibleServiceRecordsForRma() {
     const [jobsSnap, requestsSnap] = await Promise.all([
       getDocs(collection(db, 'serviceJobs')),
@@ -5966,45 +5971,91 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const out = [];
     jobsSnap.forEach(d => {
       const j = d.data();
-      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '' });
+      out.push({ docId: d.id, coll: 'serviceJobs', ticketId: j.jobId || d.id, status: j.status, customerName: j.customerName, customerPhone: j.customerPhone, product: j.product || j.brand || '', category: j.category || '', serialNumber: j.serialNumber || j.serialNo || '', serviceCenterName: '', technicianName: j.technicianEmail || j.technicianName || '' });
     });
     requestsSnap.forEach(d => {
       const r = d.data();
-      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '' });
+      out.push({ docId: d.id, coll: 'centerRequests', ticketId: r.requestId || d.id, status: r.status, customerName: r.customerName, customerPhone: r.customerPhone, product: r.product || r.brand || '', category: r.category || '', serialNumber: r.serialNumber || r.serialNo || '', serviceCenterName: r.serviceCenterName || '', technicianName: r.technicianName || '' });
     });
-    out.sort((a, b) => (a.ticketId || '').localeCompare(b.ticketId || ''));
+    out.sort((a, b) => (b.ticketId || '').localeCompare(a.ticketId || ''));
     return out;
   }
 
-  function renderRmaTicketPreview() {
-    const rec = rmaEligibleTickets.find(t => `${t.coll}|${t.docId}` === rmaTicketSelect.value);
-    if (!rec) { rmaTicketPreview.textContent = ''; return; }
-    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Product: ${escapeHtml(rec.product)} ${escapeHtml(rec.category)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'} &nbsp; | &nbsp; Ticket status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || escapeHtml(rec.status) || '—'}`;
+  function rmaTicketLine(t) {
+    const who = t.serviceCenterName ? `Service Center: ${escapeHtml(t.serviceCenterName)}` : (t.technicianName ? `Technician: ${escapeHtml(t.technicianName)}` : '');
+    return `${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(t.product) || 'product'}) — ${escapeHtml(SVC_STATUS_LABELS[t.status]) || t.status}${who ? ' — ' + who : ''}`;
   }
-  rmaTicketSelect.addEventListener('change', renderRmaTicketPreview);
+
+  function renderRmaTicketResults(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) { rmaTicketResults.style.display = 'none'; rmaTicketResults.innerHTML = ''; return; }
+    const matches = rmaEligibleTickets.filter(t =>
+      (t.ticketId || '').toLowerCase().includes(q) ||
+      (t.customerName || '').toLowerCase().includes(q) ||
+      (t.customerPhone || '').toLowerCase().includes(q) ||
+      (t.product || '').toLowerCase().includes(q) ||
+      (t.serviceCenterName || '').toLowerCase().includes(q) ||
+      (t.technicianName || '').toLowerCase().includes(q)
+    ).slice(0, 20);
+    if (!matches.length) {
+      rmaTicketResults.innerHTML = `<div style="padding:8px 10px;font-size:12.5px;color:var(--stone);">No matching tickets.</div>`;
+      rmaTicketResults.style.display = 'block';
+      return;
+    }
+    rmaTicketResults.innerHTML = matches.map(t =>
+      `<div class="rma-ticket-result" data-key="${t.coll}|${t.docId}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
+    ).join('');
+    rmaTicketResults.style.display = 'block';
+    rmaTicketResults.querySelectorAll('.rma-ticket-result').forEach(row => {
+      row.addEventListener('click', () => selectRmaTicket(row.dataset.key));
+      row.addEventListener('mouseenter', () => row.style.background = '#EFE8D4');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+    });
+  }
+  rmaTicketSearch.addEventListener('input', () => {
+    rmaSelectedTicket = null;
+    renderRmaTicketResults(rmaTicketSearch.value);
+  });
+  rmaTicketSearch.addEventListener('focus', () => { if (rmaTicketSearch.value.trim()) renderRmaTicketResults(rmaTicketSearch.value); });
+  document.addEventListener('click', (e) => {
+    if (!rmaTicketResults.contains(e.target) && e.target !== rmaTicketSearch) rmaTicketResults.style.display = 'none';
+  });
+
+  function selectRmaTicket(key) {
+    const rec = rmaEligibleTickets.find(t => `${t.coll}|${t.docId}` === key);
+    if (!rec) return;
+    rmaSelectedTicket = rec;
+    rmaTicketSearch.value = rec.ticketId;
+    rmaTicketResults.style.display = 'none';
+    const who = rec.serviceCenterName ? `Requested from Service Center: ${escapeHtml(rec.serviceCenterName)}` : (rec.technicianName ? `Technician: ${escapeHtml(rec.technicianName)}` : '');
+    rmaTicketPreview.innerHTML = `Customer: ${escapeHtml(rec.customerName) || '—'} — ${escapeHtml(rec.customerPhone) || '—'} &nbsp; | &nbsp; Product: ${escapeHtml(rec.product)} ${escapeHtml(rec.category)} &nbsp; | &nbsp; Serial: ${escapeHtml(rec.serialNumber) || '—'} &nbsp; | &nbsp; Status: ${escapeHtml(SVC_STATUS_LABELS[rec.status]) || rec.status}${who ? ' &nbsp; | &nbsp; ' + who : ''}`;
+  }
 
   // preselect: an eligible-record object (from the service ticket
   // popup's "Raise RMA" button) to open the modal with that ticket
-  // already chosen, instead of the picker defaulting to empty.
+  // already chosen, instead of starting from an empty search.
   async function openRmaModal(preselect) {
     rmaForm.reset();
     rmaError.classList.remove('show');
     rmaSuccess.classList.remove('show');
     rmaSubmitBtn.disabled = false;
     rmaSubmitBtn.textContent = 'Create RMA';
-    rmaTicketSelect.innerHTML = '<option value="">Loading tickets…</option>';
+    rmaSelectedTicket = null;
+    rmaTicketSearch.value = '';
+    rmaTicketResults.style.display = 'none';
+    rmaTicketPreview.textContent = 'Loading tickets…';
     rmaOverlay.classList.add('show');
     rmaEligibleTickets = await getEligibleServiceRecordsForRma();
     if (!rmaEligibleTickets.length) {
-      rmaTicketSelect.innerHTML = '<option value="">No service tickets yet</option>';
       rmaTicketPreview.textContent = 'An RMA is always raised against a real service ticket (Technician or Service Center) — there are none in the database yet.';
       return;
     }
-    rmaTicketSelect.innerHTML = '<option value="">Select a service ticket…</option>' +
-      rmaEligibleTickets.map(t => `<option value="${t.coll}|${t.docId}">${escapeHtml(t.ticketId)} — ${escapeHtml(t.customerName) || 'customer'} (${escapeHtml(t.product) || 'product'}) — ${escapeHtml(SVC_STATUS_LABELS[t.status]) || escapeHtml(t.status) || t.status}</option>`).join('');
+    rmaTicketPreview.textContent = '';
     if (preselect) {
-      rmaTicketSelect.value = `${preselect.coll}|${preselect.docId}`;
-      renderRmaTicketPreview();
+      // The full record (with serviceCenterName etc.) comes from the
+      // freshly-fetched list, keyed the same way — preselect just
+      // says which one.
+      selectRmaTicket(`${preselect.coll}|${preselect.docId}`);
     }
   }
   function closeRmaModal() { rmaOverlay.classList.remove('show'); }
@@ -6015,7 +6066,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     e.preventDefault();
     rmaError.classList.remove('show');
     rmaSuccess.classList.remove('show');
-    const rec = rmaEligibleTickets.find(t => `${t.coll}|${t.docId}` === rmaTicketSelect.value);
+    const rec = rmaSelectedTicket;
     if (!rec) {
       rmaError.textContent = 'Select the service ticket this RMA is for — an RMA can\'t be raised without one.';
       rmaError.classList.add('show');
