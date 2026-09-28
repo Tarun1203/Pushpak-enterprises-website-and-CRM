@@ -1076,7 +1076,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       loadMySpareRequests();
     } catch (err) {
       console.error('Mark received failed:', err);
-      alert('Could not mark this as received. Check console for details.');
+      if (err.code === 'permission-denied' || /permission/i.test(err.message || '')) {
+        alert('Could not mark this as received: the updated Firestore security rules (letting a service center confirm receipt of its own spare request) haven\'t been published to the Firebase Console yet. Publish firestore.rules, then try again.');
+      } else {
+        alert('Could not mark this as received. Check console for details.');
+      }
     }
   }
 
