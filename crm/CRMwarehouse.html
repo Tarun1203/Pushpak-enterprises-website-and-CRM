@@ -530,6 +530,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="sr-detail-overlay">
+  <div class="modal" style="max-width:600px;">
+    <h3 id="sr-detail-title">Spare request details</h3>
+    <div id="sr-detail-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div id="sr-detail-actions" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-sr-detail">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -2442,14 +2453,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${d.id}" data-next="${a.next}">${a.label}</button>`
         ).join('');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
-          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${d.sourceJobLabel || d.serviceCenter || d.sourceJobId}` : (d.serviceCenter || '—')}</td>
-          <td>${d.item || '—'}</td>
+          <td><a href="#" class="sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</a></td>
+          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || d.serviceCenter || d.sourceJobId)}` : escapeHtml(d.serviceCenter || '—')}</td>
+          <td>${escapeHtml(d.item) || '—'}</td>
           <td>${d.quantity ?? '—'}</td>
           <td><span class="priority-tag ${d.priority || 'normal'}">${(d.priority || 'normal').toUpperCase()}</span></td>
           <td><span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></td>
           <td><div class="row-actions">${actions}</div></td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.sr-open-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          openWhSrDetailPopup(d, status);
+        });
       });
       tbody.querySelectorAll('.action-btn').forEach(btn => {
         btn.addEventListener('click', () => advanceRequest(btn.dataset.uid, btn.dataset.next, status));
@@ -2471,6 +2486,44 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       console.error('Update request status failed:', err);
       alert('Could not update this request. Check the console for details.');
     }
+  }
+
+  // Click a Request ID in any Spare Requests tab to open the full
+  // detail here — same info the row already implies (service center,
+  // item, qty, priority, status) plus notes and the linked job, if
+  // any, that a narrow table row can't show. The same forward-action
+  // buttons the row has are repeated here too, so a request can be
+  // advanced straight from the popup.
+  const whSrDetailOverlay = document.getElementById('sr-detail-overlay');
+  const whSrDetailTitle = document.getElementById('sr-detail-title');
+  const whSrDetailBody = document.getElementById('sr-detail-body');
+  const whSrDetailActions = document.getElementById('sr-detail-actions');
+  document.getElementById('close-sr-detail').addEventListener('click', () => whSrDetailOverlay.classList.remove('show'));
+  whSrDetailOverlay.addEventListener('click', (e) => { if (e.target === whSrDetailOverlay) whSrDetailOverlay.classList.remove('show'); });
+
+  function openWhSrDetailPopup(d, currentTabStatus) {
+    whSrDetailTitle.textContent = `Spare Request — ${d.requestId || d.id}`;
+    whSrDetailBody.innerHTML = `
+      <div><strong>Service Center:</strong> ${escapeHtml(d.serviceCenter) || '—'}</div>
+      <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
+      <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
+      <div><strong>Priority:</strong> ${(d.priority || 'normal').toUpperCase()}</div>
+      <div><strong>Status:</strong> <span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></div>
+      ${d.sourceJobLabel || d.sourceJobId ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel || d.sourceJobId)}</div>` : ''}
+      ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}`;
+
+    const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
+      `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${a.label}</button>`
+    ).join(' ');
+    whSrDetailActions.innerHTML = actions;
+    whSrDetailActions.querySelectorAll('.sr-popup-action-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await advanceRequest(d.id, btn.dataset.next, currentTabStatus);
+        whSrDetailOverlay.classList.remove('show');
+      });
+    });
+    whSrDetailOverlay.classList.add('show');
   }
 
   // Request ID format matches the site's ticket convention:
