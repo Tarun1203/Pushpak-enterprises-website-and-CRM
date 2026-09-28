@@ -870,13 +870,37 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const p = d.data();
         rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || p.serviceCenterName || '—', status: p.status, createdAt: p.createdAt, full: p });
       });
-      rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      if (rows.length === 0) {
+      // Reassigning a ticket cancels its OLD centerRequests doc rather
+      // than deleting it (so the history stays real) and creates a new
+      // one — so the same requestId can end up with two centerRequests
+      // rows here (one 'cancelled', one active). Collapse those down to
+      // just the active one; the cancelled one's history is still
+      // there in the ticket's own Status History (in the popup). The
+      // originating Website submission (publicServiceRequests) stays
+      // as its own separate, permanent row either way — it's not a
+      // duplicate, it's the ticket's original record.
+      const workRows = rows.filter(r => r.coll !== 'publicServiceRequests');
+      const staticRows = rows.filter(r => r.coll === 'publicServiceRequests');
+      const byRequestId = {};
+      workRows.forEach(r => {
+        const key = r.id || r.docId;
+        if (!byRequestId[key]) byRequestId[key] = [];
+        byRequestId[key].push(r);
+      });
+      const dedupedWorkRows = Object.values(byRequestId).map(group => {
+        if (group.length === 1) return group[0];
+        const active = group.filter(g => g.status !== 'cancelled');
+        const pool = active.length ? active : group;
+        return pool.reduce((latest, g) => (g.createdAt?.seconds || 0) > (latest.createdAt?.seconds || 0) ? g : latest, pool[0]);
+      });
+      const dedupedRows = [...dedupedWorkRows, ...staticRows];
+      dedupedRows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (dedupedRows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No service activity yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
-      rows.forEach(r => {
+      dedupedRows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${r.source}</td>
