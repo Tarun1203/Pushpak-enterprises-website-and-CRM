@@ -939,8 +939,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
       <div><b>Issue:</b> ${escapeHtml(f.issue || f.issueDescription) || '—'}</div>
       <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>
+      <div id="wh-svc-spare-slot"></div>
       <div id="wh-svc-photos-slot"></div>
       <div id="wh-svc-timeline-slot" style="margin-top:10px;">Loading status history…</div>`;
+
+    // A job stuck at "In Progress" is often just waiting on a spare —
+    // this looks up any spareRequests raised against this ticket
+    // (via sourceJobId) so the popup shows their real progress
+    // (Picking / Dispatched / In Transit / Received) instead of
+    // leaving that invisible.
+    if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
+      loadWhLinkedSpareRequests(r.docId);
+    }
 
     if (f.closureCode) {
       whSvcTicketBody.querySelector('#wh-svc-timeline-slot').insertAdjacentHTML('beforebegin', `
@@ -1030,7 +1040,32 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }).join('');
     } catch (err) {
       console.error('Load ticket timeline failed:', err);
-      slot.innerHTML = `<div style="color:var(--err);font-size:12.5px;">Couldn't load status history. Check console for details.</div>`;
+      const isPermissionErr = (err.code === 'permission-denied') || /permission/i.test(err.message || '');
+      slot.innerHTML = isPermissionErr
+        ? `<div style="color:var(--err);font-size:12.5px;">Couldn't load status history — the updated Firestore security rules (statusLog subcollection) haven't been published to the Firebase Console yet. Publish firestore.rules, then reopen this ticket.</div>`
+        : `<div style="color:var(--err);font-size:12.5px;">Couldn't load status history. Check console for details.</div>`;
+    }
+  }
+
+  // Shows the live status of any spareRequests raised against this
+  // ticket (via sourceJobId) right in the popup — so a job that looks
+  // stalled at "In Progress" still shows the spare is actually moving
+  // (Picking / Dispatched / In Transit / Received), matching what
+  // Warehouse's own Spare Requests tabs already track.
+  async function loadWhLinkedSpareRequests(jobDocId) {
+    const slot = document.getElementById('wh-svc-spare-slot');
+    if (!slot) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', jobDocId)));
+      if (snap.empty) return;
+      const items = [];
+      snap.forEach(d => {
+        const s = d.data();
+        items.push(`${escapeHtml(s.item) || 'Part'} — <span class="status-pill ${s.status}">${STATUS_LABELS[s.status] || s.status}</span> (${escapeHtml(s.requestId || d.id)})`);
+      });
+      slot.innerHTML = `<div style="margin-top:10px;"><b>Linked spare request${items.length > 1 ? 's' : ''}:</b><br>${items.join('<br>')}</div>`;
+    } catch (err) {
+      console.warn('Load linked spare requests failed (non-blocking):', err.message);
     }
   }
 
