@@ -2833,21 +2833,44 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // before it (New/Approved/Picking) and after it (In Transit/Received)
   // stays a plain status flip via advanceRequest above — the stock only
   // moves once, at the moment it physically leaves the warehouse.
+  // NOTE: the inventory collection has two parallel, non-overlapping
+  // naming conventions in this app — Warehouse's own Stock Movement ->
+  // Transfer (and Super Admin's matching feature) write "sc_{uid}" /
+  // "tech_{uid}" location strings, while a Service Center's or
+  // Technician's OWN Inventory page (their "+Add Part" and everything
+  // that reads it back) uses the doc id "servicecenter_{uid}_{partId}"
+  // / "technician_{uid}_{partId}" with a plain "servicecenter"/
+  // "technician" location field. Since the whole point of this dispatch
+  // flow is for the receiving center/technician to see the stock in
+  // THEIR OWN inventory screen, we write using their convention here,
+  // not Warehouse's Stock Movement one.
   async function resolveInventoryLocationForRequest(d) {
     if (d.requestedByUid) {
       const profile = await getWhRequesterProfile(d.requestedByUid);
       if (profile) {
-        const prefix = profile.role === 'technician' ? 'tech_' : 'sc_';
-        return { prefix, uid: d.requestedByUid, label: profile.name || profile.email };
+        const isTech = profile.role === 'technician';
+        return {
+          uid: d.requestedByUid,
+          label: profile.name || profile.email,
+          location: isTech ? 'technician' : 'servicecenter',
+          uidField: isTech ? 'technicianUid' : 'serviceCenterUid',
+          docId: (isTech ? 'technician_' : 'servicecenter_') + d.requestedByUid
+        };
       }
     }
     if (d.serviceCenter) {
       const centers = await getWhServiceCentersCache();
       const c = (centers || []).find(x => (x.email || '').toLowerCase() === (d.serviceCenter || '').toLowerCase());
-      if (c) return { prefix: 'sc_', uid: c.id || c.uid, label: c.name || c.email };
+      if (c) {
+        const uid = c.id || c.uid;
+        return { uid, label: c.name || c.email, location: 'servicecenter', uidField: 'serviceCenterUid', docId: 'servicecenter_' + uid };
+      }
       const techs = await getWhTechniciansCache();
       const t = (techs || []).find(x => (x.email || '').toLowerCase() === (d.serviceCenter || '').toLowerCase());
-      if (t) return { prefix: 'tech_', uid: t.id || t.uid, label: t.name || t.email };
+      if (t) {
+        const uid = t.id || t.uid;
+        return { uid, label: t.name || t.email, location: 'technician', uidField: 'technicianUid', docId: 'technician_' + uid };
+      }
     }
     return null;
   }
@@ -2947,7 +2970,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
         if (part && loc) {
           const whInvRef = doc(db, 'inventory', `warehouse_${part.id}`);
-          const destInvRef = doc(db, 'inventory', `${loc.prefix}${loc.uid}_${part.id}`);
+          const destInvRef = doc(db, 'inventory', `${loc.docId}_${part.id}`);
           await runTransaction(db, async (t) => {
             const whSnap = await t.get(whInvRef);
             const whQty = whSnap.exists() ? (whSnap.data().quantity || 0) : 0;
@@ -2956,11 +2979,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const destQty = destSnap.exists() ? (destSnap.data().quantity || 0) : 0;
             t.update(whInvRef, { quantity: whQty - qty });
             if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
-            else t.set(destInvRef, { location: `${loc.prefix}${loc.uid}`, partId: part.id, quantity: qty });
+            else t.set(destInvRef, { location: loc.location, [loc.uidField]: loc.uid, partId: part.id, quantity: qty });
           });
           await addDoc(collection(db, 'stockMovements'), {
             type: 'transfer', partId: part.id, partName: part.name,
-            from: 'warehouse', to: `${loc.prefix}${loc.uid}`,
+            from: 'warehouse', to: loc.docId,
             quantity: qty, sourceRequestId: d.id, transport,
             createdAt: serverTimestamp(), createdByEmail: currentUser?.email || null
           });
