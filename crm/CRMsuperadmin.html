@@ -4288,6 +4288,49 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     verification: 'ok', closed: 'ok', reassignment_required: 'out', cancelled: 'cancelled', reopened: 'new'
   };
 
+  // Every status change any portal makes to a ticket (serviceJobs,
+  // centerRequests, publicServiceRequests) also writes one entry to
+  // that doc's own `statusLog` subcollection — an append-only
+  // timeline, never edited after the fact. Non-blocking: a failed log
+  // write never stops the actual status change from going through.
+  async function logTicketStatus(coll, docId, status, note) {
+    try {
+      await addDoc(collection(db, coll, docId, 'statusLog'), {
+        status,
+        note: note || '',
+        changedByEmail: auth.currentUser ? auth.currentUser.email : 'unknown',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Status log write failed (non-blocking):', err.message);
+    }
+  }
+
+  async function loadSvcTicketTimeline(coll, docId) {
+    const slot = document.getElementById('svc-timeline-slot');
+    if (!slot) return;
+    try {
+      const snap = await getDocs(query(collection(db, coll, docId, 'statusLog'), orderBy('createdAt', 'asc')));
+      if (snap.empty) {
+        slot.innerHTML = `<div style="color:var(--stone);font-size:12.5px;"><b>Status history:</b> No logged history yet for this ticket — entries start appearing from the next status change onward.</div>`;
+        return;
+      }
+      const entries = [];
+      snap.forEach(d => entries.push(d.data()));
+      slot.innerHTML = `<div><b>Status history:</b></div>` + entries.map(e => {
+        const when = e.createdAt && e.createdAt.toDate ? e.createdAt.toDate().toLocaleString() : '—';
+        return `<div style="font-size:12.5px;color:var(--stone);padding:4px 0;border-bottom:1px solid var(--hairline);">
+          <span class="status-pill ${SVC_STATUS_PILL_CLASS[e.status] || ''}">${SVC_STATUS_LABELS[e.status] || e.status}</span>
+          &nbsp; ${when} &nbsp; <span>by ${escapeHtml(e.changedByEmail) || 'unknown'}</span>
+          ${e.note ? `<br>${escapeHtml(e.note)}` : ''}
+        </div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load ticket timeline failed:', err);
+      slot.innerHTML = `<div style="color:var(--err);font-size:12.5px;">Couldn't load status history. Check console for details.</div>`;
+    }
+  }
+
   async function renderServiceOverview() {
     contentEl.innerHTML = `
       <div id="routing-auto-notice"></div>
@@ -4376,7 +4419,22 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
       <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
       <div><b>Issue:</b> ${escapeHtml(f.issue || f.issueDescription) || '—'}</div>
-      <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>`;
+      <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>
+      <div id="svc-photos-slot"></div>
+      <div id="svc-timeline-slot" style="margin-top:10px;">Loading status history…</div>`;
+
+    const beforePhotos = f.beforePhotos || [];
+    const afterPhotos = f.afterPhotos || [];
+    if (beforePhotos.length || afterPhotos.length || f.diagnosisNotes) {
+      const photoThumb = url => `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" style="width:64px;height:64px;object-fit:cover;border-radius:4px;margin:2px;" loading="lazy"></a>`;
+      document.getElementById('svc-photos-slot').innerHTML = `
+        <div style="margin-top:10px;">
+          ${f.diagnosisNotes ? `<div><b>Diagnosis notes:</b> ${escapeHtml(f.diagnosisNotes)}</div>` : ''}
+          ${beforePhotos.length ? `<div style="margin-top:6px;"><b>Before photos:</b><br>${beforePhotos.map(photoThumb).join('')}</div>` : ''}
+          ${afterPhotos.length ? `<div style="margin-top:6px;"><b>After photos:</b><br>${afterPhotos.map(photoThumb).join('')}</div>` : ''}
+        </div>`;
+    }
+    loadSvcTicketTimeline(r.coll, r.docId);
     svcTicketActions.innerHTML = '';
 
     if (f.closureCode) {
@@ -4402,6 +4460,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const payload = { status: next, updatedAt: serverTimestamp() };
             if (next === 'reopened') payload.status = 'assigned';
             await updateDoc(doc(db, r.coll, r.docId), payload);
+            await logTicketStatus(r.coll, r.docId, payload.status);
             try {
               await addDoc(collection(db, 'auditLogs'), {
                 entityType: 'serviceJob', entityId: r.docId, action: 'status_changed',
@@ -4503,6 +4562,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const priorSnap = await getDocs(query(collection(db, 'centerRequests'), where('sourceRequestId', '==', docId), where('status', '==', 'new')));
           for (const priorDoc of priorSnap.docs) {
             await updateDoc(doc(db, 'centerRequests', priorDoc.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+            await logTicketStatus('centerRequests', priorDoc.id, 'cancelled', 'Reassigned to a different center');
           }
           if (priorSnap.empty) {
             console.warn('No still-new prior routing found to cancel — the original center may have already started work. Reassigning anyway; check that center manually if needed.');
@@ -4552,6 +4612,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
       try {
         await updateDoc(doc(db, 'centerRequests', docId), { technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp() });
+        await logTicketStatus('centerRequests', docId, 'assigned', `Assigned to ${name}`);
         try {
           await addDoc(collection(db, 'notifications'), {
             recipientType: 'uid', recipientValue: uid,
@@ -6419,7 +6480,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // and marks the source request as routed.
   async function routeRequestToCenter(d, centerUid, centerName, productLabel) {
     const requestId = d.requestId || d.id;
-    await addDoc(collection(db, 'centerRequests'), {
+    const newCenterReqRef = await addDoc(collection(db, 'centerRequests'), {
       requestId,
       serviceCenterUid: centerUid,
       serviceCenterName: centerName,
@@ -6440,9 +6501,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    await logTicketStatus('centerRequests', newCenterReqRef.id, 'new', `Routed to ${centerName}`);
     await updateDoc(doc(db, 'publicServiceRequests', d.id), {
       serviceCenterUid: centerUid, serviceCenterName: centerName, status: 'assigned_to_center', updatedAt: serverTimestamp()
     });
+    await logTicketStatus('publicServiceRequests', d.id, 'assigned_to_center', `Routed to ${centerName}`);
     try {
       await addDoc(collection(db, 'notifications'), {
         recipientType: 'uid', recipientValue: centerUid,

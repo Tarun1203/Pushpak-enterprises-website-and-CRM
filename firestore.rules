@@ -123,6 +123,17 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
       allow delete: if isAdmin();
+
+      // Append-only status/progress log — every status change any
+      // portal makes to this job also writes one entry here, so the
+      // ticket popup can show a real timeline instead of just the
+      // current status. Same broad staff read as everywhere else this
+      // ticket's own data is visible; entries are never edited or
+      // removed once written.
+      match /statusLog/{logId} {
+        allow read, create: if isStaff() || isDistributor();
+        allow update, delete: if isAdmin();
+      }
     }
 
     // ---------------------------------------------------------------
@@ -142,6 +153,12 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
+
+      // Same append-only status/progress log as serviceJobs above.
+      match /statusLog/{logId} {
+        allow read, create: if isStaff() || isDistributor();
+        allow update, delete: if isAdmin();
+      }
     }
 
     match /centerTechnicians/{techId} {
@@ -276,6 +293,14 @@ service cloud.firestore {
         && request.resource.data.customerPhone is string
         && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$');
       allow update, delete: if isAdmin();
+
+      // Status log — admin-only, same as the request itself before
+      // it's routed to a Service Center or Technician (who then log
+      // against their own serviceJobs/centerRequests doc instead).
+      match /statusLog/{logId} {
+        allow read, create: if isAdmin();
+        allow update, delete: if isAdmin();
+      }
     }
 
     match /dealerEnquiries/{id} {

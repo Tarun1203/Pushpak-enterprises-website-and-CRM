@@ -713,9 +713,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // Every status change writes one entry to this job's own statusLog
+  // subcollection — an append-only timeline other portals (Warehouse,
+  // Super Admin) read to show the ticket's full history. Non-blocking:
+  // a failed log write never stops the real status change.
+  async function logTicketStatus(coll, docId, status, note) {
+    try {
+      await addDoc(collection(db, coll, docId, 'statusLog'), {
+        status, note: note || '',
+        changedByEmail: currentUser ? currentUser.email : 'unknown',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Status log write failed (non-blocking):', err.message);
+    }
+  }
+
   async function advanceJob(id, nextStatus) {
     try {
       await updateDoc(doc(db, 'serviceJobs', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      await logTicketStatus('serviceJobs', id, nextStatus);
       loadMyJobs();
     } catch (err) {
       console.error('Update job failed:', err);
@@ -786,6 +803,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      await logTicketStatus('serviceJobs', jobId, 'completed', `Closure code: ${closureCode}`);
       closureSuccess.textContent = 'Completed.';
       closureSuccess.classList.add('show');
       closureSubmitBtn.textContent = 'Done';
@@ -1161,6 +1179,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         // Job moves to Waiting for Spare — this is the real link
         // between diagnosis and the job's own state machine.
         await updateDoc(doc(db, 'serviceJobs', d.id), { status: 'waiting_spare', updatedAt: serverTimestamp() });
+        await logTicketStatus('serviceJobs', d.id, 'waiting_spare', `Spare requested — ${requestId}`);
         btn.textContent = 'Requested';
         setTimeout(() => renderDiagnosis(), 900);
       } catch (err) {

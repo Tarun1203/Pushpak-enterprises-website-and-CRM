@@ -756,9 +756,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // Every status change writes one entry to this ticket's own
+  // statusLog subcollection — an append-only timeline other portals
+  // (Warehouse, Super Admin) read to show the ticket's full history.
+  // Non-blocking: a failed log write never stops the real status change.
+  async function logTicketStatus(coll, docId, status, note) {
+    try {
+      await addDoc(collection(db, coll, docId, 'statusLog'), {
+        status, note: note || '',
+        changedByEmail: currentUser ? currentUser.email : 'unknown',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Status log write failed (non-blocking):', err.message);
+    }
+  }
+
   async function advanceRequest(id, nextStatus, typeFilter) {
     try {
       await updateDoc(doc(db, 'centerRequests', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      await logTicketStatus('centerRequests', id, nextStatus);
       loadCenterRequests(typeFilter);
     } catch (err) {
       console.error('Update request failed:', err);
@@ -830,6 +847,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      await logTicketStatus('centerRequests', jobId, 'completed', `Closure code: ${closureCode}`);
       scClosureSuccess.textContent = 'Completed.';
       scClosureSuccess.classList.add('show');
       scClosureSubmitBtn.textContent = 'Done';
@@ -940,6 +958,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       // Job moves to Waiting for Spare — same real link between the
       // request and the job's own status that the Technician side uses.
       await updateDoc(doc(db, 'centerRequests', jobId), { status: 'waiting_spare', updatedAt: serverTimestamp() });
+      await logTicketStatus('centerRequests', jobId, 'waiting_spare', `Spare requested — ${requestId}`);
       spareReqSuccess.textContent = `Requested — ${requestId}`;
       spareReqSuccess.classList.add('show');
       spareReqSubmitBtn.textContent = 'Requested';
