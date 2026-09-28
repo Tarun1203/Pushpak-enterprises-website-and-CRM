@@ -408,6 +408,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Serial number master — the serials Pushpak has actually
+    // manufactured/stocked per model, bulk-loaded from Master Data.
+    // Doc ID is the serial number itself, so a re-upload naturally
+    // de-dupes instead of creating repeats. Admin-only for now, same
+    // as spareParts/products — nothing else reads it yet (see Master
+    // Data notes for the planned registration-validation use).
+    match /serialNumbers/{serial} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
     match /stockMovements/{moveId} {
       allow read: if isStaff();
       allow create: if isAdmin()

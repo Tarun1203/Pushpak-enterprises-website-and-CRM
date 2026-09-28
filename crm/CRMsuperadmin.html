@@ -7017,45 +7017,104 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // batch-write to `products`.
   // =================================================================
 
+  // =================================================================
+  // MASTER DATA — tabbed bulk-import hub. One shared CSV-import
+  // scaffold (mountCsvImportPanel) handles the download-sample /
+  // pick-file / preview / import flow for every tab; each tab only
+  // supplies its column format and what to do with a parsed row.
+  // Account-creating tabs (Users/Dealers/Distributors/Technicians/
+  // Service Centers) share a second layer on top of that
+  // (mountAccountImportTab) for the Auth-account + temp-password
+  // pattern.
+  // =================================================================
+
+  const MASTER_DATA_TABS = [
+    { key: 'products', label: 'Products' },
+    { key: 'pincodes', label: 'Pincode Master' },
+    { key: 'spareparts', label: 'Spare Parts' },
+    { key: 'serials', label: 'Serial No Master' },
+    { key: 'images', label: 'Spare Part Images' },
+    { key: 'users', label: 'Users (Staff)' },
+    { key: 'dealers', label: 'Dealers' },
+    { key: 'distributors', label: 'Distributors' },
+    { key: 'technicians', label: 'Technicians' },
+    { key: 'servicecenters', label: 'Service Centers' },
+  ];
+  let masterDataActiveTab = 'products';
+
   function renderMasterData() {
+    paintMasterDataTabs();
+  }
+
+  function paintMasterDataTabs() {
     contentEl.innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
+        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${t.label}</button>`).join('')}
+      </div>
+      <div id="md-tab-body"></div>`;
+    document.querySelectorAll('.md-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => { masterDataActiveTab = btn.dataset.tab; paintMasterDataTabs(); });
+    });
+    const body = document.getElementById('md-tab-body');
+    if (masterDataActiveTab === 'products') mountProductsImport(body);
+    else if (masterDataActiveTab === 'pincodes') mountPincodesImport(body);
+    else if (masterDataActiveTab === 'spareparts') mountSparePartsImport(body);
+    else if (masterDataActiveTab === 'serials') mountSerialsImport(body);
+    else if (masterDataActiveTab === 'images') mountSparePartImagesImport(body);
+    else if (masterDataActiveTab === 'users') mountUsersImport(body);
+    else if (masterDataActiveTab === 'dealers') mountDealersImport(body);
+    else if (masterDataActiveTab === 'distributors') mountDistributorsImport(body);
+    else if (masterDataActiveTab === 'technicians') mountTechniciansImport(body);
+    else if (masterDataActiveTab === 'servicecenters') mountServiceCentersImport(body);
+  }
+
+  // -----------------------------------------------------------------
+  // Shared CSV scaffold — naive comma-split parsing (no quoted-comma
+  // support), same as the original Products importer. cfg:
+  //   title, hint, sampleCsv, sampleFilename
+  //   parseRow(rowObj) -> parsed object, or null/falsy to skip the row
+  //   importRow(parsed) -> Promise; THROW to count the row as failed
+  //   onDone({ successCount, failCount, items, resultsEl }) -> optional
+  // -----------------------------------------------------------------
+
+  function mountCsvImportPanel(container, cfg) {
+    container.innerHTML = `
       <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Download sample file</h2></div>
         <div class="panel-body">
-          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">
-            Download a sample CSV for the product catalog, fill it in, then upload it below.
-          </p>
-          <button class="btn-secondary" id="download-sample-csv">Download sample CSV</button>
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">${cfg.hint}</p>
+          <button class="btn-secondary" id="md-download-sample">Download sample CSV</button>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h2>Import products</h2></div>
+        <div class="panel-header"><h2>${cfg.title}</h2></div>
         <div class="panel-body">
-          <input type="file" id="csv-file-input" accept=".csv" style="margin-bottom:14px;">
-          <div id="csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
-          <button class="btn-primary" id="import-csv-btn" disabled>Import</button>
-          <div class="modal-error" id="import-error"></div>
-          <div class="modal-success" id="import-success"></div>
+          <input type="file" id="md-csv-file" accept=".csv" style="margin-bottom:14px;">
+          <div id="md-csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="md-csv-import-btn" disabled>Import</button>
+          <div class="modal-error" id="md-csv-error"></div>
+          <div class="modal-success" id="md-csv-success"></div>
+          <div id="md-csv-results" style="margin-top:16px;"></div>
         </div>
       </div>`;
 
-    document.getElementById('download-sample-csv').addEventListener('click', () => {
-      const csv = 'name,category,brand,price\nSample 43 inch LED TV,LED TV,MakWell,18999\n';
-      const blob = new Blob([csv], { type: 'text/csv' });
+    document.getElementById('md-download-sample').addEventListener('click', () => {
+      const blob = new Blob([cfg.sampleCsv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'products-sample.csv';
+      a.download = cfg.sampleFilename;
       a.click();
       URL.revokeObjectURL(url);
     });
 
     let parsedRows = [];
-    const fileInput = document.getElementById('csv-file-input');
-    const preview = document.getElementById('csv-preview');
-    const importBtn = document.getElementById('import-csv-btn');
-    const importError = document.getElementById('import-error');
-    const importSuccess = document.getElementById('import-success');
+    const fileInput = document.getElementById('md-csv-file');
+    const preview = document.getElementById('md-csv-preview');
+    const importBtn = document.getElementById('md-csv-import-btn');
+    const importError = document.getElementById('md-csv-error');
+    const importSuccess = document.getElementById('md-csv-success');
+    const resultsEl = document.getElementById('md-csv-results');
 
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
@@ -7063,15 +7122,22 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const reader = new FileReader();
       reader.onload = () => {
         const lines = reader.result.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length) { parsedRows = []; preview.textContent = 'Empty file.'; importBtn.disabled = true; return; }
         const header = lines[0].split(',').map(h => h.trim().toLowerCase());
-        parsedRows = lines.slice(1).map(line => {
+        const rawRows = lines.slice(1).map(line => {
           const cells = line.split(',');
           const row = {};
           header.forEach((h, i) => { row[h] = (cells[i] || '').trim(); });
           return row;
-        }).filter(r => r.name);
-        preview.textContent = `${parsedRows.length} product(s) ready to import.`;
+        });
+        parsedRows = [];
+        rawRows.forEach((row) => {
+          const parsed = cfg.parseRow(row);
+          if (parsed) parsedRows.push(parsed);
+        });
+        preview.textContent = `${parsedRows.length} of ${rawRows.length} row(s) ready to import.`;
         importBtn.disabled = parsedRows.length === 0;
+        resultsEl.innerHTML = '';
       };
       reader.readAsText(file);
     });
@@ -7079,34 +7145,384 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     importBtn.addEventListener('click', async () => {
       importError.classList.remove('show');
       importSuccess.classList.remove('show');
+      resultsEl.innerHTML = '';
       importBtn.disabled = true;
       importBtn.textContent = 'Importing…';
-      try {
-        const brandNameToId = { makwell: 'makwell', flyvision: 'flyvision', skevia: 'skevia' };
-        for (const row of parsedRows) {
-          const brandId = brandNameToId[(row.brand || 'MakWell').toLowerCase()] || 'makwell';
-          await addDoc(collection(db, 'products'), {
-            name: row.name,
-            category: row.category || '',
-            brandId,
-            brand: BRAND_LABELS[brandId],
-            price: row.price ? Number(row.price) : null,
-            createdAt: serverTimestamp()
-          });
+      let successCount = 0, failCount = 0;
+      const items = [];
+      for (const row of parsedRows) {
+        try {
+          const result = await cfg.importRow(row);
+          successCount++;
+          if (result) items.push(result);
+        } catch (err) {
+          console.error('Import row failed:', err);
+          failCount++;
         }
-        importSuccess.textContent = `Imported ${parsedRows.length} product(s).`;
-        importSuccess.classList.add('show');
-        importBtn.textContent = 'Import';
-        parsedRows = [];
-        preview.textContent = '';
-        fileInput.value = '';
-      } catch (err) {
-        console.error('CSV import failed:', err);
-        importError.textContent = 'Import failed partway through. Check console for details — some rows may have been added.';
-        importError.classList.add('show');
-        importBtn.disabled = false;
-        importBtn.textContent = 'Import';
       }
+      const totalRows = parsedRows.length;
+      importSuccess.textContent = `Imported ${successCount} of ${totalRows} row(s)${failCount ? `, ${failCount} failed` : ''}.`;
+      importSuccess.classList.add('show');
+      importBtn.textContent = 'Import';
+      parsedRows = [];
+      preview.textContent = '';
+      fileInput.value = '';
+      if (cfg.onDone) await cfg.onDone({ successCount, failCount, items, resultsEl });
+      importBtn.disabled = true;
+    });
+  }
+
+  function mountProductsImport(container) {
+    mountCsvImportPanel(container, {
+      title: 'Import products',
+      hint: 'Download a sample CSV for the product catalog, fill it in, then upload it below.',
+      sampleCsv: 'name,category,brand,price\nSample 43 inch LED TV,LED TV,MakWell,18999\n',
+      sampleFilename: 'products-sample.csv',
+      parseRow: (row) => row.name ? row : null,
+      importRow: async (row) => {
+        const brandNameToId = { makwell: 'makwell', flyvision: 'flyvision', skevia: 'skevia' };
+        const brandId = brandNameToId[(row.brand || 'MakWell').toLowerCase()] || 'makwell';
+        await addDoc(collection(db, 'products'), {
+          name: row.name,
+          category: row.category || '',
+          brandId,
+          brand: BRAND_LABELS[brandId],
+          price: row.price ? Number(row.price) : null,
+          createdAt: serverTimestamp()
+        });
+      }
+    });
+  }
+
+  function mountPincodesImport(container) {
+    mountCsvImportPanel(container, {
+      title: 'Import pincode master',
+      hint: 'Columns: pincode, area, city, taluk, district, state. Uploading a pincode that already exists updates it rather than duplicating it.',
+      sampleCsv: 'pincode,area,city,taluk,district,state\n584101,Station Road,Raichur,Raichur,Raichur,Karnataka\n',
+      sampleFilename: 'pincodes-sample.csv',
+      parseRow: (row) => /^\d{6}$/.test(row.pincode || '') ? row : null,
+      importRow: async (row) => {
+        await setDoc(doc(db, 'pincodes', row.pincode), {
+          area: row.area || '', city: row.city || '', taluk: row.taluk || '',
+          district: row.district || '', state: row.state || '',
+          active: true, updatedAt: serverTimestamp()
+        }, { merge: true });
+      },
+      onDone: () => { pincodesCache = null; } // force a refresh next time coverage pickers/SLA/etc. read it
+    });
+  }
+
+  function mountSparePartsImport(container) {
+    mountCsvImportPanel(container, {
+      title: 'Import spare parts',
+      hint: 'Columns: name, category, brand (MakWell / Flyvision / Skevia / All), price, reorderlevel. A Part Code (e.g. SP-0042) is generated automatically for each row — use that code in filenames when bulk-uploading photos on the Spare Part Images tab.',
+      sampleCsv: 'name,category,brand,price,reorderlevel\nLED Panel 43 inch,Panel,MakWell,2200,5\n',
+      sampleFilename: 'spareparts-sample.csv',
+      parseRow: (row) => row.name ? row : null,
+      importRow: async (row) => {
+        const partCode = await generatePartCode();
+        await addDoc(collection(db, 'spareParts'), {
+          name: row.name,
+          category: row.category || '',
+          brandCompatibility: row.brand || 'All',
+          price: row.price ? Number(row.price) : null,
+          reorderLevel: row.reorderlevel ? Number(row.reorderlevel) : 5,
+          partCode,
+          createdAt: serverTimestamp()
+        });
+      }
+    });
+  }
+
+  function mountSerialsImport(container) {
+    mountCsvImportPanel(container, {
+      title: 'Import serial number master',
+      hint: 'Columns: serialno, modelno, brand, batchno. One row per serial number manufactured or stocked. Doc ID is the serial number itself, so re-uploading the same serial just updates it. Nothing validates against this list yet — it\'s the record to build that on later.',
+      sampleCsv: 'serialno,modelno,brand,batchno\nMW43LED0001,MW-TV43,MakWell,BATCH-2026-09\n',
+      sampleFilename: 'serials-sample.csv',
+      parseRow: (row) => row.serialno ? row : null,
+      importRow: async (row) => {
+        await setDoc(doc(db, 'serialNumbers', row.serialno), {
+          modelNo: row.modelno || '', brand: row.brand || '', batchNo: row.batchno || '',
+          createdAt: serverTimestamp()
+        }, { merge: true });
+      }
+    });
+  }
+
+  async function mountSparePartImagesImport(container) {
+    container.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Bulk upload spare part images</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">
+            Select multiple image files at once. Each file is matched to an existing Spare Part by its
+            <b>Part Code</b> appearing anywhere in the filename — e.g. <code>SP-0042.jpg</code> or
+            <code>SP-0042-front.png</code> both match part <b>SP-0042</b>. Add the part first (Spare Parts
+            tab) if it doesn't exist yet. Unmatched files are skipped and listed after upload.
+          </p>
+          <input type="file" id="md-images-input" accept="image/*" multiple style="margin-bottom:14px;">
+          <div id="md-images-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="md-images-upload-btn" disabled>Upload &amp; attach</button>
+          <div class="modal-error" id="md-images-error"></div>
+          <div class="modal-success" id="md-images-success"></div>
+          <div id="md-images-results" style="margin-top:16px;font-size:12.5px;color:var(--stone);"></div>
+        </div>
+      </div>`;
+
+    const fileInput = document.getElementById('md-images-input');
+    const preview = document.getElementById('md-images-preview');
+    const uploadBtn = document.getElementById('md-images-upload-btn');
+    const errorEl = document.getElementById('md-images-error');
+    const successEl = document.getElementById('md-images-success');
+    const resultsEl = document.getElementById('md-images-results');
+    let files = [];
+
+    fileInput.addEventListener('change', () => {
+      files = Array.from(fileInput.files || []);
+      preview.textContent = `${files.length} image(s) selected.`;
+      uploadBtn.disabled = files.length === 0;
+      resultsEl.innerHTML = '';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
+      resultsEl.innerHTML = '';
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading…';
+      try {
+        const partsSnap = await getDocs(collection(db, 'spareParts'));
+        const parts = [];
+        partsSnap.forEach(d => parts.push({ id: d.id, ...d.data() }));
+
+        let matched = 0;
+        const unmatched = [];
+        for (const file of files) {
+          const baseName = file.name.toUpperCase();
+          const part = parts.find(p => p.partCode && baseName.includes(p.partCode.toUpperCase()));
+          if (!part) { unmatched.push(file.name); continue; }
+          const filePath = `spareParts/${part.partCode}/${Date.now()}-${file.name}`;
+          const fileRef = storageRef(storage, filePath);
+          await uploadBytes(fileRef, file);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(doc(db, 'spareParts', part.id), { imageUrl: url });
+          matched++;
+        }
+        successEl.textContent = `Attached ${matched} image(s) to spare parts.${unmatched.length ? ` ${unmatched.length} file(s) didn't match any Part Code.` : ''}`;
+        successEl.classList.add('show');
+        if (unmatched.length) {
+          resultsEl.innerHTML = `<b>Unmatched files:</b> ${unmatched.map(escapeHtml).join(', ')}`;
+        }
+        files = [];
+        fileInput.value = '';
+        preview.textContent = '';
+      } catch (err) {
+        console.error('Bulk image upload failed:', err);
+        errorEl.textContent = 'Upload failed partway through. Check console for details — some images may have attached already.';
+        errorEl.classList.add('show');
+      }
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Upload & attach';
+    });
+  }
+
+  // -----------------------------------------------------------------
+  // Account-creating tabs — Users / Dealers / Distributors /
+  // Technicians / Service Centers. Each row creates a real Auth
+  // login (same secondary-app pattern as the single Add Account
+  // modal in Users & Access) with a random temporary password, since
+  // shipping real passwords through a CSV file isn't something this
+  // should ask the admin to do. Passwords are shown exactly once,
+  // in a downloadable credentials CSV, right after import.
+  // -----------------------------------------------------------------
+
+  function generateTempPassword() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let pw = '';
+    for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    return pw;
+  }
+
+  async function bulkCreateAccount(name, email, role, extraFields) {
+    const password = generateTempPassword();
+    const secondaryApp = initializeApp(firebaseConfig, `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const secondaryAuth = getAuth(secondaryApp);
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const newUid = cred.user.uid;
+      await setDoc(doc(db, 'users', newUid), {
+        name: name || '', email, role, createdAt: new Date().toISOString(), ...extraFields
+      });
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: 'user', entityId: newUid, action: 'created',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Bulk-created account for ${email} with role "${role}"`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      await signOut(secondaryAuth);
+      await deleteApp(secondaryApp);
+      return { name, email, role, tempPassword: password, ok: true };
+    } catch (err) {
+      try { await deleteApp(secondaryApp); } catch (e2) { /* already gone */ }
+      return { name, email, role, ok: false, error: err.message };
+    }
+  }
+
+  function renderAccountResults(el, results) {
+    if (!results.length) { el.innerHTML = ''; return; }
+    const ok = results.filter(r => r.ok);
+    const failed = results.filter(r => !r.ok);
+    let html = '';
+    if (ok.length) {
+      const csvLines = ['name,email,role,temporary_password', ...ok.map(r => `${r.name},${r.email},${r.role},${r.tempPassword}`)];
+      html += `<div style="margin-bottom:10px;">
+        <b>${ok.length} account(s) created.</b>
+        <button type="button" class="btn-secondary" id="md-download-creds" style="margin-left:10px;">Download credentials CSV</button>
+        <div style="font-size:11.5px;color:var(--err);margin-top:6px;">These temporary passwords are shown here once — download them now and share securely. Ask each person to change their password after first login.</div>
+      </div>`;
+      el.innerHTML = html;
+      document.getElementById('md-download-creds').addEventListener('click', () => {
+        const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'new-account-credentials.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    if (failed.length) {
+      el.innerHTML += `<div style="color:var(--err);font-size:12.5px;"><b>${failed.length} failed:</b><br>` +
+        failed.map(r => `${escapeHtml(r.email)} — ${escapeHtml(r.error || 'unknown error')}`).join('<br>') + `</div>`;
+    }
+  }
+
+  function mountAccountImportTab(container, cfg) {
+    let accountResults = [];
+    mountCsvImportPanel(container, {
+      title: cfg.title,
+      hint: cfg.hint,
+      sampleCsv: cfg.sampleCsv,
+      sampleFilename: cfg.sampleFilename,
+      parseRow: cfg.parseRow,
+      importRow: async (parsed) => {
+        const { role, extra } = cfg.buildExtra(parsed);
+        const result = await bulkCreateAccount(parsed.name, parsed.email, role, extra);
+        accountResults.push(result);
+        if (!result.ok) throw new Error(result.error || 'Account creation failed');
+      },
+      onDone: async ({ resultsEl }) => {
+        renderAccountResults(resultsEl, accountResults);
+        if (cfg.runAutoLinkAfter && accountResults.some(r => r.ok)) {
+          await runDistributorAutoLink();
+        }
+        accountResults = [];
+      }
+    });
+  }
+
+  function mountUsersImport(container) {
+    const validRoles = ['superadmin', 'warehouse', 'servicecenter', 'technician', 'dealer', 'distributor'];
+    mountAccountImportTab(container, {
+      title: 'Import staff accounts',
+      hint: 'Columns: name, email, role. Role must be one of: superadmin, warehouse, servicecenter, technician, dealer, distributor. Role-specific details (districts, skills, coverage, distribution) aren\'t captured here — add those afterward from Users &amp; Access → Edit, or use that role\'s own tab instead for a one-step import.',
+      sampleCsv: 'name,email,role\nRavi Kumar,ravi@example.com,warehouse\n',
+      sampleFilename: 'users-sample.csv',
+      parseRow: (row) => (row.name && row.email && validRoles.includes((row.role || '').toLowerCase().trim())) ? row : null,
+      buildExtra: (row) => ({ role: row.role.toLowerCase().trim(), extra: {} }),
+      runAutoLinkAfter: true
+    });
+  }
+
+  function mountDealersImport(container) {
+    mountAccountImportTab(container, {
+      title: 'Import dealer accounts',
+      hint: 'Columns: name, email, districts, pincodes. Separate multiple districts/pincodes with a pipe ( | ). Direct vs Under a Distributor is set automatically right after import, based on which Distributor (if any) covers the pincodes you give here.',
+      sampleCsv: 'name,email,districts,pincodes\nSunrise Electronics,sunrise@example.com,Raichur,584101|584102\n',
+      sampleFilename: 'dealers-sample.csv',
+      parseRow: (row) => (row.name && row.email) ? row : null,
+      buildExtra: (row) => ({
+        role: 'dealer',
+        extra: {
+          districtsCovered: (row.districts || '').split('|').map(s => s.trim()).filter(Boolean),
+          pincodesCovered: (row.pincodes || '').split('|').map(s => s.trim()).filter(Boolean),
+          distributionType: 'direct', distributorUid: '', distributorName: ''
+        }
+      }),
+      runAutoLinkAfter: true
+    });
+  }
+
+  function mountDistributorsImport(container) {
+    mountAccountImportTab(container, {
+      title: 'Import distributor accounts',
+      hint: 'Columns: name, email, districts, pincodes. Separate multiple values with a pipe ( | ). Any Dealer or Service Center already in these pincodes gets auto-linked to this Distributor right after import.',
+      sampleCsv: 'name,email,districts,pincodes\nKarnataka Distribution Co,kdc@example.com,Raichur|Ballari,584101|583101\n',
+      sampleFilename: 'distributors-sample.csv',
+      parseRow: (row) => (row.name && row.email) ? row : null,
+      buildExtra: (row) => ({
+        role: 'distributor',
+        extra: {
+          districtsCovered: (row.districts || '').split('|').map(s => s.trim()).filter(Boolean),
+          pincodesCovered: (row.pincodes || '').split('|').map(s => s.trim()).filter(Boolean)
+        }
+      }),
+      runAutoLinkAfter: true
+    });
+  }
+
+  function mountTechniciansImport(container) {
+    mountAccountImportTab(container, {
+      title: 'Import technician accounts',
+      hint: 'Columns: name, email, skills, brands, accounttype, contractenddate. Skills are category:level pairs separated by a pipe, e.g. "TV Repair:advanced|Washing Machine:intermediate". Brands separated by a pipe (makwell|flyvision|skevia). accounttype is permanent or temporary; contractenddate (YYYY-MM-DD) only matters for temporary.',
+      sampleCsv: 'name,email,skills,brands,accounttype,contractenddate\nSuresh Patil,suresh@example.com,TV Repair:advanced|Washing Machine:intermediate,makwell|flyvision,permanent,\n',
+      sampleFilename: 'technicians-sample.csv',
+      parseRow: (row) => (row.name && row.email) ? row : null,
+      buildExtra: (row) => {
+        const skills = (row.skills || '').split('|').map(s => s.trim()).filter(Boolean).map(pair => {
+          const [category, level] = pair.split(':').map(x => (x || '').trim());
+          return { category, level: level || 'advanced' };
+        });
+        const brandsAuthorized = (row.brands || '').split('|').map(s => s.trim().toLowerCase()).filter(Boolean);
+        const accountType = (row.accounttype || 'permanent').toLowerCase() === 'temporary' ? 'temporary' : 'permanent';
+        return {
+          role: 'technician',
+          extra: {
+            skills, brandsAuthorized, accountType,
+            contractEndDate: accountType === 'temporary' ? (row.contractenddate || null) : null
+          }
+        };
+      }
+    });
+  }
+
+  function mountServiceCentersImport(container) {
+    mountAccountImportTab(container, {
+      title: 'Import service center accounts',
+      hint: 'Columns: name, email, districts, pincodes, categories, brands, accounttype, contractenddate. Separate multiple districts/pincodes/categories/brands with a pipe ( | ).',
+      sampleCsv: 'name,email,districts,pincodes,categories,brands,accounttype,contractenddate\nCity Service Center,city@example.com,Raichur,584101|584102,TV Repair|AC Repair,makwell|flyvision,permanent,\n',
+      sampleFilename: 'servicecenters-sample.csv',
+      parseRow: (row) => (row.name && row.email) ? row : null,
+      buildExtra: (row) => {
+        const accountType = (row.accounttype || 'permanent').toLowerCase() === 'temporary' ? 'temporary' : 'permanent';
+        return {
+          role: 'servicecenter',
+          extra: {
+            districtsCovered: (row.districts || '').split('|').map(s => s.trim()).filter(Boolean),
+            pincodesCovered: (row.pincodes || '').split('|').map(s => s.trim()).filter(Boolean),
+            categoriesAuthorized: (row.categories || '').split('|').map(s => s.trim()).filter(Boolean),
+            brandsAuthorized: (row.brands || '').split('|').map(s => s.trim().toLowerCase()).filter(Boolean),
+            accountType,
+            contractEndDate: accountType === 'temporary' ? (row.contractenddate || null) : null
+          }
+        };
+      },
+      runAutoLinkAfter: true
     });
   }
 

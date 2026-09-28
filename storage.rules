@@ -50,6 +50,20 @@ service firebase.storage {
         && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
     }
 
+    // ---------------------------------------------------------------
+    // Spare part photos — bulk-uploaded from Master Data, matched to
+    // an existing part by its Part Code. Internal-only, same pattern
+    // as diagnosis/docket photos above (not shown on the public site,
+    // unlike Product images).
+    // ---------------------------------------------------------------
+
+    match /spareParts/{partCode}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;
