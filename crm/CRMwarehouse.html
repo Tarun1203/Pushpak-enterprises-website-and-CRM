@@ -1193,7 +1193,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function renderRouting() {
     contentEl.innerHTML = `
       <div id="routing-auto-notice"></div>
-      <div class="panel">
+      <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Unassigned requests</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
@@ -1201,8 +1201,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <tbody id="routing-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Already assigned — reroute</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Request ID</th><th>Customer</th><th>Status</th><th>Currently at</th><th>Reassign to a different Service Center</th><th>Reassign to a different Technician</th></tr></thead>
+            <tbody id="reroute-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
       </div>`;
     loadWhRoutingQueue();
+    loadWhRerouteQueue();
   }
 
   async function loadWhRoutingQueue() {
@@ -1311,6 +1321,151 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } catch (err) {
       console.error('Load routing queue failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the queue. Check console for details.</td></tr>`;
+    }
+  }
+
+  // A ticket that's already been routed and assigned still sometimes
+  // needs to move — wrong center for the customer's actual pincode, a
+  // technician who can't take it after all. This lists every
+  // still-open centerRequests ticket (assigned through waiting_spare —
+  // not new, and not completed/verification/closed/cancelled) with a
+  // way to send it to a different Service Center or a different
+  // Technician without waiting for it to finish first.
+  const WH_REROUTE_OPEN_STATUSES = ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
+
+  async function loadWhRerouteQueue() {
+    const tbody = document.getElementById('reroute-tbody');
+    try {
+      const [openSnap, techs, centers] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('status', 'in', WH_REROUTE_OPEN_STATUSES))),
+        getWhTechniciansCache(),
+        getWhServiceCentersCache(),
+      ]);
+      const docs = [];
+      openSnap.forEach(d => docs.push({ ...d.data(), id: d.id }));
+      if (docs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing currently assigned that needs rerouting.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const eligibleCenters = centers.filter(c => c.uid !== d.serviceCenterUid);
+        const centerOptions = eligibleCenters.map(c => `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}</option>`).join('');
+        const eligibleTechs = techs.filter(t => !t.suspended && t.uid !== d.technicianUid);
+        const techOptions = eligibleTechs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td>${escapeHtml(d.customerName || '—')}</td>
+          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[d.status] || ''}">${WH_SVC_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td style="font-size:12.5px;color:var(--stone);">${escapeHtml(d.serviceCenterName || '—')}${d.technicianName ? `<br>Tech: ${escapeHtml(d.technicianName)}` : ''}</td>
+          <td>
+            <select class="reroute-center-select" style="border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;font-size:12.5px;"><option value="">Select service center…</option>${centerOptions}</select>
+            <button class="btn-secondary reroute-center-btn" style="margin-top:4px;">Reassign</button>
+          </td>
+          <td>
+            <select class="reroute-tech-select" style="border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;font-size:12.5px;"><option value="">Select technician…</option>${techOptions}</select>
+            <button class="btn-secondary reroute-tech-btn" style="margin-top:4px;">Reassign</button>
+          </td>`;
+        tbody.appendChild(tr);
+
+        tr.querySelector('.reroute-center-btn').addEventListener('click', async () => {
+          const select = tr.querySelector('.reroute-center-select');
+          if (!select.value) { alert('Select a service center first.'); return; }
+          const [newCenterUid, newCenterName] = select.value.split('|');
+          if (!confirm(`Reassign ${d.requestId || d.id} to ${newCenterName}? The current center's assignment will be cancelled.`)) return;
+          try {
+            await whReassignToCenter(d, newCenterUid, newCenterName);
+            loadWhRerouteQueue();
+          } catch (err) {
+            console.error('Reassign to center failed:', err);
+            alert('Could not reassign this ticket. Check the console for details.');
+          }
+        });
+
+        tr.querySelector('.reroute-tech-btn').addEventListener('click', async () => {
+          const select = tr.querySelector('.reroute-tech-select');
+          if (!select.value) { alert('Select a technician first.'); return; }
+          const [uid, name] = select.value.split('|');
+          try {
+            await updateDoc(doc(db, 'centerRequests', d.id), {
+              technicianUid: uid, technicianName: name, status: 'assigned', updatedAt: serverTimestamp()
+            });
+            await logTicketStatus('centerRequests', d.id, 'assigned', `Reassigned to technician ${name}`);
+            try {
+              await addDoc(collection(db, 'notifications'), {
+                recipientType: 'uid', recipientValue: uid,
+                title: 'Job reassigned to you', message: `${escapeHtml(d.customerName || 'A customer')} — ${d.product || ''}`,
+                read: false, createdAt: serverTimestamp()
+              });
+            } catch (notifErr) {
+              console.warn('Notification write failed (non-blocking):', notifErr.message);
+            }
+            loadWhRerouteQueue();
+          } catch (err) {
+            console.error('Reassign technician failed:', err);
+            alert('Could not reassign this ticket. Check the console for details.');
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Load reroute queue failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load the reroute list. Check console for details.</td></tr>`;
+    }
+  }
+
+  // Moves an already-routed ticket to a different Service Center.
+  // Cancels the old centerRequests doc (kept, not deleted, so its
+  // history stays real — same pattern the Super Admin popup's
+  // Reassign flow already used) and creates a fresh one carrying the
+  // same customer/product/issue details forward under the new center.
+  // Any technician previously assigned is dropped — the new center
+  // assigns their own.
+  async function whReassignToCenter(centerReqDoc, newCenterUid, newCenterName) {
+    await updateDoc(doc(db, 'centerRequests', centerReqDoc.id), { status: 'cancelled', updatedAt: serverTimestamp() });
+    await logTicketStatus('centerRequests', centerReqDoc.id, 'cancelled', `Reassigned to ${newCenterName}`);
+    const newRef = await addDoc(collection(db, 'centerRequests'), {
+      requestId: centerReqDoc.requestId || '',
+      serviceCenterUid: newCenterUid,
+      serviceCenterName: newCenterName,
+      customerName: centerReqDoc.customerName || '',
+      customerPhone: centerReqDoc.customerPhone || '',
+      address: centerReqDoc.address || '',
+      city: centerReqDoc.city || '',
+      pincode: centerReqDoc.pincode || '',
+      product: centerReqDoc.product || '',
+      brand: centerReqDoc.brand || '',
+      category: centerReqDoc.category || '',
+      modelNo: centerReqDoc.modelNo || '',
+      serialNumber: centerReqDoc.serialNumber || '',
+      type: centerReqDoc.type || 'service',
+      issue: centerReqDoc.issue || '',
+      status: 'new',
+      sourceRequestId: centerReqDoc.sourceRequestId || centerReqDoc.id,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await logTicketStatus('centerRequests', newRef.id, 'new', `Reassigned from ${centerReqDoc.serviceCenterName || 'a different center'}`);
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'uid', recipientValue: newCenterUid,
+        title: 'Service request reassigned to you', message: `${escapeHtml(centerReqDoc.customerName || 'A customer')} — ${centerReqDoc.product || ''}`,
+        read: false, createdAt: serverTimestamp()
+      });
+    } catch (notifErr) {
+      console.warn('Notification write failed (non-blocking):', notifErr.message);
+    }
+    // Keep the originating Website submission, if any, pointed at the
+    // new center so its own record and status stay accurate.
+    if (centerReqDoc.sourceRequestId) {
+      try {
+        await updateDoc(doc(db, 'publicServiceRequests', centerReqDoc.sourceRequestId), {
+          serviceCenterUid: newCenterUid, serviceCenterName: newCenterName, status: 'assigned_to_center', updatedAt: serverTimestamp()
+        });
+        await logTicketStatus('publicServiceRequests', centerReqDoc.sourceRequestId, 'assigned_to_center', `Reassigned to ${newCenterName}`);
+      } catch (err) {
+        console.warn('publicServiceRequests sync failed (non-blocking):', err.message);
+      }
     }
   }
 
