@@ -519,6 +519,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="svc-ticket-overlay">
+  <div class="modal" style="max-width:600px;">
+    <h3 id="svc-ticket-title">Ticket details</h3>
+    <div id="svc-ticket-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div id="svc-ticket-actions" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-svc-ticket">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -589,7 +600,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock"}, {"id": "inv-technician", "label": "Technician Stock"}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -654,9 +665,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'inv-lowstock') {
       pageSub.textContent = 'Parts at or below reorder level';
       renderInventory('low');
-    } else if (id === 'inv-servicecenter' || id === 'inv-technician') {
-      pageSub.textContent = 'Not populated yet';
-      renderNoLocationData(label, id === 'inv-servicecenter' ? 'Service Center' : 'Technician');
+    } else if (id === 'inv-servicecenter') {
+      pageSub.textContent = 'Stock currently held at each Service Center';
+      renderLocationInventory('servicecenter');
+    } else if (id === 'inv-technician') {
+      pageSub.textContent = 'Stock currently held with each Technician';
+      renderLocationInventory('technician');
     } else if (id === 'inv-damaged') {
       pageSub.textContent = 'Parts written off through Returns & Defects — disposed or currently defective';
       renderDamagedInventory();
@@ -705,12 +719,91 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   }
 
-  function renderNoLocationData(label, portalName) {
+  // =================================================================
+  // Service Center Stock / Technician Stock — reads the same
+  // `inventory` collection Transfer writes to (doc id
+  // `${location}_${partId}`, location = `sc_{uid}` or `tech_{uid}`),
+  // so any stock moved out via Stock Movement → Transfer shows up
+  // here automatically.
+  // =================================================================
+
+  async function renderLocationInventory(kind) {
+    const title = kind === 'servicecenter' ? 'Service Center Stock' : 'Technician Stock';
+    const who = kind === 'servicecenter' ? 'Service Center' : 'Technician';
     contentEl.innerHTML = `
-      <div class="coming-soon">
-        <div class="big">No ${label.toLowerCase()} data yet</div>
-        <div class="small">This will populate automatically once the ${portalName} portal is built and starts tracking its own stock.</div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>${title}</h2>
+          <select id="loc-inv-filter" style="max-width:260px;">
+            <option value="">All locations</option>
+          </select>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>${who}</th><th>Code</th><th>Part</th><th>Qty</th><th>Reorder Level</th><th>Status</th></tr></thead>
+            <tbody id="loc-inv-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
       </div>`;
+    loadLocationInventory(kind);
+  }
+
+  async function loadLocationInventory(kind) {
+    const prefix = kind === 'servicecenter' ? 'sc_' : 'tech_';
+    const tbody = document.getElementById('loc-inv-tbody');
+    const filterSelect = document.getElementById('loc-inv-filter');
+    try {
+      const [invSnap, partsSnap, peopleList] = await Promise.all([
+        getDocs(collection(db, 'inventory')),
+        getDocs(collection(db, 'spareParts')),
+        kind === 'servicecenter' ? getWhServiceCentersCache() : getWhTechniciansCache(),
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = { id: d.id, ...d.data() }; });
+      const peopleMap = {};
+      peopleList.forEach(p => { peopleMap[p.uid] = p.name || p.email || p.uid; });
+
+      const rows = [];
+      invSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (!d.location || !d.location.startsWith(prefix)) return;
+        if (!d.quantity) return;
+        const uid = d.location.slice(prefix.length);
+        rows.push({ uid, locationName: peopleMap[uid] || uid, part: partMap[d.partId], qty: d.quantity });
+      });
+
+      const uniqueUids = [...new Set(rows.map(r => r.uid))].sort((a, b) => (peopleMap[a] || a).localeCompare(peopleMap[b] || b));
+      filterSelect.innerHTML = '<option value="">All locations</option>' +
+        uniqueUids.map(uid => `<option value="${uid}">${escapeHtml(peopleMap[uid] || uid)}</option>`).join('');
+
+      function paintRows(filterUid) {
+        const filtered = filterUid ? rows.filter(r => r.uid === filterUid) : rows;
+        if (!filtered.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No stock recorded${filterUid ? ' for this location' : ' yet'}. Stock appears here once Warehouse sends parts out via Stock Movement → Transfer.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = '';
+        filtered
+          .sort((a, b) => a.locationName.localeCompare(b.locationName))
+          .forEach(r => {
+            const status = stockStatus(r.qty, r.part ? (r.part.reorderLevel || 0) : 0);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${escapeHtml(r.locationName)}</td>
+              <td style="font-size:12px;color:var(--stone);">${r.part ? (r.part.partCode || r.part.id) : '—'}</td>
+              <td>${r.part ? escapeHtml(r.part.name || '—') : '(unknown part)'}</td>
+              <td><b>${r.qty}</b></td>
+              <td>${r.part ? (r.part.reorderLevel ?? 0) : '—'}</td>
+              <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
+            tbody.appendChild(tr);
+          });
+      }
+      filterSelect.onchange = () => paintRows(filterSelect.value);
+      paintRows('');
+    } catch (err) {
+      console.error('Load location inventory failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load stock. Check console for details.</td></tr>`;
+    }
   }
 
   // =================================================================
@@ -737,8 +830,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header"><h2>All service activity</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
-            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="service-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
+            <tbody id="service-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>`;
@@ -756,94 +849,115 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rows = [];
       jobsSnap.forEach(d => {
         const j = d.data();
-        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, closureCode: j.closureCode, actionTaken: j.actionTaken, partsUsedNotes: j.partsUsedNotes });
+        rows.push({ source: 'Technician', coll: 'serviceJobs', docId: d.id, id: j.jobId, customer: j.customerName, assigned: j.technicianEmail, status: j.status, createdAt: j.createdAt, full: j });
       });
       requestsSnap.forEach(d => {
         const r = d.data();
-        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, closureCode: r.closureCode, actionTaken: r.actionTaken, partsUsedNotes: r.partsUsedNotes });
+        rows.push({ source: 'Service Center', coll: 'centerRequests', docId: d.id, id: r.requestId, customer: r.customerName, assigned: r.technicianName, status: r.status, createdAt: r.createdAt, full: r });
       });
       publicSnap.forEach(d => {
         const p = d.data();
-        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || p.serviceCenterName || '—', status: p.status, createdAt: p.createdAt });
+        rows.push({ source: 'Website', coll: 'publicServiceRequests', docId: d.id, id: p.requestId, customer: p.customerName, assigned: p.technicianName || p.serviceCenterName || '—', status: p.status, createdAt: p.createdAt, full: p });
       });
       rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No service activity yet.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No service activity yet.</td></tr>`;
         return;
       }
       tbody.innerHTML = '';
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        let actionHtml = '—';
-        if (r.coll === 'serviceJobs' || r.coll === 'centerRequests') {
-          if (r.status === 'completed') {
-            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="verification">Move to Verification</button></div>`;
-          } else if (r.status === 'verification') {
-            actionHtml = `<div class="row-actions"><button class="btn-secondary svc-evidence-btn">View Evidence</button><button class="btn-primary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="closed">Close Job</button></div>`;
-          } else if (r.status === 'closed') {
-            actionHtml = `<button class="btn-secondary svc-advance-btn" data-coll="${r.coll}" data-id="${r.docId}" data-next="reopened">Reopen</button>`;
-          } else if (r.coll === 'centerRequests' && r.status === 'new') {
-            actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
-          }
-        } else if (r.coll === 'publicServiceRequests' && r.status === 'new') {
-          actionHtml = `<button class="btn-secondary svc-goto-routing-btn">Go to Routing</button>`;
-        }
         tr.innerHTML = `
           <td>${r.source}</td>
-          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
-          <td>${r.customer || '—'}</td>
-          <td>${r.assigned || '—'}</td>
-          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></td>
-          <td>${actionHtml}</td>`;
+          <td><a href="#" class="svc-open-link" style="font-size:12px;">${r.id || '—'}</a></td>
+          <td>${escapeHtml(r.customer) || '—'}</td>
+          <td>${escapeHtml(r.assigned) || '—'}</td>
+          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></td>`;
         tbody.appendChild(tr);
-        const gotoRoutingBtn = tr.querySelector('.svc-goto-routing-btn');
-        if (gotoRoutingBtn) {
-          gotoRoutingBtn.addEventListener('click', () => selectSection('routing', 'Service Request Routing'));
-        }
-        const evidenceBtn = tr.querySelector('.svc-evidence-btn');
-        if (evidenceBtn) {
-          evidenceBtn.addEventListener('click', () => {
-            const existing = tr.nextElementSibling;
-            if (existing && existing.classList.contains('evidence-detail-row')) { existing.remove(); return; }
-            const detailRow = document.createElement('tr');
-            detailRow.className = 'evidence-detail-row';
-            detailRow.innerHTML = `<td colspan="6" style="font-size:12.5px;color:var(--stone);background:var(--paper-deep);">
-              <b>Closure code:</b> ${r.closureCode || '—'}<br>
-              <b>Action taken:</b> ${escapeHtml(r.actionTaken) || '—'}<br>
-              <b>Parts used:</b> ${escapeHtml(r.partsUsedNotes) || '—'}
-            </td>`;
-            tr.after(detailRow);
-          });
-        }
-      });
-      tbody.querySelectorAll('.svc-advance-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const { coll, id, next } = btn.dataset;
-          try {
-            const payload = { status: next, updatedAt: serverTimestamp() };
-            if (next === 'reopened') payload.status = 'assigned';
-            await updateDoc(doc(db, coll, id), payload);
-            try {
-              await addDoc(collection(db, 'auditLogs'), {
-                entityType: 'serviceJob', entityId: id, action: 'status_changed',
-                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-                details: `${coll} status changed to "${payload.status}"`,
-                createdAt: serverTimestamp()
-              });
-            } catch (auditErr) {
-              console.warn('Audit log write failed (non-blocking):', auditErr.message);
-            }
-            loadWhServiceOverview();
-          } catch (err) {
-            console.error('Update service status failed:', err);
-            alert('Could not update this job. Check the console for details.');
-          }
+        tr.querySelector('.svc-open-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          openWhSvcTicketPopup(r);
         });
       });
     } catch (err) {
       console.error('Load service overview failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load service activity. Check console for details.</td></tr>`;
     }
+  }
+
+  const whSvcTicketOverlay = document.getElementById('svc-ticket-overlay');
+  const whSvcTicketTitle = document.getElementById('svc-ticket-title');
+  const whSvcTicketBody = document.getElementById('svc-ticket-body');
+  const whSvcTicketActions = document.getElementById('svc-ticket-actions');
+  document.getElementById('close-svc-ticket').addEventListener('click', () => whSvcTicketOverlay.classList.remove('show'));
+  whSvcTicketOverlay.addEventListener('click', (e) => { if (e.target === whSvcTicketOverlay) whSvcTicketOverlay.classList.remove('show'); });
+
+  // The single popup every ticket row opens into — full customer,
+  // product and issue detail, closure evidence when present, and
+  // whatever action fits the ticket's current state. Warehouse keeps
+  // its own separate Routing screen (unlike Super Admin, which embeds
+  // routing controls right in this popup), so an unassigned ticket
+  // just links there instead.
+  async function openWhSvcTicketPopup(r) {
+    const f = r.full || {};
+    whSvcTicketTitle.textContent = r.id || 'Service ticket';
+    whSvcTicketBody.innerHTML = `
+      <div><b>Source:</b> ${r.source} &nbsp; <b>Status:</b> <span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></div>
+      <div><b>Customer:</b> ${escapeHtml(r.customer) || '—'} &nbsp; <b>Phone:</b> ${escapeHtml(f.customerPhone) || '—'}</div>
+      <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
+      <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
+      <div><b>Issue:</b> ${escapeHtml(f.issue || f.issueDescription) || '—'}</div>
+      <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>`;
+    whSvcTicketActions.innerHTML = '';
+
+    if (f.closureCode) {
+      whSvcTicketBody.innerHTML += `
+        <div style="margin-top:10px;"><b>Closure code:</b> ${escapeHtml(f.closureCode)}<br>
+        <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
+        <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
+    }
+
+    if ((r.coll === 'serviceJobs' || r.coll === 'centerRequests') && ['completed', 'verification', 'closed'].includes(r.status)) {
+      let btnHtml = '';
+      if (r.status === 'completed') btnHtml = `<button class="btn-primary" id="wh-svc-popup-advance" data-next="verification">Move to Verification</button>`;
+      else if (r.status === 'verification') btnHtml = `<button class="btn-primary" id="wh-svc-popup-advance" data-next="closed">Close Job</button>`;
+      else if (r.status === 'closed') btnHtml = `<button class="btn-secondary" id="wh-svc-popup-advance" data-next="reopened">Reopen</button>`;
+      whSvcTicketActions.innerHTML = btnHtml;
+      const btn = document.getElementById('wh-svc-popup-advance');
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          const next = btn.dataset.next;
+          btn.disabled = true;
+          try {
+            const payload = { status: next, updatedAt: serverTimestamp() };
+            if (next === 'reopened') payload.status = 'assigned';
+            await updateDoc(doc(db, r.coll, r.docId), payload);
+            try {
+              await addDoc(collection(db, 'auditLogs'), {
+                entityType: 'serviceJob', entityId: r.docId, action: 'status_changed',
+                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+                details: `${r.coll} status changed to "${payload.status}"`,
+                createdAt: serverTimestamp()
+              });
+            } catch (auditErr) { console.warn('Audit log write failed (non-blocking):', auditErr.message); }
+            whSvcTicketOverlay.classList.remove('show');
+            loadWhServiceOverview();
+          } catch (err) {
+            console.error('Update service status failed:', err);
+            alert('Could not update this job. Check the console for details.');
+            btn.disabled = false;
+          }
+        });
+      }
+    } else if ((r.coll === 'publicServiceRequests' && r.status === 'new') || (r.coll === 'centerRequests' && r.status === 'new')) {
+      whSvcTicketActions.innerHTML = `<button class="btn-secondary" id="wh-svc-popup-goto-routing">Go to Routing</button>`;
+      document.getElementById('wh-svc-popup-goto-routing').addEventListener('click', () => {
+        whSvcTicketOverlay.classList.remove('show');
+        selectSection('routing', 'Service Request Routing');
+      });
+    }
+
+    whSvcTicketOverlay.classList.add('show');
   }
 
   // =================================================================
