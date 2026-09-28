@@ -2802,7 +2802,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         btn.addEventListener('click', () => {
           if (btn.dataset.next === 'dispatched') {
             const d = docs.find(x => x.id === btn.dataset.uid);
-            if (d) openWhDispatchPopup(d, status);
+            if (d) openWhDispatchPopup(d, status).catch(err => console.error('Open dispatch popup failed:', err));
           } else {
             advanceRequest(btn.dataset.uid, btn.dataset.next, status);
           }
@@ -2919,6 +2919,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function openWhDispatchPopup(d, currentTabStatus) {
     whSrDetailTitle.textContent = `Dispatch — ${d.requestId || d.id}`;
+    whSrDetailBody.innerHTML = 'Loading…';
+    whSrDetailActions.innerHTML = '';
+    whSrDetailOverlay.classList.add('show');
     const loc = await resolveInventoryLocationForRequest(d);
     const part = await resolvePartForRequest(d);
     let stockLine = '';
@@ -3064,7 +3067,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
       `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${a.label}</button>`
     ).join(' ');
-    whSrDetailActions.innerHTML = actions;
+    // A request dispatched before the servicecenter_/technician_ naming
+    // fix landed real stock under the old sc_/tech_ convention, so the
+    // center never sees it in their own Inventory page. This one-click
+    // fix credits the correct doc for the amount already dispatched —
+    // it never touches warehouse stock again, since that side was
+    // already debited correctly the first time.
+    const needsFix = ['dispatched', 'intransit', 'received'].includes(d.status) && !d.destInventoryFixed;
+    whSrDetailActions.innerHTML = actions + (needsFix
+      ? ` <button class="btn-secondary" id="wh-fix-inv-btn">Fix inventory location</button>`
+      : '');
     whSrDetailActions.querySelectorAll('.sr-popup-action-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -3072,6 +3084,35 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         whSrDetailOverlay.classList.remove('show');
       });
     });
+    const fixBtn = document.getElementById('wh-fix-inv-btn');
+    if (fixBtn) fixBtn.addEventListener('click', () => whFixInventoryLocation(d, currentTabStatus));
+  }
+
+  async function whFixInventoryLocation(d, currentTabStatus) {
+    const loc = await resolveInventoryLocationForRequest(d);
+    const part = await resolvePartForRequest(d);
+    if (!loc || !part) {
+      alert("Couldn't identify the requester or the part for this request, so it can't be auto-fixed. You'll need to add the stock manually via Firestore, or use Stock Movement → Transfer.");
+      return;
+    }
+    const qty = d.dispatchedQty ?? d.quantity ?? 1;
+    if (!confirm(`Credit ${qty} x ${part.name} to ${loc.label}'s own Inventory page? This only fixes where the stock is visible — it does not debit Warehouse stock again.`)) return;
+    try {
+      const destInvRef = doc(db, 'inventory', `${loc.docId}_${part.id}`);
+      await runTransaction(db, async (t) => {
+        const destSnap = await t.get(destInvRef);
+        const destQty = destSnap.exists() ? (destSnap.data().quantity || 0) : 0;
+        if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
+        else t.set(destInvRef, { location: loc.location, [loc.uidField]: loc.uid, partId: part.id, quantity: qty });
+      });
+      await updateDoc(doc(db, 'spareRequests', d.id), { destInventoryFixed: true, updatedAt: serverTimestamp() });
+      alert('Fixed — refresh the center\'s Inventory page to see it.');
+      whSrDetailOverlay.classList.remove('show');
+      loadSpareRequests(currentTabStatus);
+    } catch (err) {
+      console.error('Fix inventory location failed:', err);
+      alert('Could not apply the fix. Check console for details.');
+    }
   }
 
   // Request ID format matches the site's ticket convention:
