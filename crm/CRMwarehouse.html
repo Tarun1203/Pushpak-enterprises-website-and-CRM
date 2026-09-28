@@ -2453,15 +2453,27 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     return whRequesterProfileCache[uid];
   }
-  function coverageAreaText(profile) {
+  function districtsText(profile) {
     if (!profile) return '';
-    const districts = profile.districtsCovered || [];
-    const pincodes = profile.pincodesCovered || [];
-    if (!districts.length && !pincodes.length) return '';
-    const parts = [];
-    if (districts.length) parts.push(districts.join(', '));
-    if (pincodes.length) parts.push(`Pincodes: ${pincodes.join(', ')}`);
-    return parts.join(' — ');
+    return (profile.districtsCovered || []).join(', ');
+  }
+
+  // State isn't stored directly on the account — it's looked up off
+  // one of their covered pincodes in the pincode master, since that's
+  // the only place district→state is recorded.
+  const whPincodeStateCache = {};
+  async function getStateForProfile(profile) {
+    const firstPincode = profile && (profile.pincodesCovered || [])[0];
+    if (!firstPincode) return '';
+    if (whPincodeStateCache[firstPincode] !== undefined) return whPincodeStateCache[firstPincode];
+    try {
+      const snap = await getDoc(doc(db, 'pincodes', firstPincode));
+      whPincodeStateCache[firstPincode] = snap.exists() ? (snap.data().state || '') : '';
+    } catch (err) {
+      console.warn('Pincode state lookup failed (non-blocking):', err.message);
+      whPincodeStateCache[firstPincode] = '';
+    }
+    return whPincodeStateCache[firstPincode];
   }
 
   async function loadSpareRequests(status) {
@@ -2549,13 +2561,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
     const profile = d.requestedByUid ? await getWhRequesterProfile(d.requestedByUid) : null;
     const requesterName = profile ? (profile.name || profile.email) : (d.serviceCenter || '—');
-    const coverage = coverageAreaText(profile);
+    const districts = districtsText(profile);
+    const state = await getStateForProfile(profile);
     const roleLabel = profile && profile.role === 'technician' ? 'Technician' : 'Service Center';
+    const contactParts = [];
+    if (profile && profile.phone) contactParts.push(profile.phone);
+    if (profile && profile.email) contactParts.push(profile.email);
 
     whSrDetailBody.innerHTML = `
       <div><strong>${roleLabel}:</strong> ${escapeHtml(requesterName) || '—'}</div>
-      ${profile && profile.email ? `<div><strong>Email:</strong> ${escapeHtml(profile.email)}</div>` : ''}
-      ${coverage ? `<div><strong>Coverage area:</strong> ${escapeHtml(coverage)}</div>` : ''}
+      ${districts ? `<div><strong>District:</strong> ${escapeHtml(districts)}</div>` : ''}
+      ${state ? `<div><strong>State:</strong> ${escapeHtml(state)}</div>` : ''}
+      ${contactParts.length ? `<div><strong>Contact:</strong> ${escapeHtml(contactParts.join(' · '))}</div>` : ''}
       <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
       <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
       <div><strong>Priority:</strong> ${(d.priority || 'normal').toUpperCase()}</div>
