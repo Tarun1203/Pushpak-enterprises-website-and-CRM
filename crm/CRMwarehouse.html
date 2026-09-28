@@ -2988,7 +2988,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             type: 'transfer', partId: part.id, partName: part.name,
             from: 'warehouse', to: loc.docId,
             quantity: qty, sourceRequestId: d.id, transport,
-            createdAt: serverTimestamp(), createdByEmail: currentUser?.email || null
+            createdAt: serverTimestamp(), createdByEmail: auth.currentUser ? auth.currentUser.email : null
           });
         }
 
