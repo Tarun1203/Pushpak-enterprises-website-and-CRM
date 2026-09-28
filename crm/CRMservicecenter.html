@@ -95,6 +95,13 @@
   .status-pill.completed{background:#D9EEE0;color:var(--ok);}
   .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
   .status-pill.waiting_spare{background:#F6DCDC;color:var(--err);}
+  .status-pill.approved{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.picking{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.packing{background:var(--paper-deep);color:var(--ink);}
+  .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
+  .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
+  .status-pill.received{background:#D9EEE0;color:var(--ok);}
+  .status-pill.backorder{background:#F6DCDC;color:var(--err);}
   .status-pill.low{background:#FBEAD2;color:#9A6A15;}
   .status-pill.out{background:#F6DCDC;color:var(--err);}
   .status-pill.ok{background:#D9EEE0;color:var(--ok);}
@@ -521,7 +528,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "sparerequests", "label": "Spare Requests (Head Office)", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -576,6 +583,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'stock') {
       pageSub.textContent = 'Parts held at this center';
       renderCenterInventory();
+    } else if (id === 'sparerequests') {
+      pageSub.textContent = 'Parts requested from Head Office, and their dispatch status';
+      renderMySpareRequests();
     } else if (id === 'dispatch') {
       pageSub.textContent = 'Send parts to your technicians';
       renderSpareDispatch();
@@ -972,6 +982,103 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       spareReqSubmitBtn.textContent = 'Request Spare';
     }
   });
+
+  // ---------------------------------------------------------------
+  // My Spare Requests — visibility into Head Office / Warehouse
+  // dispatches once this center's own requests move past "New":
+  // transporter, docket/LR/AWB number, vehicle, dispatch date and a
+  // docket photo when Warehouse has captured one, plus a Mark Received
+  // action and a way to resume the linked job once the part is in hand.
+  // ---------------------------------------------------------------
+  const SR_STATUS_LABELS_SC = {
+    new: 'New', approved: 'Approved', picking: 'Picking', packing: 'Packing',
+    dispatched: 'Dispatched', intransit: 'In Transit', received: 'Received', backorder: 'Back Order'
+  };
+
+  async function renderMySpareRequests() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Spare requests to Head Office</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr><th>Request ID</th><th>Item</th><th>Qty</th><th>Status</th><th>Dispatch details</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="my-sr-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    loadMySpareRequests();
+  }
+
+  async function loadMySpareRequests() {
+    const tbody = document.getElementById('my-sr-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'spareRequests'), where('requestedByUid', '==', currentUser.uid)));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No spare requests raised yet.</td></tr>`;
+        return;
+      }
+      let docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const tr = document.createElement('tr');
+        const t = d.transport;
+        const dispatchInfo = t
+          ? `${escapeHtml(t.transporter) || '—'} · Docket: ${escapeHtml(t.docket) || '—'}${t.vehicle ? ' · Veh: ' + escapeHtml(t.vehicle) : ''}${t.dispatchDate ? ' · ' + escapeHtml(t.dispatchDate) : ''}${t.photoUrl ? ` · <a href="${t.photoUrl}" target="_blank" rel="noopener">Docket photo</a>` : ''}`
+          : (d.status === 'new' || d.status === 'approved' || d.status === 'picking' || d.status === 'packing' || d.status === 'backorder' ? 'Not dispatched yet' : '—');
+        let actions = '';
+        if (d.status === 'dispatched' || d.status === 'intransit') {
+          actions = `<button class="btn-primary my-sr-receive-btn" data-id="${d.id}">Mark Received</button>`;
+        } else if (d.status === 'received') {
+          actions = `<span style="font-size:12px;color:var(--stone);">Received</span>`;
+        }
+        tr.innerHTML = `
+          <td style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</td>
+          <td>${escapeHtml(d.item) || '—'}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td><span class="status-pill ${d.status}">${SR_STATUS_LABELS_SC[d.status] || d.status}</span></td>
+          <td style="font-size:12.5px;color:var(--stone);">${dispatchInfo}</td>
+          <td><div class="row-actions">${actions}</div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.my-sr-receive-btn').forEach(btn => {
+        btn.addEventListener('click', () => markSpareRequestReceived(btn.dataset.id, docs.find(x => x.id === btn.dataset.id)));
+      });
+    } catch (err) {
+      console.error('Load my spare requests failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load your spare requests. Check console for details.</td></tr>`;
+    }
+  }
+
+  // Marking a part Received is a confirmation step, not a second stock
+  // movement — Warehouse already credited this center's own Center
+  // Inventory the moment it dispatched the part (see CRMwarehouse.html's
+  // Transfer Stock & Dispatch action), so this only updates the request's
+  // status and, when the part was requested against a job that's sitting
+  // in Waiting for Spare, offers to resume that job.
+  async function markSpareRequestReceived(reqDocId, d) {
+    if (!confirm('Mark this spare as received? Center Inventory already reflects this stock from when it was dispatched.')) return;
+    try {
+      await updateDoc(doc(db, 'spareRequests', reqDocId), {
+        status: 'received', receivedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      if (d && d.sourceJobId && d.sourceJobCollection) {
+        const resume = confirm('Resume the linked job now (move it back to In Progress)?');
+        if (resume) {
+          await updateDoc(doc(db, d.sourceJobCollection, d.sourceJobId), { status: 'in_progress', updatedAt: serverTimestamp() });
+          await logTicketStatus(d.sourceJobCollection, d.sourceJobId, 'in_progress', `Spare received — ${d.requestId || reqDocId}`);
+        }
+      }
+      loadMySpareRequests();
+    } catch (err) {
+      console.error('Mark received failed:', err);
+      alert('Could not mark this as received. Check console for details.');
+    }
+  }
 
   const reqOverlay = document.getElementById('req-overlay');
   const reqForm = document.getElementById('req-form');

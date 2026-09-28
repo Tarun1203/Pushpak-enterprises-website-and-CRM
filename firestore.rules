@@ -462,7 +462,16 @@ service cloud.firestore {
       // through the warehouse themselves.
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid);
-      allow update, delete: if isAdmin();
+      // Warehouse/Super Admin can move a request through every stage.
+      // The center/technician that raised it can additionally confirm
+      // receipt themselves — but only that one transition (dispatched or
+      // in-transit -> received), so they can't otherwise edit their own
+      // request's status, quantity, item or transport details.
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.requestedByUid == request.auth.uid
+            && resource.data.status in ['dispatched', 'intransit']
+            && request.resource.data.status == 'received');
+      allow delete: if isAdmin();
     }
 
     match /localPurchases/{lpId} {

@@ -2799,7 +2799,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         });
       });
       tbody.querySelectorAll('.action-btn').forEach(btn => {
-        btn.addEventListener('click', () => advanceRequest(btn.dataset.uid, btn.dataset.next, status));
+        btn.addEventListener('click', () => {
+          if (btn.dataset.next === 'dispatched') {
+            const d = docs.find(x => x.id === btn.dataset.uid);
+            if (d) openWhDispatchPopup(d, status);
+          } else {
+            advanceRequest(btn.dataset.uid, btn.dataset.next, status);
+          }
+        });
       });
     } catch (err) {
       console.error('Load spare requests failed:', err);
@@ -2820,6 +2827,161 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   }
 
+  // Dispatch is the one transition that should actually move real stock
+  // (Packing -> Dispatched), mirroring the transfer-and-dispatch pattern
+  // Super Admin's own Spare Requests popup already uses. Everything
+  // before it (New/Approved/Picking) and after it (In Transit/Received)
+  // stays a plain status flip via advanceRequest above — the stock only
+  // moves once, at the moment it physically leaves the warehouse.
+  async function resolveInventoryLocationForRequest(d) {
+    if (d.requestedByUid) {
+      const profile = await getWhRequesterProfile(d.requestedByUid);
+      if (profile) {
+        const prefix = profile.role === 'technician' ? 'tech_' : 'sc_';
+        return { prefix, uid: d.requestedByUid, label: profile.name || profile.email };
+      }
+    }
+    if (d.serviceCenter) {
+      const centers = await getWhServiceCentersCache();
+      const c = (centers || []).find(x => (x.email || '').toLowerCase() === (d.serviceCenter || '').toLowerCase());
+      if (c) return { prefix: 'sc_', uid: c.id || c.uid, label: c.name || c.email };
+      const techs = await getWhTechniciansCache();
+      const t = (techs || []).find(x => (x.email || '').toLowerCase() === (d.serviceCenter || '').toLowerCase());
+      if (t) return { prefix: 'tech_', uid: t.id || t.uid, label: t.name || t.email };
+    }
+    return null;
+  }
+
+  async function resolvePartForRequest(d) {
+    if (d.partId) {
+      const cached = sparePartsCache.find(p => p.id === d.partId);
+      if (cached) return cached;
+    }
+    if (!d.item) return null;
+    try {
+      const snap = await getDocs(query(collection(db, 'spareParts'), where('name', '==', d.item)));
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    } catch (err) {
+      console.warn('Part lookup by name failed (non-blocking):', err.message);
+    }
+    return null;
+  }
+
+  function whTransportFormHtml() {
+    return `
+      <div style="border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;">
+        <div style="font-weight:600;margin-bottom:8px;">Transport / dispatch details</div>
+        <label>Quantity to dispatch
+          <input type="number" id="wh-disp-qty" min="1" value="1" required>
+        </label>
+        <label>Transporter name
+          <input type="text" id="wh-disp-transporter" required>
+        </label>
+        <label>Docket / LR / AWB No.
+          <input type="text" id="wh-disp-docket" required>
+        </label>
+        <label>Vehicle No. (optional)
+          <input type="text" id="wh-disp-vehicle">
+        </label>
+        <label>Dispatch date
+          <input type="date" id="wh-disp-date" required>
+        </label>
+        <label>Docket photo (optional)
+          <input type="file" id="wh-disp-photo" accept="image/*,.pdf">
+        </label>
+        <div id="wh-disp-error" class="error-msg" style="display:none;"></div>
+        <button type="button" class="btn-primary" id="wh-disp-submit" style="margin-top:8px;">Transfer stock &amp; dispatch</button>
+      </div>`;
+  }
+
+  async function openWhDispatchPopup(d, currentTabStatus) {
+    whSrDetailTitle.textContent = `Dispatch — ${d.requestId || d.id}`;
+    const loc = await resolveInventoryLocationForRequest(d);
+    const part = await resolvePartForRequest(d);
+    let stockLine = '';
+    if (part) {
+      try {
+        const invSnap = await getDoc(doc(db, 'inventory', `warehouse_${part.id}`));
+        const avail = invSnap.exists() ? (invSnap.data().quantity || 0) : 0;
+        stockLine = `<div style="font-size:13px;color:var(--stone);">Warehouse stock of ${escapeHtml(part.name)}: <strong>${avail}</strong></div>`;
+      } catch (err) { /* non-blocking */ }
+    }
+    whSrDetailBody.innerHTML = `
+      <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
+      <div><strong>Requested qty:</strong> ${d.quantity ?? '—'}</div>
+      ${stockLine}
+      ${!part ? `<div style="font-size:13px;color:var(--warn);">Couldn't match this item to a Spare Parts master record — stock won't be auto-adjusted. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
+      ${!loc ? `<div style="font-size:13px;color:var(--warn);">Couldn't identify which center/technician account this came from — stock won't be auto-credited to them. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
+      ${whTransportFormHtml()}`;
+    whSrDetailActions.innerHTML = `<button class="btn-secondary" id="wh-disp-cancel">Cancel</button>`;
+    document.getElementById('wh-disp-cancel').addEventListener('click', () => whSrDetailOverlay.classList.remove('show'));
+    document.getElementById('wh-disp-qty').value = d.quantity || 1;
+    document.getElementById('wh-disp-date').value = todayYYYYMMDD().replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+
+    document.getElementById('wh-disp-submit').addEventListener('click', async () => {
+      const errEl = document.getElementById('wh-disp-error');
+      errEl.style.display = 'none';
+      const qty = Number(document.getElementById('wh-disp-qty').value);
+      const transporter = document.getElementById('wh-disp-transporter').value.trim();
+      const docket = document.getElementById('wh-disp-docket').value.trim();
+      const vehicle = document.getElementById('wh-disp-vehicle').value.trim();
+      const dispDate = document.getElementById('wh-disp-date').value;
+      const photoFile = document.getElementById('wh-disp-photo').files[0];
+      if (!qty || qty < 1 || !transporter || !docket || !dispDate) {
+        errEl.textContent = 'Quantity, transporter, docket number and dispatch date are required.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const btn = document.getElementById('wh-disp-submit');
+      btn.disabled = true;
+      btn.textContent = 'Processing…';
+      try {
+        let photoUrl = null;
+        if (photoFile) {
+          const filePath = `spareRequests/${d.id}/docket/${Date.now()}_${photoFile.name}`;
+          const fileRef = storageRef(storage, filePath);
+          await uploadBytes(fileRef, photoFile);
+          photoUrl = await getDownloadURL(fileRef);
+        }
+        const transport = { transporter, docket, vehicle: vehicle || null, dispatchDate: dispDate, photoUrl };
+
+        if (part && loc) {
+          const whInvRef = doc(db, 'inventory', `warehouse_${part.id}`);
+          const destInvRef = doc(db, 'inventory', `${loc.prefix}${loc.uid}_${part.id}`);
+          await runTransaction(db, async (t) => {
+            const whSnap = await t.get(whInvRef);
+            const whQty = whSnap.exists() ? (whSnap.data().quantity || 0) : 0;
+            if (whQty < qty) throw new Error(`Only ${whQty} in warehouse stock — cannot dispatch ${qty}.`);
+            const destSnap = await t.get(destInvRef);
+            const destQty = destSnap.exists() ? (destSnap.data().quantity || 0) : 0;
+            t.update(whInvRef, { quantity: whQty - qty });
+            if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
+            else t.set(destInvRef, { location: `${loc.prefix}${loc.uid}`, partId: part.id, quantity: qty });
+          });
+          await addDoc(collection(db, 'stockMovements'), {
+            type: 'transfer', partId: part.id, partName: part.name,
+            from: 'warehouse', to: `${loc.prefix}${loc.uid}`,
+            quantity: qty, sourceRequestId: d.id, transport,
+            createdAt: serverTimestamp(), createdByEmail: currentUser?.email || null
+          });
+        }
+
+        await updateDoc(doc(db, 'spareRequests', d.id), {
+          status: 'dispatched', dispatchedQty: qty, transport,
+          updatedAt: serverTimestamp()
+        });
+        whSrDetailOverlay.classList.remove('show');
+        loadSpareRequests(currentTabStatus);
+      } catch (err) {
+        console.error('Dispatch failed:', err);
+        errEl.textContent = err.message || 'Could not dispatch this request. Check console for details.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Transfer stock & dispatch';
+      }
+    });
+  }
+
   // Click a Request ID in any Spare Requests tab to open the full
   // detail here — same info the row already implies (service center,
   // item, qty, priority, status) plus notes and the linked job, if
@@ -2834,6 +2996,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   whSrDetailOverlay.addEventListener('click', (e) => { if (e.target === whSrDetailOverlay) whSrDetailOverlay.classList.remove('show'); });
 
   async function openWhSrDetailPopup(d, currentTabStatus) {
+    if (d.status === 'packing') {
+      // Dispatch is a richer flow now (real stock transfer + transport
+      // capture) — hand off to its own popup instead of the plain
+      // detail view below.
+      return openWhDispatchPopup(d, currentTabStatus);
+    }
     whSrDetailTitle.textContent = `Spare Request — ${d.requestId || d.id}`;
     whSrDetailBody.innerHTML = 'Loading…';
     whSrDetailActions.innerHTML = '';
@@ -2858,7 +3026,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><strong>Priority:</strong> ${(d.priority || 'normal').toUpperCase()}</div>
       <div><strong>Status:</strong> <span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></div>
       ${d.sourceJobLabel || d.sourceJobId ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel || d.sourceJobId)}</div>` : ''}
-      ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}`;
+      ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
+      ${d.transport ? `
+        <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px;">
+          <div style="font-weight:600;margin-bottom:4px;">Transport / dispatch details</div>
+          <div>Dispatched qty: ${d.dispatchedQty ?? d.quantity ?? '—'}</div>
+          <div>Transporter: ${escapeHtml(d.transport.transporter) || '—'}</div>
+          <div>Docket/LR/AWB: ${escapeHtml(d.transport.docket) || '—'}</div>
+          ${d.transport.vehicle ? `<div>Vehicle No.: ${escapeHtml(d.transport.vehicle)}</div>` : ''}
+          <div>Dispatch date: ${escapeHtml(d.transport.dispatchDate) || '—'}</div>
+          ${d.transport.photoUrl ? `<div><a href="${d.transport.photoUrl}" target="_blank" rel="noopener">View docket photo</a></div>` : ''}
+        </div>` : ''}`;
 
     const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
       `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${a.label}</button>`
