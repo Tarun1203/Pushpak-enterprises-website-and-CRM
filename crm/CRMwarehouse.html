@@ -2890,30 +2890,25 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     return null;
   }
 
-  function whTransportFormHtml() {
+  function whTransportFormHtml(defaultQty, maxQty) {
+    const maxAttr = maxQty != null ? ` max="${maxQty}"` : '';
+    const cappedQty = maxQty != null ? Math.min(defaultQty || 1, maxQty) : (defaultQty || 1);
     return `
-      <div style="border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;">
-        <div style="font-weight:600;margin-bottom:8px;">Transport / dispatch details</div>
-        <label>Quantity to dispatch
-          <input type="number" id="wh-disp-qty" min="1" value="1" required>
-        </label>
-        <label>Transporter name
-          <input type="text" id="wh-disp-transporter" required>
-        </label>
-        <label>Docket / LR / AWB No.
-          <input type="text" id="wh-disp-docket" required>
-        </label>
-        <label>Vehicle No. (optional)
-          <input type="text" id="wh-disp-vehicle">
-        </label>
-        <label>Dispatch date
-          <input type="date" id="wh-disp-date" required>
-        </label>
-        <label>Docket photo (optional)
-          <input type="file" id="wh-disp-photo" accept="image/*,.pdf">
-        </label>
-        <div id="wh-disp-error" class="error-msg" style="display:none;"></div>
-        <button type="button" class="btn-primary" id="wh-disp-submit" style="margin-top:8px;">Transfer stock &amp; dispatch</button>
+      <div style="border:1px solid var(--hairline);border-radius:4px;padding:14px;margin-top:12px;">
+        <div style="font-weight:600;margin-bottom:10px;">Transport / dispatch details</div>
+        <div class="form-row">
+          <label>Quantity to dispatch${maxQty != null ? ` <span style="font-weight:400;color:var(--stone);">(max ${maxQty} in stock)</span>` : ''}</label>
+          <input type="number" id="wh-disp-qty" min="1"${maxAttr} value="${cappedQty}" required>
+        </div>
+        <div class="form-row"><label>Transporter name</label><input type="text" id="wh-disp-transporter" required></div>
+        <div class="form-row"><label>Docket / LR / AWB No.</label><input type="text" id="wh-disp-docket" required></div>
+        <div class="form-row"><label>Vehicle No. (optional)</label><input type="text" id="wh-disp-vehicle"></div>
+        <div class="form-row"><label>Dispatch date</label><input type="date" id="wh-disp-date" required></div>
+        <div class="form-row"><label>Docket photo (optional)</label><input type="file" id="wh-disp-photo" accept="image/*,.pdf"></div>
+        <div id="wh-disp-error" class="modal-error"></div>
+        <div class="modal-actions" style="justify-content:flex-start;">
+          <button type="button" class="btn-primary" id="wh-disp-submit">Transfer stock &amp; dispatch</button>
+        </div>
       </div>`;
   }
 
@@ -2925,10 +2920,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const loc = await resolveInventoryLocationForRequest(d);
     const part = await resolvePartForRequest(d);
     let stockLine = '';
+    let avail = null;
     if (part) {
       try {
         const invSnap = await getDoc(doc(db, 'inventory', `warehouse_${part.id}`));
-        const avail = invSnap.exists() ? (invSnap.data().quantity || 0) : 0;
+        avail = invSnap.exists() ? (invSnap.data().quantity || 0) : 0;
         stockLine = `<div style="font-size:13px;color:var(--stone);">Warehouse stock of ${escapeHtml(part.name)}: <strong>${avail}</strong></div>`;
       } catch (err) { /* non-blocking */ }
     }
@@ -2938,10 +2934,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       ${stockLine}
       ${!part ? `<div style="font-size:13px;color:var(--warn);">Couldn't match this item to a Spare Parts master record — stock won't be auto-adjusted. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
       ${!loc ? `<div style="font-size:13px;color:var(--warn);">Couldn't identify which center/technician account this came from — stock won't be auto-credited to them. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
-      ${whTransportFormHtml()}`;
+      ${whTransportFormHtml(d.quantity, part ? avail : null)}`;
     whSrDetailActions.innerHTML = `<button class="btn-secondary" id="wh-disp-cancel">Cancel</button>`;
     document.getElementById('wh-disp-cancel').addEventListener('click', () => whSrDetailOverlay.classList.remove('show'));
-    document.getElementById('wh-disp-qty').value = d.quantity || 1;
     document.getElementById('wh-disp-date').value = todayYYYYMMDD().replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
 
     document.getElementById('wh-disp-submit').addEventListener('click', async () => {
@@ -2955,6 +2950,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const photoFile = document.getElementById('wh-disp-photo').files[0];
       if (!qty || qty < 1 || !transporter || !docket || !dispDate) {
         errEl.textContent = 'Quantity, transporter, docket number and dispatch date are required.';
+        errEl.style.display = 'block';
+        return;
+      }
+      if (avail != null && qty > avail) {
+        errEl.textContent = `Only ${avail} in warehouse stock — reduce the quantity.`;
         errEl.style.display = 'block';
         return;
       }
