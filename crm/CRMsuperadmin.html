@@ -1017,7 +1017,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
@@ -1397,7 +1397,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const [
         enquiriesSnap, brandsSnap, usersSnap,
         claimsSnap, lpSnap, srSnap, rmaSnap, dealerOrdersSnap,
-        jobsSnap, requestsSnap, pincodeMaster, slaRules,
+        jobsSnap, requestsSnap, pincodeMaster, slaRules, changeReqSnap,
       ] = await Promise.all([
         getDocs(collection(db, 'contactEnquiries')),
         getDocs(collection(db, 'brands')),
@@ -1411,7 +1411,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         getDocs(collection(db, 'centerRequests')),
         getPincodesCache(false),
         getSlaRulesCache(false),
+        getDocs(query(collection(db, 'changeRequests'), where('status', '==', 'pending'))),
       ]);
+      const approvalsChangeRequests = changeReqSnap.size;
 
       // Claims — same "not settled, not rejected" as the Payments
       // pending-item picker; "submitted" alone is what Approvals counts.
@@ -1479,7 +1481,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         enquiries: enquiriesSnap.size,
         brands: brandsSnap.size,
         users: usersSnap.size,
-        approvals: approvalsClaims + approvalsLp + approvalsSr,
+        approvals: approvalsClaims + approvalsLp + approvalsSr + approvalsChangeRequests,
         rma: pendingRma,
         payments: pendingClaims + pendingLp,
         claims: pendingClaims,
@@ -5896,15 +5898,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <tbody id="appr-lp-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody></table>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>New spare requests</h2></div>
         <div class="panel-body" style="padding:0;">
           <table><thead><tr><th>Request ID</th><th>Service Center</th><th>Item</th><th>Status</th></tr></thead>
           <tbody id="appr-sr-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody></table>
         </div>
       </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Warehouse change requests — needs your approval</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Submitted</th><th>What</th><th>Change</th><th>Requested by</th><th>Action</th></tr></thead>
+          <tbody id="appr-changereq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
       <div style="margin-top:16px;font-size:12.5px;color:var(--stone);">
-        This is a read-only overview — approve/verify/settle actions happen in the Warehouse portal.
+        Claims/Local Purchase/Spare Requests above are a read-only overview — those approve/verify/settle
+        actions happen in the Warehouse portal. Change requests below are the exception: only Super Admin
+        can approve or reject those, so it happens right here.
       </div>`;
 
     // All three lists sort oldest-first (by createdAt, client-side —
@@ -5964,6 +5975,98 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         });
       }
     } catch (err) { console.error('Load pending spare requests failed:', err); }
+
+    try {
+      const crSnap = await getDocs(query(collection(db, 'changeRequests'), where('status', '==', 'pending')));
+      const tbody4 = document.getElementById('appr-changereq-tbody');
+      if (crSnap.empty) {
+        tbody4.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing pending.</td></tr>`;
+      } else {
+        const rows = [];
+        crSnap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+        rows.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        tbody4.innerHTML = '';
+        rows.forEach(d => {
+          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
+            <td style="font-size:12.5px;">${escapeHtml(d.targetCollection || '—')}</td>
+            <td style="font-size:12.5px;">${escapeHtml(d.summary || '—')}</td>
+            <td style="font-size:12px;">${escapeHtml(d.requestedByEmail || '—')}</td>
+            <td>
+              <button type="button" class="btn-secondary cr-approve-btn">Approve</button>
+              <button type="button" class="btn-secondary cr-reject-btn">Reject</button>
+            </td>`;
+          tbody4.appendChild(tr);
+          tr.querySelector('.cr-approve-btn').addEventListener('click', () => approveChangeRequest(d));
+          tr.querySelector('.cr-reject-btn').addEventListener('click', () => rejectChangeRequest(d));
+        });
+      }
+    } catch (err) { console.error('Load pending change requests failed:', err); }
+  }
+
+  // A Warehouse-submitted change (see firestore.rules — only Super
+  // Admin can update a changeRequests doc, and only Super Admin's own
+  // writes to spareParts/etc. go through directly) waits here until
+  // approved or rejected. Approving replays the stored payload onto
+  // the real target doc, then marks the request itself resolved.
+  async function approveChangeRequest(cr) {
+    if (!confirm(`Apply this change now?\n\n${cr.summary || ''}`)) return;
+    try {
+      if (cr.action === 'update' && cr.targetId) {
+        await updateDoc(doc(db, cr.targetCollection, cr.targetId), cr.payload || {});
+      } else if (cr.action === 'delete' && cr.targetId) {
+        await deleteDoc(doc(db, cr.targetCollection, cr.targetId));
+      } else if (cr.action === 'create') {
+        await addDoc(collection(db, cr.targetCollection), { ...(cr.payload || {}), createdAt: serverTimestamp() });
+      }
+      await updateDoc(doc(db, 'changeRequests', cr.id), {
+        status: 'approved',
+        reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+        reviewedAt: serverTimestamp()
+      });
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Approved Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      renderApprovalsOverview();
+    } catch (err) {
+      console.error('Approve change request failed:', err);
+      alert('Could not apply this change. Check console for details.');
+    }
+  }
+
+  async function rejectChangeRequest(cr) {
+    const note = prompt('Optional note for rejecting this (kept in the audit log only):', '') || '';
+    try {
+      await updateDoc(doc(db, 'changeRequests', cr.id), {
+        status: 'rejected',
+        reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+        reviewedAt: serverTimestamp(),
+        reviewNote: note
+      });
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          details: `Rejected Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}${note ? ` — ${note}` : ''}`,
+          createdAt: serverTimestamp()
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      renderApprovalsOverview();
+    } catch (err) {
+      console.error('Reject change request failed:', err);
+      alert('Could not reject this. Check console for details.');
+    }
   }
 
   // =================================================================
@@ -7172,25 +7275,149 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
   }
 
-  function mountProductsImport(container) {
-    mountCsvImportPanel(container, {
+  // Products are really two collections under the hood (see the
+  // Add Product modal / its submit handler): `products` holds
+  // name/brand/category, `productModels` holds the per-size-or-spec
+  // variant (Model Number, SKU, price, notes, warranty plan, status)
+  // — a product doc only gets a model doc if a Model Number was
+  // given, same rule as the manual form. Category and Warranty Plan
+  // are matched by name against the real Category/Warranty masters
+  // for that brand (set those up first if they don't exist yet) —
+  // an unmatched name is just left blank rather than failing the row.
+  async function mountProductsImport(container) {
+    container.innerHTML = `<div id="md-products-csv"></div><div id="md-products-images" style="margin-top:24px;"></div>`;
+    const csvContainer = document.getElementById('md-products-csv');
+    const imagesContainer = document.getElementById('md-products-images');
+    csvContainer.innerHTML = `<div class="panel"><div class="panel-body">Loading category &amp; warranty plan lists…</div></div>`;
+
+    let categories = [], warrantyPlans = [];
+    try {
+      const [catSnap, warrSnap] = await Promise.all([
+        getDocs(collection(db, 'productCategories')),
+        getDocs(collection(db, 'warrantyPlans')),
+      ]);
+      catSnap.forEach(d => categories.push({ id: d.id, ...d.data() }));
+      warrSnap.forEach(d => warrantyPlans.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error('Could not preload categories/warranty plans for product import:', err);
+    }
+
+    mountCsvImportPanel(csvContainer, {
       title: 'Import products',
-      hint: 'Download a sample CSV for the product catalog, fill it in, then upload it below.',
-      sampleCsv: 'name,category,brand,price\nSample 43 inch LED TV,LED TV,MakWell,18999\n',
+      hint: 'Columns: name, brand, category, modelnumber, sku, price, notes, warrantyplan, status. brand is MakWell / Flyvision / Skevia. category and warrantyplan must match an existing name for that brand exactly — set those up first under Categories / Warranty Plans if needed. status is active or inactive. Product images can\'t travel in a spreadsheet — use the uploader below this, right after importing.',
+      sampleCsv: 'name,brand,category,modelnumber,sku,price,notes,warrantyplan,status\nSample 43 inch LED TV,MakWell,LED,MW43A,MW-TV-43-A,18999,43 inch 4K Android TV 20W speakers,1 Year Standard,active\n',
       sampleFilename: 'products-sample.csv',
       parseRow: (row) => row.name ? row : null,
       importRow: async (row) => {
         const brandNameToId = { makwell: 'makwell', flyvision: 'flyvision', skevia: 'skevia' };
         const brandId = brandNameToId[(row.brand || 'MakWell').toLowerCase()] || 'makwell';
-        await addDoc(collection(db, 'products'), {
+        const category = categories.find(c => c.brandId === brandId && (c.name || '').toLowerCase() === (row.category || '').toLowerCase());
+        const warrantyPlan = warrantyPlans.find(w => w.brandId === brandId && (w.name || '').toLowerCase() === (row.warrantyplan || '').toLowerCase());
+
+        const ref = await addDoc(collection(db, 'products'), {
           name: row.name,
-          category: row.category || '',
+          categoryId: category ? category.id : null,
+          categoryName: category ? category.name : null,
           brandId,
           brand: BRAND_LABELS[brandId],
-          price: row.price ? Number(row.price) : null,
           createdAt: serverTimestamp()
         });
+
+        if ((row.modelnumber || '').trim()) {
+          await addDoc(collection(db, 'productModels'), {
+            productId: ref.id,
+            brandId,
+            modelNumber: row.modelnumber.trim(),
+            sku: row.sku || '',
+            price: row.price ? Number(row.price) : null,
+            specifications: row.notes || '',
+            attributeValues: {},
+            warrantyPlanId: warrantyPlan ? warrantyPlan.id : null,
+            warrantyPlanName: warrantyPlan ? warrantyPlan.name : null,
+            status: (row.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active',
+            createdAt: serverTimestamp()
+          });
+        }
       }
+    });
+
+    mountProductImagesImport(imagesContainer);
+  }
+
+  async function mountProductImagesImport(container) {
+    container.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>Bulk upload product images</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">
+            Select multiple image files at once. Each file is matched to an existing product by its
+            <b>Model Number</b> appearing anywhere in the filename — e.g. <code>MW43A.jpg</code> or
+            <code>MW43A-front.png</code> both match model <b>MW43A</b>. Import the product with that
+            model number first if it doesn't exist yet. Unmatched files are skipped and listed after upload.
+          </p>
+          <input type="file" id="md-product-images-input" accept="image/*" multiple style="margin-bottom:14px;">
+          <div id="md-product-images-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
+          <button class="btn-primary" id="md-product-images-upload-btn" disabled>Upload &amp; attach</button>
+          <div class="modal-error" id="md-product-images-error"></div>
+          <div class="modal-success" id="md-product-images-success"></div>
+          <div id="md-product-images-results" style="margin-top:16px;font-size:12.5px;color:var(--stone);"></div>
+        </div>
+      </div>`;
+
+    const fileInput = document.getElementById('md-product-images-input');
+    const preview = document.getElementById('md-product-images-preview');
+    const uploadBtn = document.getElementById('md-product-images-upload-btn');
+    const errorEl = document.getElementById('md-product-images-error');
+    const successEl = document.getElementById('md-product-images-success');
+    const resultsEl = document.getElementById('md-product-images-results');
+    let files = [];
+
+    fileInput.addEventListener('change', () => {
+      files = Array.from(fileInput.files || []);
+      preview.textContent = `${files.length} image(s) selected.`;
+      uploadBtn.disabled = files.length === 0;
+      resultsEl.innerHTML = '';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      errorEl.classList.remove('show');
+      successEl.classList.remove('show');
+      resultsEl.innerHTML = '';
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading…';
+      try {
+        const modelsSnap = await getDocs(collection(db, 'productModels'));
+        const models = [];
+        modelsSnap.forEach(d => models.push({ id: d.id, ...d.data() }));
+
+        let matched = 0;
+        const unmatched = [];
+        for (const file of files) {
+          const baseName = file.name.toUpperCase();
+          const model = models.find(m => m.modelNumber && baseName.includes(m.modelNumber.toUpperCase()));
+          if (!model || !model.productId) { unmatched.push(file.name); continue; }
+          const filePath = `products/${model.productId}/${Date.now()}_${file.name}`;
+          const fileRef = storageRef(storage, filePath);
+          await uploadBytes(fileRef, file);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(doc(db, 'products', model.productId), { imageUrls: arrayUnion(url) });
+          matched++;
+        }
+        successEl.textContent = `Attached ${matched} image(s) to products.${unmatched.length ? ` ${unmatched.length} file(s) didn't match any Model Number.` : ''}`;
+        successEl.classList.add('show');
+        if (unmatched.length) {
+          resultsEl.innerHTML = `<b>Unmatched files:</b> ${unmatched.map(escapeHtml).join(', ')}`;
+        }
+        files = [];
+        fileInput.value = '';
+        preview.textContent = '';
+      } catch (err) {
+        console.error('Bulk product image upload failed:', err);
+        errorEl.textContent = 'Upload failed partway through. Check console for details — some images may have attached already.';
+        errorEl.classList.add('show');
+      }
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Upload & attach';
     });
   }
 

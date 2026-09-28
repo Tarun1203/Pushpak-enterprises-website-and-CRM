@@ -1889,11 +1889,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const partSubmitBtn = document.getElementById('submit-part');
   const partModalTitle = document.getElementById('part-modal-title');
 
+  // Holds the part's data as it was before this edit opened, so the
+  // submit handler below can tell whether the PRICE specifically is
+  // changing (only that needs Super Admin approval — see submit
+  // handler) versus a routine edit to name/category/reorder level.
+  let editingPartOriginal = null;
+
   function openPartModal(existing) {
     partForm.reset();
     partError.classList.remove('show');
     partSuccess.classList.remove('show');
     partSubmitBtn.disabled = false;
+    editingPartOriginal = existing || null;
     if (existing) {
       partModalTitle.textContent = `Edit ${existing.partCode || 'part'}`;
       document.getElementById('part-editing-id').value = existing.id;
@@ -1929,14 +1936,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       price: document.getElementById('part-price').value ? Number(document.getElementById('part-price').value) : null,
       reorderLevel: Number(document.getElementById('part-reorder').value) || 0,
     };
+    // A PRICE change to an existing part needs Super Admin sign-off —
+    // everything else about editing a part (name, category, reorder
+    // level) or adding a brand-new one stays immediate, same as
+    // before. See Approvals → "Warehouse change requests" in the
+    // Super Admin portal for where this gets reviewed.
+    const priceChanged = editingId && editingPartOriginal && editingPartOriginal.price !== payload.price;
     try {
-      if (editingId) {
+      if (priceChanged) {
+        await addDoc(collection(db, 'changeRequests'), {
+          targetCollection: 'spareParts',
+          targetId: editingId,
+          action: 'update',
+          payload,
+          summary: `Spare part price change — ${editingPartOriginal.partCode || editingId} (${payload.name}): ₹${editingPartOriginal.price ?? '—'} → ₹${payload.price ?? '—'}`,
+          requestedByUid: auth.currentUser ? auth.currentUser.uid : null,
+          requestedByEmail: auth.currentUser ? auth.currentUser.email : 'unknown',
+          status: 'pending',
+          createdAt: serverTimestamp()
+        });
+        partSuccess.textContent = 'Price change submitted for Super Admin approval — it will apply once approved.';
+      } else if (editingId) {
         await updateDoc(doc(db, 'spareParts', editingId), payload);
+        partSuccess.textContent = 'Saved.';
       } else {
         const partCode = await generatePartCode();
         await addDoc(collection(db, 'spareParts'), { ...payload, partCode, createdAt: serverTimestamp() });
+        partSuccess.textContent = 'Saved.';
       }
-      partSuccess.textContent = 'Saved.';
       partSuccess.classList.add('show');
       partSubmitBtn.disabled = false;
       partSubmitBtn.textContent = editingId ? 'Save changes' : 'Save part';
