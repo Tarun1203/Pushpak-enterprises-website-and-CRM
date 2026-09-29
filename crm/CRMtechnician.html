@@ -552,14 +552,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       </div>`;
     if (!currentUser) return;
     try {
-      const [assignedSnap, progressSnap, completedSnap] = await Promise.all([
+      // Same two-collection split as My Jobs (see note there) — a
+      // center-assigned ticket's "assigned" status counts the same as
+      // a serviceJobs "assigned" status for these tiles.
+      const [sjAssigned, sjProgress, sjCompleted, crAssigned, crProgress, crCompleted] = await Promise.all([
         getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'assigned'))),
         getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'in_progress'))),
         getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'completed'))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid), where('status', 'in', ['new', 'assigned']))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'in_progress'))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid), where('status', '==', 'completed'))),
       ]);
-      document.getElementById('stat-assigned').textContent = assignedSnap.size;
-      document.getElementById('stat-inprogress').textContent = progressSnap.size;
-      document.getElementById('stat-completed').textContent = completedSnap.size;
+      document.getElementById('stat-assigned').textContent = sjAssigned.size + crAssigned.size;
+      document.getElementById('stat-inprogress').textContent = sjProgress.size + crProgress.size;
+      document.getElementById('stat-completed').textContent = sjCompleted.size + crCompleted.size;
     } catch (err) {
       console.error('Dashboard stats failed:', err);
     }
@@ -1012,13 +1018,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const tbody = document.getElementById('schedule-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(
-        collection(db, 'serviceJobs'),
-        where('technicianUid', '==', currentUser.uid),
-        where('status', 'in', JOB_ACTIVE_STATUSES)
-      ));
+      const [snap, crSnap] = await Promise.all([
+        getDocs(query(
+          collection(db, 'serviceJobs'),
+          where('technicianUid', '==', currentUser.uid),
+          where('status', 'in', JOB_ACTIVE_STATUSES)
+        )),
+        getDocs(query(
+          collection(db, 'centerRequests'),
+          where('technicianUid', '==', currentUser.uid),
+          where('status', 'in', CR_ACTIVE_STATUSES)
+        )),
+      ]);
       let docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      crSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
       docs = docs.filter(d => d.scheduledDate).sort((a, b) => (a.scheduledDate + (a.scheduledStartTime || '00:00')).localeCompare(b.scheduledDate + (b.scheduledStartTime || '00:00')));
       if (docs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No scheduled jobs yet — set a date and time when logging a job.</td></tr>`;
@@ -1738,9 +1752,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       </div>`;
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid)));
+      const [snap, crSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid))),
+      ]);
       let completed = 0, cancelled = 0, total = 0;
       snap.forEach(d => {
+        total++;
+        if (d.data().status === 'completed') completed++;
+        if (d.data().status === 'cancelled') cancelled++;
+      });
+      crSnap.forEach(d => {
         total++;
         if (d.data().status === 'completed') completed++;
         if (d.data().status === 'cancelled') cancelled++;
