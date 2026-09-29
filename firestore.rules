@@ -422,10 +422,33 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
-        || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid)
+        // A service center crediting one of ITS OWN roster
+        // technicians' Spare Bag for the first time (Dispatch to
+        // Technician, against a real open ticket) — only allowed when
+        // that exact technician is linked to this exact center.
+        || (isSignedIn() && request.resource.data.location == 'technician'
+            && get(/databases/$(database)/documents/users/$(request.resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid);
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
-        || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid);
+        || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid)
+        // A roster technician drawing a spare directly from their OWN
+        // service center's shelf (job popup → Request Spare, when the
+        // center already has stock) — only a quantity decrease, only
+        // the quantity/updatedAt fields, and only by a technician this
+        // exact center has actually linked to itself.
+        || (isSignedIn() && resource.data.location == 'servicecenter'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt'])
+            && request.resource.data.quantity < resource.data.quantity
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedServiceCenterUid == resource.data.serviceCenterUid)
+        // The mirror case — a service center topping up a linked
+        // technician's Spare Bag (Dispatch to Technician) when that
+        // technician's inventory doc for this part already exists —
+        // only a quantity increase, only quantity/updatedAt.
+        || (isSignedIn() && resource.data.location == 'technician'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt'])
+            && request.resource.data.quantity > resource.data.quantity
+            && get(/databases/$(database)/documents/users/$(resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
     }
 
