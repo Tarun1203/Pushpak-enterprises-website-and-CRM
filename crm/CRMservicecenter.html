@@ -221,6 +221,21 @@
         <div id="sc-closure-linked-parts" style="font-size:12.5px;color:var(--stone);margin-bottom:8px;"></div>
         <input type="text" id="sc-closure-parts-notes" placeholder="Any parts used that weren't requested through the system, or type 'None'">
       </div>
+      <div class="form-row">
+        <label>Consume from Center Inventory &amp; log the old part as defective <span style="font-weight:400;color:var(--stone);">(optional — leave blank if no physical part was swapped)</span></label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <select id="sc-closure-part-1" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="sc-closure-partqty-1" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <select id="sc-closure-part-2" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="sc-closure-partqty-2" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select id="sc-closure-part-3" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="sc-closure-partqty-3" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+      </div>
       <div class="modal-error" id="sc-closure-error"></div>
       <div class="modal-success" id="sc-closure-success"></div>
       <div class="modal-actions">
@@ -277,6 +292,26 @@
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-req">Cancel</button>
         <button type="submit" class="btn-primary" id="submit-req">Save request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Assign / reassign technician modal -->
+<div class="modal-overlay" id="req-assign-tech-overlay">
+  <div class="modal">
+    <h3>Assign technician</h3>
+    <div style="font-size:12.5px;color:var(--stone);margin-bottom:10px;" id="req-assign-tech-job-label"></div>
+    <form id="req-assign-tech-form">
+      <div class="form-row">
+        <label>Technician</label>
+        <select id="req-assign-tech-select"><option value="">Unassigned</option></select>
+      </div>
+      <div class="modal-error" id="req-assign-tech-error"></div>
+      <div class="modal-success" id="req-assign-tech-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-req-assign-tech">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-req-assign-tech">Save</button>
       </div>
     </form>
   </div>
@@ -722,6 +757,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         return;
       }
       tbody.innerHTML = '';
+      const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
       docs.forEach(d => {
         let actionHtml = '—';
         if (d.status === 'new') {
@@ -732,6 +768,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
         } else if (d.status === 'waiting_spare') {
           actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${d.id}">Resume Work</button>`;
+        }
+        if (reassignable.includes(d.status)) {
+          actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button></div>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -758,6 +797,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         b.addEventListener('click', () => {
           const jobDoc = docs.find(x => x.id === b.dataset.id);
           if (jobDoc) openSpareReqModal(jobDoc, typeFilter);
+        });
+      });
+      tbody.querySelectorAll('.req-reassign-tech-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const jobDoc = docs.find(x => x.id === b.dataset.id);
+          if (jobDoc) openReqAssignTechModal(jobDoc, typeFilter);
         });
       });
     } catch (err) {
@@ -826,6 +871,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } catch (err) {
       linkedEl.textContent = '';
     }
+    await Promise.all([
+      populatePartOptions(document.getElementById('sc-closure-part-1')),
+      populatePartOptions(document.getElementById('sc-closure-part-2')),
+      populatePartOptions(document.getElementById('sc-closure-part-3')),
+    ]);
     scClosureOverlay.classList.add('show');
   }
   function closeScClosureModal() { scClosureOverlay.classList.remove('show'); }
@@ -845,9 +895,51 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       scClosureError.classList.add('show');
       return;
     }
+    // Up to 3 part+qty lines: each one consumes that quantity from this
+    // center's own Center Inventory (it was used up doing the repair)
+    // and logs the same quantity into Head Office's Returns queue as
+    // "defective" — the old part that came out of the appliance — so it
+    // shows up in Warehouse's Damaged/Returned view immediately, ahead
+    // of physically shipping it back via Send Back to Head Office.
+    const partLines = [1, 2, 3].map(i => ({
+      partId: document.getElementById(`sc-closure-part-${i}`).value,
+      qty: Number(document.getElementById(`sc-closure-partqty-${i}`).value) || 0
+    })).filter(l => l.partId && l.qty > 0);
+
     scClosureSubmitBtn.disabled = true;
     scClosureSubmitBtn.textContent = 'Saving…';
     try {
+      if (partLines.length) {
+        for (const line of partLines) {
+          const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${line.partId}`);
+          await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(invRef);
+            const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+            if (current < line.qty) throw new Error(`Only ${current} of that part in your Center Inventory — reduce the quantity or add stock first.`);
+            transaction.set(invRef, {
+              partId: line.partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
+              quantity: current - line.qty, updatedAt: serverTimestamp()
+            }, { merge: true });
+          });
+        }
+        const jobSnap = await getDoc(doc(db, 'centerRequests', jobId));
+        const jobRequestId = jobSnap.exists() ? (jobSnap.data().requestId || jobId) : jobId;
+        for (const line of partLines) {
+          const returnId = await generateReturnId();
+          await addDoc(collection(db, 'returns'), {
+            returnId,
+            partId: line.partId,
+            quantity: line.qty,
+            source: `Service Center - ${currentUser.email}`,
+            serviceCenterUid: currentUser.uid,
+            reason: `Replaced during job closure — ${jobRequestId}`,
+            sourceJobId: jobId,
+            status: 'defective',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
       await updateDoc(doc(db, 'centerRequests', jobId), {
         status: 'completed',
         closureCode,
@@ -865,7 +957,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeScClosureModal, 800);
     } catch (err) {
       console.error('Close request failed:', err);
-      scClosureError.textContent = 'Could not complete this request. Check the console for details.';
+      scClosureError.textContent = err.message && err.message.includes('Center Inventory')
+        ? err.message
+        : 'Could not complete this request. Check the console for details.';
       scClosureError.classList.add('show');
       scClosureSubmitBtn.disabled = false;
       scClosureSubmitBtn.textContent = 'Mark Complete';
@@ -1084,6 +1178,92 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // ---------------------------------------------------------------
+  // Assign / reassign technician on an existing request — previously
+  // a technician could only be picked once, at creation, with no way
+  // to change it afterwards.
+  // ---------------------------------------------------------------
+  const reqAssignTechOverlay = document.getElementById('req-assign-tech-overlay');
+  const reqAssignTechForm = document.getElementById('req-assign-tech-form');
+  const reqAssignTechSelect = document.getElementById('req-assign-tech-select');
+  const reqAssignTechError = document.getElementById('req-assign-tech-error');
+  const reqAssignTechSuccess = document.getElementById('req-assign-tech-success');
+  const reqAssignTechSubmitBtn = document.getElementById('submit-req-assign-tech');
+  let reqAssignTechJobId = null;
+  let reqAssignTechFilter = 'all';
+
+  async function populateTechnicianSelect(selectEl, currentTechUid) {
+    selectEl.innerHTML = '<option value="">Unassigned</option>';
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
+      const roster = [];
+      snap.forEach(d => roster.push({ id: d.id, ...d.data() }));
+      for (const r of roster) {
+        let suspended = false;
+        if (r.technicianUid) {
+          try {
+            const availSnap = await getDoc(doc(db, 'technicianAvailability', r.technicianUid));
+            suspended = availSnap.exists() && availSnap.data().suspended === true;
+          } catch (err) { /* non-fatal */ }
+        }
+        if (suspended && r.technicianUid !== currentTechUid) continue;
+        const opt = document.createElement('option');
+        opt.value = `${r.name}|${r.technicianUid || ''}`;
+        opt.textContent = r.technicianUid ? `${r.name}${suspended ? ' (suspended)' : ' ✓'}` : r.name;
+        if (r.technicianUid && r.technicianUid === currentTechUid) opt.selected = true;
+        selectEl.appendChild(opt);
+      }
+    } catch (err) {
+      console.error('Load technicians for assign form failed:', err);
+    }
+  }
+
+  function openReqAssignTechModal(jobDoc, typeFilter) {
+    reqAssignTechJobId = jobDoc.id;
+    reqAssignTechFilter = typeFilter;
+    reqAssignTechForm.reset();
+    reqAssignTechError.classList.remove('show');
+    reqAssignTechSuccess.classList.remove('show');
+    reqAssignTechSubmitBtn.disabled = false;
+    reqAssignTechSubmitBtn.textContent = 'Save';
+    document.getElementById('req-assign-tech-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
+    populateTechnicianSelect(reqAssignTechSelect, jobDoc.technicianUid || null);
+    reqAssignTechOverlay.classList.add('show');
+  }
+  function closeReqAssignTechModal() { reqAssignTechOverlay.classList.remove('show'); }
+  document.getElementById('cancel-req-assign-tech').addEventListener('click', closeReqAssignTechModal);
+  reqAssignTechOverlay.addEventListener('click', (e) => { if (e.target === reqAssignTechOverlay) closeReqAssignTechModal(); });
+
+  reqAssignTechForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    reqAssignTechError.classList.remove('show');
+    reqAssignTechSuccess.classList.remove('show');
+    reqAssignTechSubmitBtn.disabled = true;
+    reqAssignTechSubmitBtn.textContent = 'Saving…';
+    try {
+      const [technicianName, technicianUid] = reqAssignTechSelect.value ? reqAssignTechSelect.value.split('|') : [null, null];
+      const jobSnap = await getDoc(doc(db, 'centerRequests', reqAssignTechJobId));
+      const wasNew = jobSnap.exists() && jobSnap.data().status === 'new';
+      const updates = { technicianName: technicianName || null, technicianUid: technicianUid || null, updatedAt: serverTimestamp() };
+      if (wasNew && technicianName) updates.status = 'assigned';
+      await updateDoc(doc(db, 'centerRequests', reqAssignTechJobId), updates);
+      await logTicketStatus('centerRequests', reqAssignTechJobId, updates.status || (jobSnap.data() || {}).status || 'assigned',
+        technicianName ? `Assigned to ${technicianName}` : 'Technician unassigned');
+      reqAssignTechSuccess.textContent = 'Saved.';
+      reqAssignTechSuccess.classList.add('show');
+      reqAssignTechSubmitBtn.textContent = 'Saved';
+      loadCenterRequests(reqAssignTechFilter);
+      setTimeout(closeReqAssignTechModal, 700);
+    } catch (err) {
+      console.error('Assign technician failed:', err);
+      reqAssignTechError.textContent = 'Could not save this. Check console for details.';
+      reqAssignTechError.classList.add('show');
+      reqAssignTechSubmitBtn.disabled = false;
+      reqAssignTechSubmitBtn.textContent = 'Save';
+    }
+  });
+
   const reqOverlay = document.getElementById('req-overlay');
   const reqForm = document.getElementById('req-form');
   const reqError = document.getElementById('req-error');
@@ -1237,12 +1417,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'technician')));
       linkableTechAccounts = [];
       snap.forEach(d => linkableTechAccounts.push({ uid: d.id, ...d.data() }));
-      linkableTechAccounts.forEach(t => {
-        const opt = document.createElement('option');
-        opt.value = t.uid;
-        opt.textContent = t.name || t.email;
-        techLinkSelect.appendChild(opt);
-      });
+      // A technician account is locked to a single service center once
+      // linked — a center covering several districts still only ever
+      // sees its OWN roster, never another center's technicians. Only
+      // accounts with no linkedServiceCenterUid (or already linked to
+      // this same center) are offered here.
+      linkableTechAccounts
+        .filter(t => !t.linkedServiceCenterUid || t.linkedServiceCenterUid === currentUser.uid)
+        .forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.uid;
+          opt.textContent = t.name || t.email;
+          techLinkSelect.appendChild(opt);
+        });
     } catch (err) {
       console.warn('Could not load linkable technician accounts:', err.message);
     }
@@ -1293,6 +1480,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         technicianUid: linkedUid,
         createdAt: serverTimestamp()
       });
+      // Lock this technician account to this service center so no
+      // other center can claim/see them on their own roster.
+      if (linkedUid) {
+        try {
+          await updateDoc(doc(db, 'users', linkedUid), { linkedServiceCenterUid: currentUser.uid, updatedAt: serverTimestamp() });
+        } catch (err) {
+          console.warn('Could not lock technician to this center (non-fatal):', err.message);
+        }
+      }
       techSuccess.textContent = 'Added.';
       techSuccess.classList.add('show');
       techSubmitBtn.disabled = false;
