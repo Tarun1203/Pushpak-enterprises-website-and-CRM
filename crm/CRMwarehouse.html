@@ -2845,6 +2845,30 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // THEIR OWN inventory screen, we write using their convention here,
   // not Warehouse's Stock Movement one.
   async function resolveInventoryLocationForRequest(d) {
+    // A request tied to a center-managed ticket always routes through
+    // that ticket's OWN service center first — Warehouse → Service
+    // Center → Technician, never straight to the technician — even
+    // when the technician was the one who clicked Request Spare from
+    // their job popup. Their request just tells the center "get this
+    // ready"; it doesn't skip the center as the actual custodian of
+    // the stock, which is what left the center with no visibility and
+    // no record of stock a technician had already received.
+    if (d.sourceJobCollection === 'centerRequests' && d.sourceJobId) {
+      try {
+        const jobSnap = await getDoc(doc(db, 'centerRequests', d.sourceJobId));
+        if (jobSnap.exists() && jobSnap.data().serviceCenterUid) {
+          const centerUid = jobSnap.data().serviceCenterUid;
+          const centerProfile = await getWhRequesterProfile(centerUid);
+          return {
+            uid: centerUid,
+            label: centerProfile ? (centerProfile.name || centerProfile.email) : 'Service Center',
+            location: 'servicecenter', uidField: 'serviceCenterUid', docId: 'servicecenter_' + centerUid
+          };
+        }
+      } catch (err) {
+        console.warn('Could not resolve source ticket for routing (falling back):', err.message);
+      }
+    }
     if (d.requestedByUid) {
       const profile = await getWhRequesterProfile(d.requestedByUid);
       if (profile) {
@@ -3074,9 +3098,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     // it never touches warehouse stock again, since that side was
     // already debited correctly the first time.
     const needsFix = ['dispatched', 'intransit', 'received'].includes(d.status) && !d.destInventoryFixed;
-    whSrDetailActions.innerHTML = actions + (needsFix
-      ? ` <button class="btn-secondary" id="wh-fix-inv-btn">Fix inventory location</button>`
-      : '');
+    // A request tied to a center-managed ticket, raised by the
+    // technician directly (job popup → Request Spare), used to be
+    // credited straight to that technician's own Spare Bag — skipping
+    // the service center entirely, so the center never saw it. Fixed
+    // going forward (resolveInventoryLocationForRequest), but anything
+    // already dispatched under the old logic needs moving by hand.
+    const needsRoutingFix = profile && profile.role === 'technician'
+      && d.sourceJobCollection === 'centerRequests' && d.sourceJobId
+      && ['dispatched', 'intransit', 'received'].includes(d.status) && !d.routingFixed;
+    whSrDetailActions.innerHTML = actions
+      + (needsFix ? ` <button class="btn-secondary" id="wh-fix-inv-btn">Fix inventory location</button>` : '')
+      + (needsRoutingFix ? ` <button class="btn-secondary" id="wh-fix-routing-btn">Fix routing (move to Service Center)</button>` : '');
     whSrDetailActions.querySelectorAll('.sr-popup-action-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -3086,6 +3119,44 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
     const fixBtn = document.getElementById('wh-fix-inv-btn');
     if (fixBtn) fixBtn.addEventListener('click', () => whFixInventoryLocation(d, currentTabStatus));
+    const fixRoutingBtn = document.getElementById('wh-fix-routing-btn');
+    if (fixRoutingBtn) fixRoutingBtn.addEventListener('click', () => whFixSpareRouting(d, currentTabStatus));
+  }
+
+  async function whFixSpareRouting(d, currentTabStatus) {
+    const jobSnap = await getDoc(doc(db, 'centerRequests', d.sourceJobId));
+    if (!jobSnap.exists() || !jobSnap.data().serviceCenterUid) {
+      alert("Couldn't find this ticket's service center, so this can't be auto-fixed.");
+      return;
+    }
+    const centerUid = jobSnap.data().serviceCenterUid;
+    const part = await resolvePartForRequest(d);
+    const techUid = d.requestedByUid;
+    if (!part || !techUid) {
+      alert("Couldn't identify the part or technician for this request, so it can't be auto-fixed.");
+      return;
+    }
+    const qty = d.dispatchedQty ?? d.quantity ?? 1;
+    if (!confirm(`Move ${qty} x ${part.name} from the technician's Spare Bag to the service center's own Inventory — correcting where this dispatch should have landed?`)) return;
+    try {
+      const techInvRef = doc(db, 'inventory', `technician_${techUid}_${part.id}`);
+      const centerInvRef = doc(db, 'inventory', `servicecenter_${centerUid}_${part.id}`);
+      await runTransaction(db, async (t) => {
+        const techSnap = await t.get(techInvRef);
+        const centerSnap = await t.get(centerInvRef);
+        const techQty = techSnap.exists() ? (techSnap.data().quantity || 0) : 0;
+        const centerQty = centerSnap.exists() ? (centerSnap.data().quantity || 0) : 0;
+        t.set(techInvRef, { partId: part.id, location: 'technician', technicianUid: techUid, quantity: Math.max(0, techQty - qty), updatedAt: serverTimestamp() }, { merge: true });
+        t.set(centerInvRef, { partId: part.id, location: 'servicecenter', serviceCenterUid: centerUid, quantity: centerQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await updateDoc(doc(db, 'spareRequests', d.id), { routingFixed: true, updatedAt: serverTimestamp() });
+      alert("Fixed — it now shows in the service center's own Inventory instead of the technician's Spare Bag.");
+      whSrDetailOverlay.classList.remove('show');
+      loadSpareRequests(currentTabStatus);
+    } catch (err) {
+      console.error('Fix routing failed:', err);
+      alert('Could not apply the fix. Check console for details.');
+    }
   }
 
   async function whFixInventoryLocation(d, currentTabStatus) {
