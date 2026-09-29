@@ -1223,6 +1223,42 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // that linked this technician account to its roster) — undefined
   // means "not looked up yet", null means "not linked to any center".
   let cachedLinkedCenterUid;
+  // Warranty check used by job closure's automatic billing — mirrors
+  // the same logic used on the Service Center side, matching the
+  // specific part(s) just replaced against the product's per-
+  // component warranty terms before falling back to its overall
+  // warranty, then to the ticket's own captured purchase date.
+  function computeWarrantyStatusTech(purchaseDate, warrantyMonths) {
+    if (!purchaseDate) return { inWarranty: null };
+    const purchase = new Date(purchaseDate);
+    const expiry = new Date(purchase);
+    expiry.setMonth(expiry.getMonth() + (warrantyMonths || 12));
+    return { inWarranty: expiry >= new Date() };
+  }
+
+  async function getJobWarrantyInfo(jobData, partNames) {
+    let reg = null;
+    if (jobData.serialNumber) {
+      try {
+        const snap = await getDocs(query(collection(db, 'productRegistrations'), where('serialNumber', '==', jobData.serialNumber)));
+        if (!snap.empty) reg = snap.docs[0].data();
+      } catch (err) {
+        console.warn('Warranty lookup by serial failed:', err.message);
+      }
+    }
+    if (reg && Array.isArray(reg.warrantyComponents) && reg.warrantyComponents.length && partNames && partNames.length) {
+      for (const partName of partNames) {
+        const pn = partName.toLowerCase();
+        const comp = reg.warrantyComponents.find(c => c.componentName &&
+          (c.componentName.toLowerCase().includes(pn) || pn.includes(c.componentName.toLowerCase())));
+        if (comp) return computeWarrantyStatusTech(reg.purchaseDate, (comp.durationYears || 0) * 12);
+      }
+    }
+    if (reg) return computeWarrantyStatusTech(reg.purchaseDate, reg.warrantyMonths);
+    if (jobData.purchaseDate) return computeWarrantyStatusTech(jobData.purchaseDate, 12);
+    return { inWarranty: null };
+  }
+
   async function getLinkedServiceCenterUid() {
     if (cachedLinkedCenterUid !== undefined) return cachedLinkedCenterUid;
     try {
@@ -1451,6 +1487,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     closureSubmitBtn.disabled = true;
     closureSubmitBtn.textContent = 'Saving…';
     try {
+      const jobSnapForReturn = await getDoc(doc(db, closureJobColl, jobId));
+      const jobData = jobSnapForReturn.exists() ? jobSnapForReturn.data() : {};
+      const jobRequestId = jobData.jobId || jobData.requestId || jobId;
+      const partsCatalog = partLines.length ? await getSparePartsListCache() : [];
+      const partNamesUsed = partLines
+        .map(l => (partsCatalog.find(p => p.id === l.partId) || {}).name)
+        .filter(Boolean);
+
       if (partLines.length) {
         for (const line of partLines) {
           const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${line.partId}`);
@@ -1464,9 +1508,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             }, { merge: true });
           });
         }
-        const jobSnapForReturn = await getDoc(doc(db, closureJobColl, jobId));
-        const jobData = jobSnapForReturn.exists() ? jobSnapForReturn.data() : {};
-        const jobRequestId = jobData.jobId || jobData.requestId || jobId;
         // A technician's defective part is handed back to their OWN
         // service center first, exactly like a center sends its own
         // returns on to Head Office — it doesn't skip straight to
@@ -1502,6 +1543,59 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         updatedAt: serverTimestamp()
       });
       await logTicketStatus(closureJobColl, jobId, 'completed', `Closure code: ${closureCode}`);
+
+      // Warranty-aware auto billing: check warranty against the exact
+      // part(s) just replaced first (per-component cover can outlast
+      // the appliance's own overall warranty), falling back to the
+      // product's overall warranty. If in-warranty, the service
+      // center's (or, absent one, this technician's own) standard
+      // service-charge rate is credited straight to this technician's
+      // wallet — no separate billing step for that part. A center-
+      // managed ticket is also flagged ready for the center to claim
+      // its own spare/other-cost portion.
+      try {
+        const warrantyInfo = await getJobWarrantyInfo(jobData, partNamesUsed);
+        if (warrantyInfo.inWarranty === true) {
+          let rate = 0;
+          const centerUidForRate = jobData.serviceCenterUid || await getLinkedServiceCenterUid();
+          if (centerUidForRate) {
+            const centerSnap = await getDoc(doc(db, 'users', centerUidForRate));
+            if (centerSnap.exists()) rate = Number(centerSnap.data().defaultServiceCharge) || 0;
+          }
+          if (!rate) {
+            const ownSnap = await getDoc(doc(db, 'users', currentUser.uid));
+            if (ownSnap.exists()) rate = Number(ownSnap.data().defaultServiceCharge) || 0;
+          }
+          const jobBillingUpdate = { warrantyStatus: 'in_warranty', updatedAt: serverTimestamp() };
+          if (rate > 0) {
+            jobBillingUpdate.serviceCharge = rate;
+            await addDoc(collection(db, 'walletTransactions'), {
+              technicianUid: currentUser.uid,
+              amount: rate,
+              type: 'service_charge_credit',
+              sourceJobId: jobId,
+              sourceJobCollection: closureJobColl,
+              sourceJobLabel: jobRequestId,
+              serialNumber: jobData.serialNumber || null,
+              status: 'unclaimed',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            });
+            if (closureJobColl === 'centerRequests') {
+              jobBillingUpdate.billingType = 'claim';
+              jobBillingUpdate.billingStatus = 'ready_to_claim';
+              jobBillingUpdate.billingTotal = 0;
+              jobBillingUpdate.billedAt = serverTimestamp();
+            }
+          }
+          await updateDoc(doc(db, closureJobColl, jobId), jobBillingUpdate);
+        } else if (warrantyInfo.inWarranty === false) {
+          await updateDoc(doc(db, closureJobColl, jobId), { warrantyStatus: 'out_of_warranty', updatedAt: serverTimestamp() });
+        }
+      } catch (warrantyErr) {
+        console.warn('Automatic warranty billing failed (non-blocking):', warrantyErr.message);
+      }
+
       closureSuccess.textContent = 'Completed.';
       closureSuccess.classList.add('show');
       closureSubmitBtn.textContent = 'Done';
@@ -2143,6 +2237,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   async function renderTechnicianClaims() {
     contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header">
+          <h2>My wallet — unclaimed: <span id="wallet-unclaimed-total">₹0</span></h2>
+          <button class="btn-primary" id="submit-wallet-claim" disabled>Submit selected as claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th><input type="checkbox" id="wallet-select-all"></th><th>Job</th><th>Serial No</th><th>Amount</th><th>Credited on</th></tr></thead>
+            <tbody id="wallet-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-header">
           <h2>My claims</h2>
@@ -2156,7 +2262,109 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
       </div>`;
     document.getElementById('open-tclaim').addEventListener('click', openTClaimModal);
+    document.getElementById('wallet-select-all').addEventListener('change', (e) => {
+      document.querySelectorAll('.wallet-select-cb').forEach(cb => cb.checked = e.target.checked);
+      updateWalletClaimBtn();
+    });
+    document.getElementById('submit-wallet-claim').addEventListener('click', submitWalletClaim);
+    loadWallet();
     loadTechnicianClaims();
+  }
+
+  let walletTxnCache = [];
+
+  function updateWalletClaimBtn() {
+    const anyChecked = !!document.querySelector('.wallet-select-cb:checked');
+    const btn = document.getElementById('submit-wallet-claim');
+    if (btn) btn.disabled = !anyChecked;
+  }
+
+  async function loadWallet() {
+    const tbody = document.getElementById('wallet-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'walletTransactions'),
+        where('technicianUid', '==', currentUser.uid), where('status', '==', 'unclaimed')));
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      walletTxnCache = docs;
+      const total = docs.reduce((sum, d) => sum + (d.amount || 0), 0);
+      document.getElementById('wallet-unclaimed-total').textContent = `₹${total}`;
+      tbody.innerHTML = docs.length === 0 ? `<tr><td colspan="5" class="empty-row">Nothing unclaimed right now.</td></tr>` : '';
+      docs.forEach(d => {
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" class="wallet-select-cb" data-id="${d.id}"></td>
+          <td style="font-size:12px;color:var(--stone);">${d.sourceJobLabel || d.sourceJobId || '—'}</td>
+          <td>${d.serialNumber || '—'}</td>
+          <td>₹${d.amount ?? 0}</td>
+          <td>${dateStr}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.wallet-select-cb').forEach(cb => cb.addEventListener('change', updateWalletClaimBtn));
+      updateWalletClaimBtn();
+    } catch (err) {
+      console.error('Load wallet failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load your wallet. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function submitWalletClaim() {
+    const selected = Array.from(document.querySelectorAll('.wallet-select-cb:checked')).map(cb => cb.dataset.id);
+    if (selected.length === 0 || !currentUser) return;
+    const btn = document.getElementById('submit-wallet-claim');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    try {
+      const txns = walletTxnCache.filter(t => selected.includes(t.id));
+      const lineItems = txns.map(t => ({
+        sourceJobId: t.sourceJobId,
+        sourceJobCollection: t.sourceJobCollection,
+        sourceJobLabel: t.sourceJobLabel,
+        serialNumber: t.serialNumber || null,
+        total: t.amount || 0
+      }));
+      const amount = lineItems.reduce((sum, li) => sum + li.total, 0);
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: 'technician',
+        claimantUid: currentUser.uid,
+        claimantName: currentUser.email,
+        description: `Warranty service-charge claim — ${txns.length} job${txns.length > 1 ? 's' : ''} (${txns.map(t => t.sourceJobLabel || t.sourceJobId).join(', ')})`,
+        amount,
+        lineItems,
+        walletTxnIds: selected,
+        notes: '',
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      await Promise.all(txns.map(t => updateDoc(doc(db, 'walletTransactions', t.id), {
+        status: 'claimed',
+        claimId,
+        updatedAt: serverTimestamp()
+      })));
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          recipientType: 'role', recipientValue: 'warehouse',
+          title: 'New claim submitted', message: `Technician ${currentUser.email} — ₹${amount} across ${txns.length} job(s) (${claimId})`,
+          read: false, createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification write failed (non-blocking):', notifErr.message);
+      }
+      alert(`Claim submitted — ${claimId}`);
+      loadWallet();
+      if (document.getElementById('tclaims-tbody')) loadTechnicianClaims();
+    } catch (err) {
+      console.error('Submit wallet claim failed:', err);
+      alert('Could not submit claim. Check console for details.');
+    }
+    btn.textContent = 'Submit selected as claim';
+    updateWalletClaimBtn();
   }
 
   async function loadTechnicianClaims() {
@@ -2374,6 +2582,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
           <div class="form-row"><label>Skills</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
           <div class="form-row"><label>Brand authorization</label><input type="text" id="profile-brands" placeholder="e.g. MakWell, Flyvision"></div>
+          <div class="form-row"><label>Standard service charge (₹)</label><input type="number" id="profile-service-charge" min="0" step="0.01" placeholder="e.g. 200"></div>
+          <div style="font-size:11.5px;color:var(--stone);margin:-10px 0 12px;">Only used as a fallback if you're not linked to a service center — a linked center's own rate is what's normally used for your in-warranty job credits.</div>
           <div class="modal-error" id="profile-error"></div>
           <div class="modal-success" id="profile-success"></div>
           <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
@@ -2388,6 +2598,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-phone').value = d.phone || '';
       document.getElementById('profile-skills').value = d.skills || '';
       document.getElementById('profile-brands').value = d.brandAuthorization || '';
+      document.getElementById('profile-service-charge').value = d.defaultServiceCharge ?? '';
     } catch (err) {
       console.error('Load profile failed:', err);
     }
@@ -2405,6 +2616,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           phone: document.getElementById('profile-phone').value.trim(),
           skills: document.getElementById('profile-skills').value.trim(),
           brandAuthorization: document.getElementById('profile-brands').value.trim(),
+          defaultServiceCharge: Number(document.getElementById('profile-service-charge').value) || 0,
         }, { merge: true });
         okEl.textContent = 'Saved.';
         okEl.classList.add('show');

@@ -611,7 +611,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -703,6 +703,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (LOCAL_PURCHASE_TABS[id]) {
       pageSub.textContent = 'Local Purchase';
       renderLocalPurchase(LOCAL_PURCHASE_TABS[id], id, label);
+    } else if (id === 'unclaimed-amounts') {
+      pageSub.textContent = 'Ready-to-claim balances not yet submitted, by service center and technician';
+      renderUnclaimedAmounts();
     } else if (CLAIMS_TABS[id]) {
       pageSub.textContent = 'Claims';
       renderClaims(CLAIMS_TABS[id], id, label);
@@ -3923,6 +3926,90 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return n;
     });
     return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
+  }
+
+  // ---------------------------------------------------------------
+  // Unclaimed Amounts — visibility into what's sitting ready-to-claim
+  // at each service center (spare/other cost on completed in-warranty
+  // tickets) and in each technician's wallet (auto-credited service
+  // charges), before they've actually submitted it as a claim.
+  // ---------------------------------------------------------------
+
+  async function renderUnclaimedAmounts() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header"><h2>Service centers — unclaimed</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Service Center</th><th>Tickets</th><th>Unclaimed Amount</th></tr></thead>
+            <tbody id="unclaimed-centers-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Technicians — unclaimed wallet balance</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Technician</th><th>Jobs</th><th>Unclaimed Amount</th></tr></thead>
+            <tbody id="unclaimed-techs-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    try {
+      const [centerSnap, walletSnap] = await Promise.all([
+        getDocs(query(collection(db, 'centerRequests'), where('billingStatus', '==', 'ready_to_claim'))),
+        getDocs(query(collection(db, 'walletTransactions'), where('status', '==', 'unclaimed')))
+      ]);
+      const byCenterUid = new Map();
+      centerSnap.forEach(d => {
+        const data = d.data();
+        const uid = data.serviceCenterUid;
+        if (!uid) return;
+        const entry = byCenterUid.get(uid) || { count: 0, amount: 0 };
+        entry.count += 1;
+        entry.amount += data.billingTotal || 0;
+        byCenterUid.set(uid, entry);
+      });
+      const byTechUid = new Map();
+      walletSnap.forEach(d => {
+        const data = d.data();
+        const uid = data.technicianUid;
+        if (!uid) return;
+        const entry = byTechUid.get(uid) || { count: 0, amount: 0 };
+        entry.count += 1;
+        entry.amount += data.amount || 0;
+        byTechUid.set(uid, entry);
+      });
+      const centerTbody = document.getElementById('unclaimed-centers-tbody');
+      const techTbody = document.getElementById('unclaimed-techs-tbody');
+      const resolveName = async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          return snap.exists() ? (snap.data().name || snap.data().email || uid) : uid;
+        } catch (err) {
+          return uid;
+        }
+      };
+      if (byCenterUid.size === 0) {
+        centerTbody.innerHTML = `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
+      } else {
+        const rows = await Promise.all(Array.from(byCenterUid.entries()).map(async ([uid, entry]) => ({ name: await resolveName(uid), ...entry })));
+        rows.sort((a, b) => b.amount - a.amount);
+        centerTbody.innerHTML = rows.map(r => `
+          <tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td></tr>`).join('');
+      }
+      if (byTechUid.size === 0) {
+        techTbody.innerHTML = `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
+      } else {
+        const rows = await Promise.all(Array.from(byTechUid.entries()).map(async ([uid, entry]) => ({ name: await resolveName(uid), ...entry })));
+        rows.sort((a, b) => b.amount - a.amount);
+        techTbody.innerHTML = rows.map(r => `
+          <tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td></tr>`).join('');
+      }
+    } catch (err) {
+      console.error('Load unclaimed amounts failed:', err);
+      document.getElementById('unclaimed-centers-tbody').innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
+    }
   }
 
   async function renderClaims(filterValue, tabId, label) {

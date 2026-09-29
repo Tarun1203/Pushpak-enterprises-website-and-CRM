@@ -95,8 +95,12 @@ service cloud.firestore {
     match /users/{userId} {
       // Technician profiles are also readable by any signed-in staff
       // member — Service Center needs to list and link real
-      // technician accounts to their own roster.
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin() || resource.data.role == 'technician');
+      // technician accounts to their own roster. Service center
+      // profiles are readable the same way — a technician needs to
+      // read their own linked center's profile to pick up its
+      // standard service-charge rate for automatic warranty billing.
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin()
+        || resource.data.role == 'technician' || resource.data.role == 'servicecenter');
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role)
@@ -175,7 +179,12 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
               ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt',
-               'beforePhotos', 'afterPhotos', 'serialNumberPhoto']));
+               'beforePhotos', 'afterPhotos', 'serialNumberPhoto',
+               // Automatic warranty/billing fields the closure flow
+               // writes right after marking the job completed — the
+               // technician's own wallet credit and, for an in-warranty
+               // job, flagging the ticket ready for the center to claim.
+               'warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
@@ -579,6 +588,30 @@ service cloud.firestore {
             && resource.data.status == 'sent_to_center'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
             && request.resource.data.status == 'defective');
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Wallet transactions — a technician's running unclaimed balance,
+    // auto-credited at job closure when a job turns out to be
+    // in-warranty (the service center's standard service-charge rate
+    // for that job). The technician later bundles their own unclaimed
+    // entries into a claim, exactly like a service center does with
+    // its own ready-to-claim tickets.
+    // ---------------------------------------------------------------
+
+    match /walletTransactions/{txnId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
+      // The technician may only flip their own still-unclaimed entry to
+      // 'claimed' (stamping which claim it went into) — nothing else on
+      // the record is theirs to touch.
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid
+            && resource.data.status == 'unclaimed'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'claimId', 'updatedAt'])
+            && request.resource.data.status == 'claimed');
       allow delete: if isAdmin();
     }
 

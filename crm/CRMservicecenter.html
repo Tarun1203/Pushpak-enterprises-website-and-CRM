@@ -105,6 +105,8 @@
   .status-pill.low{background:#FBEAD2;color:#9A6A15;}
   .status-pill.out{background:#F6DCDC;color:var(--err);}
   .status-pill.ok{background:#D9EEE0;color:var(--ok);}
+  .status-pill.active{background:#D9EEE0;color:#1C7A46;}
+  .status-pill.expired{background:#F6DCDC;color:#B3261E;}
 
   .tab-toggle{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
   .tab-toggle button{
@@ -532,6 +534,22 @@
   </div>
 </div>
 
+<!-- Bill a completed service ticket: warranty-aware — in-warranty
+     charges become a Head Office claim, out-of-warranty charges are
+     collected from the customer and recorded on the ticket. -->
+<div class="modal-overlay" id="billing-overlay">
+  <div class="modal" style="max-width:520px;">
+    <h3>Bill this service ticket</h3>
+    <div id="billing-body"></div>
+    <div class="modal-error" id="billing-error"></div>
+    <div class="modal-success" id="billing-success"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cancel-billing">Cancel</button>
+      <button type="button" class="btn-primary" id="submit-billing">Save</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -605,7 +623,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "sparerequests", "label": "Spare Requests (Head Office)", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "sparerequests", "label": "Spare Requests (Head Office)", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "billing", "label": "Service Billing", "built": true}, {"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -669,6 +687,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'sendback') {
       pageSub.textContent = 'Return parts to Head Office';
       renderSendBack();
+    } else if (id === 'billing') {
+      pageSub.textContent = 'Warranty claims to Head Office, and charges collected from customers';
+      renderServiceBilling();
     } else if (id === 'claims') {
       pageSub.textContent = 'Your reimbursement claims';
       renderCenterClaims();
@@ -2310,6 +2331,385 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   });
 
   // ---------------------------------------------------------------
+  // Service Billing — warranty-aware billing on completed center
+  // tickets. Warranty status is looked up from the matching
+  // `productRegistrations` doc by serial number (authoritative:
+  // purchase date + warranty period as registered at sale), falling
+  // back to whatever purchase date the ticket itself captured at
+  // intake with a default 12-month cover, and finally "unknown" if
+  // neither is on file (the center can still override manually).
+  // In-warranty tickets are marked "ready to claim" and can be
+  // submitted — several at once — as a single claim into the same
+  // shared `claims` collection Head Office/Technician use. Out-of-
+  // warranty tickets instead record what was collected from the
+  // customer directly on the ticket (no Head Office involvement).
+  // ---------------------------------------------------------------
+
+  function computeWarrantyStatusSC(purchaseDate, warrantyMonths) {
+    if (!purchaseDate) return { cls: '', label: 'Unknown', inWarranty: null };
+    const purchase = new Date(purchaseDate);
+    const expiry = new Date(purchase);
+    expiry.setMonth(expiry.getMonth() + (warrantyMonths || 12));
+    const daysLeft = Math.round((expiry - new Date()) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) return { cls: 'expired', label: 'Expired', inWarranty: false };
+    if (daysLeft <= 30) return { cls: 'low', label: `Expiring in ${daysLeft}d`, inWarranty: true };
+    return { cls: 'active', label: `Active — until ${expiry.toLocaleDateString()}`, inWarranty: true };
+  }
+
+  // Which spare part(s) were actually consumed closing this ticket —
+  // read from the technician's own `returns` record of the job (the
+  // defective part that came out), mapped to a real part name so it
+  // can be matched against the product's per-component warranty terms.
+  async function getConsumedPartNames(ticket) {
+    try {
+      const snap = await getDocs(query(collection(db, 'returns'), where('sourceJobId', '==', ticket.id)));
+      if (snap.empty) return [];
+      const parts = await getSparePartsListCache();
+      const names = [];
+      snap.forEach(d => {
+        const match = parts.find(p => p.id === d.data().partId);
+        if (match && match.name) names.push(match.name);
+      });
+      return names;
+    } catch (err) {
+      console.warn('Could not load consumed parts for warranty match:', err.message);
+      return [];
+    }
+  }
+
+  // Warranty is checked at the level of the specific part replaced,
+  // when the product's registration has per-component terms — a
+  // compressor with a 5-year component warranty stays "in warranty"
+  // long after the appliance's own 1-year overall cover has lapsed.
+  // Falls back to the product's overall warranty, then to whatever
+  // purchase date the ticket itself captured at intake, then unknown.
+  async function getTicketWarrantyInfo(ticket) {
+    let reg = null;
+    if (ticket.serialNumber) {
+      try {
+        const snap = await getDocs(query(collection(db, 'productRegistrations'), where('serialNumber', '==', ticket.serialNumber)));
+        if (!snap.empty) reg = snap.docs[0].data();
+      } catch (err) {
+        console.warn('Warranty lookup by serial failed:', err.message);
+      }
+    }
+    if (reg && Array.isArray(reg.warrantyComponents) && reg.warrantyComponents.length) {
+      const partNames = await getConsumedPartNames(ticket);
+      for (const partName of partNames) {
+        const pn = partName.toLowerCase();
+        const comp = reg.warrantyComponents.find(c => c.componentName &&
+          (c.componentName.toLowerCase().includes(pn) || pn.includes(c.componentName.toLowerCase())));
+        if (comp) {
+          const status = computeWarrantyStatusSC(reg.purchaseDate, (comp.durationYears || 0) * 12);
+          return { ...status, source: `Component warranty — ${comp.componentName}` };
+        }
+      }
+    }
+    if (reg) {
+      const status = computeWarrantyStatusSC(reg.purchaseDate, reg.warrantyMonths);
+      return { ...status, source: 'Registered product (overall warranty)' };
+    }
+    if (ticket.purchaseDate) {
+      const status = computeWarrantyStatusSC(ticket.purchaseDate, 12);
+      return { ...status, source: 'Purchase date on ticket (default 12-month cover)' };
+    }
+    return { cls: '', label: 'Unknown — no purchase date on file', inWarranty: null, source: null };
+  }
+
+  async function renderServiceBilling() {
+    contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header"><h2>Needs billing</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Ticket</th><th>Customer</th><th>Serial No</th><th>Completed</th><th>Warranty</th><th>Actions</th></tr></thead>
+            <tbody id="billing-pending-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header">
+          <h2>Ready to claim (in-warranty) — unclaimed: <span id="billing-unclaimed-total">₹0</span></h2>
+          <button class="btn-primary" id="submit-bulk-claim" disabled>Submit selected as claim</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th><input type="checkbox" id="claim-select-all"></th><th>Ticket</th><th>Customer</th><th>Serial No</th><th>Total</th><th>Billed on</th><th></th></tr></thead>
+            <tbody id="billing-ready-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h2>Billing history</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table>
+            <thead><tr><th>Ticket</th><th>Customer</th><th>Type</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody id="billing-history-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+    document.getElementById('claim-select-all').addEventListener('change', (e) => {
+      document.querySelectorAll('.claim-select-cb').forEach(cb => cb.checked = e.target.checked);
+      updateBulkClaimBtn();
+    });
+    document.getElementById('submit-bulk-claim').addEventListener('click', submitBulkClaim);
+    loadServiceBilling();
+  }
+
+  let billingTicketsCache = [];
+
+  async function loadServiceBilling() {
+    const pendingTbody = document.getElementById('billing-pending-tbody');
+    const readyTbody = document.getElementById('billing-ready-tbody');
+    const historyTbody = document.getElementById('billing-history-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'centerRequests'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        where('status', '==', 'completed')
+      ));
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+      billingTicketsCache = docs;
+
+      const pending = docs.filter(d => !d.billingStatus);
+      const ready = docs.filter(d => d.billingStatus === 'ready_to_claim');
+      const history = docs.filter(d => d.billingStatus === 'claimed' || d.billingStatus === 'collected');
+
+      pendingTbody.innerHTML = pending.length === 0 ? `<tr><td colspan="6" class="empty-row">Nothing waiting on billing.</td></tr>` : '';
+      for (const d of pending) {
+        const completedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleDateString() : (d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleDateString() : '—');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td>${escapeHtml(d.customerName) || '—'}</td>
+          <td>${escapeHtml(d.serialNumber) || '—'}</td>
+          <td>${completedStr}</td>
+          <td class="billing-warranty-cell" data-id="${d.id}">Checking…</td>
+          <td><button class="btn-secondary billing-bill-btn" data-id="${d.id}">Bill this ticket</button></td>`;
+        pendingTbody.appendChild(tr);
+        getTicketWarrantyInfo(d).then(info => {
+          const cell = pendingTbody.querySelector(`.billing-warranty-cell[data-id="${d.id}"]`);
+          if (cell) cell.innerHTML = `<span class="status-pill ${info.cls}">${info.label}</span>`;
+        });
+      }
+      pendingTbody.querySelectorAll('.billing-bill-btn').forEach(btn => btn.addEventListener('click', () => openBillingModal(btn.dataset.id)));
+
+      readyTbody.innerHTML = ready.length === 0 ? `<tr><td colspan="7" class="empty-row">Nothing ready to claim yet.</td></tr>` : '';
+      ready.forEach(d => {
+        const billedStr = d.billedAt && d.billedAt.toDate ? d.billedAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" class="claim-select-cb" data-id="${d.id}"></td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td>${escapeHtml(d.customerName) || '—'}</td>
+          <td>${escapeHtml(d.serialNumber) || '—'}</td>
+          <td>₹${d.billingTotal ?? 0}</td>
+          <td>${billedStr}</td>
+          <td><button class="btn-secondary billing-bill-btn" data-id="${d.id}">Edit</button></td>`;
+        readyTbody.appendChild(tr);
+      });
+      readyTbody.querySelectorAll('.claim-select-cb').forEach(cb => cb.addEventListener('change', updateBulkClaimBtn));
+      readyTbody.querySelectorAll('.billing-bill-btn').forEach(btn => btn.addEventListener('click', () => openBillingModal(btn.dataset.id)));
+      updateBulkClaimBtn();
+      const unclaimedTotal = ready.reduce((sum, d) => sum + (d.billingTotal || 0), 0);
+      const unclaimedEl = document.getElementById('billing-unclaimed-total');
+      if (unclaimedEl) unclaimedEl.textContent = `₹${unclaimedTotal}`;
+
+      historyTbody.innerHTML = history.length === 0 ? `<tr><td colspan="5" class="empty-row">No billed tickets yet.</td></tr>` : '';
+      history.forEach(d => {
+        const pillClass = d.billingStatus === 'claimed' ? 'in_progress' : 'completed';
+        const label = d.billingStatus === 'claimed' ? `Claimed${d.claimId ? ' — ' + escapeHtml(d.claimId) : ''}` : 'Collected from customer';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td>${escapeHtml(d.customerName) || '—'}</td>
+          <td style="text-transform:capitalize;">${d.billingType === 'customer' ? 'Customer paid' : 'Warranty claim'}</td>
+          <td>₹${d.billingTotal ?? '—'}</td>
+          <td><span class="status-pill ${pillClass}">${label}</span></td>`;
+        historyTbody.appendChild(tr);
+      });
+    } catch (err) {
+      console.error('Load service billing failed:', err);
+      pendingTbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load tickets. Check console for details.</td></tr>`;
+    }
+  }
+
+  function updateBulkClaimBtn() {
+    const anyChecked = !!document.querySelector('.claim-select-cb:checked');
+    const btn = document.getElementById('submit-bulk-claim');
+    if (btn) btn.disabled = !anyChecked;
+  }
+
+  const billingOverlay = document.getElementById('billing-overlay');
+  const billingBody = document.getElementById('billing-body');
+  const billingError = document.getElementById('billing-error');
+  const billingSuccess = document.getElementById('billing-success');
+  const billingSubmitBtn = document.getElementById('submit-billing');
+  let billingContext = null;
+
+  async function openBillingModal(ticketId) {
+    const ticket = billingTicketsCache.find(t => t.id === ticketId);
+    if (!ticket) return;
+    billingError.classList.remove('show');
+    billingSuccess.classList.remove('show');
+    billingSubmitBtn.disabled = false;
+    billingSubmitBtn.textContent = 'Save';
+    billingBody.innerHTML = `<div class="empty-row">Checking warranty…</div>`;
+    billingOverlay.classList.add('show');
+    const info = await getTicketWarrantyInfo(ticket);
+    billingContext = { ticket, info };
+    const isOutByDefault = info.inWarranty === false;
+    billingBody.innerHTML = `
+      <div class="form-row"><label>Ticket</label><div>${escapeHtml(ticket.requestId || ticket.id)} — ${escapeHtml(ticket.customerName) || ''}</div></div>
+      <div class="form-row"><label>Warranty</label><div><span class="status-pill ${info.cls}">${info.label}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${info.source})</span>` : ''}</div></div>
+      ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${ticket.serviceCharge} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
+      <div class="form-row"><label>Bill as</label>
+        <select id="billing-warranty-override">
+          <option value="in" ${info.inWarranty !== false ? 'selected' : ''}>In-warranty — claim to Head Office</option>
+          <option value="out" ${info.inWarranty === false ? 'selected' : ''}>Out-of-warranty — collect from customer</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Spare parts cost (₹)</label><input type="number" id="billing-spare-cost" min="0" step="0.01" value="${ticket.sparePartsCost ?? 0}"></div>
+      <div class="form-row"><label>Other charges (₹)</label><input type="number" id="billing-other-charges" min="0" step="0.01" value="${ticket.otherCharges ?? 0}"></div>
+      <div id="billing-customer-fields" style="display:${isOutByDefault ? 'block' : 'none'};">
+        <div class="form-row"><label>Service charge to collect (₹)</label><input type="number" id="billing-service-charge" min="0" step="0.01" value="${ticket.serviceCharge ?? 0}"></div>
+        <div class="form-row"><label>Payment method</label>
+          <select id="billing-payment-method">
+            <option value="cash">Cash</option>
+            <option value="upi">UPI</option>
+            <option value="card">Card</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Payment reference (optional)</label><input type="text" id="billing-payment-ref"></div>
+      </div>`;
+    document.getElementById('billing-warranty-override').addEventListener('change', (e) => {
+      document.getElementById('billing-customer-fields').style.display = e.target.value === 'out' ? 'block' : 'none';
+    });
+  }
+  function closeBillingModal() { billingOverlay.classList.remove('show'); billingContext = null; }
+  document.getElementById('cancel-billing').addEventListener('click', closeBillingModal);
+  billingOverlay.addEventListener('click', (e) => { if (e.target === billingOverlay) closeBillingModal(); });
+
+  document.getElementById('submit-billing').addEventListener('click', async () => {
+    if (!billingContext) return;
+    billingError.classList.remove('show');
+    billingSuccess.classList.remove('show');
+    const { ticket } = billingContext;
+    const treatAsInWarranty = document.getElementById('billing-warranty-override').value === 'in';
+    const sparePartsCost = Number(document.getElementById('billing-spare-cost').value) || 0;
+    const otherCharges = Number(document.getElementById('billing-other-charges').value) || 0;
+    billingSubmitBtn.disabled = true;
+    billingSubmitBtn.textContent = 'Saving…';
+    try {
+      if (treatAsInWarranty) {
+        // Note: any service charge here is handled separately, auto-
+        // credited to the technician's own wallet at closure — it's
+        // deliberately left out of the center's own claim total so it
+        // isn't paid out twice.
+        const billingTotal = sparePartsCost + otherCharges;
+        await updateDoc(doc(db, 'centerRequests', ticket.id), {
+          warrantyStatus: 'in_warranty',
+          sparePartsCost, otherCharges, billingTotal,
+          billingType: 'claim',
+          billingStatus: 'ready_to_claim',
+          billedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        const serviceCharge = Number(document.getElementById('billing-service-charge').value) || 0;
+        const method = document.getElementById('billing-payment-method').value;
+        const ref = document.getElementById('billing-payment-ref').value.trim();
+        const billingTotal = sparePartsCost + serviceCharge + otherCharges;
+        await updateDoc(doc(db, 'centerRequests', ticket.id), {
+          warrantyStatus: 'out_of_warranty',
+          sparePartsCost, serviceCharge, otherCharges, billingTotal,
+          billingType: 'customer',
+          billingStatus: 'collected',
+          customerPaymentMethod: method,
+          customerPaymentRef: ref || null,
+          billedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      billingSuccess.textContent = 'Saved.';
+      billingSuccess.classList.add('show');
+      billingSubmitBtn.disabled = false;
+      billingSubmitBtn.textContent = 'Save';
+      loadServiceBilling();
+      setTimeout(closeBillingModal, 800);
+    } catch (err) {
+      console.error('Save billing failed:', err);
+      billingError.textContent = 'Could not save. Check console for details.';
+      billingError.classList.add('show');
+      billingSubmitBtn.disabled = false;
+      billingSubmitBtn.textContent = 'Save';
+    }
+  });
+
+  async function submitBulkClaim() {
+    const selected = Array.from(document.querySelectorAll('.claim-select-cb:checked')).map(cb => cb.dataset.id);
+    if (selected.length === 0 || !currentUser) return;
+    const btn = document.getElementById('submit-bulk-claim');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    try {
+      const tickets = billingTicketsCache.filter(t => selected.includes(t.id));
+      const lineItems = tickets.map(t => ({
+        sourceJobId: t.id,
+        sourceJobCollection: 'centerRequests',
+        sourceJobLabel: t.requestId || t.id,
+        serialNumber: t.serialNumber || null,
+        customerName: t.customerName || null,
+        sparePartsCost: t.sparePartsCost || 0,
+        serviceCharge: t.serviceCharge || 0,
+        otherCharges: t.otherCharges || 0,
+        total: t.billingTotal || 0
+      }));
+      const amount = lineItems.reduce((sum, li) => sum + li.total, 0);
+      const claimId = await generateClaimId();
+      await addDoc(collection(db, 'claims'), {
+        claimId,
+        claimantType: 'servicecenter',
+        claimantUid: currentUser.uid,
+        claimantName: currentUser.email,
+        description: `Warranty claim — ${tickets.length} ticket${tickets.length > 1 ? 's' : ''} (${tickets.map(t => t.requestId || t.id).join(', ')})`,
+        amount,
+        lineItems,
+        ticketIds: selected,
+        notes: '',
+        status: 'submitted',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      await Promise.all(tickets.map(t => updateDoc(doc(db, 'centerRequests', t.id), {
+        billingStatus: 'claimed',
+        claimId,
+        updatedAt: serverTimestamp()
+      })));
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          recipientType: 'role', recipientValue: 'warehouse',
+          title: 'New warranty claim submitted', message: `Service Center ${currentUser.email} — ₹${amount} across ${tickets.length} ticket(s) (${claimId})`,
+          read: false, createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification write failed (non-blocking):', notifErr.message);
+      }
+      alert(`Claim submitted — ${claimId}`);
+      loadServiceBilling();
+    } catch (err) {
+      console.error('Submit bulk claim failed:', err);
+      alert('Could not submit claim. Check console for details.');
+    }
+    btn.textContent = 'Submit selected as claim';
+    updateBulkClaimBtn();
+  }
+
+  // ---------------------------------------------------------------
   // Center Claims & Payment History — writes into the SAME shared
   // `claims` collection Head Office and Technician also use.
   // ---------------------------------------------------------------
@@ -2545,6 +2945,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
           <div class="form-row"><label>Address</label><input type="text" id="profile-address"></div>
+          <div class="form-row"><label>Standard service charge (₹)</label><input type="number" id="profile-service-charge" min="0" step="0.01" placeholder="e.g. 200"></div>
+          <div style="font-size:11.5px;color:var(--stone);margin:-10px 0 12px;">Auto-credited to a technician's wallet whenever they close a job that turns out to be in-warranty — this is what funds that.</div>
           <div class="modal-error" id="profile-error"></div>
           <div class="modal-success" id="profile-success"></div>
           <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
@@ -2558,6 +2960,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-email').value = currentUser.email || '';
       document.getElementById('profile-phone').value = d.phone || '';
       document.getElementById('profile-address').value = d.address || '';
+      document.getElementById('profile-service-charge').value = d.defaultServiceCharge ?? '';
     } catch (err) {
       console.error('Load profile failed:', err);
     }
@@ -2574,6 +2977,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           name: document.getElementById('profile-name').value.trim(),
           phone: document.getElementById('profile-phone').value.trim(),
           address: document.getElementById('profile-address').value.trim(),
+          defaultServiceCharge: Number(document.getElementById('profile-service-charge').value) || 0,
         }, { merge: true });
         okEl.textContent = 'Saved.';
         okEl.classList.add('show');
