@@ -174,7 +174,8 @@ service cloud.firestore {
         // reassign themselves or edit the customer/intake details.
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-              ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt']));
+              ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt',
+               'beforePhotos', 'afterPhotos', 'serialNumberPhoto']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
@@ -541,7 +542,20 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.requestedByUid == request.auth.uid
             && resource.data.status in ['dispatched', 'intransit']
-            && request.resource.data.status == 'received');
+            && request.resource.data.status == 'received')
+        // Marking a received (or already center-fulfilled) part as
+        // actually installed on the job — only the consumedAt/
+        // consumedQty/updatedAt fields, only once, and only by the
+        // technician this request's own ticket is actually assigned
+        // to (covers both a technician's own request AND one a
+        // service center dispatched on their behalf, where
+        // requestedByUid is the center, not the technician).
+        || (isSignedIn() && resource.data.status in ['received', 'fulfilled_by_center']
+            && !('consumedAt' in resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumedAt', 'consumedQty', 'updatedAt'])
+            && (resource.data.requestedByUid == request.auth.uid
+                || (resource.data.sourceJobCollection == 'centerRequests'
+                    && get(/databases/$(database)/documents/centerRequests/$(resource.data.sourceJobId)).data.technicianUid == request.auth.uid)));
       allow delete: if isAdmin();
     }
 
