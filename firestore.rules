@@ -159,13 +159,22 @@ service cloud.firestore {
 
     match /centerRequests/{reqId} {
       // Same distributor carve-out as serviceJobs above — open
-      // (SLA-clock) tickets only, for the escalation view.
+      // (SLA-clock) tickets only, for the escalation view. Also
+      // readable by the roster technician it's assigned to, so their
+      // own "My Jobs" page can see center-assigned work.
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
+        // The assigned technician may advance/close their own ticket,
+        // but only touch the fields their own workflow writes — never
+        // reassign themselves or edit the customer/intake details.
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
