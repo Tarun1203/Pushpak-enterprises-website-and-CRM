@@ -569,7 +569,17 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid)
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
-      allow update, delete: if isAdmin();
+      // A technician's defective-part return lands tagged
+      // 'sent_to_center' — physically handed back to their own
+      // service center first. The center forwarding it on to Head
+      // Office is the one further transition it's allowed to make
+      // itself; only that status flip, nothing else on the record.
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid
+            && resource.data.status == 'sent_to_center'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status == 'defective');
+      allow delete: if isAdmin();
     }
 
     match /rmaRequests/{rmaId} {
