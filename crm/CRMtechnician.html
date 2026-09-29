@@ -243,6 +243,31 @@
   </div>
 </div>
 
+<!-- Job detail popup — opened by clicking a ticket row in My Jobs.
+     Shows the full ticket, lets the technician advance/close it from
+     here, and request a spare part linked to this job. -->
+<div class="modal-overlay" id="job-detail-overlay">
+  <div class="modal" style="max-width:560px;">
+    <h3 id="jd-title">Job details</h3>
+    <div id="jd-body" style="font-size:13px;line-height:1.9;margin-bottom:8px;"></div>
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--hairline);">
+    <div id="jd-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div id="jd-spare-section">
+      <label style="font-size:12px;font-weight:600;color:var(--stone);">Request a spare part</label>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <select id="jd-spare-part" style="flex:1;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select part…</option></select>
+        <input type="number" id="jd-spare-qty" min="1" value="1" style="width:70px;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;">
+        <button type="button" class="btn-secondary" id="jd-spare-request-btn">Request Spare</button>
+      </div>
+      <div class="modal-error" id="jd-spare-error" style="margin-top:8px;"></div>
+      <div id="jd-linked-requests" style="margin-top:10px;"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <button type="button" class="btn-secondary" id="jd-close-btn">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="job-overlay">
   <div class="modal">
     <h3>Log a new job</h3>
@@ -726,6 +751,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           ? `<div class="row-actions">${actions.map(a => `<button class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'} job-action-btn" data-id="${d.id}" data-coll="${d.coll}" data-next="${a.next}">${a.label}</button>`).join('')}</div>`
           : '—';
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.dataset.id = d.id;
+        tr.dataset.coll = d.coll;
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.jobId || d.requestId || d.id}${d.coll === 'centerRequests' ? ' <span style="color:var(--stone);">(via center)</span>' : ''}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
@@ -735,6 +763,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td><span class="status-pill ${JOB_STATUS_PILL_CLASS[d.status] || ''}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
+      });
+      // Clicking anywhere on a row opens the full ticket popup; clicking
+      // one of its inline action buttons still does that action directly
+      // without also opening the popup underneath it.
+      tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('.job-action-btn')) return;
+          const jobDoc = docs.find(x => x.id === tr.dataset.id && x.coll === tr.dataset.coll);
+          if (jobDoc) openJobDetailModal(jobDoc);
+        });
       });
       tbody.querySelectorAll('.job-action-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -780,6 +818,137 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // ---------------------------------------------------------------
+  // Job detail popup — full ticket view + status actions + spare
+  // request, opened from a My Jobs row. Works for both serviceJobs
+  // and centerRequests tickets (jobDoc.coll tells which).
+  // ---------------------------------------------------------------
+
+  const jdOverlay = document.getElementById('job-detail-overlay');
+  let jdJob = null;
+
+  function jdRow(label, value) {
+    if (value === null || value === undefined || value === '') return '';
+    return `<div style="display:flex;gap:8px;"><b style="min-width:130px;color:var(--stone);font-weight:600;">${label}</b><span>${escapeHtml(String(value))}</span></div>`;
+  }
+
+  async function openJobDetailModal(jobDoc) {
+    jdJob = jobDoc;
+    document.getElementById('jd-title').textContent = jobDoc.jobId || jobDoc.requestId || jobDoc.id;
+    const bodyEl = document.getElementById('jd-body');
+    bodyEl.innerHTML = [
+      jdRow('Customer', jobDoc.customerName),
+      jdRow('Phone', jobDoc.customerPhone),
+      jdRow('Address', jobDoc.address),
+      jdRow('Product', jobDoc.product),
+      jdRow('Brand', jobDoc.brand),
+      jdRow('Model No.', jobDoc.modelNo),
+      jdRow('Serial No.', jobDoc.serialNumber),
+      jdRow('Purchased', jobDoc.purchaseDate ? `${jobDoc.purchaseDate}${jobDoc.purchasedFrom ? ' — ' + jobDoc.purchasedFrom : ''}` : ''),
+      jdRow('Issue', jobDoc.issue),
+      jdRow('Scheduled', jobDoc.scheduledDate ? `${jobDoc.scheduledDate}${jobDoc.scheduledStartTime ? ' ' + jobDoc.scheduledStartTime : ''}` : ''),
+      `<div style="margin-top:6px;">Status: <span class="status-pill ${JOB_STATUS_PILL_CLASS[jobDoc.status] || ''}">${JOB_STATUS_LABELS[jobDoc.status] || jobDoc.status}</span>${jobDoc.coll === 'centerRequests' ? ' <span style="color:var(--stone);">(via center)</span>' : ''}</div>`
+    ].filter(Boolean).join('');
+
+    const actions = (jobDoc.coll === 'serviceJobs' ? JOB_NEXT_ACTIONS[jobDoc.status] : CR_JOB_NEXT_ACTIONS[jobDoc.status]) || [];
+    const actionsEl = document.getElementById('jd-actions');
+    actionsEl.innerHTML = actions.length
+      ? actions.map(a => `<button type="button" class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'}" data-next="${a.next}">${a.label}</button>`).join('')
+      : '<span style="color:var(--stone);font-size:12.5px;">No further action from here.</span>';
+    actionsEl.querySelectorAll('button[data-next]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.next === 'completed') {
+          closeJobDetailModal();
+          openClosureModal(jobDoc);
+        } else {
+          advanceJob(jobDoc.id, btn.dataset.next, jobDoc.coll);
+          closeJobDetailModal();
+        }
+      });
+    });
+
+    const spareErrEl = document.getElementById('jd-spare-error');
+    spareErrEl.classList.remove('show');
+    document.getElementById('jd-spare-qty').value = 1;
+    await populatePartSelect(document.getElementById('jd-spare-part'));
+
+    const linkedEl = document.getElementById('jd-linked-requests');
+    linkedEl.innerHTML = '<span style="font-size:12.5px;color:var(--stone);">Loading spare requests…</span>';
+    try {
+      const linkedSnap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', jobDoc.id)));
+      const linked = [];
+      linkedSnap.forEach(ld => linked.push({ id: ld.id, ...ld.data() }));
+      linkedEl.innerHTML = linked.length
+        ? linked.map(l => `<div style="font-size:12.5px;margin-bottom:4px;">${escapeHtml(l.item || '—')} × ${l.quantity ?? 1} — <span class="status-pill ${l.status}">${SPARE_REQ_STATUS_LABELS[l.status] || l.status}</span></div>`).join('')
+        : '';
+    } catch (err) {
+      console.warn('Could not load linked spare requests:', err.message);
+      linkedEl.innerHTML = '';
+    }
+
+    jdOverlay.classList.add('show');
+  }
+
+  function closeJobDetailModal() {
+    jdOverlay.classList.remove('show');
+    jdJob = null;
+  }
+
+  document.getElementById('jd-close-btn').addEventListener('click', closeJobDetailModal);
+  jdOverlay.addEventListener('click', (e) => { if (e.target === jdOverlay) closeJobDetailModal(); });
+
+  document.getElementById('jd-spare-request-btn').addEventListener('click', async () => {
+    if (!jdJob) return;
+    const btn = document.getElementById('jd-spare-request-btn');
+    const errEl = document.getElementById('jd-spare-error');
+    errEl.classList.remove('show');
+    const select = document.getElementById('jd-spare-part');
+    const partId = select.value;
+    const partName = select.selectedOptions[0]?.dataset.name || '';
+    const qty = Number(document.getElementById('jd-spare-qty').value) || 1;
+    if (!partId) {
+      errEl.textContent = 'Select a part first.';
+      errEl.classList.add('show');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Requesting…';
+    try {
+      const requestId = await generateSpareRequestId();
+      const jobLabel = jdJob.jobId || jdJob.requestId || jdJob.id;
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: currentUser.email,
+        item: partName,
+        partId,
+        quantity: qty,
+        priority: 'normal',
+        notes: `Requested from job — ${jobLabel}`,
+        sourceJobId: jdJob.id,
+        sourceJobLabel: `${jobLabel} — ${jdJob.customerName || 'customer'} (${jdJob.product || jdJob.modelNo || 'product'})`,
+        sourceJobCollection: jdJob.coll,
+        requestedByUid: currentUser.uid,
+        status: 'new',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      // Same link between a spare request and the job's own state
+      // machine as the Diagnosis page uses — the job moves to
+      // Waiting for Spare so it's visibly blocked until it arrives.
+      await updateDoc(doc(db, jdJob.coll, jdJob.id), { status: 'waiting_spare', updatedAt: serverTimestamp() });
+      await logTicketStatus(jdJob.coll, jdJob.id, 'waiting_spare', `Spare requested — ${requestId}`);
+      btn.textContent = 'Requested';
+      loadMyJobs();
+      setTimeout(closeJobDetailModal, 900);
+    } catch (err) {
+      console.error('Request spare failed:', err);
+      errEl.textContent = 'Could not request this part. Check console for details.';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Request Spare';
+    }
+  });
+
   // Closure requires real evidence — closure code, what was done, and
   // parts used — before a job can move to Completed. Previously this
   // was a single click with nothing recorded, so a completed job had
@@ -798,6 +967,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       parts.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
+        opt.dataset.name = p.name;
         opt.textContent = `${p.partCode} — ${p.name}`;
         selectEl.appendChild(opt);
       });
