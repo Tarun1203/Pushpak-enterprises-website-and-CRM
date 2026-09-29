@@ -99,7 +99,23 @@ service cloud.firestore {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin() || resource.data.role == 'technician');
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
-        || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role);
+        || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role)
+        // A service center (or technician's own account, via isStaff())
+        // claiming/releasing a technician onto/off its own roster —
+        // this is the ONLY field a staff member may touch on someone
+        // else's account, and only to claim an unlinked technician for
+        // themselves or release one they already hold. This keeps a
+        // technician locked to a single service center: another center
+        // can't claim someone who's already linked elsewhere.
+        || (isStaff() && resource.data.role == 'technician'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedServiceCenterUid', 'updatedAt'])
+            && (
+              (!('linkedServiceCenterUid' in resource.data) || resource.data.linkedServiceCenterUid == null)
+              && request.resource.data.linkedServiceCenterUid == request.auth.uid
+              ||
+              resource.data.linkedServiceCenterUid == request.auth.uid
+              && request.resource.data.linkedServiceCenterUid == null
+            ));
     }
 
     // ---------------------------------------------------------------
