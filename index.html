@@ -616,9 +616,8 @@
   <div class="modal modal-wide">
     <button type="button" class="modal-close" id="warranty-close">&times;</button>
     <h3>Warranty Status</h3>
-    <div class="modal-sub">Enter your mobile number and product serial number to check coverage.</div>
+    <div class="modal-sub">Enter your mobile number to check coverage on all your registered products.</div>
     <div class="form-row"><label>Mobile No</label><input type="tel" id="warranty-phone" inputmode="numeric" maxlength="10"></div>
-    <div class="form-row"><label>Serial No</label><input type="text" id="warranty-serial" placeholder="As given at registration"></div>
     <span id="warranty-error" class="field-error"></span>
     <button type="button" id="warranty-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Check warranty</button>
     <div id="warranty-result"></div>
@@ -1304,14 +1303,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   const warrantyOverlay = document.getElementById('warranty-overlay');
   const warrantyPhone = document.getElementById('warranty-phone');
-  const warrantySerial = document.getElementById('warranty-serial');
   const warrantyError = document.getElementById('warranty-error');
   const warrantyResult = document.getElementById('warranty-result');
   wirePhoneSanitizer(warrantyPhone);
 
   function openWarrantyModal() {
     warrantyPhone.value = '';
-    warrantySerial.value = '';
     warrantyError.classList.remove('show');
     warrantyResult.innerHTML = '';
     warrantyOverlay.classList.add('show');
@@ -1335,9 +1332,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     warrantyError.classList.remove('show');
     warrantyResult.innerHTML = '';
     const normalizedPhone = normalizePhone(warrantyPhone.value.trim());
-    const enteredSerial = warrantySerial.value.trim();
-    if (!isValidIndianMobile(normalizedPhone) || !enteredSerial) {
-      warrantyError.textContent = 'Enter both a valid 10-digit mobile number and the product serial number.';
+    if (!isValidIndianMobile(normalizedPhone)) {
+      warrantyError.textContent = 'Enter a valid 10-digit mobile number.';
       warrantyError.classList.add('show');
       return;
     }
@@ -1348,12 +1344,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone)));
       const matches = [];
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
-        if ((d.serialNumber || '').trim().toLowerCase() === enteredSerial.toLowerCase()) matches.push(d);
-      });
+      snap.forEach(docSnap => matches.push(docSnap.data()));
       if (matches.length === 0) {
-        warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registration found matching that mobile number and serial number.</div></div>';
+        warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registered products found for that mobile number.</div></div>';
       } else {
         warrantyResult.innerHTML = '';
         matches.forEach(d => {
