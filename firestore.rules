@@ -420,35 +420,58 @@ service cloud.firestore {
 
     match /inventory/{invId} {
       allow read: if isStaff();
+      // Helper checks (inlined, since rules can't share functions across
+      // a get()'s field access easily): a technician<->center transfer
+      // is authorized either by the linkedServiceCenterUid stamp on the
+      // technician's own users doc, OR — more robustly, since that
+      // stamp is only set going forward and isn't backfilled for
+      // technicians linked before that feature existed — by the real
+      // open centerRequests ticket (lastSourceJobId) the transfer is
+      // actually against, cross-checked for both the center and the
+      // technician on that exact ticket.
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid)
         // A service center crediting one of ITS OWN roster
         // technicians' Spare Bag for the first time (Dispatch to
-        // Technician, against a real open ticket) — only allowed when
-        // that exact technician is linked to this exact center.
+        // Technician, against a real open ticket).
         || (isSignedIn() && request.resource.data.location == 'technician'
-            && get(/databases/$(database)/documents/users/$(request.resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid);
+            && get(/databases/$(database)/documents/users/$(request.resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid)
+        || (isSignedIn() && request.resource.data.location == 'technician'
+            && request.resource.data.lastSourceJobId is string
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.resource.data.technicianUid);
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid)
         // A roster technician drawing a spare directly from their OWN
         // service center's shelf (job popup → Request Spare, when the
         // center already has stock) — only a quantity decrease, only
-        // the quantity/updatedAt fields, and only by a technician this
-        // exact center has actually linked to itself.
+        // the quantity/updatedAt/lastSourceJobId fields.
         || (isSignedIn() && resource.data.location == 'servicecenter'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
             && request.resource.data.quantity < resource.data.quantity
             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedServiceCenterUid == resource.data.serviceCenterUid)
+        || (isSignedIn() && resource.data.location == 'servicecenter'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
+            && request.resource.data.quantity < resource.data.quantity
+            && request.resource.data.lastSourceJobId is string
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == resource.data.serviceCenterUid
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.auth.uid)
         // The mirror case — a service center topping up a linked
         // technician's Spare Bag (Dispatch to Technician) when that
         // technician's inventory doc for this part already exists —
-        // only a quantity increase, only quantity/updatedAt.
+        // only a quantity increase, only quantity/updatedAt/lastSourceJobId.
         || (isSignedIn() && resource.data.location == 'technician'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
             && request.resource.data.quantity > resource.data.quantity
-            && get(/databases/$(database)/documents/users/$(resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid);
+            && get(/databases/$(database)/documents/users/$(resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid)
+        || (isSignedIn() && resource.data.location == 'technician'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
+            && request.resource.data.quantity > resource.data.quantity
+            && request.resource.data.lastSourceJobId is string
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == resource.data.technicianUid);
       allow delete: if isAdmin();
     }
 

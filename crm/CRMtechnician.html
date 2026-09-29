@@ -99,6 +99,7 @@
   .status-pill.packing{background:var(--paper-deep);color:var(--ink);}
   .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
   .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
+  .status-pill.fulfilled_by_center{background:#D9EEE0;color:var(--ok);}
   .status-pill.ok{background:#D9EEE0;color:var(--ok);}
   .status-pill.backorder{background:#FBEAD2;color:#9A6A15;}
   .status-pill.out{background:#F6DCDC;color:var(--err);}
@@ -665,7 +666,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   const SPARE_REQ_STATUS_LABELS = {
     new: 'Requested', approved: 'Approved', picking: 'Picking', packing: 'Packing',
-    dispatched: 'Dispatched', intransit: 'In Transit', backorder: 'Back Order'
+    dispatched: 'Dispatched', intransit: 'In Transit', backorder: 'Back Order',
+    fulfilled_by_center: 'Issued (Center Stock)'
   };
 
   function renderMyJobs() {
@@ -897,6 +899,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   document.getElementById('jd-close-btn').addEventListener('click', closeJobDetailModal);
   jdOverlay.addEventListener('click', (e) => { if (e.target === jdOverlay) closeJobDetailModal(); });
 
+  // Cached lookup of the technician's own service center (the center
+  // that linked this technician account to its roster) — undefined
+  // means "not looked up yet", null means "not linked to any center".
+  let cachedLinkedCenterUid;
+  async function getLinkedServiceCenterUid() {
+    if (cachedLinkedCenterUid !== undefined) return cachedLinkedCenterUid;
+    try {
+      const snap = await getDoc(doc(db, 'users', currentUser.uid));
+      cachedLinkedCenterUid = snap.exists() ? (snap.data().linkedServiceCenterUid || null) : null;
+    } catch (err) {
+      console.warn('Could not resolve linked service center:', err.message);
+      cachedLinkedCenterUid = null;
+    }
+    return cachedLinkedCenterUid;
+  }
+
   document.getElementById('jd-spare-request-btn').addEventListener('click', async () => {
     if (!jdJob) return;
     const btn = document.getElementById('jd-spare-request-btn');
@@ -914,35 +932,97 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.disabled = true;
     btn.textContent = 'Requesting…';
     try {
-      const requestId = await generateSpareRequestId();
       const jobLabel = jdJob.jobId || jdJob.requestId || jdJob.id;
-      await addDoc(collection(db, 'spareRequests'), {
-        requestId,
-        serviceCenter: currentUser.email,
-        item: partName,
-        partId,
-        quantity: qty,
-        priority: 'normal',
-        notes: `Requested from job — ${jobLabel}`,
-        sourceJobId: jdJob.id,
-        sourceJobLabel: `${jobLabel} — ${jdJob.customerName || 'customer'} (${jdJob.product || jdJob.modelNo || 'product'})`,
-        sourceJobCollection: jdJob.coll,
-        requestedByUid: currentUser.uid,
-        status: 'new',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      // Same link between a spare request and the job's own state
-      // machine as the Diagnosis page uses — the job moves to
-      // Waiting for Spare so it's visibly blocked until it arrives.
-      await updateDoc(doc(db, jdJob.coll, jdJob.id), { status: 'waiting_spare', updatedAt: serverTimestamp() });
-      await logTicketStatus(jdJob.coll, jdJob.id, 'waiting_spare', `Spare requested — ${requestId}`);
-      btn.textContent = 'Requested';
+
+      // A roster technician's request is filled from their OWN service
+      // center's shelf first, if the center already has enough — no
+      // reason to wait on Head Office for stock that's already in the
+      // building. Only when the center can't cover it does this become
+      // a real spareRequests ticket that Warehouse/Super Admin can see
+      // and fulfill centrally (same as before this change).
+      const centerUid = jdJob.serviceCenterUid || await getLinkedServiceCenterUid();
+      let fulfilledLocally = false;
+      if (centerUid) {
+        const centerInvRef = doc(db, 'inventory', `servicecenter_${centerUid}_${partId}`);
+        const centerSnap = await getDoc(centerInvRef);
+        const centerQty = centerSnap.exists() ? (centerSnap.data().quantity || 0) : 0;
+        if (centerQty >= qty) {
+          const techInvRef = doc(db, 'inventory', `technician_${currentUser.uid}_${partId}`);
+          await runTransaction(db, async (transaction) => {
+            const centerNow = await transaction.get(centerInvRef);
+            const techNow = await transaction.get(techInvRef);
+            const centerCurrent = centerNow.exists() ? (centerNow.data().quantity || 0) : 0;
+            if (centerCurrent < qty) throw new Error('Stock at the center changed just now — try again.');
+            const techCurrent = techNow.exists() ? (techNow.data().quantity || 0) : 0;
+            transaction.set(centerInvRef, {
+              partId, location: 'servicecenter', serviceCenterUid: centerUid,
+              quantity: centerCurrent - qty, updatedAt: serverTimestamp(), lastSourceJobId: jdJob.id
+            }, { merge: true });
+            transaction.set(techInvRef, {
+              partId, location: 'technician', technicianUid: currentUser.uid,
+              quantity: techCurrent + qty, updatedAt: serverTimestamp(), lastSourceJobId: jdJob.id
+            }, { merge: true });
+          });
+          await addDoc(collection(db, 'stockMovements'), {
+            partId, type: 'transfer', location: 'servicecenter', serviceCenterUid: centerUid,
+            technicianUid: currentUser.uid, quantity: qty,
+            reason: `Issued to ${currentUser.email} — ${jobLabel}`,
+            createdAt: serverTimestamp()
+          });
+          const requestId = await generateSpareRequestId();
+          await addDoc(collection(db, 'spareRequests'), {
+            requestId,
+            serviceCenter: currentUser.email,
+            item: partName,
+            partId,
+            quantity: qty,
+            priority: 'normal',
+            notes: `Issued from the service center's own stock — ${jobLabel}`,
+            sourceJobId: jdJob.id,
+            sourceJobLabel: `${jobLabel} — ${jdJob.customerName || 'customer'} (${jdJob.product || jdJob.modelNo || 'product'})`,
+            sourceJobCollection: jdJob.coll,
+            requestedByUid: currentUser.uid,
+            status: 'fulfilled_by_center',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          fulfilledLocally = true;
+        }
+      }
+
+      if (!fulfilledLocally) {
+        const requestId = await generateSpareRequestId();
+        await addDoc(collection(db, 'spareRequests'), {
+          requestId,
+          serviceCenter: currentUser.email,
+          item: partName,
+          partId,
+          quantity: qty,
+          priority: 'normal',
+          notes: `Requested from job — ${jobLabel}`,
+          sourceJobId: jdJob.id,
+          sourceJobLabel: `${jobLabel} — ${jdJob.customerName || 'customer'} (${jdJob.product || jdJob.modelNo || 'product'})`,
+          sourceJobCollection: jdJob.coll,
+          requestedByUid: currentUser.uid,
+          status: 'new',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        // Same link between a spare request and the job's own state
+        // machine as the Diagnosis page uses — the job moves to
+        // Waiting for Spare so it's visibly blocked until it arrives.
+        await updateDoc(doc(db, jdJob.coll, jdJob.id), { status: 'waiting_spare', updatedAt: serverTimestamp() });
+        await logTicketStatus(jdJob.coll, jdJob.id, 'waiting_spare', `Spare requested — ${requestId}`);
+      }
+
+      btn.textContent = fulfilledLocally ? 'Issued from center stock' : 'Requested';
       loadMyJobs();
       setTimeout(closeJobDetailModal, 900);
     } catch (err) {
       console.error('Request spare failed:', err);
-      errEl.textContent = 'Could not request this part. Check console for details.';
+      errEl.textContent = err.message && err.message.includes('try again')
+        ? err.message
+        : 'Could not request this part. Check console for details.';
       errEl.classList.add('show');
       btn.disabled = false;
       btn.textContent = 'Request Spare';

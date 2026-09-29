@@ -2040,14 +2040,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const techCurrent = techSnap.exists() ? (techSnap.data().quantity || 0) : 0;
         transaction.set(centerInvRef, {
           partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
-          quantity: centerCurrent - qty, updatedAt: serverTimestamp()
+          quantity: centerCurrent - qty, updatedAt: serverTimestamp(), lastSourceJobId: ticket.id
         }, { merge: true });
         // Previously this only deducted the center's own stock and
         // never actually credited the technician's Spare Bag — fixed
         // here so the part really does move, not just disappear.
+        // lastSourceJobId ties this write to the real open ticket, so
+        // security rules can verify it against that ticket's own
+        // serviceCenterUid/technicianUid instead of relying on a
+        // linkedServiceCenterUid stamp that may not exist for
+        // technicians linked before that feature was added.
         transaction.set(techInvRef, {
           partId, location: 'technician', technicianUid: ticket.technicianUid,
-          quantity: techCurrent + qty, updatedAt: serverTimestamp()
+          quantity: techCurrent + qty, updatedAt: serverTimestamp(), lastSourceJobId: ticket.id
         }, { merge: true });
       });
       await addDoc(collection(db, 'stockMovements'), {
