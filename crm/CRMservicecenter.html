@@ -270,8 +270,46 @@
         <input type="text" id="req-address">
       </div>
       <div class="form-row">
-        <label>Product / brand</label>
-        <input type="text" id="req-product">
+        <label>Brand</label>
+        <select id="req-brand">
+          <option value="">Select…</option>
+          <option value="makwell">MakWell</option>
+          <option value="flyvision">Flyvision</option>
+          <option value="skevia">Skevia</option>
+          <option value="other">Other (not our brand)</option>
+        </select>
+      </div>
+      <div class="form-row" id="req-model-select-row">
+        <label>Model number</label>
+        <select id="req-model-select"><option value="">Select a brand first…</option></select>
+      </div>
+      <div class="form-row step-hidden" id="req-model-text-row">
+        <label>Model number (type it in)</label>
+        <input type="text" id="req-model-text" placeholder="Model number">
+      </div>
+      <div class="form-row">
+        <label>Product (free text, optional)</label>
+        <input type="text" id="req-product" placeholder="e.g. 32-inch LED TV">
+      </div>
+      <div class="form-row">
+        <label>Serial number (optional)</label>
+        <input type="text" id="req-serial">
+      </div>
+      <div class="form-row">
+        <label>Purchase date (optional)</label>
+        <input type="date" id="req-purchase-date">
+      </div>
+      <div class="form-row">
+        <label>Purchased from (optional)</label>
+        <input type="text" id="req-purchased-from" placeholder="Shop / dealer name">
+      </div>
+      <div class="form-row">
+        <label>Attach invoice (optional)</label>
+        <input type="file" id="req-invoice-file" accept="image/*,.pdf">
+      </div>
+      <div class="form-row">
+        <label>Attach product photo (optional)</label>
+        <input type="file" id="req-photo-file" accept="image/*">
       </div>
       <div class="form-row">
         <label>Issue / details</label>
@@ -496,6 +534,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -525,6 +564,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const storage = getStorage(app);
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -1297,12 +1337,63 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // Brand -> Model number cascades off the product catalog (the same
+  // products/productModels collections Super Admin's Master Data uses).
+  // "Other" brand — a non-catalog appliance the customer brought in —
+  // switches to a free-text model field instead, since there's no
+  // catalog entry to pick from.
+  const reqBrandSelect = document.getElementById('req-brand');
+  const reqModelSelectRow = document.getElementById('req-model-select-row');
+  const reqModelTextRow = document.getElementById('req-model-text-row');
+  const reqModelSelect = document.getElementById('req-model-select');
+  let productModelsCache = null;
+
+  async function getProductModelsCache() {
+    if (productModelsCache) return productModelsCache;
+    const snap = await getDocs(collection(db, 'productModels'));
+    productModelsCache = [];
+    snap.forEach(d => productModelsCache.push({ id: d.id, ...d.data() }));
+    return productModelsCache;
+  }
+
+  async function onReqBrandChange() {
+    const brandId = reqBrandSelect.value;
+    if (brandId === 'other' || !brandId) {
+      reqModelSelectRow.classList.add('step-hidden');
+      reqModelTextRow.classList.remove('step-hidden');
+      return;
+    }
+    reqModelTextRow.classList.add('step-hidden');
+    reqModelSelectRow.classList.remove('step-hidden');
+    reqModelSelect.innerHTML = '<option value="">Loading…</option>';
+    try {
+      const models = await getProductModelsCache();
+      const matches = models.filter(m => m.brandId === brandId && m.modelNumber);
+      reqModelSelect.innerHTML = '<option value="">Select…</option>' +
+        matches.map(m => `<option value="${escapeHtml(m.modelNumber)}">${escapeHtml(m.modelNumber)}</option>`).join('') +
+        '<option value="__other__">Other / not listed</option>';
+    } catch (err) {
+      console.error('Load models for brand failed:', err);
+      reqModelSelect.innerHTML = '<option value="">Couldn\'t load — type it in below instead</option><option value="__other__">Other / not listed</option>';
+    }
+  }
+  reqBrandSelect.addEventListener('change', onReqBrandChange);
+  reqModelSelect.addEventListener('change', () => {
+    if (reqModelSelect.value === '__other__') {
+      reqModelSelectRow.classList.add('step-hidden');
+      reqModelTextRow.classList.remove('step-hidden');
+    }
+  });
+
   function openReqModal() {
     reqForm.reset();
     reqError.classList.remove('show');
     reqSuccess.classList.remove('show');
     reqSubmitBtn.disabled = false;
     reqSubmitBtn.textContent = 'Save request';
+    reqModelSelectRow.classList.remove('step-hidden');
+    reqModelTextRow.classList.add('step-hidden');
+    reqModelSelect.innerHTML = '<option value="">Select a brand first…</option>';
     populateReqTechnicianOptions();
     reqOverlay.classList.add('show');
   }
@@ -1320,14 +1411,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const requestId = await generateRequestId();
       const [technicianName, technicianUid] = reqTechSelect.value ? reqTechSelect.value.split('|') : [null, null];
-      await addDoc(collection(db, 'centerRequests'), {
+      const brandId = reqBrandSelect.value || null;
+      const BRAND_LABELS_REQ = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia', other: 'Other' };
+      const modelNumber = (!reqModelSelectRow.classList.contains('step-hidden') && reqModelSelect.value && reqModelSelect.value !== '__other__')
+        ? reqModelSelect.value
+        : document.getElementById('req-model-text').value.trim();
+      const ref = await addDoc(collection(db, 'centerRequests'), {
         requestId,
         serviceCenterUid: currentUser.uid,
         type: document.getElementById('req-type').value,
         customerName: document.getElementById('req-customer-name').value.trim(),
         customerPhone: document.getElementById('req-customer-phone').value.trim(),
         address: document.getElementById('req-address').value.trim(),
+        brandId,
+        brand: brandId ? BRAND_LABELS_REQ[brandId] : null,
+        modelNo: modelNumber || null,
         product: document.getElementById('req-product').value.trim(),
+        serialNumber: document.getElementById('req-serial').value.trim() || null,
+        purchaseDate: document.getElementById('req-purchase-date').value || null,
+        purchasedFrom: document.getElementById('req-purchased-from').value.trim() || null,
         issue: document.getElementById('req-issue').value.trim(),
         technicianName: technicianName || null,
         technicianUid: technicianUid || null,
@@ -1336,6 +1438,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Attachments upload after the doc exists, so the Storage path can
+      // be scoped to its real id; failures here are non-fatal — the
+      // request itself is already saved.
+      const invoiceFile = document.getElementById('req-invoice-file').files[0];
+      const photoFile = document.getElementById('req-photo-file').files[0];
+      const attachmentUpdates = {};
+      try {
+        if (invoiceFile) {
+          const fileRef = storageRef(storage, `centerRequests/${ref.id}/attachments/invoice_${Date.now()}_${invoiceFile.name}`);
+          await uploadBytes(fileRef, invoiceFile);
+          attachmentUpdates.invoiceUrl = await getDownloadURL(fileRef);
+        }
+        if (photoFile) {
+          const fileRef = storageRef(storage, `centerRequests/${ref.id}/attachments/photo_${Date.now()}_${photoFile.name}`);
+          await uploadBytes(fileRef, photoFile);
+          attachmentUpdates.productPhotoUrl = await getDownloadURL(fileRef);
+        }
+        if (Object.keys(attachmentUpdates).length) {
+          await updateDoc(doc(db, 'centerRequests', ref.id), attachmentUpdates);
+        }
+      } catch (err) {
+        console.warn('Attachment upload failed (request already saved):', err.message);
+      }
+
       reqSuccess.textContent = `Saved — ${requestId}`;
       reqSuccess.classList.add('show');
       reqSubmitBtn.disabled = false;
