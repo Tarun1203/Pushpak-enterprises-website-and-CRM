@@ -100,6 +100,7 @@
   .status-pill.dispatched{background:#D9EEE0;color:var(--ok);}
   .status-pill.intransit{background:#D9EEE0;color:var(--ok);}
   .status-pill.fulfilled_by_center{background:#D9EEE0;color:var(--ok);}
+  .status-pill.received{background:#D9EEE0;color:var(--ok);}
   .status-pill.ok{background:#D9EEE0;color:var(--ok);}
   .status-pill.backorder{background:#FBEAD2;color:#9A6A15;}
   .status-pill.out{background:#F6DCDC;color:var(--err);}
@@ -253,6 +254,27 @@
     <div id="jd-body" style="font-size:13px;line-height:1.9;margin-bottom:8px;"></div>
     <hr style="margin:16px 0;border:none;border-top:1px solid var(--hairline);">
     <div id="jd-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div id="jd-photo-section" style="margin-bottom:18px;">
+      <label style="font-size:12px;font-weight:600;color:var(--stone);">Photos</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:8px;">
+        <div>
+          <label style="font-size:11.5px;color:var(--stone);">Serial number</label>
+          <div id="jd-serial-photo-wrap" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0;"></div>
+          <input type="file" id="jd-serial-photo-input" accept="image/*" style="font-size:11.5px;width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11.5px;color:var(--stone);">Before</label>
+          <div id="jd-before-photo-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0;"></div>
+          <input type="file" id="jd-before-photo-input" accept="image/*" multiple style="font-size:11.5px;width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11.5px;color:var(--stone);">After</label>
+          <div id="jd-after-photo-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0;"></div>
+          <input type="file" id="jd-after-photo-input" accept="image/*" multiple style="font-size:11.5px;width:100%;">
+        </div>
+      </div>
+      <div class="modal-error" id="jd-photo-error" style="margin-top:8px;"></div>
+    </div>
     <div id="jd-spare-section">
       <label style="font-size:12px;font-weight:600;color:var(--stone);">Request a spare part</label>
       <div style="display:flex;gap:8px;margin-top:8px;">
@@ -667,7 +689,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const SPARE_REQ_STATUS_LABELS = {
     new: 'Requested', approved: 'Approved', picking: 'Picking', packing: 'Packing',
     dispatched: 'Dispatched', intransit: 'In Transit', backorder: 'Back Order',
-    fulfilled_by_center: 'Issued (Center Stock)'
+    fulfilled_by_center: 'Issued (Center Stock)', received: 'Received'
   };
 
   function renderMyJobs() {
@@ -869,26 +891,270 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       });
     });
 
+    document.getElementById('jd-photo-error').classList.remove('show');
+    renderJdSerialPhoto(jobDoc);
+    renderJdPhotoThumbnails(document.getElementById('jd-before-photo-grid'), jobDoc.beforePhotos || [], jobDoc, 'beforePhotos');
+    renderJdPhotoThumbnails(document.getElementById('jd-after-photo-grid'), jobDoc.afterPhotos || [], jobDoc, 'afterPhotos');
+
     const spareErrEl = document.getElementById('jd-spare-error');
     spareErrEl.classList.remove('show');
     document.getElementById('jd-spare-qty').value = 1;
     await populatePartSelect(document.getElementById('jd-spare-part'));
 
+    await renderJdLinkedRequests(jobDoc);
+
+    jdOverlay.classList.add('show');
+  }
+
+  // ---------------------------------------------------------------
+  // Job popup photos — serial number plate, before/after repair
+  // shots. Same idea as the older Diagnosis page's before/after
+  // photos, but reachable from the popup for EITHER ticket type
+  // (serviceJobs or centerRequests), and with a serial number photo
+  // added alongside them.
+  // ---------------------------------------------------------------
+
+  function jdPhotoStoragePrefix(jobDoc) {
+    return jobDoc.coll === 'centerRequests'
+      ? `centerRequests/${jobDoc.id}/attachments`
+      : `serviceJobs/${jobDoc.id}/diagnosis`;
+  }
+
+  function renderJdPhotoThumbnails(gridEl, urls, jobDoc, field) {
+    gridEl.innerHTML = '';
+    (urls || []).forEach(url => {
+      const thumb = document.createElement('div');
+      thumb.style.cssText = 'position:relative;width:56px;height:56px;';
+      thumb.innerHTML = `
+        <img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">
+        <button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">&times;</button>`;
+      thumb.querySelector('button').addEventListener('click', async () => {
+        if (!confirm('Remove this photo?')) return;
+        try {
+          await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { [field]: arrayRemove(url) });
+          jobDoc[field] = (jobDoc[field] || []).filter(u => u !== url);
+          thumb.remove();
+        } catch (err) {
+          console.error('Remove photo failed:', err);
+          alert('Could not remove this photo. Check the console for details.');
+        }
+      });
+      gridEl.appendChild(thumb);
+    });
+  }
+
+  async function handleJdPhotoUpload(e, gridEl, errEl, jobDoc, subfolder, field) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    errEl.classList.remove('show');
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      if (file.size > 10 * 1024 * 1024) {
+        errEl.textContent = `"${file.name}" is over 10MB and was skipped.`;
+        errEl.classList.add('show');
+        continue;
+      }
+      const placeholder = document.createElement('div');
+      placeholder.style.cssText = 'width:56px;height:56px;background:var(--paper-deep);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--stone);';
+      placeholder.textContent = 'Uploading…';
+      gridEl.appendChild(placeholder);
+      try {
+        const filePath = `${jdPhotoStoragePrefix(jobDoc)}/${subfolder}/${Date.now()}_${file.name}`;
+        const fileRef = storageRef(storage, filePath);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { [field]: arrayUnion(url) });
+        jobDoc[field] = [...(jobDoc[field] || []), url];
+        placeholder.remove();
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'position:relative;width:56px;height:56px;';
+        thumb.innerHTML = `
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">
+          <button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">&times;</button>`;
+        thumb.querySelector('button').addEventListener('click', async () => {
+          if (!confirm('Remove this photo?')) return;
+          try {
+            await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { [field]: arrayRemove(url) });
+            jobDoc[field] = (jobDoc[field] || []).filter(u => u !== url);
+            thumb.remove();
+          } catch (err) {
+            console.error('Remove photo failed:', err);
+            alert('Could not remove this photo. Check the console for details.');
+          }
+        });
+        gridEl.appendChild(thumb);
+      } catch (err) {
+        console.error('Photo upload failed:', err);
+        placeholder.remove();
+        errEl.textContent = `Could not upload "${file.name}". Check console for details.`;
+        errEl.classList.add('show');
+      }
+    }
+  }
+
+  function renderJdSerialPhoto(jobDoc) {
+    const wrap = document.getElementById('jd-serial-photo-wrap');
+    if (jobDoc.serialNumberPhoto) {
+      wrap.innerHTML = `<div style="position:relative;width:56px;height:56px;">
+        <img src="${jobDoc.serialNumberPhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:2px;border:1px solid var(--hairline);">
+        <button type="button" id="jd-serial-photo-remove" style="position:absolute;top:-6px;right:-6px;background:var(--err);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:1;cursor:pointer;">&times;</button>
+      </div>`;
+      document.getElementById('jd-serial-photo-remove').addEventListener('click', async () => {
+        if (!confirm('Remove the serial number photo?')) return;
+        try {
+          await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { serialNumberPhoto: null, updatedAt: serverTimestamp() });
+          jobDoc.serialNumberPhoto = null;
+          renderJdSerialPhoto(jobDoc);
+        } catch (err) {
+          console.error('Remove serial photo failed:', err);
+          alert('Could not remove this photo. Check the console for details.');
+        }
+      });
+    } else {
+      wrap.innerHTML = '';
+    }
+  }
+
+  async function handleJdSerialPhotoUpload(e, jobDoc) {
+    const file = (e.target.files || [])[0];
+    if (!file) return;
+    const errEl = document.getElementById('jd-photo-error');
+    errEl.classList.remove('show');
+    if (!file.type.startsWith('image/')) {
+      errEl.textContent = 'Please choose an image file.';
+      errEl.classList.add('show');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      errEl.textContent = 'That photo is over 10MB.';
+      errEl.classList.add('show');
+      return;
+    }
+    const wrap = document.getElementById('jd-serial-photo-wrap');
+    wrap.innerHTML = '<div style="width:56px;height:56px;background:var(--paper-deep);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--stone);">Uploading…</div>';
+    try {
+      const filePath = `${jdPhotoStoragePrefix(jobDoc)}/serial/${Date.now()}_${file.name}`;
+      const fileRef = storageRef(storage, filePath);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { serialNumberPhoto: url, updatedAt: serverTimestamp() });
+      jobDoc.serialNumberPhoto = url;
+      renderJdSerialPhoto(jobDoc);
+    } catch (err) {
+      console.error('Serial photo upload failed:', err);
+      errEl.textContent = 'Could not upload this photo. Check console for details.';
+      errEl.classList.add('show');
+      renderJdSerialPhoto(jobDoc);
+    }
+  }
+
+  document.getElementById('jd-serial-photo-input').addEventListener('change', (e) => { if (jdJob) handleJdSerialPhotoUpload(e, jdJob); });
+  document.getElementById('jd-before-photo-input').addEventListener('change', (e) => {
+    if (jdJob) handleJdPhotoUpload(e, document.getElementById('jd-before-photo-grid'), document.getElementById('jd-photo-error'), jdJob, 'before', 'beforePhotos');
+  });
+  document.getElementById('jd-after-photo-input').addEventListener('change', (e) => {
+    if (jdJob) handleJdPhotoUpload(e, document.getElementById('jd-after-photo-grid'), document.getElementById('jd-photo-error'), jdJob, 'after', 'afterPhotos');
+  });
+
+  // Renders the linked spare requests for the open ticket, with the
+  // right action for each one's current stage — kept as its own
+  // function (not inlined into openJobDetailModal) so Mark Received
+  // and Consume can both re-render the list in place after acting,
+  // without closing and reopening the whole popup.
+  async function renderJdLinkedRequests(jobDoc) {
     const linkedEl = document.getElementById('jd-linked-requests');
     linkedEl.innerHTML = '<span style="font-size:12.5px;color:var(--stone);">Loading spare requests…</span>';
     try {
       const linkedSnap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', jobDoc.id)));
       const linked = [];
       linkedSnap.forEach(ld => linked.push({ id: ld.id, ...ld.data() }));
-      linkedEl.innerHTML = linked.length
-        ? linked.map(l => `<div style="font-size:12.5px;margin-bottom:4px;">${escapeHtml(l.item || '—')} × ${l.quantity ?? 1} — <span class="status-pill ${l.status}">${SPARE_REQ_STATUS_LABELS[l.status] || l.status}</span></div>`).join('')
-        : '';
+      if (linked.length === 0) { linkedEl.innerHTML = ''; return; }
+      linkedEl.innerHTML = linked.map(l => {
+        let actionHtml = '';
+        if ((l.status === 'dispatched' || l.status === 'intransit') && l.requestedByUid === currentUser.uid) {
+          actionHtml = `<button type="button" class="btn-secondary jd-sr-receive-btn" data-id="${l.id}" style="font-size:11.5px;padding:3px 8px;margin-left:8px;">Mark Received</button>`;
+        } else if ((l.status === 'received' || l.status === 'fulfilled_by_center') && !l.consumedAt) {
+          actionHtml = `<button type="button" class="btn-secondary jd-sr-consume-btn" data-id="${l.id}" style="font-size:11.5px;padding:3px 8px;margin-left:8px;">Consume (mark installed)</button>`;
+        } else if (l.consumedAt) {
+          actionHtml = `<span style="font-size:11px;color:var(--stone);margin-left:8px;">Installed</span>`;
+        }
+        return `<div style="font-size:12.5px;margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;">
+          <span>${escapeHtml(l.item || '—')} × ${l.quantity ?? 1} — <span class="status-pill ${l.status}">${SPARE_REQ_STATUS_LABELS[l.status] || l.status}</span></span>
+          ${actionHtml}
+        </div>`;
+      }).join('');
+      linkedEl.querySelectorAll('.jd-sr-receive-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const l = linked.find(x => x.id === btn.dataset.id);
+          if (l) markLinkedSpareReceived(l, jobDoc);
+        });
+      });
+      linkedEl.querySelectorAll('.jd-sr-consume-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const l = linked.find(x => x.id === btn.dataset.id);
+          if (l) consumeLinkedSpare(l, jobDoc);
+        });
+      });
     } catch (err) {
       console.warn('Could not load linked spare requests:', err.message);
       linkedEl.innerHTML = '';
     }
+  }
 
-    jdOverlay.classList.add('show');
+  // Confirms physical receipt of a dispatched/in-transit spare — a
+  // status-only step, not a second stock movement: Warehouse already
+  // credited the technician's own Spare Bag the moment it dispatched
+  // the part (same pattern as Service Center's own Mark Received,
+  // just reachable from the job popup instead of a separate page).
+  async function markLinkedSpareReceived(l, jobDoc) {
+    if (!confirm('Mark this spare as received? Your Spare Bag already reflects this stock from when it was dispatched.')) return;
+    try {
+      await updateDoc(doc(db, 'spareRequests', l.id), {
+        status: 'received', receivedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      if (jobDoc.status === 'waiting_spare') {
+        await updateDoc(doc(db, jobDoc.coll, jobDoc.id), { status: 'in_progress', updatedAt: serverTimestamp() });
+        await logTicketStatus(jobDoc.coll, jobDoc.id, 'in_progress', `Spare received — ${l.requestId || l.id}`);
+        jobDoc.status = 'in_progress';
+      }
+      await renderJdLinkedRequests(jobDoc);
+      loadMyJobs();
+    } catch (err) {
+      console.error('Mark received failed:', err);
+      alert(err.code === 'permission-denied' || /permission/i.test(err.message || '')
+        ? 'Could not mark this as received — the Firestore rules for this may not be published yet.'
+        : 'Could not mark this as received. Check console for details.');
+    }
+  }
+
+  // Marks a received (or already center-fulfilled) spare as actually
+  // installed — deducts it from the technician's own Spare Bag right
+  // now, instead of only being able to log parts used at final job
+  // closure.
+  async function consumeLinkedSpare(l, jobDoc) {
+    const qty = Number(l.quantity) || 1;
+    if (!confirm(`Consume ${qty} × ${l.item || 'this part'} from your Spare Bag now?`)) return;
+    const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${l.partId}`);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(invRef);
+        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+        if (current < qty) throw new Error(`Only ${current} of that part in your Spare Bag.`);
+        transaction.set(invRef, {
+          partId: l.partId, location: 'technician', technicianUid: currentUser.uid,
+          quantity: current - qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await updateDoc(doc(db, 'spareRequests', l.id), {
+        consumedAt: serverTimestamp(), consumedQty: qty, updatedAt: serverTimestamp()
+      });
+      await renderJdLinkedRequests(jobDoc);
+    } catch (err) {
+      console.error('Consume spare failed:', err);
+      alert(err.message && err.message.includes('Spare Bag')
+        ? err.message
+        : 'Could not consume this part. Check console for details.');
+    }
   }
 
   function closeJobDetailModal() {
