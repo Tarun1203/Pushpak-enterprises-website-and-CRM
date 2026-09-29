@@ -447,7 +447,14 @@
 <div class="modal-overlay" id="dispatch-overlay">
   <div class="modal">
     <h3>Dispatch spare to technician</h3>
+    <p style="font-size:12.5px;color:var(--stone);margin:-6px 0 14px;">Only tied to a real open ticket assigned to that technician — this isn't a free-standing stock transfer.</p>
     <form id="dispatch-form">
+      <div class="form-row">
+        <label>Open ticket</label>
+        <select id="dispatch-ticket" required>
+          <option value="">Select an open ticket…</option>
+        </select>
+      </div>
       <div class="form-row">
         <label>Part</label>
         <select id="dispatch-part-id" required>
@@ -457,12 +464,6 @@
       <div class="form-row">
         <label>Quantity</label>
         <input type="number" id="dispatch-qty" min="1" value="1" required>
-      </div>
-      <div class="form-row">
-        <label>Technician</label>
-        <select id="dispatch-technician" required>
-          <option value="">Select from roster…</option>
-        </select>
       </div>
       <div class="modal-error" id="dispatch-error"></div>
       <div class="modal-success" id="dispatch-success"></div>
@@ -1949,21 +1950,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const dispatchSuccess = document.getElementById('dispatch-success');
   const dispatchSubmitBtn = document.getElementById('submit-dispatch');
   const dispatchPartSelect = document.getElementById('dispatch-part-id');
-  const dispatchTechSelect = document.getElementById('dispatch-technician');
+  const dispatchTicketSelect = document.getElementById('dispatch-ticket');
 
-  async function populateDispatchTechnicianOptions() {
-    dispatchTechSelect.innerHTML = '<option value="">Select from roster…</option>';
+  // Dispatching to a technician is only ever done against a real,
+  // open ticket that's actually assigned to them — never a bare
+  // "send this technician some stock" transfer with nothing behind
+  // it. The ticket also tells us WHICH technician, so there's no more
+  // relying on a free-typed name with no account behind it.
+  const DISPATCH_TICKET_STATUSES = ['new', 'assigned', 'in_progress', 'waiting_spare'];
+  let dispatchTicketCache = [];
+
+  async function populateDispatchTicketOptions() {
+    dispatchTicketSelect.innerHTML = '<option value="">Select an open ticket…</option>';
+    dispatchTicketCache = [];
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
+      const snap = await getDocs(query(
+        collection(db, 'centerRequests'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        where('status', 'in', DISPATCH_TICKET_STATUSES)
+      ));
       snap.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.data().name;
-        opt.textContent = d.data().name;
-        dispatchTechSelect.appendChild(opt);
+        const data = d.data();
+        if (!data.technicianUid) return; // not assigned to anyone yet — nothing to dispatch against
+        dispatchTicketCache.push({ id: d.id, ...data });
       });
+      dispatchTicketCache.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      dispatchTicketCache.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = `${d.requestId || d.id} — ${d.customerName || 'customer'} (${d.technicianName || 'technician'})`;
+        dispatchTicketSelect.appendChild(opt);
+      });
+      if (dispatchTicketCache.length === 0) {
+        dispatchTicketSelect.innerHTML = '<option value="">No open tickets assigned to a technician right now</option>';
+      }
     } catch (err) {
-      console.error('Load technicians for dispatch failed:', err);
+      console.error('Load open tickets for dispatch failed:', err);
     }
   }
 
@@ -1974,7 +1997,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     dispatchSubmitBtn.disabled = false;
     dispatchSubmitBtn.textContent = 'Dispatch';
     populatePartOptions(dispatchPartSelect);
-    populateDispatchTechnicianOptions();
+    populateDispatchTicketOptions();
     dispatchOverlay.classList.add('show');
   }
   function closeDispatchModal() { dispatchOverlay.classList.remove('show'); }
@@ -1985,35 +2008,80 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     e.preventDefault();
     dispatchError.classList.remove('show');
     dispatchSuccess.classList.remove('show');
-    if (!dispatchPartSelect.value || !dispatchTechSelect.value || !currentUser) {
-      dispatchError.textContent = 'Select a part and a technician.';
+    if (!dispatchPartSelect.value || !dispatchTicketSelect.value || !currentUser) {
+      dispatchError.textContent = 'Select an open ticket and a part.';
       dispatchError.classList.add('show');
       return;
     }
     const partId = dispatchPartSelect.value;
+    const partName = dispatchPartSelect.selectedOptions[0]?.textContent || '';
     const qty = Number(document.getElementById('dispatch-qty').value) || 0;
     if (qty <= 0) {
       dispatchError.textContent = 'Enter a quantity greater than 0.';
       dispatchError.classList.add('show');
       return;
     }
+    const ticket = dispatchTicketCache.find(t => t.id === dispatchTicketSelect.value);
+    if (!ticket || !ticket.technicianUid) {
+      dispatchError.textContent = 'Select a ticket first.';
+      dispatchError.classList.add('show');
+      return;
+    }
     dispatchSubmitBtn.disabled = true;
     dispatchSubmitBtn.textContent = 'Dispatching…';
-    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    const centerInvRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    const techInvRef = doc(db, 'inventory', `technician_${ticket.technicianUid}_${partId}`);
     try {
       await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(invRef);
-        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-        const next = Math.max(0, current - qty);
-        transaction.set(invRef, {
-          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
+        const centerSnap = await transaction.get(centerInvRef);
+        const techSnap = await transaction.get(techInvRef);
+        const centerCurrent = centerSnap.exists() ? (centerSnap.data().quantity || 0) : 0;
+        if (centerCurrent < qty) throw new Error(`Only ${centerCurrent} of that part in your Center Inventory.`);
+        const techCurrent = techSnap.exists() ? (techSnap.data().quantity || 0) : 0;
+        transaction.set(centerInvRef, {
+          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
+          quantity: centerCurrent - qty, updatedAt: serverTimestamp()
+        }, { merge: true });
+        // Previously this only deducted the center's own stock and
+        // never actually credited the technician's Spare Bag — fixed
+        // here so the part really does move, not just disappear.
+        transaction.set(techInvRef, {
+          partId, location: 'technician', technicianUid: ticket.technicianUid,
+          quantity: techCurrent + qty, updatedAt: serverTimestamp()
         }, { merge: true });
       });
       await addDoc(collection(db, 'stockMovements'), {
         partId, type: 'issue', location: 'servicecenter', serviceCenterUid: currentUser.uid,
-        quantity: qty, reason: `Dispatched to ${dispatchTechSelect.value}`,
+        technicianUid: ticket.technicianUid, quantity: qty,
+        reason: `Dispatched to ${ticket.technicianName || 'technician'} — ${ticket.requestId || ticket.id}`,
         createdAt: serverTimestamp()
       });
+      // Audit trail visible on the ticket itself (technician's job
+      // popup reads spareRequests by sourceJobId) — same pattern as a
+      // technician-raised request fulfilled from center stock.
+      const requestId = await generateSpareRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        serviceCenter: currentUser.email,
+        item: partName,
+        partId,
+        quantity: qty,
+        priority: 'normal',
+        notes: `Dispatched from center stock — ${ticket.requestId || ticket.id}`,
+        sourceJobId: ticket.id,
+        sourceJobLabel: `${ticket.requestId || ticket.id} — ${ticket.customerName || 'customer'}`,
+        sourceJobCollection: 'centerRequests',
+        requestedByUid: currentUser.uid,
+        status: 'fulfilled_by_center',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      // If the ticket was blocked waiting on this part, dispatching it
+      // unblocks the technician's own workflow again.
+      if (ticket.status === 'waiting_spare') {
+        await updateDoc(doc(db, 'centerRequests', ticket.id), { status: 'in_progress', updatedAt: serverTimestamp() });
+        await logTicketStatus('centerRequests', ticket.id, 'in_progress', `Spare dispatched — ${requestId}`);
+      }
       dispatchSuccess.textContent = 'Dispatched.';
       dispatchSuccess.classList.add('show');
       dispatchSubmitBtn.disabled = false;
@@ -2022,7 +2090,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeDispatchModal, 800);
     } catch (err) {
       console.error('Dispatch failed:', err);
-      dispatchError.textContent = 'Could not dispatch. Check console for details.';
+      dispatchError.textContent = err.message && err.message.includes('Center Inventory')
+        ? err.message
+        : 'Could not dispatch. Check console for details.';
       dispatchError.classList.add('show');
       dispatchSubmitBtn.disabled = false;
       dispatchSubmitBtn.textContent = 'Dispatch';
