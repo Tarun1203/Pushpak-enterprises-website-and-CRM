@@ -294,6 +294,7 @@
       <div class="form-row">
         <label>Serial number (optional)</label>
         <input type="text" id="req-serial">
+        <div id="req-serial-history" style="margin-top:8px;"></div>
       </div>
       <div class="form-row">
         <label>Purchase date (optional)</label>
@@ -1395,12 +1396,46 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqModelSelectRow.classList.remove('step-hidden');
     reqModelTextRow.classList.add('step-hidden');
     reqModelSelect.innerHTML = '<option value="">Select a brand first…</option>';
+    document.getElementById('req-serial-history').innerHTML = '';
     populateReqTechnicianOptions();
     reqOverlay.classList.add('show');
   }
   function closeReqModal() { reqOverlay.classList.remove('show'); }
   document.getElementById('cancel-req').addEventListener('click', closeReqModal);
   reqOverlay.addEventListener('click', (e) => { if (e.target === reqOverlay) closeReqModal(); });
+
+  // A repeat complaint on the same appliance shouldn't start from a
+  // blank slate — as soon as a serial number is entered, surface this
+  // center's own prior tickets against it so staff can see what was
+  // already tried/replaced before logging the new one.
+  document.getElementById('req-serial').addEventListener('blur', async () => {
+    const historyEl = document.getElementById('req-serial-history');
+    const serial = document.getElementById('req-serial').value.trim();
+    historyEl.innerHTML = '';
+    if (!serial || !currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'centerRequests'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        where('serialNumber', '==', serial)
+      ));
+      const prior = [];
+      snap.forEach(d => prior.push({ id: d.id, ...d.data() }));
+      if (prior.length === 0) return;
+      prior.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      historyEl.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--stone);margin-bottom:4px;">Previous tickets for this serial number:</div>` +
+        prior.map(h => {
+          const dateStr = h.createdAt && h.createdAt.toDate ? h.createdAt.toDate().toLocaleDateString() : '—';
+          return `<div style="font-size:12.5px;margin-bottom:4px;">
+            <b>${escapeHtml(h.requestId || h.id)}</b> — ${dateStr} — ${escapeHtml(h.status || '—')}
+            ${h.issue ? ' — ' + escapeHtml(h.issue) : ''}
+            ${h.closureCode ? ` — Closure: ${escapeHtml(h.closureCode)}` : ''}
+          </div>`;
+        }).join('');
+    } catch (err) {
+      console.warn('Could not load serial number history:', err.message);
+    }
+  });
 
   reqForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2118,6 +2153,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   async function renderSendBack() {
     contentEl.innerHTML = `
       <div class="panel">
+        <div class="panel-header"><h2>Defective parts from your technicians</h2></div>
+        <div class="panel-body">
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:16px;">
+            A part a technician replaces on a job comes back to you first — not straight to Head
+            Office. Forward each one on once it's physically back in your hands.
+          </p>
+          <div style="padding:0;">
+            <table>
+              <thead><tr><th>Date</th><th>Part</th><th>Qty</th><th>From</th><th>Reason</th><th>Actions</th></tr></thead>
+              <tbody id="tech-returns-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:24px;">
         <div class="panel-header"><h2>Send back to Head Office</h2></div>
         <div class="panel-body">
           <p style="font-size:13.5px;color:var(--stone);margin-bottom:20px;">
@@ -2128,6 +2178,61 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
       </div>`;
     document.getElementById('open-sendback').addEventListener('click', openSendBackModal);
+    loadTechReturns();
+  }
+
+  async function loadTechReturns() {
+    const tbody = document.getElementById('tech-returns-tbody');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'returns'),
+        where('serviceCenterUid', '==', currentUser.uid),
+        where('status', '==', 'sent_to_center')
+      ));
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing waiting from your technicians right now.</td></tr>`;
+        return;
+      }
+      const [docs, partsSnap] = await Promise.all([
+        (async () => { const arr = []; snap.forEach(d => arr.push({ id: d.id, ...d.data() })); return arr; })(),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
+      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      tbody.innerHTML = '';
+      docs.forEach(d => {
+        const part = partMap[d.partId];
+        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
+          <td>${part ? escapeHtml(part.name) : escapeHtml(d.partId)}</td>
+          <td>${d.quantity ?? '—'}</td>
+          <td style="font-size:12.5px;">${escapeHtml(d.source || '—')}</td>
+          <td style="font-size:12.5px;color:var(--stone);">${escapeHtml(d.reason || '—')}</td>
+          <td><button class="btn-secondary tech-return-forward-btn" data-id="${d.id}">Forward to Head Office</button></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.tech-return-forward-btn').forEach(btn => {
+        btn.addEventListener('click', () => forwardTechReturn(btn.dataset.id));
+      });
+    } catch (err) {
+      console.error('Load technician returns failed:', err);
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load this. Check console for details.</td></tr>`;
+    }
+  }
+
+  async function forwardTechReturn(returnId) {
+    if (!confirm('Forward this part to Head Office\'s Returns queue?')) return;
+    try {
+      await updateDoc(doc(db, 'returns', returnId), { status: 'defective', updatedAt: serverTimestamp() });
+      loadTechReturns();
+    } catch (err) {
+      console.error('Forward return failed:', err);
+      alert('Could not forward this. Check console for details.');
+    }
   }
 
   const sendbackOverlay = document.getElementById('sendback-overlay');

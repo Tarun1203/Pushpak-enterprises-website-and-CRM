@@ -254,6 +254,10 @@
     <div id="jd-body" style="font-size:13px;line-height:1.9;margin-bottom:8px;"></div>
     <hr style="margin:16px 0;border:none;border-top:1px solid var(--hairline);">
     <div id="jd-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div id="jd-history-section" style="display:none;margin-bottom:18px;">
+      <label style="font-size:12px;font-weight:600;color:var(--stone);">Service history — same serial number</label>
+      <div id="jd-history-list" style="margin-top:8px;"></div>
+    </div>
     <div id="jd-photo-section" style="margin-bottom:18px;">
       <label style="font-size:12px;font-weight:600;color:var(--stone);">Photos</label>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:8px;">
@@ -276,13 +280,16 @@
       <div class="modal-error" id="jd-photo-error" style="margin-top:8px;"></div>
     </div>
     <div id="jd-spare-section">
-      <label style="font-size:12px;font-weight:600;color:var(--stone);">Request a spare part</label>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <select id="jd-spare-part" style="flex:1;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select part…</option></select>
-        <input type="number" id="jd-spare-qty" min="1" value="1" style="width:70px;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;">
-        <button type="button" class="btn-secondary" id="jd-spare-request-btn">Request Spare</button>
+      <div id="jd-spare-request-form">
+        <label style="font-size:12px;font-weight:600;color:var(--stone);">Request a spare part</label>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <select id="jd-spare-part" style="flex:1;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select part…</option></select>
+          <input type="number" id="jd-spare-qty" min="1" value="1" style="width:70px;border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;">
+          <button type="button" class="btn-secondary" id="jd-spare-request-btn">Request Spare</button>
+        </div>
+        <div class="modal-error" id="jd-spare-error" style="margin-top:8px;"></div>
       </div>
-      <div class="modal-error" id="jd-spare-error" style="margin-top:8px;"></div>
+      <div id="jd-spare-closed-note" style="display:none;font-size:12.5px;color:var(--stone);">This job is already closed — no further spare requests against it.</div>
       <div id="jd-linked-requests" style="margin-top:10px;"></div>
     </div>
     <div class="modal-actions" style="margin-top:18px;">
@@ -744,6 +751,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     waiting_spare: [{ next: 'in_progress', label: 'Resume Work' }],
   };
   const CR_ACTIVE_STATUSES = ['new', 'assigned', 'in_progress', 'waiting_spare'];
+  // Once a job lands in any of these, it's done — no more spare
+  // requests should be raised against it from the job popup.
+  const TERMINAL_JOB_STATUSES = ['completed', 'closed', 'cancelled'];
 
   async function loadMyJobs() {
     const tbody = document.getElementById('jobs-tbody');
@@ -896,14 +906,58 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     renderJdPhotoThumbnails(document.getElementById('jd-before-photo-grid'), jobDoc.beforePhotos || [], jobDoc, 'beforePhotos');
     renderJdPhotoThumbnails(document.getElementById('jd-after-photo-grid'), jobDoc.afterPhotos || [], jobDoc, 'afterPhotos');
 
-    const spareErrEl = document.getElementById('jd-spare-error');
-    spareErrEl.classList.remove('show');
-    document.getElementById('jd-spare-qty').value = 1;
-    await populatePartSelect(document.getElementById('jd-spare-part'));
+    // A closed job is done — no more spare requests should be raised
+    // against it. The existing linked-requests list underneath still
+    // shows (read-only) whatever was already requested, for a record.
+    const isClosed = TERMINAL_JOB_STATUSES.includes(jobDoc.status);
+    document.getElementById('jd-spare-request-form').style.display = isClosed ? 'none' : '';
+    document.getElementById('jd-spare-closed-note').style.display = isClosed ? '' : 'none';
+    if (!isClosed) {
+      const spareErrEl = document.getElementById('jd-spare-error');
+      spareErrEl.classList.remove('show');
+      document.getElementById('jd-spare-qty').value = 1;
+      await populatePartSelect(document.getElementById('jd-spare-part'));
+    }
 
     await renderJdLinkedRequests(jobDoc);
+    await renderJdServiceHistory(jobDoc);
 
     jdOverlay.classList.add('show');
+  }
+
+  // A completed job for the same appliance shouldn't be a blank slate
+  // if the complaint comes back — this surfaces the technician's own
+  // past tickets against the same serial number so they can see what
+  // was already tried/replaced before starting the new one. Scoped to
+  // tickets THIS technician can already read under existing rules (a
+  // full cross-center history would need a much wider read grant).
+  async function renderJdServiceHistory(jobDoc) {
+    const section = document.getElementById('jd-history-section');
+    const listEl = document.getElementById('jd-history-list');
+    if (!jobDoc.serialNumber) { section.style.display = 'none'; return; }
+    try {
+      const [sjSnap, crSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid), where('serialNumber', '==', jobDoc.serialNumber))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid), where('serialNumber', '==', jobDoc.serialNumber))),
+      ]);
+      let history = [];
+      sjSnap.forEach(d => { if (d.id !== jobDoc.id) history.push({ id: d.id, coll: 'serviceJobs', ...d.data() }); });
+      crSnap.forEach(d => { if (d.id !== jobDoc.id) history.push({ id: d.id, coll: 'centerRequests', ...d.data() }); });
+      if (history.length === 0) { section.style.display = 'none'; return; }
+      history.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      section.style.display = '';
+      listEl.innerHTML = history.map(h => {
+        const dateStr = h.createdAt && h.createdAt.toDate ? h.createdAt.toDate().toLocaleDateString() : '—';
+        return `<div style="font-size:12.5px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--hairline);">
+          <div><b>${escapeHtml(h.jobId || h.requestId || h.id)}</b> — ${dateStr} — <span class="status-pill ${JOB_STATUS_PILL_CLASS[h.status] || ''}">${JOB_STATUS_LABELS[h.status] || h.status}</span></div>
+          <div style="color:var(--stone);">${escapeHtml(h.issue || '—')}</div>
+          ${h.closureCode ? `<div style="color:var(--stone);">Closure: ${escapeHtml(h.closureCode)}${h.actionTaken ? ' — ' + escapeHtml(h.actionTaken) : ''}</div>` : ''}
+        </div>`;
+      }).join('');
+    } catch (err) {
+      console.warn('Could not load service history:', err.message);
+      section.style.display = 'none';
+    }
   }
 
   // ---------------------------------------------------------------
@@ -1411,7 +1465,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           });
         }
         const jobSnapForReturn = await getDoc(doc(db, closureJobColl, jobId));
-        const jobRequestId = jobSnapForReturn.exists() ? (jobSnapForReturn.data().jobId || jobSnapForReturn.data().requestId || jobId) : jobId;
+        const jobData = jobSnapForReturn.exists() ? jobSnapForReturn.data() : {};
+        const jobRequestId = jobData.jobId || jobData.requestId || jobId;
+        // A technician's defective part is handed back to their OWN
+        // service center first, exactly like a center sends its own
+        // returns on to Head Office — it doesn't skip straight to
+        // Warehouse's queue. Only a technician with no center at all
+        // (not linked to one, ticket has no serviceCenterUid) falls
+        // back to going straight to Warehouse, since there's no
+        // center to route it through.
+        const returnCenterUid = jobData.serviceCenterUid || await getLinkedServiceCenterUid();
         for (const line of partLines) {
           const returnId = await generateReturnId();
           await addDoc(collection(db, 'returns'), {
@@ -1420,9 +1483,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             quantity: line.qty,
             source: `Technician - ${currentUser.email}`,
             technicianUid: currentUser.uid,
+            ...(returnCenterUid ? { serviceCenterUid: returnCenterUid } : {}),
             reason: `Replaced during job closure — ${jobRequestId}`,
             sourceJobId: jobId,
-            status: 'defective',
+            status: returnCenterUid ? 'sent_to_center' : 'defective',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
