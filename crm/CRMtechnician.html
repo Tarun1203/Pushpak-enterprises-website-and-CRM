@@ -218,6 +218,21 @@
         <div id="closure-linked-parts" style="font-size:12.5px;color:var(--stone);margin-bottom:8px;"></div>
         <input type="text" id="closure-parts-notes" placeholder="Any parts used that weren't requested through the system, or type 'None'">
       </div>
+      <div class="form-row">
+        <label>Consume from your Spare Bag &amp; log the old part as defective <span style="font-weight:400;color:var(--stone);">(optional — leave blank if no physical part was swapped)</span></label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <select id="closure-part-1" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="closure-partqty-1" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <select id="closure-part-2" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="closure-partqty-2" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <select id="closure-part-3" style="flex:2;"><option value="">— Select part —</option></select>
+          <input type="number" id="closure-partqty-3" min="1" placeholder="Qty" style="flex:1;">
+        </div>
+      </div>
       <div class="modal-error" id="closure-error"></div>
       <div class="modal-success" id="closure-success"></div>
       <div class="modal-actions">
@@ -660,19 +675,37 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     loadMyJobs();
   }
 
+  // A technician's work shows up in TWO different collections:
+  // serviceJobs (routed straight to them — the richer accept/on-the-way/
+  // at-customer pipeline above) and centerRequests (assigned to them by
+  // their OWN service center's roster — a simpler new/assigned/
+  // in_progress/waiting_spare/completed pipeline, same one Service
+  // Center's own "Center Requests" page uses). Previously this page only
+  // ever queried serviceJobs, so anything a service center assigned
+  // never showed up here at all.
+  const CR_JOB_NEXT_ACTIONS = {
+    assigned: [{ next: 'in_progress', label: 'Start Work' }],
+    in_progress: [{ next: 'waiting_spare', label: 'Waiting for Spare', variant: 'secondary' }, { next: 'completed', label: 'Mark Complete' }],
+    waiting_spare: [{ next: 'in_progress', label: 'Resume Work' }],
+  };
+  const CR_ACTIVE_STATUSES = ['new', 'assigned', 'in_progress', 'waiting_spare'];
+
   async function loadMyJobs() {
     const tbody = document.getElementById('jobs-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(
-        collection(db, 'serviceJobs'),
-        where('technicianUid', '==', currentUser.uid)
-      ));
+      const [jobsSnap, centerReqSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceJobs'), where('technicianUid', '==', currentUser.uid))),
+        getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', currentUser.uid))),
+      ]);
       let docs = [];
-      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      jobsSnap.forEach(d => docs.push({ id: d.id, coll: 'serviceJobs', ...d.data() }));
+      centerReqSnap.forEach(d => docs.push({ id: d.id, coll: 'centerRequests', ...d.data() }));
       docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (currentJobFilter === 'active') {
-        docs = docs.filter(d => JOB_ACTIVE_STATUSES.includes(d.status) && d.status !== 'waiting_spare');
+        docs = docs.filter(d => d.coll === 'serviceJobs'
+          ? (JOB_ACTIVE_STATUSES.includes(d.status) && d.status !== 'waiting_spare')
+          : (CR_ACTIVE_STATUSES.includes(d.status) && d.status !== 'waiting_spare'));
       } else if (currentJobFilter !== 'all') {
         docs = docs.filter(d => d.status === currentJobFilter);
       }
@@ -682,16 +715,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       }
       tbody.innerHTML = '';
       docs.forEach(d => {
-        const actions = JOB_NEXT_ACTIONS[d.status] || [];
+        const actions = (d.coll === 'serviceJobs' ? JOB_NEXT_ACTIONS[d.status] : CR_JOB_NEXT_ACTIONS[d.status]) || [];
         let actionHtml = actions.length
-          ? `<div class="row-actions">${actions.map(a => `<button class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'} job-action-btn" data-id="${d.id}" data-next="${a.next}">${a.label}</button>`).join('')}</div>`
+          ? `<div class="row-actions">${actions.map(a => `<button class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'} job-action-btn" data-id="${d.id}" data-coll="${d.coll}" data-next="${a.next}">${a.label}</button>`).join('')}</div>`
           : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.jobId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${d.jobId || d.requestId || d.id}${d.coll === 'centerRequests' ? ' <span style="color:var(--stone);">(via center)</span>' : ''}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.customerPhone || '—')}</td>
-          <td>${escapeHtml(d.product || '—')}</td>
+          <td>${escapeHtml(d.product || d.modelNo || '—')}</td>
           <td style="max-width:220px;">${escapeHtml(d.issue || '—')}</td>
           <td><span class="status-pill ${JOB_STATUS_PILL_CLASS[d.status] || ''}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;
@@ -700,10 +733,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.querySelectorAll('.job-action-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           if (btn.dataset.next === 'completed') {
-            const jobDoc = docs.find(x => x.id === btn.dataset.id);
+            const jobDoc = docs.find(x => x.id === btn.dataset.id && x.coll === btn.dataset.coll);
             if (jobDoc) openClosureModal(jobDoc);
           } else {
-            advanceJob(btn.dataset.id, btn.dataset.next);
+            advanceJob(btn.dataset.id, btn.dataset.next, btn.dataset.coll);
           }
         });
       });
@@ -729,10 +762,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
-  async function advanceJob(id, nextStatus) {
+  async function advanceJob(id, nextStatus, coll) {
+    coll = coll || 'serviceJobs';
     try {
-      await updateDoc(doc(db, 'serviceJobs', id), { status: nextStatus, updatedAt: serverTimestamp() });
-      await logTicketStatus('serviceJobs', id, nextStatus);
+      await updateDoc(doc(db, coll, id), { status: nextStatus, updatedAt: serverTimestamp() });
+      await logTicketStatus(coll, id, nextStatus);
       loadMyJobs();
     } catch (err) {
       console.error('Update job failed:', err);
@@ -749,6 +783,37 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const closureError = document.getElementById('closure-error');
   const closureSuccess = document.getElementById('closure-success');
   const closureSubmitBtn = document.getElementById('submit-closure');
+  let closureJobColl = 'serviceJobs';
+
+  async function populatePartSelect(selectEl) {
+    selectEl.innerHTML = '<option value="">— Select part —</option>';
+    try {
+      const parts = await getSparePartsListCache();
+      parts.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.partCode} — ${p.name}`;
+        selectEl.appendChild(opt);
+      });
+    } catch (err) {
+      console.warn('Could not load parts list:', err.message);
+    }
+  }
+
+  async function generateReturnId() {
+    const d = new Date();
+    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const counterRef = doc(db, 'counters', `return-${monthKey}`);
+    const next = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(counterRef);
+      const n = (snap.exists() ? snap.data().value : 0) + 1;
+      if (snap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      return n;
+    });
+    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    return `PE-RT-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
+  }
 
   async function openClosureModal(jobDoc) {
     closureForm.reset();
@@ -756,10 +821,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     closureSuccess.classList.remove('show');
     closureSubmitBtn.disabled = false;
     closureSubmitBtn.textContent = 'Mark Complete';
+    closureJobColl = jobDoc.coll || 'serviceJobs';
     document.getElementById('closure-job-id').value = jobDoc.id;
-    document.getElementById('closure-job-label').textContent = `${jobDoc.jobId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
+    document.getElementById('closure-job-label').textContent = `${jobDoc.jobId || jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
     const linkedEl = document.getElementById('closure-linked-parts');
     linkedEl.textContent = 'Checking linked spare requests…';
+    await Promise.all([
+      populatePartSelect(document.getElementById('closure-part-1')),
+      populatePartSelect(document.getElementById('closure-part-2')),
+      populatePartSelect(document.getElementById('closure-part-3')),
+    ]);
     try {
       const snap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', jobDoc.id)));
       if (snap.empty) {
@@ -791,10 +862,51 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       closureError.classList.add('show');
       return;
     }
+    // Up to 3 part+qty lines: each one consumes that quantity from this
+    // technician's own Spare Bag and logs the same quantity into Head
+    // Office's Returns queue as "defective" — the old part that came
+    // out of the appliance — same behavior as Service Center's own
+    // closure form, just against the technician's own stock instead.
+    const partLines = [1, 2, 3].map(i => ({
+      partId: document.getElementById(`closure-part-${i}`).value,
+      qty: Number(document.getElementById(`closure-partqty-${i}`).value) || 0
+    })).filter(l => l.partId && l.qty > 0);
+
     closureSubmitBtn.disabled = true;
     closureSubmitBtn.textContent = 'Saving…';
     try {
-      await updateDoc(doc(db, 'serviceJobs', jobId), {
+      if (partLines.length) {
+        for (const line of partLines) {
+          const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${line.partId}`);
+          await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(invRef);
+            const current = snap.exists() ? (snap.data().quantity || 0) : 0;
+            if (current < line.qty) throw new Error(`Only ${current} of that part in your Spare Bag — reduce the quantity or add stock first.`);
+            transaction.set(invRef, {
+              partId: line.partId, location: 'technician', technicianUid: currentUser.uid,
+              quantity: current - line.qty, updatedAt: serverTimestamp()
+            }, { merge: true });
+          });
+        }
+        const jobSnapForReturn = await getDoc(doc(db, closureJobColl, jobId));
+        const jobRequestId = jobSnapForReturn.exists() ? (jobSnapForReturn.data().jobId || jobSnapForReturn.data().requestId || jobId) : jobId;
+        for (const line of partLines) {
+          const returnId = await generateReturnId();
+          await addDoc(collection(db, 'returns'), {
+            returnId,
+            partId: line.partId,
+            quantity: line.qty,
+            source: `Technician - ${currentUser.email}`,
+            technicianUid: currentUser.uid,
+            reason: `Replaced during job closure — ${jobRequestId}`,
+            sourceJobId: jobId,
+            status: 'defective',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+      await updateDoc(doc(db, closureJobColl, jobId), {
         status: 'completed',
         closureCode,
         actionTaken: notes,
@@ -803,7 +915,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      await logTicketStatus('serviceJobs', jobId, 'completed', `Closure code: ${closureCode}`);
+      await logTicketStatus(closureJobColl, jobId, 'completed', `Closure code: ${closureCode}`);
       closureSuccess.textContent = 'Completed.';
       closureSuccess.classList.add('show');
       closureSubmitBtn.textContent = 'Done';
@@ -811,7 +923,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeClosureModal, 800);
     } catch (err) {
       console.error('Close job failed:', err);
-      closureError.textContent = 'Could not complete this job. Check the console for details.';
+      closureError.textContent = err.message && err.message.includes('Spare Bag')
+        ? err.message
+        : 'Could not complete this job. Check the console for details.';
       closureError.classList.add('show');
       closureSubmitBtn.disabled = false;
       closureSubmitBtn.textContent = 'Mark Complete';
