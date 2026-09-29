@@ -803,7 +803,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         let actionHtml = '—';
         if (d.status === 'new') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
         } else if (d.status === 'assigned') {
           actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
         } else if (d.status === 'in_progress') {
