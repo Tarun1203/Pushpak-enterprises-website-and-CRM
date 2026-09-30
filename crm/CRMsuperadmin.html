@@ -708,6 +708,19 @@
           <option value="inactive">Inactive</option>
         </select>
       </div>
+      <div class="form-row">
+        <label>What does this category need? <span class="hint">(hides the irrelevant rate column on the Service Charge Rates pages)</span></label>
+        <label style="font-weight:400;display:inline-flex;align-items:center;gap:6px;margin-right:16px;">
+          <input type="checkbox" id="category-needs-service" style="width:auto;" checked> Needs service / repair
+        </label>
+        <label style="font-weight:400;display:inline-flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="category-needs-installation" style="width:auto;" checked> Needs installation
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Size / model bundles for pricing <span class="hint">(optional — one bundle per line. A single size like "32" or several bundled together like "40,43". Leave blank if this category doesn't need size-based pricing.)</span></label>
+        <textarea id="category-size-buckets" rows="4" placeholder="32&#10;40,43&#10;50,55"></textarea>
+      </div>
       <div class="modal-error" id="category-error"></div>
       <div class="modal-success" id="category-success"></div>
       <div class="modal-actions">
@@ -3308,11 +3321,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       document.getElementById('category-icon').value = existing.icon || '';
       document.getElementById('category-order').value = existing.displayOrder ?? 0;
       document.getElementById('category-status').value = existing.status || 'active';
+      document.getElementById('category-needs-service').checked = existing.needsService !== false;
+      document.getElementById('category-needs-installation').checked = existing.needsInstallation !== false;
+      document.getElementById('category-size-buckets').value = (existing.sizeBuckets || []).join('\n');
       categorySubmitBtn.textContent = 'Save changes';
     } else {
       categoryModalTitle.textContent = 'Add category';
       document.getElementById('category-editing-id').value = '';
       document.getElementById('category-order').value = 0;
+      document.getElementById('category-needs-service').checked = true;
+      document.getElementById('category-needs-installation').checked = true;
+      document.getElementById('category-size-buckets').value = '';
       categorySubmitBtn.textContent = 'Save category';
     }
     categoryOverlay.classList.add('show');
@@ -3336,6 +3355,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       icon: document.getElementById('category-icon').value.trim(),
       displayOrder: Number(document.getElementById('category-order').value) || 0,
       status: document.getElementById('category-status').value,
+      needsService: document.getElementById('category-needs-service').checked,
+      needsInstallation: document.getElementById('category-needs-installation').checked,
+      sizeBuckets: document.getElementById('category-size-buckets').value
+        .split('\n')
+        .map(line => line.split(',').map(s => s.trim()).filter(Boolean).join(','))
+        .filter(Boolean),
       updatedAt: serverTimestamp(),
     };
     try {

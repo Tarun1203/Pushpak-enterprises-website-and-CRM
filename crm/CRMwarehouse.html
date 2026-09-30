@@ -3941,28 +3941,36 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   const RATE_CARD_TYPES = [{ key: 'repair', label: 'Repair' }, { key: 'installation', label: 'Installation' }];
 
-  function rateCardKey(scope, centerUid, category, rateType) {
+  function rateCardKey(scope, centerUid, category, rateType, bucket) {
     const safeCat = category.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+    const safeBucket = (bucket || 'flat').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}_${safeBucket}` : `default_${safeCat}_${rateType}_${safeBucket}`;
   }
 
   // The real Category Master (productCategories, set up under Super
   // Admin's Categories) — not a hardcoded guess list. Categories are
   // stored per brand, but a repair/installation rate doesn't care
-  // which brand a "Geyser" is, so this just dedupes by name.
-  async function getActiveCategoryNames() {
+  // which brand a "Geyser" is, so this dedupes by name and merges in
+  // each category's needsService/needsInstallation flags and its
+  // size/model bundles (e.g. TV: 32 / 40,43 / 50,55).
+  async function getCategoryMeta() {
+    const meta = new Map();
     try {
       const snap = await getDocs(collection(db, 'productCategories'));
-      const names = new Set();
       snap.forEach(d => {
         const data = d.data();
-        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+        if (data.status === 'inactive' || !data.name) return;
+        const name = data.name.trim();
+        const existing = meta.get(name) || { needsService: false, needsInstallation: false, sizeBuckets: [] };
+        existing.needsService = existing.needsService || data.needsService !== false;
+        existing.needsInstallation = existing.needsInstallation || data.needsInstallation !== false;
+        (data.sizeBuckets || []).forEach(b => { if (b && !existing.sizeBuckets.includes(b)) existing.sizeBuckets.push(b); });
+        meta.set(name, existing);
       });
-      return Array.from(names).sort((a, b) => a.localeCompare(b));
     } catch (err) {
       console.warn('Could not load product categories:', err.message);
-      return [];
     }
+    return meta;
   }
 
   async function renderRateCard() {
@@ -3973,33 +3981,47 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <button class="btn-primary" id="save-rate-card">Save changes</button>
         </div>
         <div class="panel-body" style="padding:0;">
+          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Categories with size/model bundles (set under Categories) show one row per bundle.</div>
           <table>
-            <thead><tr><th>Product Category</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} (₹)</th>`).join('')}</tr></thead>
-            <tbody id="rate-card-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} (₹)</th>`).join('')}</tr></thead>
+            <tbody id="rate-card-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
         <div class="modal-success" id="rate-card-success" style="margin:12px 16px;"></div>
         <div class="modal-error" id="rate-card-error" style="margin:12px 16px;"></div>
       </div>`;
     const tbody = document.getElementById('rate-card-tbody');
-    const categories = (await getActiveCategoryNames()).concat('Other');
+    const meta = await getCategoryMeta();
+    const categories = Array.from(meta.keys()).sort((a, b) => a.localeCompare(b)).concat('Other');
+    const colCount = 2 + RATE_CARD_TYPES.length;
     if (categories.length === 1) {
-      tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No product categories set up yet — add them under Categories first, then come back here to set their rates.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colCount}" class="empty-row">No product categories set up yet — add them under Categories first, then come back here to set their rates.</td></tr>`;
       return;
     }
-    tbody.innerHTML = categories.map(cat => `
+    const rows = [];
+    categories.forEach(cat => {
+      const entry = meta.get(cat);
+      const buckets = (entry && entry.sizeBuckets && entry.sizeBuckets.length) ? entry.sizeBuckets : [null];
+      buckets.forEach(bucket => rows.push({ cat, bucket, needsService: entry ? entry.needsService : true, needsInstallation: entry ? entry.needsInstallation : true }));
+    });
+    tbody.innerHTML = rows.map(row => `
       <tr>
-        <td>${escapeHtml(cat)}</td>
-        ${RATE_CARD_TYPES.map(t => `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${cat}" data-type="${t.key}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`).join('')}
+        <td>${escapeHtml(row.cat)}</td>
+        <td>${row.bucket ? escapeHtml(row.bucket) : '<span style="color:var(--stone);">—</span>'}</td>
+        ${RATE_CARD_TYPES.map(t => {
+          const applies = t.key === 'repair' ? row.needsService : row.needsInstallation;
+          if (!applies) return `<td style="color:var(--stone);">N/A</td>`;
+          return `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
+        }).join('')}
       </tr>`).join('');
     try {
       const snap = await getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'default')));
       const byKey = {};
       snap.forEach(d => { byKey[d.id] = d.data(); });
-      categories.forEach(cat => {
+      rows.forEach(row => {
         RATE_CARD_TYPES.forEach(t => {
-          const rec = byKey[rateCardKey('default', null, cat, t.key)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${cat}"][data-type="${t.key}"]`);
+          const rec = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
+          const input = tbody.querySelector(`.rate-card-input[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
           if (rec && input) input.value = rec.amount ?? '';
         });
       });
@@ -4021,9 +4043,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody.querySelectorAll('.rate-card-input').forEach(input => {
           const amount = Number(input.value) || 0;
           const category = input.dataset.category;
+          const bucket = input.dataset.bucket || null;
           const rateType = input.dataset.type;
-          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType)), {
-            scope: 'default', category, type: rateType, amount,
+          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, bucket)), {
+            scope: 'default', category, type: rateType, bucket: bucket || null, amount,
             updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
             updatedAt: serverTimestamp()
           }, { merge: true }));

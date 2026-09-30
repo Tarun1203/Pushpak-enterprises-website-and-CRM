@@ -335,6 +335,10 @@
         <label>Product category <span style="font-weight:400;color:var(--stone);">(decides your warranty service-charge rate)</span></label>
         <select id="job-category"><option value="">Loading…</option></select>
       </div>
+      <div class="form-row" id="job-size-bucket-row" style="display:none;">
+        <label>Size / model <span style="font-weight:400;color:var(--stone);">(this category's rate varies by size)</span></label>
+        <select id="job-size-bucket"><option value="">N/A</option></select>
+      </div>
       <div class="form-row">
         <label>Serial number <span style="font-weight:400;color:var(--stone);">(links this job to the customer's registration, if any)</span></label>
         <input type="text" id="job-serial" placeholder="e.g. MK3201NML0123456">
@@ -1269,21 +1273,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // service center's own override for that combo wins; otherwise
   // falls back to Head Office's default for it; otherwise 0 (no
   // credit — the rate simply hasn't been set up yet for that combo).
-  function rateCardKey(scope, centerUid, category, rateType) {
+  function rateCardKey(scope, centerUid, category, rateType, bucket) {
     const safeCat = (category || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+    const safeBucket = (bucket || 'flat').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}_${safeBucket}` : `default_${safeCat}_${rateType}_${safeBucket}`;
   }
 
   async function resolveServiceChargeRate(jobData, centerUid) {
     const rateType = jobData.type === 'installation' ? 'installation' : 'repair';
     const category = jobData.category || 'Other';
+    const bucket = jobData.sizeBucket || null;
     try {
       if (centerUid) {
-        const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType)));
+        const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType, bucket)));
         if (centerRateSnap.exists()) return Number(centerRateSnap.data().amount) || 0;
       }
-      const defaultRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType)));
+      const defaultRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, bucket)));
       if (defaultRateSnap.exists()) return Number(defaultRateSnap.data().amount) || 0;
+      // Fall back to the flat (no-bucket) rate row in case this
+      // ticket predates size/model bundles being set up for its
+      // category, or the category has since had its bundles removed.
+      if (bucket) {
+        if (centerUid) {
+          const centerFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType, null)));
+          if (centerFlatSnap.exists()) return Number(centerFlatSnap.data().amount) || 0;
+        }
+        const defaultFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, null)));
+        if (defaultFlatSnap.exists()) return Number(defaultFlatSnap.data().amount) || 0;
+      }
     } catch (err) {
       console.warn('Could not resolve service charge rate:', err.message);
     }
@@ -1651,12 +1668,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     jobSuccess.classList.remove('show');
     jobSubmitBtn.disabled = false;
     jobSubmitBtn.textContent = 'Save job';
+    document.getElementById('job-size-bucket-row').style.display = 'none';
+    document.getElementById('job-size-bucket').innerHTML = '<option value="">N/A</option>';
     populateCategorySelect(document.getElementById('job-category'));
     jobOverlay.classList.add('show');
   }
   function closeJobModal() { jobOverlay.classList.remove('show'); }
   document.getElementById('cancel-job').addEventListener('click', closeJobModal);
   jobOverlay.addEventListener('click', (e) => { if (e.target === jobOverlay) closeJobModal(); });
+  document.getElementById('job-category').addEventListener('change', async (e) => {
+    const hasBuckets = await populateSizeBucketSelect(document.getElementById('job-size-bucket'), e.target.value);
+    document.getElementById('job-size-bucket-row').style.display = hasBuckets ? '' : 'none';
+  });
 
   jobForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1677,6 +1700,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         pincode: document.getElementById('job-pincode').value.trim(),
         type: document.getElementById('job-type').value,
         category: document.getElementById('job-category').value,
+        sizeBucket: document.getElementById('job-size-bucket').value || null,
         product: document.getElementById('job-product').value.trim(),
         serialNumber: document.getElementById('job-serial').value.trim(),
         issue: document.getElementById('job-issue').value.trim(),
@@ -1862,27 +1886,47 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // hardcoded guess list. Categories are stored per brand, but a
   // repair/installation rate doesn't care which brand a "Geyser" is,
   // so this just dedupes by name across every brand.
-  let activeCategoryNamesCache = null;
-  async function getActiveCategoryNamesCache() {
-    if (activeCategoryNamesCache) return activeCategoryNamesCache;
+  let categoryMetaCache = null;
+  async function getCategoryMetaCache() {
+    if (categoryMetaCache) return categoryMetaCache;
+    categoryMetaCache = new Map();
     try {
       const snap = await getDocs(collection(db, 'productCategories'));
-      const names = new Set();
       snap.forEach(d => {
         const data = d.data();
-        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+        if (data.status === 'inactive' || !data.name) return;
+        const name = data.name.trim();
+        const existing = categoryMetaCache.get(name) || { needsService: false, needsInstallation: false, sizeBuckets: [] };
+        existing.needsService = existing.needsService || data.needsService !== false;
+        existing.needsInstallation = existing.needsInstallation || data.needsInstallation !== false;
+        (data.sizeBuckets || []).forEach(b => { if (b && !existing.sizeBuckets.includes(b)) existing.sizeBuckets.push(b); });
+        categoryMetaCache.set(name, existing);
       });
-      activeCategoryNamesCache = Array.from(names).sort((a, b) => a.localeCompare(b));
     } catch (err) {
       console.warn('Could not load product categories:', err.message);
-      activeCategoryNamesCache = [];
     }
-    return activeCategoryNamesCache;
+    return categoryMetaCache;
+  }
+  async function getActiveCategoryNamesCache() {
+    const meta = await getCategoryMetaCache();
+    return Array.from(meta.keys()).sort((a, b) => a.localeCompare(b));
   }
   async function populateCategorySelect(selectEl) {
     const names = await getActiveCategoryNamesCache();
     selectEl.innerHTML = (names.length ? names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
       : '<option value="">No categories set up yet</option>') + '<option value="Other">Other</option>';
+  }
+  async function populateSizeBucketSelect(selectEl, category) {
+    const meta = await getCategoryMetaCache();
+    const entry = meta.get(category);
+    const buckets = (entry && entry.sizeBuckets) || [];
+    if (!buckets.length) {
+      selectEl.innerHTML = '<option value="">N/A</option>';
+      return false;
+    }
+    selectEl.innerHTML = '<option value="">Select size / model</option>' +
+      buckets.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+    return true;
   }
 
   async function renderDiagnosis() {

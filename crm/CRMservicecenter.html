@@ -263,6 +263,10 @@
         <label>Product category <span style="font-weight:400;color:var(--stone);">(decides the technician's warranty service-charge rate)</span></label>
         <select id="req-category"><option value="">Loading…</option></select>
       </div>
+      <div class="form-row" id="req-size-bucket-row" style="display:none;">
+        <label>Size / model <span style="font-weight:400;color:var(--stone);">(this category's rate varies by size)</span></label>
+        <select id="req-size-bucket"><option value="">N/A</option></select>
+      </div>
       <div class="form-row">
         <label>Customer name</label>
         <input type="text" id="req-customer-name" required>
@@ -1064,27 +1068,52 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // hardcoded guess list. Categories are stored per brand, but a
   // repair/installation rate doesn't care which brand a "Geyser" is,
   // so this just dedupes by name across every brand.
-  let activeCategoryNamesCache = null;
-  async function getActiveCategoryNamesCache() {
-    if (activeCategoryNamesCache) return activeCategoryNamesCache;
+  // Full per-category metadata (needsService/needsInstallation flags +
+  // size/model bundles), keyed by category name, merged across brands.
+  let categoryMetaCache = null;
+  async function getCategoryMetaCache() {
+    if (categoryMetaCache) return categoryMetaCache;
+    categoryMetaCache = new Map();
     try {
       const snap = await getDocs(collection(db, 'productCategories'));
-      const names = new Set();
       snap.forEach(d => {
         const data = d.data();
-        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+        if (data.status === 'inactive' || !data.name) return;
+        const name = data.name.trim();
+        const existing = categoryMetaCache.get(name) || { needsService: false, needsInstallation: false, sizeBuckets: [] };
+        existing.needsService = existing.needsService || data.needsService !== false;
+        existing.needsInstallation = existing.needsInstallation || data.needsInstallation !== false;
+        (data.sizeBuckets || []).forEach(b => { if (b && !existing.sizeBuckets.includes(b)) existing.sizeBuckets.push(b); });
+        categoryMetaCache.set(name, existing);
       });
-      activeCategoryNamesCache = Array.from(names).sort((a, b) => a.localeCompare(b));
     } catch (err) {
       console.warn('Could not load product categories:', err.message);
-      activeCategoryNamesCache = [];
     }
-    return activeCategoryNamesCache;
+    return categoryMetaCache;
+  }
+  async function getActiveCategoryNamesCache() {
+    const meta = await getCategoryMetaCache();
+    return Array.from(meta.keys()).sort((a, b) => a.localeCompare(b));
   }
   async function populateCategorySelect(selectEl) {
     const names = await getActiveCategoryNamesCache();
     selectEl.innerHTML = (names.length ? names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
       : '<option value="">No categories set up yet</option>') + '<option value="Other">Other</option>';
+  }
+  // Populates a "Size / model" select for the given category; returns
+  // true if that category actually has bundles (caller uses this to
+  // show/hide the field), false if it's a flat-rate category.
+  async function populateSizeBucketSelect(selectEl, category) {
+    const meta = await getCategoryMetaCache();
+    const entry = meta.get(category);
+    const buckets = (entry && entry.sizeBuckets) || [];
+    if (!buckets.length) {
+      selectEl.innerHTML = '<option value="">N/A</option>';
+      return false;
+    }
+    selectEl.innerHTML = '<option value="">Select size / model</option>' +
+      buckets.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+    return true;
   }
 
   async function generateSpareRequestId() {
@@ -1460,9 +1489,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqModelSelect.innerHTML = '<option value="">Select a brand first…</option>';
     document.getElementById('req-serial-history').innerHTML = '';
     populateReqTechnicianOptions();
-    populateCategorySelect(document.getElementById('req-category'));
+    const reqCategorySelect = document.getElementById('req-category');
+    const reqSizeBucketRow = document.getElementById('req-size-bucket-row');
+    const reqSizeBucketSelect = document.getElementById('req-size-bucket');
+    reqSizeBucketRow.style.display = 'none';
+    reqSizeBucketSelect.innerHTML = '<option value="">N/A</option>';
+    populateCategorySelect(reqCategorySelect);
     reqOverlay.classList.add('show');
   }
+  document.getElementById('req-category').addEventListener('change', async (e) => {
+    const hasBuckets = await populateSizeBucketSelect(document.getElementById('req-size-bucket'), e.target.value);
+    document.getElementById('req-size-bucket-row').style.display = hasBuckets ? '' : 'none';
+  });
   function closeReqModal() { reqOverlay.classList.remove('show'); }
   document.getElementById('cancel-req').addEventListener('click', closeReqModal);
   reqOverlay.addEventListener('click', (e) => { if (e.target === reqOverlay) closeReqModal(); });
@@ -1520,6 +1558,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         serviceCenterUid: currentUser.uid,
         type: document.getElementById('req-type').value,
         category: document.getElementById('req-category').value,
+        sizeBucket: document.getElementById('req-size-bucket').value || null,
         customerName: document.getElementById('req-customer-name').value.trim(),
         customerPhone: document.getElementById('req-customer-phone').value.trim(),
         address: document.getElementById('req-address').value.trim(),
@@ -2392,9 +2431,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   const RATE_CARD_TYPES = [{ key: 'repair', label: 'Repair' }, { key: 'installation', label: 'Installation' }];
 
-  function rateCardKey(scope, centerUid, category, rateType) {
+  function rateCardKey(scope, centerUid, category, rateType, bucket) {
     const safeCat = category.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+    const safeBucket = (bucket || 'flat').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}_${safeBucket}` : `default_${safeCat}_${rateType}_${safeBucket}`;
   }
 
   async function renderRateCard() {
@@ -2405,9 +2445,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <button class="btn-primary" id="save-rate-card">Save your overrides</button>
         </div>
         <div class="panel-body" style="padding:0;">
-          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Head Office's default is used unless you set your own rate for a row. Leave a box blank to use the default.</div>
+          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Head Office's default is used unless you set your own rate for a row. Leave a box blank to use the default. Categories with size/model bundles show one row per bundle.</div>
           <table>
-            <thead><tr><th>Product Category</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} — HO Default</th><th>${t.label} — Your Rate</th>`).join('')}</tr></thead>
+            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} — HO Default</th><th>${t.label} — Your Rate</th>`).join('')}</tr></thead>
             <tbody id="rate-card-tbody"></tbody>
           </table>
         </div>
@@ -2416,16 +2456,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       </div>`;
     const tbody = document.getElementById('rate-card-tbody');
     const categories = (await getActiveCategoryNamesCache()).concat('Other');
+    const meta = await getCategoryMetaCache();
+    const colCount = 2 + RATE_CARD_TYPES.length * 2;
     if (categories.length === 1) {
-      tbody.innerHTML = `<tr><td colspan="${1 + RATE_CARD_TYPES.length * 2}" class="empty-row">No product categories set up yet — add them under Super Admin's Categories first.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colCount}" class="empty-row">No product categories set up yet — add them under Super Admin's Categories first.</td></tr>`;
       return;
     }
-    tbody.innerHTML = categories.map(cat => `
+    // Expand each category into one row per size/model bundle (or a
+    // single "flat" row for categories with no bundles defined).
+    const rows = [];
+    categories.forEach(cat => {
+      const entry = meta.get(cat);
+      const buckets = (entry && entry.sizeBuckets && entry.sizeBuckets.length) ? entry.sizeBuckets : [null];
+      buckets.forEach(bucket => rows.push({ cat, bucket, needsService: entry ? entry.needsService : true, needsInstallation: entry ? entry.needsInstallation : true }));
+    });
+    tbody.innerHTML = rows.map(row => `
       <tr>
-        <td>${escapeHtml(cat)}</td>
-        ${RATE_CARD_TYPES.map(t => `
-          <td class="rate-card-default" data-category="${cat}" data-type="${t.key}" style="color:var(--stone);">—</td>
-          <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${cat}" data-type="${t.key}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`).join('')}
+        <td>${escapeHtml(row.cat)}</td>
+        <td>${row.bucket ? escapeHtml(row.bucket) : '<span style="color:var(--stone);">—</span>'}</td>
+        ${RATE_CARD_TYPES.map(t => {
+          const applies = t.key === 'repair' ? row.needsService : row.needsInstallation;
+          if (!applies) return `<td style="color:var(--stone);">N/A</td><td style="color:var(--stone);">N/A</td>`;
+          return `
+          <td class="rate-card-default" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" style="color:var(--stone);">—</td>
+          <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
+        }).join('')}
       </tr>`).join('');
     if (!currentUser) return;
     try {
@@ -2437,13 +2492,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       defaultSnap.forEach(d => { byKey[d.id] = d.data(); });
       const overrideByKey = {};
       centerSnap.forEach(d => { overrideByKey[d.id] = d.data(); });
-      categories.forEach(cat => {
+      rows.forEach(row => {
         RATE_CARD_TYPES.forEach(t => {
-          const def = byKey[rateCardKey('default', null, cat, t.key)];
-          const defCell = tbody.querySelector(`.rate-card-default[data-category="${cat}"][data-type="${t.key}"]`);
+          const def = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
+          const defCell = tbody.querySelector(`.rate-card-default[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
           if (defCell) defCell.textContent = def && def.amount != null ? `₹${def.amount}` : 'Not set';
-          const ov = overrideByKey[rateCardKey('center', currentUser.uid, cat, t.key)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${cat}"][data-type="${t.key}"]`);
+          const ov = overrideByKey[rateCardKey('center', currentUser.uid, row.cat, t.key, row.bucket)];
+          const input = tbody.querySelector(`.rate-card-input[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
           if (ov && input) input.value = ov.amount ?? '';
         });
       });
@@ -2466,9 +2521,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           if (input.value.trim() === '') return;
           const amount = Number(input.value) || 0;
           const category = input.dataset.category;
+          const bucket = input.dataset.bucket || null;
           const rateType = input.dataset.type;
-          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType)), {
-            scope: 'center', serviceCenterUid: currentUser.uid, category, type: rateType, amount,
+          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType, bucket)), {
+            scope: 'center', serviceCenterUid: currentUser.uid, category, type: rateType, bucket: bucket || null, amount,
             updatedBy: currentUser.email, updatedAt: serverTimestamp()
           }, { merge: true }));
         });
