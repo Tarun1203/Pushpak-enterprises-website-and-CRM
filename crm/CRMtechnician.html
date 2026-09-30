@@ -332,6 +332,18 @@
         <input type="text" id="job-product" placeholder="e.g. MakWell geyser 15L">
       </div>
       <div class="form-row">
+        <label>Product category <span style="font-weight:400;color:var(--stone);">(decides your warranty service-charge rate)</span></label>
+        <select id="job-category">
+          <option value="Geyser">Geyser</option>
+          <option value="Washing Machine">Washing Machine</option>
+          <option value="TV">TV</option>
+          <option value="Solar Water Heater">Solar Water Heater</option>
+          <option value="Wall Mount">Wall Mount</option>
+          <option value="Remote">Remote</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-row">
         <label>Serial number <span style="font-weight:400;color:var(--stone);">(links this job to the customer's registration, if any)</span></label>
         <input type="text" id="job-serial" placeholder="e.g. MK3201NML0123456">
       </div>
@@ -1259,6 +1271,33 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return { inWarranty: null };
   }
 
+  // Looks up the warranty service-charge rate CARD — never a number
+  // this technician sets themselves. Keyed by product category +
+  // service type (installation, or repair for everything else). A
+  // service center's own override for that combo wins; otherwise
+  // falls back to Head Office's default for it; otherwise 0 (no
+  // credit — the rate simply hasn't been set up yet for that combo).
+  function rateCardKey(scope, centerUid, category, rateType) {
+    const safeCat = (category || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+  }
+
+  async function resolveServiceChargeRate(jobData, centerUid) {
+    const rateType = jobData.type === 'installation' ? 'installation' : 'repair';
+    const category = jobData.category || 'Other';
+    try {
+      if (centerUid) {
+        const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType)));
+        if (centerRateSnap.exists()) return Number(centerRateSnap.data().amount) || 0;
+      }
+      const defaultRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType)));
+      if (defaultRateSnap.exists()) return Number(defaultRateSnap.data().amount) || 0;
+    } catch (err) {
+      console.warn('Could not resolve service charge rate:', err.message);
+    }
+    return 0;
+  }
+
   async function getLinkedServiceCenterUid() {
     if (cachedLinkedCenterUid !== undefined) return cachedLinkedCenterUid;
     try {
@@ -1527,7 +1566,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             ...(returnCenterUid ? { serviceCenterUid: returnCenterUid } : {}),
             reason: `Replaced during job closure — ${jobRequestId}`,
             sourceJobId: jobId,
-            status: returnCenterUid ? 'sent_to_center' : 'defective',
+            // With no service center to route through, this goes
+            // straight into Head Office's queue as 'requested' — never
+            // 'defective' directly. Only Head Office can mark a part
+            // actually received/inspected once it's physically there.
+            status: returnCenterUid ? 'sent_to_center' : 'requested',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
@@ -1547,25 +1590,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       // Warranty-aware auto billing: check warranty against the exact
       // part(s) just replaced first (per-component cover can outlast
       // the appliance's own overall warranty), falling back to the
-      // product's overall warranty. If in-warranty, the service
-      // center's (or, absent one, this technician's own) standard
-      // service-charge rate is credited straight to this technician's
-      // wallet — no separate billing step for that part. A center-
-      // managed ticket is also flagged ready for the center to claim
-      // its own spare/other-cost portion.
+      // product's overall warranty. If in-warranty, the rate CARD's
+      // amount for this job's product category + service type is
+      // credited straight to this technician's wallet — never a
+      // number the technician sets themselves. A center-managed
+      // ticket is also flagged ready for the center to claim its own
+      // spare/other-cost portion.
       try {
         const warrantyInfo = await getJobWarrantyInfo(jobData, partNamesUsed);
         if (warrantyInfo.inWarranty === true) {
-          let rate = 0;
           const centerUidForRate = jobData.serviceCenterUid || await getLinkedServiceCenterUid();
-          if (centerUidForRate) {
-            const centerSnap = await getDoc(doc(db, 'users', centerUidForRate));
-            if (centerSnap.exists()) rate = Number(centerSnap.data().defaultServiceCharge) || 0;
-          }
-          if (!rate) {
-            const ownSnap = await getDoc(doc(db, 'users', currentUser.uid));
-            if (ownSnap.exists()) rate = Number(ownSnap.data().defaultServiceCharge) || 0;
-          }
+          const rate = await resolveServiceChargeRate(jobData, centerUidForRate);
           const jobBillingUpdate = { warrantyStatus: 'in_warranty', updatedAt: serverTimestamp() };
           if (rate > 0) {
             jobBillingUpdate.serviceCharge = rate;
@@ -1648,6 +1683,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         address: document.getElementById('job-address').value.trim(),
         pincode: document.getElementById('job-pincode').value.trim(),
         type: document.getElementById('job-type').value,
+        category: document.getElementById('job-category').value,
         product: document.getElementById('job-product').value.trim(),
         serialNumber: document.getElementById('job-serial').value.trim(),
         issue: document.getElementById('job-issue').value.trim(),
@@ -2582,8 +2618,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
           <div class="form-row"><label>Skills</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
           <div class="form-row"><label>Brand authorization</label><input type="text" id="profile-brands" placeholder="e.g. MakWell, Flyvision"></div>
-          <div class="form-row"><label>Standard service charge (₹)</label><input type="number" id="profile-service-charge" min="0" step="0.01" placeholder="e.g. 200"></div>
-          <div style="font-size:11.5px;color:var(--stone);margin:-10px 0 12px;">Only used as a fallback if you're not linked to a service center — a linked center's own rate is what's normally used for your in-warranty job credits.</div>
           <div class="modal-error" id="profile-error"></div>
           <div class="modal-success" id="profile-success"></div>
           <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
@@ -2598,7 +2632,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-phone').value = d.phone || '';
       document.getElementById('profile-skills').value = d.skills || '';
       document.getElementById('profile-brands').value = d.brandAuthorization || '';
-      document.getElementById('profile-service-charge').value = d.defaultServiceCharge ?? '';
     } catch (err) {
       console.error('Load profile failed:', err);
     }
@@ -2616,7 +2649,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           phone: document.getElementById('profile-phone').value.trim(),
           skills: document.getElementById('profile-skills').value.trim(),
           brandAuthorization: document.getElementById('profile-brands').value.trim(),
-          defaultServiceCharge: Number(document.getElementById('profile-service-charge').value) || 0,
         }, { merge: true });
         okEl.textContent = 'Saved.';
         okEl.classList.add('show');

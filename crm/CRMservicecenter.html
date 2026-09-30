@@ -260,6 +260,18 @@
         </select>
       </div>
       <div class="form-row">
+        <label>Product category <span style="font-weight:400;color:var(--stone);">(decides the technician's warranty service-charge rate)</span></label>
+        <select id="req-category">
+          <option value="Geyser">Geyser</option>
+          <option value="Washing Machine">Washing Machine</option>
+          <option value="TV">TV</option>
+          <option value="Solar Water Heater">Solar Water Heater</option>
+          <option value="Wall Mount">Wall Mount</option>
+          <option value="Remote">Remote</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-row">
         <label>Customer name</label>
         <input type="text" id="req-customer-name" required>
       </div>
@@ -623,7 +635,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "sparerequests", "label": "Spare Requests (Head Office)", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "billing", "label": "Service Billing", "built": true}, {"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Service", "items": [{"id": "requests", "label": "Center Requests", "built": true}, {"id": "technicians", "label": "Center Technicians", "built": true}, {"id": "installation", "label": "Installation", "built": true}, {"id": "scheduling", "label": "Scheduling", "built": true}]}, {"group": "Inventory", "items": [{"id": "stock", "label": "Center Inventory", "built": true}, {"id": "sparerequests", "label": "Spare Requests (Head Office)", "built": true}, {"id": "dispatch", "label": "Spare Dispatch", "built": true}, {"id": "sendback", "label": "Send Back to Head Office", "built": true}]}, {"group": "Finance", "items": [{"id": "billing", "label": "Service Billing", "built": true}, {"id": "ratecard", "label": "Service Charge Rates", "built": true}, {"id": "claims", "label": "Center Claims", "built": true}, {"id": "payments", "label": "Payment History", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -690,6 +702,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'billing') {
       pageSub.textContent = 'Warranty claims to Head Office, and charges collected from customers';
       renderServiceBilling();
+    } else if (id === 'ratecard') {
+      pageSub.textContent = "Your technicians' warranty service-charge rates, by product category and service type";
+      renderRateCard();
     } else if (id === 'claims') {
       pageSub.textContent = 'Your reimbursement claims';
       renderCenterClaims();
@@ -997,7 +1012,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             serviceCenterUid: currentUser.uid,
             reason: `Replaced during job closure — ${jobRequestId}`,
             sourceJobId: jobId,
-            status: 'defective',
+            // 'requested', not 'defective' — this only asserts the part
+            // is on its way to Head Office, not that Head Office has
+            // received and inspected it. Only Head Office can set
+            // 'received'/'defective' themselves, once it's actually
+            // arrived there.
+            status: 'requested',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
@@ -1477,6 +1497,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         requestId,
         serviceCenterUid: currentUser.uid,
         type: document.getElementById('req-type').value,
+        category: document.getElementById('req-category').value,
         customerName: document.getElementById('req-customer-name').value.trim(),
         customerPhone: document.getElementById('req-customer-phone').value.trim(),
         address: document.getElementById('req-address').value.trim(),
@@ -2248,7 +2269,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   async function forwardTechReturn(returnId) {
     if (!confirm('Forward this part to Head Office\'s Returns queue?')) return;
     try {
-      await updateDoc(doc(db, 'returns', returnId), { status: 'defective', updatedAt: serverTimestamp() });
+      // Lands as 'requested', not 'defective' — only Head Office can
+      // mark something actually received once it's physically arrived
+      // there (their own "Mark Received" button in Returns). A center
+      // or technician can send/forward a part, but never self-declare
+      // that Head Office has it in hand.
+      await updateDoc(doc(db, 'returns', returnId), { status: 'requested', updatedAt: serverTimestamp() });
       loadTechReturns();
     } catch (err) {
       console.error('Forward return failed:', err);
@@ -2312,7 +2338,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         source: `Service Center - ${currentUser.email}`,
         serviceCenterUid: currentUser.uid,
         reason: document.getElementById('sendback-reason').value.trim(),
-        status: 'received',
+        // 'requested', not 'received' — sending it back isn't the same
+        // as Head Office actually having it. Only Head Office's own
+        // "Mark Received" (in their Returns queue) sets 'received',
+        // once the part has genuinely arrived there.
+        status: 'requested',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -2329,6 +2359,105 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       sendbackSubmitBtn.textContent = 'Send back';
     }
   });
+
+  // ---------------------------------------------------------------
+  // Service Charge Rates — read-only view of Head Office's default
+  // warranty service-charge rates, with an optional override this
+  // center can set for its own technicians. Never a number a
+  // technician can set themselves — this or Head Office's default is
+  // what's actually credited to their wallet at closure.
+  // ---------------------------------------------------------------
+
+  const RATE_CARD_CATEGORIES = ['Geyser', 'Washing Machine', 'TV', 'Solar Water Heater', 'Wall Mount', 'Remote', 'Other'];
+  const RATE_CARD_TYPES = [{ key: 'repair', label: 'Repair' }, { key: 'installation', label: 'Installation' }];
+
+  function rateCardKey(scope, centerUid, category, rateType) {
+    const safeCat = category.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+  }
+
+  async function renderRateCard() {
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Service charge rates</h2>
+          <button class="btn-primary" id="save-rate-card">Save your overrides</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Head Office's default is used unless you set your own rate for a row. Leave a box blank to use the default.</div>
+          <table>
+            <thead><tr><th>Product Category</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} — HO Default</th><th>${t.label} — Your Rate</th>`).join('')}</tr></thead>
+            <tbody id="rate-card-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-success" id="rate-card-success" style="margin:12px 16px;"></div>
+        <div class="modal-error" id="rate-card-error" style="margin:12px 16px;"></div>
+      </div>`;
+    const tbody = document.getElementById('rate-card-tbody');
+    tbody.innerHTML = RATE_CARD_CATEGORIES.map(cat => `
+      <tr>
+        <td>${cat}</td>
+        ${RATE_CARD_TYPES.map(t => `
+          <td class="rate-card-default" data-category="${cat}" data-type="${t.key}" style="color:var(--stone);">—</td>
+          <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${cat}" data-type="${t.key}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`).join('')}
+      </tr>`).join('');
+    if (!currentUser) return;
+    try {
+      const [defaultSnap, centerSnap] = await Promise.all([
+        getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'default'))),
+        getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'center'), where('serviceCenterUid', '==', currentUser.uid)))
+      ]);
+      const byKey = {};
+      defaultSnap.forEach(d => { byKey[d.id] = d.data(); });
+      const overrideByKey = {};
+      centerSnap.forEach(d => { overrideByKey[d.id] = d.data(); });
+      RATE_CARD_CATEGORIES.forEach(cat => {
+        RATE_CARD_TYPES.forEach(t => {
+          const def = byKey[rateCardKey('default', null, cat, t.key)];
+          const defCell = tbody.querySelector(`.rate-card-default[data-category="${cat}"][data-type="${t.key}"]`);
+          if (defCell) defCell.textContent = def && def.amount != null ? `₹${def.amount}` : 'Not set';
+          const ov = overrideByKey[rateCardKey('center', currentUser.uid, cat, t.key)];
+          const input = tbody.querySelector(`.rate-card-input[data-category="${cat}"][data-type="${t.key}"]`);
+          if (ov && input) input.value = ov.amount ?? '';
+        });
+      });
+    } catch (err) {
+      console.error('Load rate card failed:', err);
+      document.getElementById('rate-card-error').textContent = 'Could not load current rates. Check console for details.';
+      document.getElementById('rate-card-error').classList.add('show');
+    }
+    document.getElementById('save-rate-card').addEventListener('click', async () => {
+      const btn = document.getElementById('save-rate-card');
+      const errEl = document.getElementById('rate-card-error');
+      const okEl = document.getElementById('rate-card-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const writes = [];
+        tbody.querySelectorAll('.rate-card-input').forEach(input => {
+          if (input.value.trim() === '') return;
+          const amount = Number(input.value) || 0;
+          const category = input.dataset.category;
+          const rateType = input.dataset.type;
+          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType)), {
+            scope: 'center', serviceCenterUid: currentUser.uid, category, type: rateType, amount,
+            updatedBy: currentUser.email, updatedAt: serverTimestamp()
+          }, { merge: true }));
+        });
+        await Promise.all(writes);
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save rate card failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save your overrides';
+    });
+  }
 
   // ---------------------------------------------------------------
   // Service Billing — warranty-aware billing on completed center
@@ -2945,8 +3074,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
           <div class="form-row"><label>Address</label><input type="text" id="profile-address"></div>
-          <div class="form-row"><label>Standard service charge (₹)</label><input type="number" id="profile-service-charge" min="0" step="0.01" placeholder="e.g. 200"></div>
-          <div style="font-size:11.5px;color:var(--stone);margin:-10px 0 12px;">Auto-credited to a technician's wallet whenever they close a job that turns out to be in-warranty — this is what funds that.</div>
           <div class="modal-error" id="profile-error"></div>
           <div class="modal-success" id="profile-success"></div>
           <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
@@ -2960,7 +3087,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-email').value = currentUser.email || '';
       document.getElementById('profile-phone').value = d.phone || '';
       document.getElementById('profile-address').value = d.address || '';
-      document.getElementById('profile-service-charge').value = d.defaultServiceCharge ?? '';
     } catch (err) {
       console.error('Load profile failed:', err);
     }
@@ -2977,7 +3103,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           name: document.getElementById('profile-name').value.trim(),
           phone: document.getElementById('profile-phone').value.trim(),
           address: document.getElementById('profile-address').value.trim(),
-          defaultServiceCharge: Number(document.getElementById('profile-service-charge').value) || 0,
         }, { merge: true });
         okEl.textContent = 'Saved.';
         okEl.classList.add('show');
