@@ -575,20 +575,51 @@ service cloud.firestore {
 
     match /returns/{returnId} {
       allow read: if isStaff();
+      // A service center or technician can only ever start a return as
+      // 'requested' (headed to Head Office, not yet in their hands) or
+      // 'sent_to_center' (handed to their own center first) — never as
+      // 'received' or 'defective' directly. Only Head Office/Warehouse
+      // (isAdmin()) may create a return already in one of those states,
+      // since only they can attest a part is actually in their
+      // possession and inspected.
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid)
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid
+            && request.resource.data.status in ['requested', 'sent_to_center'])
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
+            && request.resource.data.status in ['requested', 'sent_to_center']);
       // A technician's defective-part return lands tagged
       // 'sent_to_center' — physically handed back to their own
       // service center first. The center forwarding it on to Head
       // Office is the one further transition it's allowed to make
-      // itself; only that status flip, nothing else on the record.
+      // itself — into 'requested', same as their own direct send-backs,
+      // never straight to 'received'/'defective'; only Head Office can
+      // set those, once the part has actually arrived there.
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid
             && resource.data.status == 'sent_to_center'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && request.resource.data.status == 'defective');
+            && request.resource.data.status == 'requested');
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Service charge rates — the rate CARD that decides what a
+    // technician's wallet gets credited for an in-warranty job,
+    // keyed by product category + service type (repair/installation).
+    // Never set by a technician. Head Office owns the 'default' scope
+    // (used when a center has no override); each service center may
+    // only create/edit its OWN 'center'-scoped override rows, tagged
+    // with its own uid.
+    // ---------------------------------------------------------------
+
+    match /serviceChargeRates/{rateId} {
+      allow read: if isStaff();
+      allow create, update: if isAdmin()
+        || (isSignedIn() && request.resource.data.scope == 'center'
+            && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.scope == 'center'
+            && resource.data.serviceCenterUid == request.auth.uid);
     }
 
     // ---------------------------------------------------------------
