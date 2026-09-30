@@ -333,15 +333,7 @@
       </div>
       <div class="form-row">
         <label>Product category <span style="font-weight:400;color:var(--stone);">(decides your warranty service-charge rate)</span></label>
-        <select id="job-category">
-          <option value="Geyser">Geyser</option>
-          <option value="Washing Machine">Washing Machine</option>
-          <option value="TV">TV</option>
-          <option value="Solar Water Heater">Solar Water Heater</option>
-          <option value="Wall Mount">Wall Mount</option>
-          <option value="Remote">Remote</option>
-          <option value="Other">Other</option>
-        </select>
+        <select id="job-category"><option value="">Loading…</option></select>
       </div>
       <div class="form-row">
         <label>Serial number <span style="font-weight:400;color:var(--stone);">(links this job to the customer's registration, if any)</span></label>
@@ -1659,6 +1651,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     jobSuccess.classList.remove('show');
     jobSubmitBtn.disabled = false;
     jobSubmitBtn.textContent = 'Save job';
+    populateCategorySelect(document.getElementById('job-category'));
     jobOverlay.classList.add('show');
   }
   function closeJobModal() { jobOverlay.classList.remove('show'); }
@@ -1861,6 +1854,35 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     sparePartsListCache = [];
     snap.forEach(d => sparePartsListCache.push({ id: d.id, ...d.data() }));
     return sparePartsListCache;
+  }
+
+  // The real Category Master (productCategories, set up under Super
+  // Admin's Categories) — same source of truth as product
+  // registration and the Warehouse/Service Center rate cards, not a
+  // hardcoded guess list. Categories are stored per brand, but a
+  // repair/installation rate doesn't care which brand a "Geyser" is,
+  // so this just dedupes by name across every brand.
+  let activeCategoryNamesCache = null;
+  async function getActiveCategoryNamesCache() {
+    if (activeCategoryNamesCache) return activeCategoryNamesCache;
+    try {
+      const snap = await getDocs(collection(db, 'productCategories'));
+      const names = new Set();
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+      });
+      activeCategoryNamesCache = Array.from(names).sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      console.warn('Could not load product categories:', err.message);
+      activeCategoryNamesCache = [];
+    }
+    return activeCategoryNamesCache;
+  }
+  async function populateCategorySelect(selectEl) {
+    const names = await getActiveCategoryNamesCache();
+    selectEl.innerHTML = (names.length ? names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
+      : '<option value="">No categories set up yet</option>') + '<option value="Other">Other</option>';
   }
 
   async function renderDiagnosis() {

@@ -261,15 +261,7 @@
       </div>
       <div class="form-row">
         <label>Product category <span style="font-weight:400;color:var(--stone);">(decides the technician's warranty service-charge rate)</span></label>
-        <select id="req-category">
-          <option value="Geyser">Geyser</option>
-          <option value="Washing Machine">Washing Machine</option>
-          <option value="TV">TV</option>
-          <option value="Solar Water Heater">Solar Water Heater</option>
-          <option value="Wall Mount">Wall Mount</option>
-          <option value="Remote">Remote</option>
-          <option value="Other">Other</option>
-        </select>
+        <select id="req-category"><option value="">Loading…</option></select>
       </div>
       <div class="form-row">
         <label>Customer name</label>
@@ -1066,6 +1058,35 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return sparePartsListCache;
   }
 
+  // The real Category Master (productCategories, set up under Super
+  // Admin's Categories) — same source of truth as product
+  // registration and the Warehouse/Service Center rate cards, not a
+  // hardcoded guess list. Categories are stored per brand, but a
+  // repair/installation rate doesn't care which brand a "Geyser" is,
+  // so this just dedupes by name across every brand.
+  let activeCategoryNamesCache = null;
+  async function getActiveCategoryNamesCache() {
+    if (activeCategoryNamesCache) return activeCategoryNamesCache;
+    try {
+      const snap = await getDocs(collection(db, 'productCategories'));
+      const names = new Set();
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+      });
+      activeCategoryNamesCache = Array.from(names).sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      console.warn('Could not load product categories:', err.message);
+      activeCategoryNamesCache = [];
+    }
+    return activeCategoryNamesCache;
+  }
+  async function populateCategorySelect(selectEl) {
+    const names = await getActiveCategoryNamesCache();
+    selectEl.innerHTML = (names.length ? names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
+      : '<option value="">No categories set up yet</option>') + '<option value="Other">Other</option>';
+  }
+
   async function generateSpareRequestId() {
     const d = new Date();
     const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -1439,6 +1460,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqModelSelect.innerHTML = '<option value="">Select a brand first…</option>';
     document.getElementById('req-serial-history').innerHTML = '';
     populateReqTechnicianOptions();
+    populateCategorySelect(document.getElementById('req-category'));
     reqOverlay.classList.add('show');
   }
   function closeReqModal() { reqOverlay.classList.remove('show'); }
@@ -2368,7 +2390,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // what's actually credited to their wallet at closure.
   // ---------------------------------------------------------------
 
-  const RATE_CARD_CATEGORIES = ['Geyser', 'Washing Machine', 'TV', 'Solar Water Heater', 'Wall Mount', 'Remote', 'Other'];
   const RATE_CARD_TYPES = [{ key: 'repair', label: 'Repair' }, { key: 'installation', label: 'Installation' }];
 
   function rateCardKey(scope, centerUid, category, rateType) {
@@ -2394,9 +2415,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="modal-error" id="rate-card-error" style="margin:12px 16px;"></div>
       </div>`;
     const tbody = document.getElementById('rate-card-tbody');
-    tbody.innerHTML = RATE_CARD_CATEGORIES.map(cat => `
+    const categories = (await getActiveCategoryNamesCache()).concat('Other');
+    if (categories.length === 1) {
+      tbody.innerHTML = `<tr><td colspan="${1 + RATE_CARD_TYPES.length * 2}" class="empty-row">No product categories set up yet — add them under Super Admin's Categories first.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = categories.map(cat => `
       <tr>
-        <td>${cat}</td>
+        <td>${escapeHtml(cat)}</td>
         ${RATE_CARD_TYPES.map(t => `
           <td class="rate-card-default" data-category="${cat}" data-type="${t.key}" style="color:var(--stone);">—</td>
           <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${cat}" data-type="${t.key}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`).join('')}
@@ -2411,7 +2437,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       defaultSnap.forEach(d => { byKey[d.id] = d.data(); });
       const overrideByKey = {};
       centerSnap.forEach(d => { overrideByKey[d.id] = d.data(); });
-      RATE_CARD_CATEGORIES.forEach(cat => {
+      categories.forEach(cat => {
         RATE_CARD_TYPES.forEach(t => {
           const def = byKey[rateCardKey('default', null, cat, t.key)];
           const defCell = tbody.querySelector(`.rate-card-default[data-category="${cat}"][data-type="${t.key}"]`);

@@ -3939,12 +3939,30 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // service center may only add its own override on top of this.
   // ---------------------------------------------------------------
 
-  const RATE_CARD_CATEGORIES = ['Geyser', 'Washing Machine', 'TV', 'Solar Water Heater', 'Wall Mount', 'Remote', 'Other'];
   const RATE_CARD_TYPES = [{ key: 'repair', label: 'Repair' }, { key: 'installation', label: 'Installation' }];
 
   function rateCardKey(scope, centerUid, category, rateType) {
     const safeCat = category.toLowerCase().replace(/[^a-z0-9]+/g, '_');
     return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}` : `default_${safeCat}_${rateType}`;
+  }
+
+  // The real Category Master (productCategories, set up under Super
+  // Admin's Categories) — not a hardcoded guess list. Categories are
+  // stored per brand, but a repair/installation rate doesn't care
+  // which brand a "Geyser" is, so this just dedupes by name.
+  async function getActiveCategoryNames() {
+    try {
+      const snap = await getDocs(collection(db, 'productCategories'));
+      const names = new Set();
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.status !== 'inactive' && data.name) names.add(data.name.trim());
+      });
+      return Array.from(names).sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      console.warn('Could not load product categories:', err.message);
+      return [];
+    }
   }
 
   async function renderRateCard() {
@@ -3957,23 +3975,28 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Product Category</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} (₹)</th>`).join('')}</tr></thead>
-            <tbody id="rate-card-tbody"></tbody>
+            <tbody id="rate-card-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
         <div class="modal-success" id="rate-card-success" style="margin:12px 16px;"></div>
         <div class="modal-error" id="rate-card-error" style="margin:12px 16px;"></div>
       </div>`;
     const tbody = document.getElementById('rate-card-tbody');
-    tbody.innerHTML = RATE_CARD_CATEGORIES.map(cat => `
+    const categories = (await getActiveCategoryNames()).concat('Other');
+    if (categories.length === 1) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row">No product categories set up yet — add them under Categories first, then come back here to set their rates.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = categories.map(cat => `
       <tr>
-        <td>${cat}</td>
+        <td>${escapeHtml(cat)}</td>
         ${RATE_CARD_TYPES.map(t => `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${cat}" data-type="${t.key}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`).join('')}
       </tr>`).join('');
     try {
       const snap = await getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'default')));
       const byKey = {};
       snap.forEach(d => { byKey[d.id] = d.data(); });
-      RATE_CARD_CATEGORIES.forEach(cat => {
+      categories.forEach(cat => {
         RATE_CARD_TYPES.forEach(t => {
           const rec = byKey[rateCardKey('default', null, cat, t.key)];
           const input = tbody.querySelector(`.rate-card-input[data-category="${cat}"][data-type="${t.key}"]`);
