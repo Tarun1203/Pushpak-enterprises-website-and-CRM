@@ -768,9 +768,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // =================================================================
   // Service Center Stock / Technician Stock — reads the same
   // `inventory` collection Transfer writes to (doc id
-  // `${location}_${partId}`, location = `sc_{uid}` or `tech_{uid}`),
-  // so any stock moved out via Stock Movement → Transfer shows up
-  // here automatically.
+  // `servicecenter_{uid}_{partId}` / `technician_{uid}_{partId}`,
+  // location `servicecenter`/`technician` + a serviceCenterUid/
+  // technicianUid field) — the SAME convention the center's/
+  // technician's own Inventory page uses, so any stock moved out via
+  // Stock Movement → Transfer shows up on both sides automatically.
   // =================================================================
 
   async function renderLocationInventory(kind) {
@@ -795,12 +797,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
 
   async function loadLocationInventory(kind) {
-    const prefix = kind === 'servicecenter' ? 'sc_' : 'tech_';
+    const ownerField = kind === 'servicecenter' ? 'serviceCenterUid' : 'technicianUid';
     const tbody = document.getElementById('loc-inv-tbody');
     const filterSelect = document.getElementById('loc-inv-filter');
     try {
       const [invSnap, partsSnap, peopleList] = await Promise.all([
-        getDocs(collection(db, 'inventory')),
+        getDocs(query(collection(db, 'inventory'), where('location', '==', kind))),
         getDocs(collection(db, 'spareParts')),
         kind === 'servicecenter' ? getWhServiceCentersCache() : getWhTechniciansCache(),
       ]);
@@ -812,9 +814,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rows = [];
       invSnap.forEach(docSnap => {
         const d = docSnap.data();
-        if (!d.location || !d.location.startsWith(prefix)) return;
+        const uid = d[ownerField];
+        if (!uid) return;
         if (!d.quantity) return;
-        const uid = d.location.slice(prefix.length);
         rows.push({ uid, locationName: peopleMap[uid] || uid, part: partMap[d.partId], qty: d.quantity });
       });
 
@@ -1575,9 +1577,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header">
           <h2>Transfer stock</h2>
-          <button class="btn-primary" id="open-transfer">+ New Transfer</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="fix-legacy-transfers">Fix older transfers not showing up</button>
+            <button class="btn-primary" id="open-transfer">+ New Transfer</button>
+          </div>
         </div>
-        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">From Warehouse to a Service Center or Technician.</div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">
+          From Warehouse to a Service Center or Technician.
+          <div id="fix-legacy-result" class="modal-success" style="margin-top:8px;"></div>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Transfer history</h2></div>
@@ -1589,7 +1597,62 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>`;
     document.getElementById('open-transfer').addEventListener('click', openTransferModal);
+    document.getElementById('fix-legacy-transfers').addEventListener('click', migrateLegacyTransferStock);
     loadTransferHistory();
+  }
+
+  // One-time (safe-to-rerun) fix for transfers made before Transfer
+  // was corrected to write to the SAME inventory doc the receiving
+  // center's/technician's own Inventory page reads. Older transfers
+  // were written as `sc_{uid}_{partId}` / `tech_{uid}_{partId}` —
+  // invisible on their own Inventory screen — so this moves that
+  // quantity into `servicecenter_{uid}_{partId}` / `technician_{uid}_{partId}`,
+  // merging with whatever is already there, then clears the old doc.
+  async function migrateLegacyTransferStock() {
+    const btn = document.getElementById('fix-legacy-transfers');
+    const resultEl = document.getElementById('fix-legacy-result');
+    btn.disabled = true;
+    btn.textContent = 'Fixing…';
+    resultEl.classList.remove('show');
+    try {
+      const invSnap = await getDocs(collection(db, 'inventory'));
+      const legacyDocs = [];
+      invSnap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (!d.location || !d.quantity) return;
+        if (d.location.startsWith('sc_') && d.location !== 'sc_') {
+          legacyDocs.push({ id: docSnap.id, partId: d.partId, qty: d.quantity, uid: d.location.slice(3), kind: 'servicecenter' });
+        } else if (d.location.startsWith('tech_') && d.location !== 'tech_') {
+          legacyDocs.push({ id: docSnap.id, partId: d.partId, qty: d.quantity, uid: d.location.slice(5), kind: 'technician' });
+        }
+      });
+      let fixed = 0;
+      for (const item of legacyDocs) {
+        const ownerField = item.kind === 'servicecenter' ? 'serviceCenterUid' : 'technicianUid';
+        const oldRef = doc(db, 'inventory', item.id);
+        const newRef = doc(db, 'inventory', `${item.kind}_${item.uid}_${item.partId}`);
+        await runTransaction(db, async (transaction) => {
+          const oldSnap = await transaction.get(oldRef);
+          const oldQty = oldSnap.exists() ? (oldSnap.data().quantity || 0) : 0;
+          if (!oldQty) return;
+          const newSnap = await transaction.get(newRef);
+          const newQty = newSnap.exists() ? (newSnap.data().quantity || 0) : 0;
+          transaction.set(newRef, { partId: item.partId, location: item.kind, [ownerField]: item.uid, quantity: newQty + oldQty, updatedAt: serverTimestamp() }, { merge: true });
+          transaction.set(oldRef, { quantity: 0, updatedAt: serverTimestamp() }, { merge: true });
+        });
+        fixed++;
+      }
+      resultEl.textContent = fixed
+        ? `Fixed — moved ${fixed} older transfer record${fixed > 1 ? 's' : ''} so they now show up in the right Inventory page.`
+        : 'Nothing to fix — no older-format transfers found.';
+      resultEl.classList.add('show');
+    } catch (err) {
+      console.error('Fix legacy transfers failed:', err);
+      resultEl.textContent = 'Could not finish fixing older transfers. Check console for details.';
+      resultEl.classList.add('show');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Fix older transfers not showing up';
   }
 
   async function loadTransferHistory() {
@@ -1657,13 +1720,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     destSelect.innerHTML = '<option value="">Select destination…</option>';
     centers.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = `sc_${c.uid}|${c.name || c.email} (Service Center)`;
+      opt.value = `servicecenter|${c.uid}|${c.name || c.email} (Service Center)`;
       opt.textContent = `${c.name || c.email} — Service Center`;
       destSelect.appendChild(opt);
     });
     techs.forEach(t => {
       const opt = document.createElement('option');
-      opt.value = `tech_${t.uid}|${t.name || t.email} (Technician)`;
+      opt.value = `technician|${t.uid}|${t.name || t.email} (Technician)`;
       opt.textContent = `${t.name || t.email} — Technician`;
       destSelect.appendChild(opt);
     });
@@ -1686,12 +1749,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       transferError.classList.add('show');
       return;
     }
-    const [destLocation, destLabel] = destValue.split('|');
+    // Write using the SAME doc id / location / owner-uid field the
+    // receiving center's or technician's own Inventory page reads
+    // (servicecenter_{uid}_{partId} / technician_{uid}_{partId}) —
+    // not a separate sc_/tech_ scheme — so a transfer out of
+    // Warehouse actually shows up in their own CRM inventory screen.
+    const [destKind, destUid, destLabel] = destValue.split('|');
+    const ownerField = destKind === 'servicecenter' ? 'serviceCenterUid' : 'technicianUid';
     transferSubmitBtn.disabled = true;
     transferSubmitBtn.textContent = 'Transferring…';
     try {
       const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
-      const toRef = doc(db, 'inventory', `${destLocation}_${partId}`);
+      const toRef = doc(db, 'inventory', `${destKind}_${destUid}_${partId}`);
       await runTransaction(db, async (transaction) => {
         const fromSnap = await transaction.get(fromRef);
         const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
@@ -1699,11 +1768,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const toSnap = await transaction.get(toRef);
         const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
         transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(toRef, { partId, location: destLocation, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+        transaction.set(toRef, { partId, location: destKind, [ownerField]: destUid, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
       });
       await addDoc(collection(db, 'stockMovements'), {
         partId, type: 'transfer', location: 'warehouse', quantity: qty,
-        toLocation: destLocation, toLabel: destLabel, reason: reason || 'Stock transfer',
+        toLocation: `${destKind}_${destUid}`, toLabel: destLabel, reason: reason || 'Stock transfer',
         createdAt: serverTimestamp()
       });
       transferSuccess.textContent = 'Transferred.';
