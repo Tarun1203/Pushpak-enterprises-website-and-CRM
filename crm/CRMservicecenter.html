@@ -2840,17 +2840,29 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       ? await resolveServiceChargeRateForCenter(ticket)
       : null;
     billingContext = { ticket, info, centerServiceCharge };
+    // The warranty check already gave a definite answer (matched
+    // against the registered product/purchase date) in most cases —
+    // "Bill as" only needs to ask the center when that check came back
+    // genuinely unknown (no serial/purchase date on file to check
+    // against). Otherwise the determined status is shown as a fact,
+    // not an editable choice.
+    const isKnown = info.inWarranty === true || info.inWarranty === false;
     const isOutByDefault = info.inWarranty === false;
     billingBody.innerHTML = `
       <div class="form-row"><label>Ticket</label><div>${escapeHtml(ticket.requestId || ticket.id)} — ${escapeHtml(ticket.customerName) || ''}</div></div>
       <div class="form-row"><label>Warranty</label><div><span class="status-pill ${info.cls}">${info.label}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${info.source})</span>` : ''}</div></div>
       ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${ticket.serviceCharge} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
-      <div class="form-row"><label>Bill as</label>
-        <select id="billing-warranty-override">
-          <option value="in" ${info.inWarranty !== false ? 'selected' : ''}>In-warranty — claim to Head Office</option>
-          <option value="out" ${info.inWarranty === false ? 'selected' : ''}>Out-of-warranty — collect from customer</option>
-        </select>
-      </div>
+      ${isKnown ? `
+        <div class="form-row"><label>Bill as</label><div>${isOutByDefault ? 'Out-of-warranty — collect from customer' : 'In-warranty — claim to Head Office'}</div></div>
+        <input type="hidden" id="billing-warranty-override" value="${isOutByDefault ? 'out' : 'in'}">
+      ` : `
+        <div class="form-row"><label>Bill as <span style="font-weight:400;color:var(--stone);">(warranty couldn't be determined automatically — choose manually)</span></label>
+          <select id="billing-warranty-override">
+            <option value="in" ${info.inWarranty !== false ? 'selected' : ''}>In-warranty — claim to Head Office</option>
+            <option value="out" ${info.inWarranty === false ? 'selected' : ''}>Out-of-warranty — collect from customer</option>
+          </select>
+        </div>
+      `}
       <div id="billing-in-warranty-fields" style="display:${isOutByDefault ? 'none' : 'block'};">
         ${centerServiceCharge !== null ? `
           <div class="form-row"><label>Service charge (your rate card)</label><div>₹${centerServiceCharge}${centerServiceCharge === 0 ? ' — not set up yet for this category/type. Set it under Service Charge Rates first.' : ''}</div></div>
