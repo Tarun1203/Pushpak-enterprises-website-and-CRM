@@ -484,18 +484,18 @@
 
 <!-- Unclaimed Amounts — breakdown + process-on-behalf modal -->
 <div class="modal-overlay" id="unclaimed-detail-overlay">
-  <div class="modal" style="max-width:560px;">
+  <div class="modal" style="max-width:720px;">
     <h3 id="unclaimed-detail-title">Unclaimed amount</h3>
-    <div style="font-size:12.5px;color:var(--stone);margin-bottom:12px;">Submits a claim on their behalf for the tickets/jobs below, then opens the usual payment screen to settle it right away.</div>
+    <div style="font-size:12.5px;color:var(--stone);margin-bottom:12px;">Click a ticket/job to see its full details. Tick the ones to include, then process — this submits one claim on their behalf for only the ticked items and opens the usual payment screen to settle it right away.</div>
     <table style="width:100%;margin-bottom:12px;">
-      <thead><tr><th>Ticket / Job</th><th>Customer</th><th>Amount</th></tr></thead>
-      <tbody id="unclaimed-detail-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+      <thead><tr><th style="width:28px;"><input type="checkbox" id="unclaimed-select-all"></th><th>Ticket / Job</th><th>Customer</th><th>Amount</th></tr></thead>
+      <tbody id="unclaimed-detail-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
     </table>
-    <div style="text-align:right;font-weight:600;margin-bottom:16px;">Total: <span id="unclaimed-detail-total">₹0</span></div>
+    <div style="text-align:right;font-weight:600;margin-bottom:16px;">Selected total: <span id="unclaimed-detail-total">₹0</span></div>
     <div class="modal-error" id="unclaimed-detail-error"></div>
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="cancel-unclaimed-detail">Close</button>
-      <button type="button" class="btn-primary" id="process-unclaimed-detail">Process &amp; settle</button>
+      <button type="button" class="btn-primary" id="process-unclaimed-detail">Process &amp; settle selected</button>
     </div>
   </div>
 </div>
@@ -4184,21 +4184,59 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   let unclaimedDetailContext = null;
 
+  // Curated field list for the expanded detail view — covers both a
+  // centerRequests ticket (already fully loaded) and a serviceJobs/
+  // centerRequests doc fetched on demand for a technician's wallet
+  // entry. Unknown/absent fields are simply skipped.
+  const UNCLAIMED_DETAIL_FIELDS = [
+    ['customerName', 'Customer'], ['customerPhone', 'Phone'], ['address', 'Address'],
+    ['product', 'Product'], ['category', 'Category'], ['sizeBucket', 'Size / Model'],
+    ['serialNumber', 'Serial Number'], ['issue', 'Issue'], ['type', 'Job Type'],
+    ['status', 'Status'], ['warrantyStatus', 'Warranty Status'],
+    ['sparePartsCost', 'Spare Parts Cost'], ['serviceCharge', 'Service Charge'],
+    ['otherCharges', 'Other Charges'], ['billingTotal', 'Billing Total'],
+    ['closureCode', 'Closure Code'], ['actionTaken', 'Action Taken'],
+    ['partsUsedNotes', 'Parts Used'], ['technicianName', 'Technician'],
+    ['technicianEmail', 'Technician Email'],
+  ];
+  function formatDetailValue(key, val) {
+    if (val === null || val === undefined || val === '') return null;
+    if (val && typeof val === 'object' && typeof val.toDate === 'function') return val.toDate().toLocaleString();
+    if (['sparePartsCost', 'serviceCharge', 'otherCharges', 'billingTotal'].includes(key)) return `₹${val}`;
+    return String(val);
+  }
+  function renderUnclaimedDetailFields(data) {
+    const rows = UNCLAIMED_DETAIL_FIELDS
+      .map(([key, label]) => [label, formatDetailValue(key, data[key])])
+      .filter(([, val]) => val !== null);
+    const createdStr = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleString() : null;
+    const closedStr = data.closedAt && data.closedAt.toDate ? data.closedAt.toDate().toLocaleString() : null;
+    if (createdStr) rows.push(['Created', createdStr]);
+    if (closedStr) rows.push(['Closed', closedStr]);
+    if (!rows.length) return '<div style="font-size:12.5px;color:var(--stone);">No further details on file.</div>';
+    return `<div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12.5px;padding:8px 4px;">
+      ${rows.map(([label, val]) => `<div style="color:var(--stone);">${escapeHtml(label)}</div><div>${escapeHtml(val)}</div>`).join('')}
+    </div>`;
+  }
+
   async function openUnclaimedDetailModal(type, uid, name) {
     const overlay = document.getElementById('unclaimed-detail-overlay');
     const tbody = document.getElementById('unclaimed-detail-tbody');
     const totalEl = document.getElementById('unclaimed-detail-total');
     const errEl = document.getElementById('unclaimed-detail-error');
     const processBtn = document.getElementById('process-unclaimed-detail');
+    const selectAllCb = document.getElementById('unclaimed-select-all');
     errEl.classList.remove('show');
     processBtn.disabled = false;
-    processBtn.textContent = 'Process & settle';
+    processBtn.textContent = 'Process & settle selected';
+    selectAllCb.checked = true;
     document.getElementById('unclaimed-detail-title').textContent =
       `${name} — ${type === 'technician' ? 'unclaimed wallet balance' : 'unclaimed amount'}`;
-    tbody.innerHTML = `<tr><td colspan="3" class="empty-row">Loading…</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Loading…</td></tr>`;
     totalEl.textContent = '₹0';
     overlay.classList.add('show');
     try {
+      let items; // normalized {id, label, customer, amount, detailData}
       if (type === 'servicecenter') {
         const snap = await getDocs(query(
           collection(db, 'centerRequests'),
@@ -4207,12 +4245,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ));
         const tickets = [];
         snap.forEach(d => tickets.push({ id: d.id, ...d.data() }));
-        const total = tickets.reduce((sum, t) => sum + (t.billingTotal || 0), 0);
-        unclaimedDetailContext = { type, uid, name, tickets, total };
-        tbody.innerHTML = tickets.length ? tickets.map(t => `
-          <tr><td>${escapeHtml(t.requestId || t.id)}</td><td>${escapeHtml(t.customerName) || '—'}</td><td>₹${t.billingTotal || 0}</td></tr>`).join('')
-          : `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
-        totalEl.textContent = `₹${total}`;
+        items = tickets.map(t => ({
+          id: t.id, label: t.requestId || t.id, customer: t.customerName || '—',
+          amount: t.billingTotal || 0, detailData: t, raw: t
+        }));
+        unclaimedDetailContext = { type, uid, name, tickets, items };
       } else {
         const snap = await getDocs(query(
           collection(db, 'walletTransactions'),
@@ -4221,19 +4258,92 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ));
         const txns = [];
         snap.forEach(d => txns.push({ id: d.id, ...d.data() }));
-        const total = txns.reduce((sum, t) => sum + (t.amount || 0), 0);
-        unclaimedDetailContext = { type, uid, name, txns, total };
-        tbody.innerHTML = txns.length ? txns.map(t => `
-          <tr><td>${escapeHtml(t.sourceJobLabel || t.sourceJobId)}</td><td>—</td><td>₹${t.amount || 0}</td></tr>`).join('')
-          : `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
-        totalEl.textContent = `₹${total}`;
+        items = txns.map(t => ({
+          id: t.id, label: t.sourceJobLabel || t.sourceJobId, customer: '—',
+          amount: t.amount || 0, detailData: null, raw: t
+        }));
+        unclaimedDetailContext = { type, uid, name, txns, items };
       }
+      renderUnclaimedItemsTable(items);
     } catch (err) {
       console.error('Load unclaimed detail failed:', err);
-      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
       unclaimedDetailContext = null;
     }
   }
+
+  function renderUnclaimedItemsTable(items) {
+    const tbody = document.getElementById('unclaimed-detail-tbody');
+    if (!items.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Nothing unclaimed.</td></tr>`;
+      updateUnclaimedTotal();
+      return;
+    }
+    tbody.innerHTML = items.map(it => `
+      <tr class="unclaimed-item-row" data-id="${it.id}" style="cursor:pointer;">
+        <td><input type="checkbox" class="unclaimed-item-cb" data-id="${it.id}" checked></td>
+        <td>${escapeHtml(it.label)}</td>
+        <td>${escapeHtml(it.customer)}</td>
+        <td>₹${it.amount}</td>
+      </tr>
+      <tr class="unclaimed-item-detail" data-detail-for="${it.id}" style="display:none;">
+        <td colspan="4" style="background:var(--linen,#faf7f0);"><div class="unclaimed-detail-content">Loading details…</div></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('.unclaimed-item-cb').forEach(cb => {
+      cb.addEventListener('click', (e) => e.stopPropagation());
+      cb.addEventListener('change', updateUnclaimedTotal);
+    });
+    tbody.querySelectorAll('.unclaimed-item-row').forEach(tr => {
+      tr.addEventListener('click', () => toggleUnclaimedItemDetail(tr.dataset.id));
+    });
+    updateUnclaimedTotal();
+  }
+
+  function updateUnclaimedTotal() {
+    if (!unclaimedDetailContext) return;
+    const checkedIds = new Set(Array.from(document.querySelectorAll('.unclaimed-item-cb:checked')).map(cb => cb.dataset.id));
+    const selected = unclaimedDetailContext.items.filter(it => checkedIds.has(it.id));
+    const total = selected.reduce((sum, it) => sum + (it.amount || 0), 0);
+    document.getElementById('unclaimed-detail-total').textContent = `₹${total}`;
+    unclaimedDetailContext.selectedTotal = total;
+    unclaimedDetailContext.selectedItems = selected;
+  }
+
+  async function toggleUnclaimedItemDetail(id) {
+    const detailRow = document.querySelector(`.unclaimed-item-detail[data-detail-for="${id}"]`);
+    if (!detailRow) return;
+    const isOpen = detailRow.style.display !== 'none';
+    if (isOpen) { detailRow.style.display = 'none'; return; }
+    detailRow.style.display = '';
+    const contentEl = detailRow.querySelector('.unclaimed-detail-content');
+    const item = unclaimedDetailContext.items.find(it => it.id === id);
+    if (!item) return;
+    if (item.detailData) {
+      contentEl.innerHTML = renderUnclaimedDetailFields(item.detailData);
+      return;
+    }
+    // Technician wallet entry — lazily fetch the underlying job doc
+    // for full details (not carried on the wallet transaction itself).
+    const txn = item.raw;
+    if (!txn.sourceJobCollection || !txn.sourceJobId) {
+      contentEl.innerHTML = '<div style="font-size:12.5px;color:var(--stone);">No further details on file.</div>';
+      return;
+    }
+    try {
+      const jobSnap = await getDoc(doc(db, txn.sourceJobCollection, txn.sourceJobId));
+      item.detailData = jobSnap.exists() ? jobSnap.data() : {};
+      contentEl.innerHTML = renderUnclaimedDetailFields(item.detailData);
+    } catch (err) {
+      console.error('Load job detail failed:', err);
+      contentEl.innerHTML = '<div style="font-size:12.5px;color:var(--err);">Could not load details.</div>';
+    }
+  }
+
+  document.getElementById('unclaimed-select-all').addEventListener('change', (e) => {
+    document.querySelectorAll('.unclaimed-item-cb').forEach(cb => { cb.checked = e.target.checked; });
+    updateUnclaimedTotal();
+  });
+
   function closeUnclaimedDetailModal() {
     document.getElementById('unclaimed-detail-overlay').classList.remove('show');
     unclaimedDetailContext = null;
@@ -4245,11 +4355,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   document.getElementById('process-unclaimed-detail').addEventListener('click', async () => {
     if (!unclaimedDetailContext) return;
-    const { type, uid, name, tickets, txns, total } = unclaimedDetailContext;
+    const { type, uid, name } = unclaimedDetailContext;
+    const selectedItems = unclaimedDetailContext.selectedItems || [];
+    const total = unclaimedDetailContext.selectedTotal || 0;
     const errEl = document.getElementById('unclaimed-detail-error');
     errEl.classList.remove('show');
-    if (!total) {
-      errEl.textContent = 'Nothing to process.';
+    if (!selectedItems.length || !total) {
+      errEl.textContent = 'Tick at least one ticket/job to process.';
       errEl.classList.add('show');
       return;
     }
@@ -4260,6 +4372,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const claimId = await generateClaimId();
       let newClaimRef;
       if (type === 'servicecenter') {
+        const tickets = selectedItems.map(it => it.raw);
         const lineItems = tickets.map(t => ({
           sourceJobId: t.id, sourceJobCollection: 'centerRequests',
           sourceJobLabel: t.requestId || t.id, serialNumber: t.serialNumber || null,
@@ -4276,6 +4389,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           billingStatus: 'claimed', claimId, updatedAt: serverTimestamp()
         })));
       } else {
+        const txns = selectedItems.map(it => it.raw);
         const lineItems = txns.map(t => ({
           sourceJobId: t.sourceJobId, sourceJobCollection: t.sourceJobCollection,
           sourceJobLabel: t.sourceJobLabel, serialNumber: t.serialNumber || null, total: t.amount || 0
@@ -4283,10 +4397,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         newClaimRef = await addDoc(collection(db, 'claims'), {
           claimId, claimantType: 'technician', claimantUid: uid, claimantName: name,
           description: `Warranty service-charge claim (processed by Head Office) — ${txns.length} job${txns.length > 1 ? 's' : ''} (${txns.map(t => t.sourceJobLabel || t.sourceJobId).join(', ')})`,
-          amount: total, lineItems, walletTxnIds: txns.map(t => t.id), notes: '',
+          amount: total, lineItems, walletTxnIds: selectedItems.map(it => it.id), notes: '',
           status: 'submitted', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
-        await Promise.all(txns.map(t => updateDoc(doc(db, 'walletTransactions', t.id), {
+        await Promise.all(selectedItems.map(it => updateDoc(doc(db, 'walletTransactions', it.id), {
           status: 'claimed', claimId, updatedAt: serverTimestamp()
         })));
       }
@@ -4302,7 +4416,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       errEl.textContent = 'Could not process this claim. Check console for details.';
       errEl.classList.add('show');
       btn.disabled = false;
-      btn.textContent = 'Process & settle';
+      btn.textContent = 'Process & settle selected';
     }
   });
 
