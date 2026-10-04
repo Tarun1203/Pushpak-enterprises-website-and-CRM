@@ -558,6 +558,17 @@
   </div>
 </div>
 
+<!-- Billing — full ticket detail popup (click a ticket ID in any of the three Service Billing tables) -->
+<div class="modal-overlay" id="billing-ticket-detail-overlay">
+  <div class="modal" style="max-width:600px;">
+    <h3 id="billing-ticket-detail-title">Ticket details</h3>
+    <div id="billing-ticket-detail-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-billing-ticket-detail">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -2727,7 +2738,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const completedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleDateString() : (d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleDateString() : '—');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td>${escapeHtml(d.serialNumber) || '—'}</td>
           <td>${completedStr}</td>
@@ -2747,7 +2758,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><input type="checkbox" class="claim-select-cb" data-id="${d.id}"></td>
-          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td>${escapeHtml(d.serialNumber) || '—'}</td>
           <td>₹${d.billingTotal ?? 0}</td>
@@ -2768,18 +2779,78 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const label = d.billingStatus === 'claimed' ? `Claimed${d.claimId ? ' — ' + escapeHtml(d.claimId) : ''}` : 'Collected from customer';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td style="text-transform:capitalize;">${d.billingType === 'customer' ? 'Customer paid' : 'Warranty claim'}</td>
           <td>₹${d.billingTotal ?? '—'}</td>
           <td><span class="status-pill ${pillClass}">${label}</span></td>`;
         historyTbody.appendChild(tr);
       });
+
+      contentEl.querySelectorAll('.billing-ticket-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          openBillingTicketDetail(a.dataset.id);
+        });
+      });
     } catch (err) {
       console.error('Load service billing failed:', err);
       pendingTbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load tickets. Check console for details.</td></tr>`;
     }
   }
+
+  // Curated field list for the full ticket-detail popup — unknown/
+  // absent fields are simply skipped.
+  const BILLING_DETAIL_FIELDS = [
+    ['customerName', 'Customer'], ['customerPhone', 'Phone'], ['address', 'Address'],
+    ['category', 'Category'], ['product', 'Product'], ['sizeBucket', 'Size / Model'],
+    ['serialNumber', 'Serial Number'], ['issue', 'Issue'], ['technicianName', 'Technician'],
+    ['status', 'Status'], ['warrantyStatus', 'Warranty Status'],
+    ['sparePartsCost', 'Spare Parts Cost'], ['serviceCharge', 'Service Charge'],
+    ['otherCharges', 'Other Charges'], ['billingTotal', 'Billing Total'],
+    ['billingType', 'Billing Type'], ['billingStatus', 'Billing Status'],
+    ['customerPaymentMethod', 'Payment Method'], ['customerPaymentRef', 'Payment Reference'],
+    ['claimId', 'Claim ID'], ['closureCode', 'Closure Code'], ['actionTaken', 'Action Taken'],
+    ['partsUsedNotes', 'Parts Used'],
+  ];
+  function formatBillingDetailValue(key, val) {
+    if (val === null || val === undefined || val === '') return null;
+    if (val && typeof val === 'object' && typeof val.toDate === 'function') return val.toDate().toLocaleString();
+    if (['sparePartsCost', 'serviceCharge', 'otherCharges', 'billingTotal'].includes(key)) return `₹${val}`;
+    return String(val);
+  }
+  function openBillingTicketDetail(ticketId) {
+    const d = billingTicketsCache.find(t => t.id === ticketId);
+    const overlay = document.getElementById('billing-ticket-detail-overlay');
+    const bodyEl = document.getElementById('billing-ticket-detail-body');
+    document.getElementById('billing-ticket-detail-title').textContent = (d && (d.requestId || d.id)) || 'Ticket details';
+    if (!d) {
+      bodyEl.innerHTML = '<div style="color:var(--stone);">Could not find this ticket.</div>';
+      overlay.classList.add('show');
+      return;
+    }
+    const rows = BILLING_DETAIL_FIELDS
+      .map(([key, label]) => [label, formatBillingDetailValue(key, d[key])])
+      .filter(([, val]) => val !== null);
+    const createdStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : null;
+    const completedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleString() : null;
+    const billedStr = d.billedAt && d.billedAt.toDate ? d.billedAt.toDate().toLocaleString() : null;
+    if (createdStr) rows.push(['Created', createdStr]);
+    if (completedStr) rows.push(['Completed', completedStr]);
+    if (billedStr) rows.push(['Billed', billedStr]);
+    bodyEl.innerHTML = rows.length
+      ? `<div style="display:grid;grid-template-columns:150px 1fr;gap:6px 12px;">
+          ${rows.map(([label, val]) => `<div style="color:var(--stone);">${escapeHtml(label)}</div><div>${escapeHtml(val)}</div>`).join('')}
+        </div>`
+      : '<div style="color:var(--stone);">No further details on file.</div>';
+    overlay.classList.add('show');
+  }
+  document.getElementById('close-billing-ticket-detail').addEventListener('click', () => {
+    document.getElementById('billing-ticket-detail-overlay').classList.remove('show');
+  });
+  document.getElementById('billing-ticket-detail-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'billing-ticket-detail-overlay') e.target.classList.remove('show');
+  });
 
   function updateBulkClaimBtn() {
     const anyChecked = !!document.querySelector('.claim-select-cb:checked');
