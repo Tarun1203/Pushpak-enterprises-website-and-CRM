@@ -346,6 +346,18 @@
   </div>
 </div>
 
+<!-- Center Requests — full detail popup with next-process actions -->
+<div class="modal-overlay" id="req-detail-overlay">
+  <div class="modal" style="max-width:600px;">
+    <h3 id="req-detail-title">Request details</h3>
+    <div id="req-detail-body" style="font-size:13.5px;color:var(--ink);line-height:1.8;"></div>
+    <div id="req-detail-actions" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="close-req-detail">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Assign / reassign technician modal -->
 <div class="modal-overlay" id="req-assign-tech-overlay">
   <div class="modal">
@@ -825,6 +837,94 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     loadCenterRequests(typeFilter);
   }
 
+  // Shared between the table row's Actions cell and the detail
+  // popup's action area, so the two never drift out of sync.
+  function buildRequestActionsHtml(d) {
+    let actionHtml = '—';
+    if (d.status === 'new') {
+      actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
+    } else if (d.status === 'assigned') {
+      actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
+    } else if (d.status === 'in_progress') {
+      actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
+    } else if (d.status === 'waiting_spare') {
+      actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${d.id}">Resume Work</button>`;
+    }
+    const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
+    if (reassignable.includes(d.status)) {
+      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button></div>`;
+    }
+    return actionHtml;
+  }
+
+  // Wires whichever of the six action-button classes are present
+  // inside `container` — works for a table row or the detail popup's
+  // action area alike. `onAction` (optional) fires right after any
+  // button is clicked, e.g. to close the popup it was opened from.
+  function wireRequestActionButtons(container, docsList, typeFilter, onAction) {
+    container.querySelectorAll('.req-assign-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'assigned', typeFilter); if (onAction) onAction(); }));
+    container.querySelectorAll('.req-progress-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'in_progress', typeFilter); if (onAction) onAction(); }));
+    container.querySelectorAll('.req-complete-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const jobDoc = docsList.find(x => x.id === b.dataset.id);
+        if (onAction) onAction();
+        if (jobDoc) openScClosureModal(jobDoc, typeFilter);
+      });
+    });
+    container.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'cancelled', typeFilter); if (onAction) onAction(); }));
+    container.querySelectorAll('.req-resume-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'in_progress', typeFilter); if (onAction) onAction(); }));
+    container.querySelectorAll('.req-spare-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const jobDoc = docsList.find(x => x.id === b.dataset.id);
+        if (onAction) onAction();
+        if (jobDoc) openSpareReqModal(jobDoc, typeFilter);
+      });
+    });
+    container.querySelectorAll('.req-reassign-tech-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const jobDoc = docsList.find(x => x.id === b.dataset.id);
+        if (onAction) onAction();
+        if (jobDoc) openReqAssignTechModal(jobDoc, typeFilter);
+      });
+    });
+  }
+
+  // Curated field list for the request-detail popup — unknown/absent
+  // fields are simply skipped.
+  const REQUEST_DETAIL_FIELDS = [
+    ['customerName', 'Customer'], ['customerPhone', 'Phone'], ['address', 'Address'],
+    ['category', 'Category'], ['product', 'Product'], ['modelText', 'Model'],
+    ['serialNumber', 'Serial Number'], ['purchaseDate', 'Purchase Date'],
+    ['purchasedFrom', 'Purchased From'], ['issue', 'Issue'],
+    ['technicianName', 'Technician'], ['scheduledDate', 'Scheduled Date'],
+  ];
+  function openRequestDetailModal(d, typeFilter) {
+    const overlay = document.getElementById('req-detail-overlay');
+    const bodyEl = document.getElementById('req-detail-body');
+    const actionsEl = document.getElementById('req-detail-actions');
+    document.getElementById('req-detail-title').textContent = d.requestId || d.id;
+    const rows = [['Type', d.type ? d.type.charAt(0).toUpperCase() + d.type.slice(1) : 'Repair']];
+    REQUEST_DETAIL_FIELDS.forEach(([key, label]) => {
+      if (d[key]) rows.push([label, d[key]]);
+    });
+    rows.push(['Status', JOB_STATUS_LABELS[d.status] || d.status]);
+    const createdStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : null;
+    const closedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleString() : null;
+    if (createdStr) rows.push(['Created', createdStr]);
+    if (closedStr) rows.push(['Completed', closedStr]);
+    bodyEl.innerHTML = `<div style="display:grid;grid-template-columns:150px 1fr;gap:6px 12px;">
+      ${rows.map(([label, val]) => `<div style="color:var(--stone);">${escapeHtml(label)}</div><div>${escapeHtml(val)}</div>`).join('')}
+    </div>`;
+    const actionHtml = buildRequestActionsHtml(d);
+    actionsEl.innerHTML = actionHtml === '—' ? '' : actionHtml;
+    wireRequestActionButtons(actionsEl, [d], typeFilter, () => overlay.classList.remove('show'));
+    overlay.classList.add('show');
+  }
+  document.getElementById('close-req-detail').addEventListener('click', () => document.getElementById('req-detail-overlay').classList.remove('show'));
+  document.getElementById('req-detail-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'req-detail-overlay') e.target.classList.remove('show');
+  });
+
   async function loadCenterRequests(typeFilter) {
     const tbody = document.getElementById('req-tbody');
     if (!currentUser) return;
@@ -842,54 +942,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         return;
       }
       tbody.innerHTML = '';
-      const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
       docs.forEach(d => {
-        let actionHtml = '—';
-        if (d.status === 'new') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
-        } else if (d.status === 'assigned') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
-        } else if (d.status === 'in_progress') {
-          actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
-        } else if (d.status === 'waiting_spare') {
-          actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${d.id}">Resume Work</button>`;
-        }
-        if (reassignable.includes(d.status)) {
-          actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button></div>`;
-        }
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="req-detail-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td style="text-transform:capitalize;">${d.type || 'repair'}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.customerPhone || '—')}</td>
           <td>${d.technicianName || '—'}</td>
           <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
-          <td>${actionHtml}</td>`;
+          <td>${buildRequestActionsHtml(d)}</td>`;
         tbody.appendChild(tr);
       });
-      tbody.querySelectorAll('.req-assign-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'assigned', typeFilter)));
-      tbody.querySelectorAll('.req-progress-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
-      tbody.querySelectorAll('.req-complete-btn').forEach(b => {
-        b.addEventListener('click', () => {
-          const jobDoc = docs.find(x => x.id === b.dataset.id);
-          if (jobDoc) openScClosureModal(jobDoc, typeFilter);
+      tbody.querySelectorAll('.req-detail-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const jobDoc = docs.find(x => x.id === a.dataset.id);
+          if (jobDoc) openRequestDetailModal(jobDoc, typeFilter);
         });
       });
-      tbody.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'cancelled', typeFilter)));
-      tbody.querySelectorAll('.req-resume-btn').forEach(b => b.addEventListener('click', () => advanceRequest(b.dataset.id, 'in_progress', typeFilter)));
-      tbody.querySelectorAll('.req-spare-btn').forEach(b => {
-        b.addEventListener('click', () => {
-          const jobDoc = docs.find(x => x.id === b.dataset.id);
-          if (jobDoc) openSpareReqModal(jobDoc, typeFilter);
-        });
-      });
-      tbody.querySelectorAll('.req-reassign-tech-btn').forEach(b => {
-        b.addEventListener('click', () => {
-          const jobDoc = docs.find(x => x.id === b.dataset.id);
-          if (jobDoc) openReqAssignTechModal(jobDoc, typeFilter);
-        });
-      });
+      wireRequestActionButtons(tbody, docs, typeFilter);
     } catch (err) {
       console.error('Load center requests failed:', err);
       tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load requests. Check console for details.</td></tr>`;
