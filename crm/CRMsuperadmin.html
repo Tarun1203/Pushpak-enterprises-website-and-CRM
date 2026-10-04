@@ -415,6 +415,19 @@
   </div>
 </div>
 
+<!-- Technician full profile modal — the SAME centerTechnicians doc that
+     Service Center and the technician's own Profile page read/write,
+     so Super Admin's view/edits can't drift from either. -->
+<div class="modal-overlay" id="tech-fullprofile-overlay">
+  <div class="modal" style="max-width:680px;max-height:85vh;overflow-y:auto;">
+    <h3 id="tfp-title">Technician profile</h3>
+    <div id="tfp-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="tfp-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Shared suggestion lists — populated from real customer registrations -->
 <!-- Edit Site Content modal -->
 <div class="modal-overlay" id="sitecontent-overlay">
@@ -4083,8 +4096,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12.5px;max-width:220px;">${skillsLabel}</td>
           <td>${jobSnap.size}</td>
           <td>${availStatus ? `<span class="status-pill ${availMeta.cls}">${availMeta.label}</span>` : '—'}</td>
-          <td><button class="btn-secondary tech-suspend-btn" data-uid="${userDoc.id}" data-suspended="${isSuspended}">${isSuspended ? 'Reinstate' : 'Suspend'}</button></td>`;
+          <td>
+            <button class="btn-secondary tech-suspend-btn" data-uid="${userDoc.id}" data-suspended="${isSuspended}">${isSuspended ? 'Reinstate' : 'Suspend'}</button>
+            <button class="btn-secondary tech-fullprofile-btn" data-uid="${userDoc.id}" data-name="${escapeHtml(d.name || d.email || '')}" style="margin-left:6px;">Full profile</button>
+          </td>`;
         tbody.appendChild(tr);
+        tr.querySelector('.tech-fullprofile-btn').addEventListener('click', (e) => {
+          openTechFullProfile(e.target.dataset.uid, e.target.dataset.name);
+        });
         tr.querySelector('.tech-suspend-btn').addEventListener('click', async (e) => {
           const btn = e.target;
           const wasSuspended = btn.dataset.suspended === 'true';
@@ -4105,6 +4124,220 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } catch (err) {
       console.error('Load technicians failed:', err);
       tbody.innerHTML = `<tr><td colspan="8" class="empty-row" style="color:var(--err);">Couldn't load technicians. Check console for details.</td></tr>`;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Technician full profile — Super Admin's view/edit of the SAME
+  // centerTechnicians doc the Service Center's popup and the
+  // technician's own Profile page use (found by technicianUid), so
+  // nothing here can drift from either of those. Super Admin can edit
+  // Identity/Employment/Capacity/Address/Vehicle directly, and is the
+  // one who approves/rejects Leave and verifies Documents — the two
+  // admin-controlled actions neither Service Center nor the
+  // technician can do to their own/their roster's records.
+  // -----------------------------------------------------------------
+  const TFP_BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+  let tfpDocId = null;
+  let tfpData = null;
+
+  async function openTechFullProfile(uid, name) {
+    document.getElementById('tfp-title').textContent = name ? `${name} — full profile` : 'Technician profile';
+    const body = document.getElementById('tfp-body');
+    body.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    document.getElementById('tech-fullprofile-overlay').classList.add('show');
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', uid)));
+      if (snap.empty) {
+        body.innerHTML = `<div style="color:var(--stone);">Not on any Service Center's roster yet — nothing to show until a Service Center adds/links this technician under Center Technicians.</div>`;
+        return;
+      }
+      tfpDocId = snap.docs[0].id;
+      tfpData = { id: tfpDocId, ...snap.docs[0].data() };
+      renderTfpBody(tfpData);
+    } catch (err) {
+      console.error('Load technician full profile failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
+    }
+  }
+  document.getElementById('tfp-close').addEventListener('click', () => document.getElementById('tech-fullprofile-overlay').classList.remove('show'));
+  document.getElementById('tech-fullprofile-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'tech-fullprofile-overlay') e.target.classList.remove('show');
+  });
+
+  function renderTfpBody(d) {
+    const body = document.getElementById('tfp-body');
+    const brandsHtml = (d.brandAuthorizations || []).filter(b => b.status || b.level).map(b =>
+      `<div><strong>${TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${b.status || '—'}${b.level ? ' · ' + b.level : ''}</div>`
+    ).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+    const skillsHtml = (d.technicalSkills || []).filter(s => s.skill).map(s => `<div>${escapeHtml(s.skill)}${s.level ? ' — ' + s.level : ''}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+    const toolsHtml = (d.tools || []).filter(t => t.toolName).map(t => `<div>${escapeHtml(t.toolName)} — ${t.status || 'ASSIGNED'}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+
+    body.innerHTML = `
+      <div style="font-weight:600;margin-bottom:8px;">Identity &amp; Employment</div>
+      <div class="form-row"><label>Name</label><input type="text" id="tfp-name"></div>
+      <div class="form-row"><label>Phone</label><input type="text" id="tfp-phone"></div>
+      <div class="form-row"><label>Employment Status</label>
+        <select id="tfp-emp-status"><option value="">—</option><option value="ACTIVE">Active</option><option value="ON_PROBATION">On Probation</option><option value="ON_LEAVE">On Leave</option><option value="SUSPENDED">Suspended</option><option value="RESIGNED">Resigned</option><option value="TERMINATED">Terminated</option></select>
+      </div>
+      <div class="form-row"><label>Designation</label><input type="text" id="tfp-designation"></div>
+      <div class="form-row"><label>Department</label><input type="text" id="tfp-department"></div>
+      <div class="form-row"><label>Joining Date</label><input type="date" id="tfp-joining-date"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Capacity</div>
+      <div class="form-row"><label>Max Jobs / Day</label><input type="number" min="0" id="tfp-max-jobs"></div>
+      <div class="form-row"><label>Max Service Hours / Day</label><input type="number" min="0" step="0.5" id="tfp-max-service-hours"></div>
+
+      <div class="modal-error" id="tfp-error"></div>
+      <div class="modal-success" id="tfp-success"></div>
+      <button type="button" class="btn-primary" id="tfp-save">Save changes</button>
+
+      <div style="font-weight:600;margin:20px 0 8px;">Brand Authorization</div>
+      ${brandsHtml}
+      <div style="font-weight:600;margin:16px 0 8px;">Technical Skills</div>
+      ${skillsHtml}
+      <div style="font-weight:600;margin:16px 0 8px;">Tools &amp; Equipment</div>
+      ${toolsHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Leave &amp; Holidays <span style="font-weight:400;color:var(--stone);font-size:12px;">(approve/reject pending requests)</span></div>
+      <div id="tfp-leave-list"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Documents <span style="font-weight:400;color:var(--stone);font-size:12px;">(verify uploaded documents)</span></div>
+      <div id="tfp-doc-list"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Timeline</div>
+      <div id="tfp-timeline">Loading…</div>`;
+
+    document.getElementById('tfp-name').value = d.name || '';
+    document.getElementById('tfp-phone').value = d.phone || '';
+    document.getElementById('tfp-emp-status').value = d.employmentStatus || '';
+    document.getElementById('tfp-designation').value = d.designation || '';
+    document.getElementById('tfp-department').value = d.department || '';
+    document.getElementById('tfp-joining-date').value = d.joiningDate || '';
+    const cap = d.capacity || {};
+    document.getElementById('tfp-max-jobs').value = cap.maxJobsPerDay ?? '';
+    document.getElementById('tfp-max-service-hours').value = cap.maxServiceHoursPerDay ?? '';
+
+    renderTfpLeaveList(d);
+    renderTfpDocList(d);
+    loadTfpTimeline(d.id);
+
+    document.getElementById('tfp-save').addEventListener('click', async () => {
+      const btn = document.getElementById('tfp-save');
+      const errEl = document.getElementById('tfp-error');
+      const okEl = document.getElementById('tfp-success');
+      errEl.classList.remove('show'); okEl.classList.remove('show');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const newStatus = document.getElementById('tfp-emp-status').value;
+        const statusChanged = newStatus && newStatus !== (d.employmentStatus || '');
+        await updateDoc(doc(db, 'centerTechnicians', d.id), {
+          name: document.getElementById('tfp-name').value.trim(),
+          phone: document.getElementById('tfp-phone').value.trim(),
+          employmentStatus: newStatus,
+          designation: document.getElementById('tfp-designation').value.trim(),
+          department: document.getElementById('tfp-department').value.trim(),
+          joiningDate: document.getElementById('tfp-joining-date').value,
+          capacity: {
+            ...(d.capacity || {}),
+            maxJobsPerDay: document.getElementById('tfp-max-jobs').value ? Number(document.getElementById('tfp-max-jobs').value) : null,
+            maxServiceHoursPerDay: document.getElementById('tfp-max-service-hours').value ? Number(document.getElementById('tfp-max-service-hours').value) : null
+          },
+          updatedAt: serverTimestamp()
+        });
+        if (statusChanged) {
+          const label = newStatus === 'ACTIVE' ? 'Employment status set to Active (by Super Admin)'
+            : newStatus === 'SUSPENDED' ? 'Employment status set to Suspended (by Super Admin)'
+            : `Employment status changed to ${newStatus} (by Super Admin)`;
+          await addDoc(collection(db, 'technicianTimeline'), {
+            technicianDocId: d.id, event: newStatus === 'ACTIVE' ? 'ACCOUNT_ACTIVATED' : newStatus === 'SUSPENDED' ? 'ACCOUNT_SUSPENDED' : 'STATUS_CHANGED',
+            label, performedBy: auth.currentUser ? auth.currentUser.email : 'unknown', createdAt: serverTimestamp()
+          });
+        }
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+        renderTechniciansOverview();
+      } catch (err) {
+        console.error('Save technician full profile failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false; btn.textContent = 'Save changes';
+    });
+  }
+
+  function renderTfpLeaveList(d) {
+    const el = document.getElementById('tfp-leave-list');
+    const records = d.leaveRecords || [];
+    if (!records.length) { el.innerHTML = `<div style="color:var(--stone);">No leave records.</div>`; return; }
+    el.innerHTML = records.map((l, i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--hairline);">
+        <div style="flex:1;font-size:13px;">${escapeHtml(l.leaveType || '—')} · ${escapeHtml(l.startDate || '')}–${escapeHtml(l.endDate || '')} · ${escapeHtml(l.reason || '')} · <strong>${escapeHtml(l.status || 'PENDING')}</strong></div>
+        ${l.status === 'PENDING' ? `<button type="button" class="btn-secondary tfp-leave-approve" data-idx="${i}">Approve</button><button type="button" class="btn-secondary tfp-leave-reject" data-idx="${i}">Reject</button>` : ''}
+      </div>`).join('');
+    el.querySelectorAll('.tfp-leave-approve').forEach(btn => btn.addEventListener('click', () => updateTfpLeaveStatus(Number(btn.dataset.idx), 'APPROVED')));
+    el.querySelectorAll('.tfp-leave-reject').forEach(btn => btn.addEventListener('click', () => updateTfpLeaveStatus(Number(btn.dataset.idx), 'REJECTED')));
+  }
+  async function updateTfpLeaveStatus(idx, status) {
+    try {
+      const records = (tfpData.leaveRecords || []).slice();
+      records[idx] = { ...records[idx], status, approvedBy: auth.currentUser ? auth.currentUser.email : 'unknown', approvalDate: new Date().toISOString().slice(0, 10) };
+      await updateDoc(doc(db, 'centerTechnicians', tfpData.id), { leaveRecords: records });
+      if (status === 'APPROVED') {
+        await addDoc(collection(db, 'technicianTimeline'), {
+          technicianDocId: tfpData.id, event: 'LEAVE_APPROVED', label: `Leave approved — ${records[idx].leaveType || records[idx].leaveId}`,
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown', createdAt: serverTimestamp()
+        });
+      }
+      tfpData.leaveRecords = records;
+      renderTfpLeaveList(tfpData);
+      loadTfpTimeline(tfpData.id);
+    } catch (err) {
+      console.error('Update leave status failed:', err);
+      alert('Could not update this leave request. Check the console for details.');
+    }
+  }
+
+  function renderTfpDocList(d) {
+    const el = document.getElementById('tfp-doc-list');
+    const docs = d.documents || [];
+    if (!docs.length) { el.innerHTML = `<div style="color:var(--stone);">No documents uploaded.</div>`; return; }
+    el.innerHTML = docs.map((doc_, i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--hairline);">
+        <div style="flex:1;font-size:13px;">${escapeHtml(doc_.docType || '—')} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} · <strong>${doc_.verified ? 'Verified' : 'Pending verification'}</strong></div>
+        ${!doc_.verified ? `<button type="button" class="btn-secondary tfp-doc-verify" data-idx="${i}">Verify</button>` : ''}
+      </div>`).join('');
+    el.querySelectorAll('.tfp-doc-verify').forEach(btn => btn.addEventListener('click', () => verifyTfpDoc(Number(btn.dataset.idx))));
+  }
+  async function verifyTfpDoc(idx) {
+    try {
+      const docs = (tfpData.documents || []).slice();
+      docs[idx] = { ...docs[idx], verified: true, verifiedBy: auth.currentUser ? auth.currentUser.email : 'unknown', verificationDate: new Date().toISOString().slice(0, 10) };
+      await updateDoc(doc(db, 'centerTechnicians', tfpData.id), { documents: docs });
+      tfpData.documents = docs;
+      renderTfpDocList(tfpData);
+    } catch (err) {
+      console.error('Verify document failed:', err);
+      alert('Could not verify this document. Check the console for details.');
+    }
+  }
+
+  async function loadTfpTimeline(techId) {
+    const el = document.getElementById('tfp-timeline');
+    if (!el) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'technicianTimeline'), where('technicianDocId', '==', techId)));
+      const events = [];
+      snap.forEach(s => events.push({ id: s.id, ...s.data() }));
+      if (!events.length) { el.innerHTML = `<div style="color:var(--stone);">No activity recorded yet.</div>`; return; }
+      events.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      el.innerHTML = events.slice(0, 15).map(e => {
+        const dateLabel = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : '—';
+        return `<div style="padding:3px 0;border-bottom:1px solid var(--hairline);font-size:13px;"><strong>${dateLabel}</strong> — ${escapeHtml(e.label || e.event || '')}</div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load timeline failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load timeline.</div>`;
     }
   }
 

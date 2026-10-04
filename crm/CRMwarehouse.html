@@ -446,6 +446,21 @@
 </div>
 
 <!-- New Claim modal -->
+<!-- Technician full profile — read-only, from the SAME centerTechnicians
+     doc Service Center and the technician's own Profile page use.
+     Warehouse doesn't manage HR records, so this view has no edit
+     controls — it's here so Warehouse can check capacity/skills/
+     suspension status before dispatching stock. -->
+<div class="modal-overlay" id="wh-tech-profile-overlay">
+  <div class="modal" style="max-width:640px;max-height:85vh;overflow-y:auto;">
+    <h3 id="wh-tfp-title">Technician profile</h3>
+    <div id="wh-tfp-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="wh-tfp-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="claim-overlay">
   <div class="modal">
     <h3>New claim</h3>
@@ -835,7 +850,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const status = stockStatus(r.qty, r.part ? (r.part.reorderLevel || 0) : 0);
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td>${escapeHtml(r.locationName)}</td>
+              <td>${kind === 'technician' ? `<a href="#" class="wh-tech-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>` : escapeHtml(r.locationName)}</td>
               <td style="font-size:12px;color:var(--stone);">${r.part ? (r.part.partCode || r.part.id) : '—'}</td>
               <td>${r.part ? escapeHtml(r.part.name || '—') : '(unknown part)'}</td>
               <td><b>${r.qty}</b></td>
@@ -843,6 +858,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
             tbody.appendChild(tr);
           });
+        if (kind === 'technician') {
+          tbody.querySelectorAll('.wh-tech-profile-link').forEach(a => {
+            a.addEventListener('click', (e) => { e.preventDefault(); openWhTechProfile(a.dataset.uid, a.dataset.name); });
+          });
+        }
       }
       filterSelect.onchange = () => paintRows(filterSelect.value);
       paintRows('');
@@ -851,6 +871,56 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load stock. Check console for details.</td></tr>`;
     }
   }
+
+  // -----------------------------------------------------------------
+  // Technician full profile (read-only) — the SAME centerTechnicians
+  // doc Service Center/the technician's own Profile page use, found
+  // by technicianUid. No edit controls here on purpose: Warehouse
+  // doesn't own HR records, it just needs visibility before dispatch.
+  // -----------------------------------------------------------------
+  const WH_TFP_BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+
+  async function openWhTechProfile(uid, name) {
+    document.getElementById('wh-tfp-title').textContent = name ? `${name} — full profile` : 'Technician profile';
+    const body = document.getElementById('wh-tfp-body');
+    body.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    document.getElementById('wh-tech-profile-overlay').classList.add('show');
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', uid)));
+      if (snap.empty) {
+        body.innerHTML = `<div style="color:var(--stone);">Not on any Service Center's roster yet.</div>`;
+        return;
+      }
+      const d = { id: snap.docs[0].id, ...snap.docs[0].data() };
+      const brandsHtml = (d.brandAuthorizations || []).filter(b => b.status || b.level).map(b =>
+        `<div><strong>${WH_TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${b.status || '—'}${b.level ? ' · ' + b.level : ''}</div>`
+      ).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+      const skillsHtml = (d.technicalSkills || []).filter(s => s.skill).map(s => `<div>${escapeHtml(s.skill)}${s.level ? ' — ' + s.level : ''}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+      const cap = d.capacity || {};
+      const v = d.vehicleInfo || {};
+      body.innerHTML = `
+        <div><strong>Name:</strong> ${escapeHtml(d.name || '—')}</div>
+        <div><strong>Phone:</strong> ${escapeHtml(d.phone || '—')}</div>
+        <div><strong>Employment Status:</strong> ${escapeHtml(d.employmentStatus || '—')}</div>
+        <div><strong>Designation:</strong> ${escapeHtml(d.designation || '—')}</div>
+        <div style="font-weight:600;margin:14px 0 6px;">Brand Authorization</div>
+        ${brandsHtml}
+        <div style="font-weight:600;margin:14px 0 6px;">Technical Skills</div>
+        ${skillsHtml}
+        <div style="font-weight:600;margin:14px 0 6px;">Capacity</div>
+        <div><strong>Max Jobs/Day:</strong> ${cap.maxJobsPerDay ?? '—'} &nbsp; <strong>Max Service Hours/Day:</strong> ${cap.maxServiceHoursPerDay ?? '—'} &nbsp; <strong>Max Travel Hours/Day:</strong> ${cap.maxTravelHoursPerDay ?? '—'}</div>
+        <div style="font-weight:600;margin:14px 0 6px;">Vehicle / Travel</div>
+        <div>${v.vehicleType ? escapeHtml(v.vehicleType) : '—'}${v.vehicleNumber ? ' · ' + escapeHtml(v.vehicleNumber) : ''}${v.maxServiceRadius ? ' · service radius ' + v.maxServiceRadius + 'km' : ''}</div>
+        <div style="font-size:12px;color:var(--stone);margin-top:10px;">Spare stock is shown on this Technician Stock page already. Claims and service history are managed in their own modules.</div>`;
+    } catch (err) {
+      console.error('Load technician profile failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
+    }
+  }
+  document.getElementById('wh-tfp-close').addEventListener('click', () => document.getElementById('wh-tech-profile-overlay').classList.remove('show'));
+  document.getElementById('wh-tech-profile-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'wh-tech-profile-overlay') e.target.classList.remove('show');
+  });
 
   // =================================================================
   // SERVICE — company-wide serviceJobs + centerRequests + website

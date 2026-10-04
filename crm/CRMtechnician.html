@@ -2726,6 +2726,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="modal-success" id="profile-success"></div>
           <button class="btn-primary" id="save-profile" style="margin-top:8px;">Save changes</button>
         </div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header"><h2>Full profile</h2></div>
+        <div class="panel-body" id="full-profile-body"><div style="color:var(--stone);">Loading…</div></div>
       </div>`;
     if (!currentUser) return;
     try {
@@ -2740,6 +2744,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } catch (err) {
       console.error('Load profile failed:', err);
     }
+    loadFullProfile();
     document.getElementById('save-profile').addEventListener('click', async () => {
       const btn = document.getElementById('save-profile');
       const errEl = document.getElementById('profile-error');
@@ -2766,6 +2771,352 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       btn.disabled = false;
       btn.textContent = 'Save changes';
     });
+  }
+
+  // ---------------------------------------------------------------
+  // Full profile — reads/writes the SAME centerTechnicians doc your
+  // Service Center sees on their Center Technicians page (the one
+  // with technicianUid == you), so nothing here can drift from what
+  // they see. Only Identity/Emergency Contact/Address/Vehicle are
+  // yours to edit directly; Employment, Brand Authorization, Product
+  // Capability, Working Hours, Capacity and Tools are set by your
+  // Service Center and shown read-only. Spare Stock, Service History,
+  // Performance and Claims already have their own pages in this app
+  // (Inventory / Performance / Claims) — not duplicated here.
+  // ---------------------------------------------------------------
+  const FP_BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+  let fullProfileDocId = null;
+  let fullProfileData = null;
+
+  async function loadFullProfile() {
+    const el = document.getElementById('full-profile-body');
+    if (!currentUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', currentUser.uid)));
+      if (snap.empty) {
+        el.innerHTML = `<div style="color:var(--stone);">Not yet linked to a Service Center roster — ask your Service Center to add/link you under Center Technicians before this fills in.</div>`;
+        return;
+      }
+      const docSnap = snap.docs[0];
+      fullProfileDocId = docSnap.id;
+      fullProfileData = { id: docSnap.id, ...docSnap.data() };
+      renderFullProfileBody(fullProfileData);
+    } catch (err) {
+      console.error('Load full profile failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load your full profile. Check console for details.</div>`;
+    }
+  }
+
+  function fpFieldList(fields) {
+    return fields.map(([label, val]) => val ? `<div><strong>${label}:</strong> ${escapeHtml(String(val))}</div>` : '').join('') || `<div style="color:var(--stone);">Nothing on file yet.</div>`;
+  }
+
+  function renderFullProfileBody(d) {
+    const el = document.getElementById('full-profile-body');
+    const emp = [
+      ['Employee Code', d.employeeCode], ['Technician Type', d.technicianType], ['Employment Type', d.employmentType],
+      ['Designation', d.designation], ['Department', d.department], ['Joining Date', d.joiningDate],
+      ['Reporting Manager', d.reportingManager], ['Supervisor', d.supervisor], ['Employment Status', d.employmentStatus]
+    ];
+    const brandsHtml = (d.brandAuthorizations || []).filter(b => b.status || b.level).map(b =>
+      `<div><strong>${FP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${b.status || '—'}${b.level ? ' · ' + b.level : ''}${b.expiryDate ? ' · expires ' + escapeHtml(b.expiryDate) : ''}</div>`
+    ).join('') || `<div style="color:var(--stone);">No brand authorizations on file yet.</div>`;
+    const capsHtml = (d.productCapabilities || []).filter(c => c.level || c.model).map(c =>
+      `<div>${FP_BRAND_LABELS[c.brand] || c.brand || '—'} — ${escapeHtml(c.level || '—')}${c.certified ? ' (certified)' : ''}</div>`
+    ).join('') || `<div style="color:var(--stone);">No product capability records yet.</div>`;
+    const skillsHtml = (d.technicalSkills || []).filter(s => s.skill).map(s =>
+      `<div><strong>${escapeHtml(s.skill)}</strong>${s.level ? ' — ' + s.level : ''}${s.yearsExperience ? ' · ' + s.yearsExperience + 'y exp' : ''}</div>`
+    ).join('') || `<div style="color:var(--stone);">No technical skills on file yet.</div>`;
+    const whDays = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+    const wh = d.workingHours || {};
+    const whHtml = whDays.map(([k, lbl]) => {
+      const day = wh[k];
+      if (!day || !day.working) return `<div><strong>${lbl}:</strong> Off</div>`;
+      return `<div><strong>${lbl}:</strong> ${day.start || '—'}–${day.end || '—'}${day.breakStart ? ` (break ${day.breakStart}–${day.breakEnd || ''})` : ''}</div>`;
+    }).join('');
+    const cap = d.capacity || {};
+    const capacityHtml = fpFieldList([['Max Jobs / Day', cap.maxJobsPerDay], ['Max Service Hours / Day', cap.maxServiceHoursPerDay], ['Max Travel Hours / Day', cap.maxTravelHoursPerDay]]);
+    const toolsHtml = (d.tools || []).filter(t => t.toolName).map(t =>
+      `<div><strong>${escapeHtml(t.toolName)}</strong> — ${t.status || 'ASSIGNED'}${t.serialNumber ? ' · ' + escapeHtml(t.serialNumber) : ''}</div>`
+    ).join('') || `<div style="color:var(--stone);">No tools assigned yet.</div>`;
+
+    el.innerHTML = `
+      <div style="font-weight:600;margin-bottom:8px;">Identity &amp; Personal Details</div>
+      <div class="form-row"><label>Gender</label><select id="fp-gender"><option value="">—</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+      <div class="form-row"><label>Date of Birth</label><input type="date" id="fp-dob"></div>
+      <div class="form-row"><label>Alternate Mobile</label><input type="tel" id="fp-alt-phone"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Emergency Contact</div>
+      <div class="form-row"><label>Name</label><input type="text" id="fp-ec-name"></div>
+      <div class="form-row"><label>Number</label><input type="tel" id="fp-ec-phone"></div>
+      <div class="form-row"><label>Relationship</label><input type="text" id="fp-ec-relation"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Address <span style="font-weight:400;color:var(--stone);">(detailed — separate from the shipping address above)</span></div>
+      <div class="form-row"><label>Address Line 1</label><input type="text" id="fp-addr1"></div>
+      <div class="form-row"><label>Address Line 2</label><input type="text" id="fp-addr2"></div>
+      <div class="form-row"><label>Pincode</label><input type="text" id="fp-pincode" inputmode="numeric" maxlength="6"></div>
+      <div id="fp-pincode-note" style="font-size:12px;color:var(--stone);margin:-6px 0 10px;"></div>
+      <div class="form-row"><label>Area</label><input type="text" id="fp-area"></div>
+      <div class="form-row"><label>City</label><input type="text" id="fp-city"></div>
+      <div class="form-row"><label>Taluk</label><input type="text" id="fp-taluk"></div>
+      <div class="form-row"><label>District</label><input type="text" id="fp-district"></div>
+      <div class="form-row"><label>State</label><input type="text" id="fp-state"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Vehicle / Travel Information</div>
+      <div class="form-row"><label>Vehicle Type</label>
+        <select id="fp-veh-type"><option value="">—</option><option value="MOTORCYCLE">Motorcycle</option><option value="SCOOTER">Scooter</option><option value="CAR">Car</option><option value="VAN">Van</option><option value="COMPANY_VEHICLE">Company Vehicle</option><option value="PUBLIC_TRANSPORT">Public Transport</option><option value="OTHER">Other</option></select>
+      </div>
+      <div class="form-row"><label>Vehicle Number</label><input type="text" id="fp-veh-number"></div>
+      <div class="form-row"><label>Driving License Number</label><input type="text" id="fp-veh-license"></div>
+      <div class="form-row"><label>License Expiry</label><input type="date" id="fp-veh-license-expiry"></div>
+
+      <div class="modal-error" id="fp-error"></div>
+      <div class="modal-success" id="fp-success"></div>
+      <button class="btn-primary" id="fp-save" style="margin-top:8px;">Save changes</button>
+
+      <div style="font-weight:600;margin:20px 0 8px;">Employment Details <span style="font-weight:400;color:var(--stone);font-size:12px;">(set by your Service Center)</span></div>
+      ${fpFieldList(emp)}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Brand Authorization</div>
+      ${brandsHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Product Capability</div>
+      ${capsHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technical Skills</div>
+      ${skillsHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Working Hours</div>
+      ${whHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Capacity</div>
+      ${capacityHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Tools &amp; Equipment</div>
+      ${toolsHtml}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Leave &amp; Holidays</div>
+      <div id="fp-leave-list">${fpLeaveListHtml(d.leaveRecords || [])}</div>
+      <div class="form-row"><label>Leave Type</label>
+        <select id="fp-leave-type"><option value="">—</option><option value="CASUAL">Casual</option><option value="SICK">Sick</option><option value="ANNUAL">Annual</option><option value="PERSONAL">Personal</option><option value="EMERGENCY">Emergency</option><option value="OTHER">Other</option></select>
+      </div>
+      <div class="form-row"><label>Start Date</label><input type="date" id="fp-leave-start"></div>
+      <div class="form-row"><label>End Date</label><input type="date" id="fp-leave-end"></div>
+      <div class="form-row"><label>Reason</label><input type="text" id="fp-leave-reason"></div>
+      <div class="modal-error" id="fp-leave-error"></div>
+      <button type="button" class="btn-secondary" id="fp-leave-submit">Request leave</button>
+      <div style="font-size:12px;color:var(--stone);margin-top:4px;">Requests go to your Service Center as Pending — they approve or reject it, not you.</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Documents</div>
+      <div id="fp-doc-list">${fpDocListHtml(d.documents || [])}</div>
+      <div class="form-row"><label>Document Type</label>
+        <select id="fp-doc-type"><option value="">—</option>${['Profile Photo', 'Identity Proof', 'Address Proof', 'Training Certificate', 'Technical Certificate', 'Driving License', 'Vehicle Document', 'Other Documents'].map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+      </div>
+      <div class="form-row"><label>File</label><input type="file" id="fp-doc-file"></div>
+      <div class="modal-error" id="fp-doc-error"></div>
+      <button type="button" class="btn-secondary" id="fp-doc-submit">Upload document</button>
+      <div style="font-size:12px;color:var(--stone);margin-top:4px;">Your Service Center verifies uploaded documents — you can't mark your own as verified.</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technician Spare Stock, Service History, Performance &amp; Claims</div>
+      <div style="color:var(--stone);font-size:13px;">See Inventory, Performance and Claims in the sidebar — those already show this live, and aren't duplicated here.</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Customer Feedback</div>
+      <div style="color:var(--stone);font-size:13px;">No customer feedback flow exists in this app yet.</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Timeline</div>
+      <div id="fp-timeline">Loading…</div>`;
+
+    document.getElementById('fp-gender').value = d.gender || '';
+    document.getElementById('fp-dob').value = d.dob || '';
+    document.getElementById('fp-alt-phone').value = d.altPhone || '';
+    document.getElementById('fp-ec-name').value = d.emergencyContactName || '';
+    document.getElementById('fp-ec-phone').value = d.emergencyContactPhone || '';
+    document.getElementById('fp-ec-relation').value = d.emergencyContactRelation || '';
+    document.getElementById('fp-addr1').value = d.addressLine1 || '';
+    document.getElementById('fp-addr2').value = d.addressLine2 || '';
+    document.getElementById('fp-pincode').value = d.pincode || '';
+    document.getElementById('fp-area').value = d.area || '';
+    document.getElementById('fp-city').value = d.city || '';
+    document.getElementById('fp-taluk').value = d.taluk || '';
+    document.getElementById('fp-district').value = d.district || '';
+    document.getElementById('fp-state').value = d.state || '';
+    const v = d.vehicleInfo || {};
+    document.getElementById('fp-veh-type').value = v.vehicleType || '';
+    document.getElementById('fp-veh-number').value = v.vehicleNumber || '';
+    document.getElementById('fp-veh-license').value = v.licenseNumber || '';
+    document.getElementById('fp-veh-license-expiry').value = v.licenseExpiry || '';
+
+    document.getElementById('fp-pincode').addEventListener('blur', async (e) => {
+      const pin = e.target.value.trim();
+      const noteEl = document.getElementById('fp-pincode-note');
+      noteEl.textContent = '';
+      if (!/^\d{6}$/.test(pin)) return;
+      try {
+        const snap = await getDoc(doc(db, 'pincodes', pin));
+        if (snap.exists()) {
+          const p = snap.data();
+          document.getElementById('fp-area').value = p.area || '';
+          document.getElementById('fp-city').value = p.city || '';
+          document.getElementById('fp-taluk').value = p.taluk || '';
+          document.getElementById('fp-district').value = p.district || '';
+          document.getElementById('fp-state').value = p.state || '';
+          noteEl.textContent = 'Filled from Pincode Master.';
+        } else {
+          noteEl.textContent = 'Not found in Pincode Master — fill in manually.';
+        }
+      } catch (err) {
+        console.warn('Pincode lookup failed (non-blocking):', err.message);
+      }
+    });
+
+    document.getElementById('fp-save').addEventListener('click', async () => {
+      const btn = document.getElementById('fp-save');
+      const errEl = document.getElementById('fp-error');
+      const okEl = document.getElementById('fp-success');
+      errEl.classList.remove('show');
+      okEl.classList.remove('show');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        await updateDoc(doc(db, 'centerTechnicians', fullProfileDocId), {
+          gender: document.getElementById('fp-gender').value,
+          dob: document.getElementById('fp-dob').value,
+          altPhone: document.getElementById('fp-alt-phone').value.trim(),
+          emergencyContactName: document.getElementById('fp-ec-name').value.trim(),
+          emergencyContactPhone: document.getElementById('fp-ec-phone').value.trim(),
+          emergencyContactRelation: document.getElementById('fp-ec-relation').value.trim(),
+          addressLine1: document.getElementById('fp-addr1').value.trim(),
+          addressLine2: document.getElementById('fp-addr2').value.trim(),
+          pincode: document.getElementById('fp-pincode').value.trim(),
+          area: document.getElementById('fp-area').value.trim(),
+          city: document.getElementById('fp-city').value.trim(),
+          taluk: document.getElementById('fp-taluk').value.trim(),
+          district: document.getElementById('fp-district').value.trim(),
+          state: document.getElementById('fp-state').value.trim(),
+          vehicleInfo: {
+            vehicleType: document.getElementById('fp-veh-type').value,
+            vehicleNumber: document.getElementById('fp-veh-number').value.trim(),
+            licenseNumber: document.getElementById('fp-veh-license').value.trim(),
+            licenseExpiry: document.getElementById('fp-veh-license-expiry').value,
+            ownership: (fullProfileData.vehicleInfo || {}).ownership || null,
+            maxDailyTravelDistance: (fullProfileData.vehicleInfo || {}).maxDailyTravelDistance || null,
+            maxServiceRadius: (fullProfileData.vehicleInfo || {}).maxServiceRadius || null
+          },
+          updatedAt: serverTimestamp()
+        });
+        try {
+          await addDoc(collection(db, 'technicianTimeline'), {
+            technicianDocId: fullProfileDocId, event: 'PROFILE_UPDATED', label: 'Profile details updated (by technician)',
+            performedBy: currentUser.email, createdAt: serverTimestamp()
+          });
+        } catch (_) {}
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+        loadFullProfile();
+      } catch (err) {
+        console.error('Save full profile failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Save changes';
+    });
+
+    document.getElementById('fp-leave-submit').addEventListener('click', async () => {
+      const errEl = document.getElementById('fp-leave-error');
+      errEl.classList.remove('show');
+      const leaveType = document.getElementById('fp-leave-type').value;
+      const startDate = document.getElementById('fp-leave-start').value;
+      const endDate = document.getElementById('fp-leave-end').value;
+      const reason = document.getElementById('fp-leave-reason').value.trim();
+      if (!leaveType || !startDate || !endDate) {
+        errEl.textContent = 'Leave type, start date and end date are required.';
+        errEl.classList.add('show');
+        return;
+      }
+      try {
+        const newLeave = {
+          leaveId: 'LV-' + Date.now().toString(36).toUpperCase(),
+          leaveType, startDate, endDate, reason,
+          requestedDate: new Date().toISOString().slice(0, 10),
+          status: 'PENDING'
+        };
+        await updateDoc(doc(db, 'centerTechnicians', fullProfileDocId), { leaveRecords: arrayUnion(newLeave) });
+        loadFullProfile();
+      } catch (err) {
+        console.error('Leave request failed:', err);
+        errEl.textContent = 'Could not submit. Check console for details.';
+        errEl.classList.add('show');
+      }
+    });
+
+    document.getElementById('fp-doc-submit').addEventListener('click', async () => {
+      const errEl = document.getElementById('fp-doc-error');
+      errEl.classList.remove('show');
+      const docType = document.getElementById('fp-doc-type').value;
+      const fileInput = document.getElementById('fp-doc-file');
+      const file = fileInput.files && fileInput.files[0];
+      if (!docType || !file) {
+        errEl.textContent = 'Pick a document type and a file.';
+        errEl.classList.add('show');
+        return;
+      }
+      const btn = document.getElementById('fp-doc-submit');
+      btn.disabled = true;
+      btn.textContent = 'Uploading…';
+      try {
+        const docId = 'DOC-' + Date.now().toString(36).toUpperCase();
+        const fileRef = storageRef(storage, `centerTechnicians/${fullProfileDocId}/documents/${docId}_${file.name}`);
+        await uploadBytes(fileRef, file);
+        const fileUrl = await getDownloadURL(fileRef);
+        const newDoc = {
+          docId, docType, fileUrl,
+          uploadedBy: currentUser.email, uploadedDate: new Date().toLocaleDateString(),
+          verified: false
+        };
+        await updateDoc(doc(db, 'centerTechnicians', fullProfileDocId), { documents: arrayUnion(newDoc) });
+        loadFullProfile();
+      } catch (err) {
+        console.error('Document upload failed:', err);
+        errEl.textContent = 'Could not upload. Check console for details.';
+        errEl.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Upload document';
+      }
+    });
+
+    loadFpTimeline(fullProfileDocId);
+  }
+
+  function fpLeaveListHtml(records) {
+    if (!records.length) return `<div style="color:var(--stone);">No leave records yet.</div>`;
+    return records.slice().reverse().map(l =>
+      `<div>${escapeHtml(l.leaveType || '—')} · ${escapeHtml(l.startDate || '')}–${escapeHtml(l.endDate || '')} · <strong>${escapeHtml(l.status || 'PENDING')}</strong></div>`
+    ).join('');
+  }
+  function fpDocListHtml(docs) {
+    if (!docs.length) return `<div style="color:var(--stone);">No documents uploaded yet.</div>`;
+    return docs.slice().reverse().map(doc_ =>
+      `<div>${escapeHtml(doc_.docType || '—')} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
+    ).join('');
+  }
+  async function loadFpTimeline(techId) {
+    const el = document.getElementById('fp-timeline');
+    if (!el) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'technicianTimeline'), where('technicianDocId', '==', techId)));
+      const events = [];
+      snap.forEach(s => events.push({ id: s.id, ...s.data() }));
+      if (!events.length) { el.innerHTML = `<div style="color:var(--stone);">No activity recorded yet.</div>`; return; }
+      events.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      el.innerHTML = events.slice(0, 15).map(e => {
+        const dateLabel = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : '—';
+        return `<div style="padding:3px 0;border-bottom:1px solid var(--line, #eee);font-size:13px;"><strong>${dateLabel}</strong> — ${escapeHtml(e.label || e.event || '')}</div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load timeline failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load timeline.</div>`;
+    }
   }
 
   // ---------------------------------------------------------------
