@@ -232,6 +232,7 @@
 <div class="modal-overlay" id="transfer-overlay">
   <div class="modal">
     <h3>Transfer stock</h3>
+    <div style="font-size:12.5px;color:var(--stone);margin-bottom:12px;">Creates a request that goes through the same Approved → Picking → Packing → Dispatch → In Transit pipeline as any other spare request — stock only actually moves once it's dispatched.</div>
     <form id="transfer-form">
       <div class="form-row"><label>Part</label><select id="transfer-part" required><option value="">Select part…</option></select></div>
       <div class="form-row"><label>To</label><select id="transfer-destination" required><option value="">Select destination…</option></select></div>
@@ -241,7 +242,7 @@
       <div class="modal-success" id="transfer-success"></div>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-transfer">Cancel</button>
-        <button type="submit" class="btn-primary" id="submit-transfer">Transfer</button>
+        <button type="submit" class="btn-primary" id="submit-transfer">Create transfer</button>
       </div>
     </form>
   </div>
@@ -640,7 +641,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Spare Requests", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-transfer", "label": "Transfer", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -723,9 +724,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'move-issue') {
       pageSub.textContent = 'Stock issued out of Warehouse';
       renderMovementHistory('issue', label);
-    } else if (id === 'move-transfer') {
-      pageSub.textContent = 'Move stock from Warehouse to a Service Center or Technician';
-      renderTransfer();
     } else if (id === 'move-adjust') {
       pageSub.textContent = 'Manual stock corrections — physical counts, write-offs';
       renderAdjustment();
@@ -1572,35 +1570,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // to eventually become real.
   // =================================================================
 
-  async function renderTransfer() {
-    contentEl.innerHTML = `
-      <div class="panel" style="margin-bottom:24px;">
-        <div class="panel-header">
-          <h2>Transfer stock</h2>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-secondary" id="fix-legacy-transfers">Fix older transfers not showing up</button>
-            <button class="btn-primary" id="open-transfer">+ New Transfer</button>
-          </div>
-        </div>
-        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">
-          From Warehouse to a Service Center or Technician.
-          <div id="fix-legacy-result" class="modal-success" style="margin-top:8px;"></div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h2>Transfer history</h2></div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>Date</th><th>Part</th><th>To</th><th>Qty</th><th>Reason</th></tr></thead>
-            <tbody id="transfer-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
-    document.getElementById('open-transfer').addEventListener('click', openTransferModal);
-    document.getElementById('fix-legacy-transfers').addEventListener('click', migrateLegacyTransferStock);
-    loadTransferHistory();
-  }
-
   // One-time (safe-to-rerun) fix for transfers made before Transfer
   // was corrected to write to the SAME inventory doc the receiving
   // center's/technician's own Inventory page reads. Older transfers
@@ -1655,41 +1624,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     btn.textContent = 'Fix older transfers not showing up';
   }
 
-  async function loadTransferHistory() {
-    const tbody = document.getElementById('transfer-tbody');
-    try {
-      const [movSnap, partsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'transfer'))),
-        getDocs(collection(db, 'spareParts')),
-      ]);
-      const partMap = {};
-      partsSnap.forEach(d => { partMap[d.id] = d.data(); });
-      let docs = [];
-      movSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No transfers logged yet.</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = '';
-      docs.forEach(d => {
-        const part = partMap[d.partId];
-        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
-          <td>${part ? part.name : d.partId}</td>
-          <td>${d.toLabel || d.location || '—'}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
-        tbody.appendChild(tr);
-      });
-    } catch (err) {
-      console.error('Load transfer history failed:', err);
-      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load transfer history. Check console for details.</td></tr>`;
-    }
-  }
-
   const transferOverlay = document.getElementById('transfer-overlay');
   const transferForm = document.getElementById('transfer-form');
   const transferError = document.getElementById('transfer-error');
@@ -1701,7 +1635,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     transferError.classList.remove('show');
     transferSuccess.classList.remove('show');
     transferSubmitBtn.disabled = false;
-    transferSubmitBtn.textContent = 'Transfer';
+    transferSubmitBtn.textContent = 'Create transfer';
     const [parts, centers, techs] = await Promise.all([
       getDocs(collection(db, 'spareParts')),
       getWhServiceCentersCache(),
@@ -1736,6 +1670,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   document.getElementById('cancel-transfer').addEventListener('click', closeTransferModal);
   transferOverlay.addEventListener('click', (e) => { if (e.target === transferOverlay) closeTransferModal(); });
 
+  // Transfer no longer moves stock on the spot — it creates a
+  // spareRequests doc (same collection, same pipeline, as a
+  // service-center-raised request) that starts at 'approved' (skipping
+  // 'new' — Warehouse already decided to send it, so it doesn't need
+  // to approve its own request) and then has to go through Picking →
+  // Packing → Dispatch → In Transit → Received like any other request.
+  // The actual stock move + stockMovements log already happens at the
+  // Dispatch step (openWhDispatchPopup, further up this file) via
+  // resolvePartForRequest/resolveInventoryLocationForRequest, which
+  // resolve cleanly here since partId and requestedByUid are set
+  // directly — no fuzzy text matching needed for a Warehouse-initiated
+  // transfer.
   transferForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     transferError.classList.remove('show');
@@ -1749,43 +1695,39 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       transferError.classList.add('show');
       return;
     }
-    // Write using the SAME doc id / location / owner-uid field the
-    // receiving center's or technician's own Inventory page reads
-    // (servicecenter_{uid}_{partId} / technician_{uid}_{partId}) —
-    // not a separate sc_/tech_ scheme — so a transfer out of
-    // Warehouse actually shows up in their own CRM inventory screen.
-    const [destKind, destUid, destLabel] = destValue.split('|');
-    const ownerField = destKind === 'servicecenter' ? 'serviceCenterUid' : 'technicianUid';
+    const [, destUid, destLabel] = destValue.split('|');
     transferSubmitBtn.disabled = true;
-    transferSubmitBtn.textContent = 'Transferring…';
+    transferSubmitBtn.textContent = 'Creating…';
     try {
-      const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
-      const toRef = doc(db, 'inventory', `${destKind}_${destUid}_${partId}`);
-      await runTransaction(db, async (transaction) => {
-        const fromSnap = await transaction.get(fromRef);
-        const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
-        if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
-        const toSnap = await transaction.get(toRef);
-        const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
-        transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
-        transaction.set(toRef, { partId, location: destKind, [ownerField]: destUid, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+      const partSnap = await getDoc(doc(db, 'spareParts', partId));
+      const partName = partSnap.exists() ? (partSnap.data().name || partId) : partId;
+      const requestId = await generateRequestId();
+      await addDoc(collection(db, 'spareRequests'), {
+        requestId,
+        partId,
+        item: partName,
+        quantity: qty,
+        priority: 'normal',
+        requestedByUid: destUid,
+        serviceCenter: destLabel,
+        notes: reason || 'Warehouse-initiated transfer',
+        source: 'warehouse_transfer',
+        status: 'approved',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'transfer', location: 'warehouse', quantity: qty,
-        toLocation: `${destKind}_${destUid}`, toLabel: destLabel, reason: reason || 'Stock transfer',
-        createdAt: serverTimestamp()
-      });
-      transferSuccess.textContent = 'Transferred.';
+      transferSuccess.textContent = `Created — ${requestId}. It now needs picking, packing & dispatch, same as any other request.`;
       transferSuccess.classList.add('show');
       transferSubmitBtn.textContent = 'Done';
-      if (document.getElementById('transfer-tbody')) loadTransferHistory();
-      setTimeout(closeTransferModal, 900);
+      const activeItem = document.querySelector('.nav-item.active');
+      if (activeItem && SPARE_REQUEST_TABS[activeItem.dataset.id]) loadSpareRequests(SPARE_REQUEST_TABS[activeItem.dataset.id]);
+      setTimeout(closeTransferModal, 1200);
     } catch (err) {
-      console.error('Transfer failed:', err);
-      transferError.textContent = err.message || 'Could not complete this transfer. Check console for details.';
+      console.error('Create transfer failed:', err);
+      transferError.textContent = err.message || 'Could not create this transfer. Check console for details.';
       transferError.classList.add('show');
       transferSubmitBtn.disabled = false;
-      transferSubmitBtn.textContent = 'Transfer';
+      transferSubmitBtn.textContent = 'Create transfer';
     }
   });
 
@@ -2799,7 +2741,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="panel">
         <div class="panel-header">
           <h2>${label}</h2>
-          <button class="btn-primary" id="open-new-request">+ New Request</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="open-transfer">+ New Transfer</button>
+            <button class="btn-primary" id="open-new-request">+ New Request</button>
+          </div>
         </div>
         <div class="panel-body" style="padding:0;">
           <table>
@@ -2813,6 +2758,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>`;
     document.getElementById('open-new-request').addEventListener('click', openNewRequestModal);
+    document.getElementById('open-transfer').addEventListener('click', openTransferModal);
     loadSpareRequests(status);
   }
 
@@ -3708,8 +3654,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function renderMovementHistory(typeFilter, label) {
     contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header">
+          <h2>${label}</h2>
+          <button class="btn-secondary" id="fix-legacy-transfers">Fix older transfers not showing up</button>
+        </div>
+        <div class="panel-body" style="font-size:12.5px;color:var(--stone);">
+          <div id="fix-legacy-result" class="modal-success"></div>
+        </div>
+      </div>
       <div class="panel">
-        <div class="panel-header"><h2>${label}</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead>
@@ -3719,6 +3673,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
+    document.getElementById('fix-legacy-transfers').addEventListener('click', migrateLegacyTransferStock);
     loadMovementHistory(typeFilter);
   }
 
