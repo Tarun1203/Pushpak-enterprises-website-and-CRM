@@ -2794,6 +2794,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const billingSubmitBtn = document.getElementById('submit-billing');
   let billingContext = null;
 
+  // Resolves THIS center's claimable service charge for a ticket it
+  // closed itself (no technician involved — a technician's own
+  // closure already auto-credits their wallet from the same rate
+  // card, see CRMtechnician.html). Same lookup order as the
+  // technician side: this center's own override, then Head Office's
+  // default, then the flat (no-bucket) row as a fallback — never a
+  // number the center types in themselves.
+  async function resolveServiceChargeRateForCenter(ticket) {
+    const rateType = ticket.type === 'installation' ? 'installation' : 'repair';
+    const category = ticket.category || 'Other';
+    const bucket = ticket.sizeBucket || null;
+    try {
+      const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType, bucket)));
+      if (centerRateSnap.exists()) return Number(centerRateSnap.data().amount) || 0;
+      const defaultRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, bucket)));
+      if (defaultRateSnap.exists()) return Number(defaultRateSnap.data().amount) || 0;
+      if (bucket) {
+        const centerFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType, null)));
+        if (centerFlatSnap.exists()) return Number(centerFlatSnap.data().amount) || 0;
+        const defaultFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, null)));
+        if (defaultFlatSnap.exists()) return Number(defaultFlatSnap.data().amount) || 0;
+      }
+    } catch (err) {
+      console.warn('Could not resolve service charge rate:', err.message);
+    }
+    return 0;
+  }
+
   async function openBillingModal(ticketId) {
     const ticket = billingTicketsCache.find(t => t.id === ticketId);
     if (!ticket) return;
@@ -2804,7 +2832,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     billingBody.innerHTML = `<div class="empty-row">Checking warranty…</div>`;
     billingOverlay.classList.add('show');
     const info = await getTicketWarrantyInfo(ticket);
-    billingContext = { ticket, info };
+    // A technician's own closure already auto-credits a service charge
+    // to their wallet from the rate card — only resolve this center's
+    // OWN claimable charge when that hasn't already happened (i.e. the
+    // center closed this ticket itself, with no technician involved).
+    const centerServiceCharge = (!ticket.serviceCharge && info.inWarranty !== false)
+      ? await resolveServiceChargeRateForCenter(ticket)
+      : null;
+    billingContext = { ticket, info, centerServiceCharge };
     const isOutByDefault = info.inWarranty === false;
     billingBody.innerHTML = `
       <div class="form-row"><label>Ticket</label><div>${escapeHtml(ticket.requestId || ticket.id)} — ${escapeHtml(ticket.customerName) || ''}</div></div>
@@ -2816,9 +2851,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <option value="out" ${info.inWarranty === false ? 'selected' : ''}>Out-of-warranty — collect from customer</option>
         </select>
       </div>
-      <div class="form-row"><label>Spare parts cost (₹)</label><input type="number" id="billing-spare-cost" min="0" step="0.01" value="${ticket.sparePartsCost ?? 0}"></div>
-      <div class="form-row"><label>Other charges (₹)</label><input type="number" id="billing-other-charges" min="0" step="0.01" value="${ticket.otherCharges ?? 0}"></div>
+      <div id="billing-in-warranty-fields" style="display:${isOutByDefault ? 'none' : 'block'};">
+        ${centerServiceCharge !== null ? `
+          <div class="form-row"><label>Service charge (your rate card)</label><div>₹${centerServiceCharge}${centerServiceCharge === 0 ? ' — not set up yet for this category/type. Set it under Service Charge Rates first.' : ''}</div></div>
+        ` : ''}
+        <div class="form-row" style="font-size:12px;color:var(--stone);">Spare parts used on an in-warranty job aren't billed to Head Office per ticket — they come out of your Center Inventory, which you restock through Spare Requests. Only the service charge above is claimable.</div>
+      </div>
       <div id="billing-customer-fields" style="display:${isOutByDefault ? 'block' : 'none'};">
+        <div class="form-row"><label>Spare parts cost (₹)</label><input type="number" id="billing-spare-cost" min="0" step="0.01" value="${ticket.sparePartsCost ?? 0}"></div>
+        <div class="form-row"><label>Other charges (₹)</label><input type="number" id="billing-other-charges" min="0" step="0.01" value="${ticket.otherCharges ?? 0}"></div>
         <div class="form-row"><label>Service charge to collect (₹)</label><input type="number" id="billing-service-charge" min="0" step="0.01" value="${ticket.serviceCharge ?? 0}"></div>
         <div class="form-row"><label>Payment method</label>
           <select id="billing-payment-method">
@@ -2831,7 +2872,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="form-row"><label>Payment reference (optional)</label><input type="text" id="billing-payment-ref"></div>
       </div>`;
     document.getElementById('billing-warranty-override').addEventListener('change', (e) => {
-      document.getElementById('billing-customer-fields').style.display = e.target.value === 'out' ? 'block' : 'none';
+      const isOut = e.target.value === 'out';
+      document.getElementById('billing-customer-fields').style.display = isOut ? 'block' : 'none';
+      document.getElementById('billing-in-warranty-fields').style.display = isOut ? 'none' : 'block';
     });
   }
   function closeBillingModal() { billingOverlay.classList.remove('show'); billingContext = null; }
@@ -2842,27 +2885,36 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     if (!billingContext) return;
     billingError.classList.remove('show');
     billingSuccess.classList.remove('show');
-    const { ticket } = billingContext;
+    const { ticket, centerServiceCharge } = billingContext;
     const treatAsInWarranty = document.getElementById('billing-warranty-override').value === 'in';
-    const sparePartsCost = Number(document.getElementById('billing-spare-cost').value) || 0;
-    const otherCharges = Number(document.getElementById('billing-other-charges').value) || 0;
     billingSubmitBtn.disabled = true;
     billingSubmitBtn.textContent = 'Saving…';
     try {
       if (treatAsInWarranty) {
-        // Note: any service charge here is handled separately, auto-
-        // credited to the technician's own wallet at closure — it's
-        // deliberately left out of the center's own claim total so it
-        // isn't paid out twice.
-        const billingTotal = sparePartsCost + otherCharges;
-        await updateDoc(doc(db, 'centerRequests', ticket.id), {
+        // Spares consumed on an in-warranty job are never billed to
+        // Head Office per ticket — they come out of Center Inventory
+        // and get restocked through Spare Requests instead. The ONLY
+        // thing claimable is the service charge: if a technician
+        // already closed this job, they were already auto-credited it
+        // in their own wallet (see CRMtechnician.html), so the
+        // center's own claim here is 0 — it isn't paid out twice. If
+        // the center closed it directly (no technician), the rate
+        // card's resolved amount is what's claimed, never a number
+        // typed in here.
+        const serviceCharge = ticket.serviceCharge || centerServiceCharge || 0;
+        const billingTotal = ticket.serviceCharge ? 0 : serviceCharge;
+        const update = {
           warrantyStatus: 'in_warranty',
-          sparePartsCost, otherCharges, billingTotal,
+          sparePartsCost: 0,
+          otherCharges: 0,
+          billingTotal,
           billingType: 'claim',
           billingStatus: 'ready_to_claim',
           billedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        };
+        if (!ticket.serviceCharge && centerServiceCharge) update.serviceCharge = centerServiceCharge;
+        await updateDoc(doc(db, 'centerRequests', ticket.id), update);
         await syncPublicTicketMirror('centerRequests', ticket.id);
       } else {
         const serviceCharge = Number(document.getElementById('billing-service-charge').value) || 0;
