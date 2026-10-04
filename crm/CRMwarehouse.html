@@ -461,6 +461,19 @@
   </div>
 </div>
 
+<!-- Service Center full profile — read-only, from the SAME
+     serviceCenterProfiles doc the center's own Profile page and Super
+     Admin's Centers page use. -->
+<div class="modal-overlay" id="wh-center-profile-overlay">
+  <div class="modal" style="max-width:560px;">
+    <h3 id="wh-cfp-title">Service Center profile</h3>
+    <div id="wh-cfp-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="wh-cfp-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="claim-overlay">
   <div class="modal">
     <h3>New claim</h3>
@@ -850,7 +863,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const status = stockStatus(r.qty, r.part ? (r.part.reorderLevel || 0) : 0);
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td>${kind === 'technician' ? `<a href="#" class="wh-tech-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>` : escapeHtml(r.locationName)}</td>
+              <td>${kind === 'technician'
+                ? `<a href="#" class="wh-tech-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`
+                : `<a href="#" class="wh-center-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`}</td>
               <td style="font-size:12px;color:var(--stone);">${r.part ? (r.part.partCode || r.part.id) : '—'}</td>
               <td>${r.part ? escapeHtml(r.part.name || '—') : '(unknown part)'}</td>
               <td><b>${r.qty}</b></td>
@@ -861,6 +876,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         if (kind === 'technician') {
           tbody.querySelectorAll('.wh-tech-profile-link').forEach(a => {
             a.addEventListener('click', (e) => { e.preventDefault(); openWhTechProfile(a.dataset.uid, a.dataset.name); });
+          });
+        } else {
+          tbody.querySelectorAll('.wh-center-profile-link').forEach(a => {
+            a.addEventListener('click', (e) => { e.preventDefault(); openWhCenterProfile(a.dataset.uid, a.dataset.name); });
           });
         }
       }
@@ -879,6 +898,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // doesn't own HR records, it just needs visibility before dispatch.
   // -----------------------------------------------------------------
   const WH_TFP_BRAND_LABELS = { makwell: 'MakWell', flyvision: 'Flyvision', skevia: 'Skevia' };
+  const WH_SERVICE_CAP_LABELS = {
+    installation: 'Installation', warrantyRepair: 'Warranty Repair', nonWarrantyRepair: 'Non-Warranty Repair',
+    inspection: 'Inspection', preventiveMaintenance: 'Preventive Maintenance', hardwareRepair: 'Hardware Repair',
+    softwareSupport: 'Software Support', rmaInspection: 'RMA Inspection', replacement: 'Replacement',
+    reinstallation: 'Reinstallation'
+  };
 
   async function openWhTechProfile(uid, name) {
     document.getElementById('wh-tfp-title').textContent = name ? `${name} — full profile` : 'Technician profile';
@@ -920,6 +945,70 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   document.getElementById('wh-tfp-close').addEventListener('click', () => document.getElementById('wh-tech-profile-overlay').classList.remove('show'));
   document.getElementById('wh-tech-profile-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'wh-tech-profile-overlay') e.target.classList.remove('show');
+  });
+
+  // Service Center full profile (read-only) — section 01 of the
+  // Service Center Master spec, from the SAME serviceCenterProfiles
+  // doc the center's own Profile page and Super Admin's Centers page
+  // use.
+  async function openWhCenterProfile(uid, name) {
+    document.getElementById('wh-cfp-title').textContent = name ? `${name} — full profile` : 'Service Center profile';
+    const body = document.getElementById('wh-cfp-body');
+    body.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    document.getElementById('wh-center-profile-overlay').classList.add('show');
+    try {
+      const [snap, userSnap] = await Promise.all([
+        getDoc(doc(db, 'serviceCenterProfiles', uid)),
+        getDoc(doc(db, 'users', uid))
+      ]);
+      if (!snap.exists()) {
+        body.innerHTML = `<div style="color:var(--stone);">No full profile on file yet.</div>`;
+        return;
+      }
+      const d = snap.data();
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      const cp = d.contactPersons || {};
+      const cpHtml = ['manager', 'serviceCoordinator', 'inventoryContact', 'accountsContact', 'escalationContact']
+        .filter(k => cp[k] && (cp[k].name || cp[k].phone))
+        .map(k => `<div>${escapeHtml(k.replace(/([A-Z])/g, ' $1'))}: ${escapeHtml(cp[k].name || '—')}${cp[k].phone ? ' · ' + escapeHtml(cp[k].phone) : ''}</div>`)
+        .join('') || `<div style="color:var(--stone);">None on file.</div>`;
+      body.innerHTML = `
+        <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || '—')}</div>
+        <div><strong>Display Name:</strong> ${escapeHtml(d.displayName || '—')}</div>
+        <div><strong>Center Type:</strong> ${escapeHtml(d.centerType || '—')}</div>
+        <div><strong>Opening Date:</strong> ${escapeHtml(d.openingDate || '—')}</div>
+        <div><strong>Status:</strong> ${escapeHtml(d.status || 'PENDING_APPROVAL')}</div>
+        <div style="font-weight:600;margin:12px 0 6px;">Address &amp; Location</div>
+        <div>${[d.address, d.landmark, d.area, d.city, d.district, d.state, d.pincode].filter(Boolean).map(escapeHtml).join(', ') || '—'}</div>
+        ${d.mapLink ? `<div><a href="${d.mapLink}" target="_blank" rel="noopener">View on map</a></div>` : ''}
+        <div style="font-weight:600;margin:12px 0 6px;">Contact Details</div>
+        <div><strong>Official Mobile:</strong> ${escapeHtml(d.officialMobile || '—')}</div>
+        <div><strong>Alternate Mobile:</strong> ${escapeHtml(d.alternateMobile || '—')}</div>
+        <div><strong>Official Email:</strong> ${escapeHtml(d.officialEmail || '—')}</div>
+        <div><strong>WhatsApp:</strong> ${escapeHtml(d.whatsapp || '—')}</div>
+        <div><strong>Landline:</strong> ${escapeHtml(d.landline || '—')}</div>
+        <div><strong>Website:</strong> ${escapeHtml(d.website || '—')}</div>
+        <div style="font-weight:600;margin:12px 0 6px;">Contact Persons</div>
+        ${cpHtml}
+        <div style="font-weight:600;margin:12px 0 6px;">Brand Authorization</div>
+        ${(d.brandAuthorizations || []).filter(b => b.status).map(b =>
+          `<div>${escapeHtml(WH_TFP_BRAND_LABELS[b.brand] || b.brand)}: ${escapeHtml(b.status)}${b.authType ? ' · ' + escapeHtml(b.authType) : ''}</div>`
+        ).join('') || `<div style="color:var(--stone);">None on file.</div>`}
+        <div style="font-weight:600;margin:12px 0 6px;">Coverage</div>
+        <div><strong>Districts (${(userData.districtsCovered || []).length}):</strong> ${(userData.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
+        <div><strong>Pincodes (${(userData.pincodesCovered || []).length}):</strong> ${(userData.pincodesCovered || []).length ? (userData.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
+        <div style="font-weight:600;margin:12px 0 6px;">Service Capability</div>
+        <div>${Object.entries(d.serviceCapabilities || {}).filter(([, v]) => v).map(([k]) => escapeHtml(WH_SERVICE_CAP_LABELS[k] || k)).join(', ') || '—'}</div>
+        <div style="font-weight:600;margin:12px 0 6px;">Capacity</div>
+        <div><strong>Max Jobs/Day:</strong> ${(d.capacity || {}).maxJobsPerDay ?? '—'} &nbsp; <strong>RMA Capacity:</strong> ${(d.capacity || {}).rmaCapacity ?? '—'}</div>`;
+    } catch (err) {
+      console.error('Load service center profile failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
+    }
+  }
+  document.getElementById('wh-cfp-close').addEventListener('click', () => document.getElementById('wh-center-profile-overlay').classList.remove('show'));
+  document.getElementById('wh-center-profile-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'wh-center-profile-overlay') e.target.classList.remove('show');
   });
 
   // =================================================================

@@ -415,6 +415,18 @@
   </div>
 </div>
 
+<!-- Service Center full profile modal — the SAME serviceCenterProfiles
+     doc the Service Center's own Profile page reads/writes. -->
+<div class="modal-overlay" id="center-fullprofile-overlay">
+  <div class="modal" style="max-width:640px;max-height:85vh;overflow-y:auto;">
+    <h3 id="cfp-title">Service Center profile</h3>
+    <div id="cfp-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cfp-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Technician full profile modal — the SAME centerTechnicians doc that
      Service Center and the technician's own Profile page read/write,
      so Super Admin's view/edits can't drift from either. -->
@@ -2053,11 +2065,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   let editingUid = null;
   let editingEmail = null;
   let editingOriginalRole = null;
+  let editingOriginalDistricts = [];
+  let editingOriginalPincodes = [];
 
   function openEditUserModal(uid, data) {
     editingUid = uid;
     editingEmail = data.email || '';
     editingOriginalRole = data.role || '';
+    editingOriginalDistricts = data.districtsCovered || [];
+    editingOriginalPincodes = data.pincodesCovered || [];
     editNameInput.value = data.name || '';
     editEmailInput.value = data.email || '(not on record)';
     editRoleSelect.value = data.role || '';
@@ -2164,6 +2180,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         });
       } catch (auditErr) {
         console.warn('Audit log write failed (non-blocking):', auditErr.message);
+      }
+      if (editRoleSelect.value === 'servicecenter') {
+        const addedDistricts = districtsCovered.filter(x => !editingOriginalDistricts.includes(x));
+        const removedDistricts = editingOriginalDistricts.filter(x => !districtsCovered.includes(x));
+        const addedPincodes = pincodesCovered.filter(x => !editingOriginalPincodes.includes(x));
+        const removedPincodes = editingOriginalPincodes.filter(x => !pincodesCovered.includes(x));
+        if (addedDistricts.length || addedPincodes.length) {
+          await logScTimelineEvent(editingUid, 'COVERAGE_ADDED', `Coverage added — ${[...addedDistricts, ...addedPincodes].join(', ')}`);
+        }
+        if (removedDistricts.length || removedPincodes.length) {
+          await logScTimelineEvent(editingUid, 'COVERAGE_REMOVED', `Coverage removed — ${[...removedDistricts, ...removedPincodes].join(', ')}`);
+        }
       }
       editUserSuccess.textContent = 'Saved.';
       editUserSuccess.classList.add('show');
@@ -4042,14 +4070,1168 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12.5px;">${coverageLabel}</td>
           <td>${reqSnap.size}</td>
           <td>${techSnap.size}</td>
-          <td><button class="btn-secondary center-edit-btn">Edit</button></td>`;
+          <td>
+            <button class="btn-secondary center-edit-btn">Edit</button>
+            <button class="btn-secondary center-fullprofile-btn" style="margin-left:6px;">Full profile</button>
+          </td>`;
         tbody.appendChild(tr);
         tr.querySelector('.center-edit-btn').addEventListener('click', () => openEditUserModal(userDoc.id, d));
+        tr.querySelector('.center-fullprofile-btn').addEventListener('click', () => openCenterFullProfile(userDoc.id, d.name || d.email));
       }
     } catch (err) {
       console.error('Load service centers failed:', err);
       tbody.innerHTML = `<tr><td colspan="9" class="empty-row" style="color:var(--err);">Couldn't load service centers. Check console for details.</td></tr>`;
     }
+  }
+
+  // -----------------------------------------------------------------
+  // Service Center full profile — Super Admin's view/edit of the SAME
+  // serviceCenterProfiles/{uid} doc the center's own Profile page
+  // uses (section 01 of the Service Center Master spec, built one
+  // section at a time like the Technician Master). Status is the one
+  // field only Super Admin can set.
+  // -----------------------------------------------------------------
+  function saGenerateCenterCode(uid) {
+    return 'SC-' + uid.slice(0, 5).toUpperCase();
+  }
+  const CFP_CONTACT_ROLES = [
+    ['manager', 'Manager'], ['serviceCoordinator', 'Service Coordinator'],
+    ['inventoryContact', 'Inventory Contact'], ['accountsContact', 'Accounts Contact'],
+    ['escalationContact', 'Escalation Contact']
+  ];
+
+  const CFP_DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+  function renderCfpWorkingHoursBlock(d) {
+    const wh = d.serviceWorkingHours || {};
+    document.getElementById('cfp-wh-tbody').innerHTML = CFP_DAYS.map(([key, label]) => {
+      const day = wh[key] || {};
+      return `
+        <tr data-day="${key}">
+          <td style="padding:4px 6px;">${label}</td>
+          <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="cfp-wh-working" ${day.working ? 'checked' : ''}></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-start" value="${day.start || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-end" value="${day.end || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-start" value="${day.breakStart || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-end" value="${day.breakEnd || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="cfp-wh-special" ${day.specialWorkingDay ? 'checked' : ''}></td>
+        </tr>`;
+    }).join('');
+    document.getElementById('cfp-wh-special-notes').value = (d.serviceWorkingHoursMeta || {}).specialNotes || '';
+  }
+  function cfpCollectWorkingHours() {
+    const serviceWorkingHours = {};
+    document.querySelectorAll('#cfp-wh-tbody tr').forEach(tr => {
+      serviceWorkingHours[tr.dataset.day] = {
+        working: tr.querySelector('.cfp-wh-working').checked,
+        start: tr.querySelector('.cfp-wh-start').value,
+        end: tr.querySelector('.cfp-wh-end').value,
+        breakStart: tr.querySelector('.cfp-wh-break-start').value,
+        breakEnd: tr.querySelector('.cfp-wh-break-end').value,
+        specialWorkingDay: tr.querySelector('.cfp-wh-special').checked
+      };
+    });
+    return { serviceWorkingHours, serviceWorkingHoursMeta: { specialNotes: document.getElementById('cfp-wh-special-notes').value.trim() } };
+  }
+
+  function cfpHolidayRowHtml(row) {
+    row = row || {};
+    return `
+      <div class="cfp-holiday-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="cfp-holiday-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <div class="form-row"><label>Holiday Date</label><input type="date" class="cfp-holiday-date" value="${row.date || ''}"></div>
+        <div class="form-row"><label>End Date <span style="font-weight:400;color:var(--stone);">(optional, for multi-day closures)</span></label><input type="date" class="cfp-holiday-end-date" value="${row.endDate || ''}"></div>
+        <div class="form-row"><label>Closure Type</label>
+          <select class="cfp-holiday-type">
+            <option value="HOLIDAY" ${row.closureType === 'HOLIDAY' ? 'selected' : ''}>Holiday</option>
+            <option value="TEMPORARY_CLOSURE" ${row.closureType === 'TEMPORARY_CLOSURE' ? 'selected' : ''}>Temporary Closure</option>
+            <option value="MAINTENANCE_CLOSURE" ${row.closureType === 'MAINTENANCE_CLOSURE' ? 'selected' : ''}>Maintenance Closure</option>
+            <option value="EMERGENCY_CLOSURE" ${row.closureType === 'EMERGENCY_CLOSURE' ? 'selected' : ''}>Emergency Closure</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Reason</label><input type="text" class="cfp-holiday-reason" value="${escapeHtml(row.reason || '')}"></div>
+      </div>`;
+  }
+  function cfpAddHolidayRow(row) {
+    const list = document.getElementById('cfp-holiday-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = cfpHolidayRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.cfp-holiday-remove').addEventListener('click', () => rowEl.remove());
+  }
+  function renderCfpHolidayBlock(d) {
+    document.getElementById('cfp-holiday-list').innerHTML = '';
+    (d.holidaysAndClosures || []).forEach(row => cfpAddHolidayRow(row));
+  }
+  function cfpCollectHolidays() {
+    const rows = [];
+    document.querySelectorAll('#cfp-holiday-list .cfp-holiday-row').forEach(rowEl => {
+      const date = rowEl.querySelector('.cfp-holiday-date').value;
+      const endDate = rowEl.querySelector('.cfp-holiday-end-date').value;
+      const closureType = rowEl.querySelector('.cfp-holiday-type').value;
+      const reason = rowEl.querySelector('.cfp-holiday-reason').value.trim();
+      if (date || reason) rows.push({ date, endDate, closureType, reason });
+    });
+    return rows;
+  }
+
+  function renderCfpCapacityFields(d) {
+    const cap = d.capacity || {};
+    document.getElementById('cfp-cap-max-jobs').value = cap.maxJobsPerDay ?? '';
+    document.getElementById('cfp-cap-max-hours').value = cap.maxServiceHoursPerDay ?? '';
+    document.getElementById('cfp-cap-installation').value = cap.installationCapacity ?? '';
+    document.getElementById('cfp-cap-repair').value = cap.repairCapacity ?? '';
+    document.getElementById('cfp-cap-inspection').value = cap.inspectionCapacity ?? '';
+    document.getElementById('cfp-cap-rma').value = cap.rmaCapacity ?? '';
+  }
+  function cfpCollectCapacityFields() {
+    const num = (id) => document.getElementById(id).value ? Number(document.getElementById(id).value) : null;
+    return {
+      maxJobsPerDay: num('cfp-cap-max-jobs'),
+      maxServiceHoursPerDay: num('cfp-cap-max-hours'),
+      installationCapacity: num('cfp-cap-installation'),
+      repairCapacity: num('cfp-cap-repair'),
+      inspectionCapacity: num('cfp-cap-inspection'),
+      rmaCapacity: num('cfp-cap-rma')
+    };
+  }
+  async function renderCfpCapacityLive(d) {
+    const el = document.getElementById('cfp-cap-live');
+    el.innerHTML = '<div style="color:var(--stone);">Loading…</div>';
+    try {
+      const snap = await getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', d.id)));
+      const todayStr = new Date().toDateString();
+      let todayJobs = 0, assigned = 0, inProgress = 0, waiting = 0, completed = 0;
+      snap.forEach(docSnap => {
+        const r = docSnap.data();
+        const created = r.createdAt?.toDate ? r.createdAt.toDate() : null;
+        if (!created || created.toDateString() !== todayStr) return;
+        todayJobs++;
+        if (r.status === 'assigned' || r.status === 'assigned_to_center' || r.status === 'accepted') assigned++;
+        else if (r.status === 'on_the_way' || r.status === 'at_customer' || r.status === 'in_progress') inProgress++;
+        else if (r.status === 'waiting_spare') waiting++;
+        else if (r.status === 'completed' || r.status === 'closed') completed++;
+      });
+      const maxJobs = (d.capacity || {}).maxJobsPerDay;
+      const remaining = (maxJobs != null) ? Math.max(0, maxJobs - todayJobs) : null;
+      el.innerHTML = `
+        <div><strong>${todayJobs}</strong><br>Today's Jobs</div>
+        <div><strong>${assigned}</strong><br>Assigned</div>
+        <div><strong>${inProgress}</strong><br>In Progress</div>
+        <div><strong>${waiting}</strong><br>Waiting</div>
+        <div><strong>${completed}</strong><br>Completed</div>
+        <div><strong>${remaining ?? '—'}</strong><br>Remaining Capacity${maxJobs == null ? ' (set Max Jobs/Day)' : ''}</div>`;
+    } catch (err) {
+      console.error('Load capacity live values failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load.</div>`;
+    }
+  }
+
+  async function renderCfpTechniciansBlock(d) {
+    const tbody = document.getElementById('cfp-tech-tbody');
+    try {
+      const [techSnap, reqSnap] = await Promise.all([
+        getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', d.id))),
+        getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', d.id)))
+      ]);
+      if (techSnap.empty) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No technicians on this center's roster yet.</td></tr>`;
+        return;
+      }
+      const todayStr = new Date().toDateString();
+      const requests = []; reqSnap.forEach(r => requests.push(r.data()));
+      const techs = []; techSnap.forEach(t => techs.push({ id: t.id, ...t.data() }));
+      tbody.innerHTML = '';
+      techs.forEach(t => {
+        const todayJobs = requests.filter(r => r.technicianUid && r.technicianUid === t.technicianUid && r.createdAt?.toDate && r.createdAt.toDate().toDateString() === todayStr).length;
+        const onLeave = (t.leaveRecords || []).some(lv => lv.status === 'APPROVED' && lv.startDate && lv.endDate && lv.startDate <= new Date().toISOString().slice(0, 10) && lv.endDate >= new Date().toISOString().slice(0, 10));
+        const availability = onLeave ? 'On Leave' : (t.employmentStatus && t.employmentStatus !== 'ACTIVE' ? '—' : 'Available');
+        const skillsLabel = (t.technicalSkills || []).map(s => s.skill).filter(Boolean).slice(0, 2).join(', ') || t.skills || '—';
+        const nameHtml = t.technicianUid
+          ? `<a href="#" class="cfp-tech-link" data-uid="${t.technicianUid}" data-name="${escapeHtml(t.name || '')}">${escapeHtml(t.name) || '—'}</a>`
+          : `${escapeHtml(t.name) || '—'} <span style="color:var(--stone);font-size:11px;">(informal)</span>`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="padding:4px 6px;">${nameHtml}</td><td style="padding:4px 6px;">${escapeHtml(t.employmentStatus || '—')}</td><td style="padding:4px 6px;">${escapeHtml(skillsLabel)}</td><td style="padding:4px 6px;text-align:center;">${todayJobs}</td><td style="padding:4px 6px;">${availability}</td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.cfp-tech-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          openTechFullProfile(a.dataset.uid, a.dataset.name);
+        });
+      });
+    } catch (err) {
+      console.error('Load technician summary failed:', err);
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
+    }
+  }
+
+  const CFP_INFRA_AREAS = [
+    ['totalArea', 'cfp-infra-total-area'], ['reception', 'cfp-infra-reception'], ['customerWaitingArea', 'cfp-infra-waiting-area'],
+    ['serviceArea', 'cfp-infra-service-area'], ['testingArea', 'cfp-infra-testing-area'], ['storage', 'cfp-infra-storage'],
+    ['rmaArea', 'cfp-infra-rma-area'], ['office', 'cfp-infra-office'], ['parking', 'cfp-infra-parking']
+  ];
+  const CFP_FACILITIES = [
+    ['cctv', 'CCTV'], ['internet', 'Internet'], ['powerBackup', 'Power Backup'], ['generator', 'Generator'], ['ac', 'AC'],
+    ['fireSafety', 'Fire Safety'], ['esdProtection', 'ESD Protection'], ['customerSeating', 'Customer Seating'],
+    ['drinkingWater', 'Drinking Water'], ['washroom', 'Washroom']
+  ];
+  function renderCfpInfraBlock(d) {
+    const infra = d.infrastructure || {};
+    CFP_INFRA_AREAS.forEach(([key, id]) => { document.getElementById(id).value = infra[key] ?? ''; });
+    const facilities = d.facilities || {};
+    document.getElementById('cfp-facilities-grid').innerHTML = CFP_FACILITIES.map(([key, label]) =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" class="cfp-facility" data-key="${key}" ${facilities[key] ? 'checked' : ''}>${label}</label>`
+    ).join('');
+  }
+  function cfpCollectInfra() {
+    const infrastructure = {};
+    CFP_INFRA_AREAS.forEach(([key, id]) => {
+      const v = document.getElementById(id).value;
+      infrastructure[key] = v ? Number(v) : null;
+    });
+    const facilities = {};
+    document.querySelectorAll('.cfp-facility').forEach(cb => { facilities[cb.dataset.key] = cb.checked; });
+    return { infrastructure, facilities };
+  }
+
+  async function logScTimelineEvent(centerId, event, label) {
+    try {
+      await addDoc(collection(db, 'serviceCenterTimeline'), {
+        centerDocId: centerId, event, label,
+        performedBy: currentUser ? currentUser.email : 'Super Admin',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Timeline log failed (non-blocking):', err.message);
+    }
+  }
+  async function renderCfpTimelineBlock(centerId) {
+    const el = document.getElementById('cfp-timeline-block');
+    el.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'serviceCenterTimeline'), where('centerDocId', '==', centerId)));
+      const events = []; snap.forEach(s => events.push({ id: s.id, ...s.data() }));
+      if (!events.length) { el.innerHTML = `<div style="color:var(--stone);">No activity recorded yet.</div>`; return; }
+      events.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      el.innerHTML = events.map(e => {
+        const dateLabel = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : '—';
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--line, #eee);"><strong>${dateLabel}</strong> — ${escapeHtml(e.label || e.event || '')}</div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load timeline failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load timeline. Check console for details.</div>`;
+    }
+  }
+  function detectCfpTimelineEvents(before, update) {
+    const events = [];
+    if ((before.status || '') !== (update.status || '') && update.status) {
+      if (update.status === 'ACTIVE') events.push(['CENTER_APPROVED', 'Status set to Active']);
+      else events.push(['STATUS_CHANGED', `Status changed to ${update.status}`]);
+    }
+    const beforeManager = ((before.contactPersons || {}).manager || {}).name || '';
+    const afterManager = ((update.contactPersons || {}).manager || {}).name || '';
+    if (beforeManager !== afterManager) events.push(['MANAGER_CHANGED', `Manager changed to ${afterManager || '—'}`]);
+    const beforeBrands = {}; (before.brandAuthorizations || []).forEach(b => { beforeBrands[b.brand] = b.status; });
+    (update.brandAuthorizations || []).forEach(b => {
+      if (b.status === 'AUTHORIZED' && beforeBrands[b.brand] !== 'AUTHORIZED') events.push(['BRAND_ADDED', `${b.brand} authorization added`]);
+      else if (beforeBrands[b.brand] === 'AUTHORIZED' && b.status !== 'AUTHORIZED') events.push(['BRAND_REMOVED', `${b.brand} authorization removed`]);
+    });
+    if ((before.productCapabilities || []).length !== (update.productCapabilities || []).length) {
+      events.push(['CAPABILITY_CHANGED', 'Product capability list changed']);
+    }
+    if ((before.documents || []).length !== (update.documents || []).length) {
+      events.push(['DOCUMENT_UPDATED', 'A document was added or changed']);
+    }
+    const coreFields = ['displayName', 'centerType', 'openingDate', 'officialMobile', 'alternateMobile', 'officialEmail', 'whatsapp', 'landline', 'website', 'address', 'landmark', 'pincode'];
+    if (coreFields.some(f => (before[f] || '') !== (update[f] || ''))) {
+      events.push(['SETTINGS_CHANGED', 'Profile details updated']);
+    }
+    return events;
+  }
+
+  function cfpPeriodRange(period) {
+    const now = new Date();
+    let from, to = now;
+    if (period === 'today') from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    else if (period === 'week') { const dow = now.getDay(); from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow); }
+    else if (period === 'month') from = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (period === 'quarter') from = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    else if (period === 'year') from = new Date(now.getFullYear(), 0, 1);
+    else if (period === 'custom') {
+      const fromVal = document.getElementById('cfp-perf-from').value;
+      const toVal = document.getElementById('cfp-perf-to').value;
+      from = fromVal ? new Date(fromVal) : new Date(0);
+      to = toVal ? new Date(toVal + 'T23:59:59') : now;
+    }
+    return { from, to };
+  }
+  const CFP_PENDING_STATUSES = ['new', 'assigned', 'assigned_to_center', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare', 'verification'];
+  async function renderCfpPerformanceBlock(centerId) {
+    const el = document.getElementById('cfp-perf-block');
+    el.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    try {
+      const period = document.getElementById('cfp-perf-period').value;
+      const { from, to } = cfpPeriodRange(period);
+      const snap = await getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', centerId)));
+      const jobs = []; snap.forEach(s => jobs.push(s.data()));
+      const inRange = jobs.filter(j => {
+        const ts = j.createdAt?.seconds ? j.createdAt.seconds * 1000 : null;
+        return ts && ts >= from.getTime() && ts <= to.getTime();
+      });
+      const total = inRange.length;
+      const completed = inRange.filter(j => j.status === 'completed' || j.status === 'closed').length;
+      const pending = inRange.filter(j => CFP_PENDING_STATUSES.includes(j.status)).length;
+      const cancelled = inRange.filter(j => j.status === 'cancelled').length;
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+          <div><strong>${total}</strong><br><span style="color:var(--stone);font-size:12px;">Total Jobs</span></div>
+          <div><strong>${completed}</strong><br><span style="color:var(--stone);font-size:12px;">Completed</span></div>
+          <div><strong>${pending}</strong><br><span style="color:var(--stone);font-size:12px;">Pending</span></div>
+          <div><strong>${cancelled}</strong><br><span style="color:var(--stone);font-size:12px;">Cancelled</span></div>
+        </div>
+        <div style="font-size:12px;color:var(--stone);">Not tracked yet (need data this app doesn't capture): Reopened, First Visit Fix %, SLA Compliance %, Average Resolution Time, Average Response Time, Repeat Complaint %, Customer Rating, Technician Utilization, Spare Waiting Time.</div>`;
+    } catch (err) {
+      console.error('Load center performance failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
+    }
+  }
+
+  async function renderCfpSlaSummary(district) {
+    const el = document.getElementById('cfp-sla-summary');
+    try {
+      const rules = await getSlaRulesCache();
+      const rule = resolveSlaRule(rules, district, '');
+      if (rule) {
+        el.innerHTML = `<strong>${escapeHtml(rule.name)}</strong> — due in ${rule.dueSoonHours}h, breached after ${rule.breachedHours}h (matched on district: ${escapeHtml(district)})`;
+      } else {
+        el.innerHTML = `Default — due in ${SLA_DEFAULT.dueSoonHours}h, breached after ${SLA_DEFAULT.breachedHours}h (no district-specific rule for "${escapeHtml(district || '—')}")`;
+      }
+    } catch (err) {
+      console.error('Load SLA rules failed:', err);
+      el.innerHTML = `<span style="color:var(--err);">Could not load.</span>`;
+    }
+  }
+
+  const CFP_DOC_TYPES = ['GST Certificate', 'PAN', 'Business Registration', 'Service Agreement', 'Brand Authorization', 'Address Proof', 'Bank Proof', 'Center Photos', 'Insurance', 'Fire Safety Certificate'];
+  function cfpDocRowHtml(row) {
+    row = row || {};
+    const docId = row.docId || ('DOC-' + Date.now().toString(36).toUpperCase());
+    return `
+      <div class="cfp-doc-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="cfp-doc-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <input type="hidden" class="cfp-doc-id" value="${escapeHtml(docId)}">
+        <input type="hidden" class="cfp-doc-fileurl" value="${escapeHtml(row.fileUrl || '')}">
+        <div class="form-row"><label>Document Type</label>
+          <select class="cfp-doc-type">
+            <option value="">—</option>
+            ${CFP_DOC_TYPES.map(t => `<option value="${t}" ${row.docType === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row"><label>File</label>
+          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${row.fileUrl}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
+          <input type="file" class="cfp-doc-file">
+        </div>
+        <div class="form-row"><label>Issue Date</label><input type="date" class="cfp-doc-issue-date" value="${row.issueDate || ''}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="cfp-doc-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Uploaded By</label><input type="text" class="cfp-doc-uploaded-by" value="${escapeHtml(row.uploadedBy || '')}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Uploaded Date</label><input type="text" class="cfp-doc-uploaded-date" value="${row.uploadedDate || ''}" disabled style="opacity:0.6;"></div>
+        <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Verified</label><input type="checkbox" class="cfp-doc-verified" ${row.verified ? 'checked' : ''}></div>
+        <div class="form-row"><label>Verified By</label><input type="text" class="cfp-doc-verified-by" value="${escapeHtml(row.verifiedBy || '')}"></div>
+        <div class="form-row"><label>Verification Date</label><input type="date" class="cfp-doc-verification-date" value="${row.verificationDate || ''}"></div>
+      </div>`;
+  }
+  function cfpAddDocRow(row) {
+    const list = document.getElementById('cfp-doc-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = cfpDocRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.cfp-doc-remove').addEventListener('click', () => rowEl.remove());
+  }
+  function renderCfpDocBlock(d) {
+    document.getElementById('cfp-doc-list').innerHTML = '';
+    (d.documents || []).forEach(row => cfpAddDocRow(row));
+  }
+  async function cfpCollectDocuments(centerId) {
+    const rows = [];
+    const rowEls = document.querySelectorAll('#cfp-doc-list .cfp-doc-row');
+    for (const rowEl of rowEls) {
+      const docId = rowEl.querySelector('.cfp-doc-id').value;
+      const docType = rowEl.querySelector('.cfp-doc-type').value;
+      let fileUrl = rowEl.querySelector('.cfp-doc-fileurl').value;
+      let uploadedBy = rowEl.querySelector('.cfp-doc-uploaded-by').value;
+      let uploadedDate = rowEl.querySelector('.cfp-doc-uploaded-date').value;
+      const fileInput = rowEl.querySelector('.cfp-doc-file');
+      const newFile = fileInput.files && fileInput.files[0];
+      if (newFile) {
+        const fileRef = storageRef(storage, `serviceCenterProfiles/${centerId}/documents/${docId}_${Date.now()}_${newFile.name}`);
+        await uploadBytes(fileRef, newFile);
+        fileUrl = await getDownloadURL(fileRef);
+        uploadedBy = 'Super Admin';
+        uploadedDate = new Date().toLocaleDateString();
+      }
+      const issueDate = rowEl.querySelector('.cfp-doc-issue-date').value;
+      const expiryDate = rowEl.querySelector('.cfp-doc-expiry').value;
+      const verified = rowEl.querySelector('.cfp-doc-verified').checked;
+      const verifiedBy = rowEl.querySelector('.cfp-doc-verified-by').value.trim();
+      const verificationDate = rowEl.querySelector('.cfp-doc-verification-date').value;
+      if (docType || fileUrl || issueDate || expiryDate || verified || verifiedBy || verificationDate) {
+        rows.push({ docId, docType, fileUrl, issueDate, expiryDate, uploadedBy, uploadedDate, verified, verifiedBy, verificationDate });
+      }
+    }
+    return rows;
+  }
+
+  async function renderCfpInventoryBlock(uid, summaryEl, tbodyEl, movementsEl) {
+    summaryEl.innerHTML = '<div style="color:var(--stone);">Loading…</div>';
+    tbodyEl.innerHTML = '<tr><td colspan="3" class="empty-row">Loading…</td></tr>';
+    try {
+      const [invSnap, partsSnap, movSnap] = await Promise.all([
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'servicecenter'), where('serviceCenterUid', '==', uid))),
+        getDocs(collection(db, 'spareParts')),
+        getDocs(query(collection(db, 'stockMovements'), where('location', '==', 'servicecenter'), where('serviceCenterUid', '==', uid)))
+      ]);
+      const partMap = {};
+      partsSnap.forEach(p => { partMap[p.id] = p.data(); });
+      const rows = []; invSnap.forEach(r => rows.push(r.data()));
+      const totalQty = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+      summaryEl.innerHTML = `<strong>${rows.length}</strong> part(s) on hand &nbsp; · &nbsp; <strong>${totalQty}</strong> total units`;
+      if (rows.length === 0) {
+        tbodyEl.innerHTML = `<tr><td colspan="3" class="empty-row">No parts in inventory yet.</td></tr>`;
+      } else {
+        rows.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+        tbodyEl.innerHTML = rows.map(r => {
+          const part = partMap[r.partId];
+          return `<tr><td style="padding:4px 6px;font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td><td style="padding:4px 6px;">${escapeHtml(part ? part.name : '—')}</td><td style="padding:4px 6px;text-align:center;"><b>${r.quantity ?? 0}</b></td></tr>`;
+        }).join('');
+      }
+      const moves = []; movSnap.forEach(m => moves.push(m.data()));
+      moves.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const recent = moves.slice(0, 5);
+      movementsEl.innerHTML = recent.length === 0 ? `<div style="color:var(--stone);font-size:13px;">No stock movements recorded yet.</div>` : recent.map(m => {
+        const part = partMap[m.partId];
+        const when = m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString() : '—';
+        return `<div style="font-size:13px;">${when} — ${m.type === 'receive' ? 'Received' : 'Issued'} ${m.quantity ?? 0} × ${escapeHtml(part ? part.name : m.partId)}${m.reason ? ' (' + escapeHtml(m.reason) + ')' : ''}</div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load inventory summary failed:', err);
+      summaryEl.innerHTML = `<div style="color:var(--err);">Could not load.</div>`;
+      tbodyEl.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Could not load.</td></tr>`;
+    }
+  }
+
+  const CFP_SERVICE_CAPS = [
+    ['installation', 'Installation'], ['warrantyRepair', 'Warranty Repair'], ['nonWarrantyRepair', 'Non-Warranty Repair'],
+    ['inspection', 'Inspection'], ['preventiveMaintenance', 'Preventive Maintenance'], ['hardwareRepair', 'Hardware Repair'],
+    ['softwareSupport', 'Software Support'], ['rmaInspection', 'RMA Inspection'], ['replacement', 'Replacement'],
+    ['reinstallation', 'Reinstallation']
+  ];
+  function renderCfpServiceCapBlock(d) {
+    const caps = d.serviceCapabilities || {};
+    document.getElementById('cfp-service-cap-grid').innerHTML = CFP_SERVICE_CAPS.map(([key, label]) =>
+      `<label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" class="cfp-service-cap" data-cap="${key}" ${caps[key] ? 'checked' : ''}>${label}</label>`
+    ).join('');
+  }
+  function cfpCollectServiceCaps() {
+    const caps = {};
+    document.querySelectorAll('.cfp-service-cap').forEach(cb => { caps[cb.dataset.cap] = cb.checked; });
+    return caps;
+  }
+
+  // Same fixed brand set as the Brands checkboxes on the account (and as
+  // the Technician Master's brand authorization) — kept as a separate,
+  // richer per-brand record (type/level/dates/approver) rather than
+  // reusing brandsAuthorized, since that field drives live routing and
+  // must not change shape.
+  const CFP_BRANDS = [['makwell', 'MakWell'], ['flyvision', 'Flyvision'], ['skevia', 'Skevia']];
+
+  function renderCfpBrandAuthBlock(d) {
+    const el = document.getElementById('cfp-brand-auth-block');
+    const existing = {};
+    (d.brandAuthorizations || []).forEach(b => { existing[b.brand] = b; });
+    el.innerHTML = CFP_BRANDS.map(([val, label]) => {
+      const b = existing[val] || {};
+      return `
+        <div style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;">
+          <div style="font-weight:600;margin-bottom:8px;">${label}</div>
+          <div class="form-row"><label>Status</label>
+            <select class="cfp-brand-status" data-brand="${val}">
+              <option value="">—</option>
+              <option value="AUTHORIZED" ${b.status === 'AUTHORIZED' ? 'selected' : ''}>Authorized</option>
+              <option value="NOT_AUTHORIZED" ${b.status === 'NOT_AUTHORIZED' ? 'selected' : ''}>Not Authorized</option>
+              <option value="SUSPENDED" ${b.status === 'SUSPENDED' ? 'selected' : ''}>Suspended</option>
+              <option value="EXPIRED" ${b.status === 'EXPIRED' ? 'selected' : ''}>Expired</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Authorization Type</label>
+            <select class="cfp-brand-type" data-brand="${val}">
+              <option value="">—</option>
+              <option value="FULL" ${b.authType === 'FULL' ? 'selected' : ''}>Full</option>
+              <option value="LIMITED" ${b.authType === 'LIMITED' ? 'selected' : ''}>Limited</option>
+              <option value="PROVISIONAL" ${b.authType === 'PROVISIONAL' ? 'selected' : ''}>Provisional</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Authorization Level</label>
+            <select class="cfp-brand-level" data-brand="${val}">
+              <option value="">—</option>
+              <option value="BASIC" ${b.level === 'BASIC' ? 'selected' : ''}>Basic</option>
+              <option value="STANDARD" ${b.level === 'STANDARD' ? 'selected' : ''}>Standard</option>
+              <option value="PREMIUM" ${b.level === 'PREMIUM' ? 'selected' : ''}>Premium</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Effective From</label><input type="date" class="cfp-brand-from" data-brand="${val}" value="${b.effectiveFrom || ''}"></div>
+          <div class="form-row"><label>Effective To</label><input type="date" class="cfp-brand-to" data-brand="${val}" value="${b.effectiveTo || ''}"></div>
+          <div class="form-row"><label>Approved By</label><input type="text" class="cfp-brand-approvedby" data-brand="${val}" value="${escapeHtml(b.approvedBy || '')}"></div>
+        </div>`;
+    }).join('');
+  }
+
+  function collectCfpBrandAuth() {
+    return CFP_BRANDS.map(([val]) => {
+      const q = (cls) => document.querySelector(`.${cls}[data-brand="${val}"]`);
+      return {
+        brand: val,
+        status: q('cfp-brand-status').value,
+        authType: q('cfp-brand-type').value,
+        level: q('cfp-brand-level').value,
+        effectiveFrom: q('cfp-brand-from').value,
+        effectiveTo: q('cfp-brand-to').value,
+        approvedBy: q('cfp-brand-approvedby').value.trim()
+      };
+    }).filter(b => b.status || b.authType || b.level || b.effectiveFrom || b.effectiveTo || b.approvedBy);
+  }
+
+  // ---------------------------------------------------------------
+  // Product & Category Capability (Service Center Master section 07) —
+  // same cascading Brand → Category → Product → Model pattern used for
+  // the Technician Master's capability block, sourced from the same
+  // Catalog data this page already manages elsewhere.
+  // ---------------------------------------------------------------
+  let cfpCatalogCache = null;
+  async function loadCfpCatalogCache() {
+    if (cfpCatalogCache) return cfpCatalogCache;
+    const [catSnap, prodSnap, modSnap] = await Promise.all([
+      getDocs(collection(db, 'productCategories')),
+      getDocs(collection(db, 'products')),
+      getDocs(collection(db, 'productModels'))
+    ]);
+    const categories = []; catSnap.forEach(d => categories.push({ id: d.id, ...d.data() }));
+    const products = []; prodSnap.forEach(d => products.push({ id: d.id, ...d.data() }));
+    const models = []; modSnap.forEach(d => models.push({ id: d.id, ...d.data() }));
+    cfpCatalogCache = { categories, products, models };
+    return cfpCatalogCache;
+  }
+
+  function cfpCapabilityRowHtml(row) {
+    row = row || {};
+    return `
+      <div class="cfp-cap-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="cfp-cap-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <div class="form-row"><label>Brand</label>
+          <select class="cfp-cap-brand">
+            <option value="">—</option>
+            ${CFP_BRANDS.map(([v, l]) => `<option value="${v}" ${row.brand === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row"><label>Category</label><select class="cfp-cap-category"><option value="">—</option></select></div>
+        <div class="form-row"><label>Product</label><select class="cfp-cap-product"><option value="">—</option></select></div>
+        <div class="form-row"><label>Model</label><select class="cfp-cap-model"><option value="">—</option></select></div>
+        <div class="form-row"><label>Capability Level</label>
+          <select class="cfp-cap-level">
+            <option value="">—</option>
+            <option value="BASIC" ${row.level === 'BASIC' ? 'selected' : ''}>Basic</option>
+            <option value="INTERMEDIATE" ${row.level === 'INTERMEDIATE' ? 'selected' : ''}>Intermediate</option>
+            <option value="ADVANCED" ${row.level === 'ADVANCED' ? 'selected' : ''}>Advanced</option>
+            <option value="EXPERT" ${row.level === 'EXPERT' ? 'selected' : ''}>Expert</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Status</label>
+          <select class="cfp-cap-status">
+            <option value="ACTIVE" ${row.status === 'ACTIVE' ? 'selected' : ''}>Active</option>
+            <option value="INACTIVE" ${row.status === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
+            <option value="PENDING_REVIEW" ${row.status === 'PENDING_REVIEW' ? 'selected' : ''}>Pending Review</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
+  function wireCfpCapabilityRow(rowEl, row) {
+    const catSelect = rowEl.querySelector('.cfp-cap-category');
+    const prodSelect = rowEl.querySelector('.cfp-cap-product');
+    const modelSelect = rowEl.querySelector('.cfp-cap-model');
+    const brandSelect = rowEl.querySelector('.cfp-cap-brand');
+
+    function fillCategories(brandId, selectedCategoryId) {
+      const cats = cfpCatalogCache.categories.filter(c => c.brandId === brandId);
+      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${c.id}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
+      fillProducts(brandId, selectedCategoryId, null);
+    }
+    function fillProducts(brandId, categoryId, selectedProductId) {
+      const prods = cfpCatalogCache.products.filter(p => p.brandId === brandId && (!categoryId || p.categoryId === categoryId));
+      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${p.id}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
+      fillModels(prodSelect.value, null);
+    }
+    function fillModels(productId, selectedModelId) {
+      productId = productId || prodSelect.value;
+      const mods = productId ? cfpCatalogCache.models.filter(m => m.productId === productId) : [];
+      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
+    }
+
+    brandSelect.addEventListener('change', () => fillCategories(brandSelect.value, null));
+    catSelect.addEventListener('change', () => fillProducts(brandSelect.value, catSelect.value, null));
+    prodSelect.addEventListener('change', () => fillModels(prodSelect.value, null));
+    rowEl.querySelector('.cfp-cap-remove').addEventListener('click', () => rowEl.remove());
+
+    if (row && row.brand) {
+      fillCategories(row.brand, row.category || null);
+      if (row.category) fillProducts(row.brand, row.category, row.product || null);
+      if (row.product) fillModels(row.product, row.model || null);
+    }
+  }
+
+  function addCfpCapabilityRow(row) {
+    const list = document.getElementById('cfp-capability-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = cfpCapabilityRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    wireCfpCapabilityRow(rowEl, row);
+  }
+
+  async function renderCfpCapabilityBlock(d) {
+    const list = document.getElementById('cfp-capability-list');
+    list.innerHTML = '<div style="color:var(--stone);font-size:13px;">Loading catalog…</div>';
+    await loadCfpCatalogCache();
+    list.innerHTML = '';
+    (d.productCapabilities || []).forEach(row => addCfpCapabilityRow(row));
+  }
+
+  function cfpCollectCapabilities() {
+    const rows = [];
+    document.querySelectorAll('#cfp-capability-list .cfp-cap-row').forEach(rowEl => {
+      const brand = rowEl.querySelector('.cfp-cap-brand').value;
+      const category = rowEl.querySelector('.cfp-cap-category').value;
+      const product = rowEl.querySelector('.cfp-cap-product').value;
+      const model = rowEl.querySelector('.cfp-cap-model').value;
+      const level = rowEl.querySelector('.cfp-cap-level').value;
+      const status = rowEl.querySelector('.cfp-cap-status').value;
+      if (brand || category || product || model || level) rows.push({ brand, category, product, model, level, status });
+    });
+    return rows;
+  }
+
+  async function openCenterFullProfile(uid, name) {
+    document.getElementById('cfp-title').textContent = name ? `${name} — full profile` : 'Service Center profile';
+    const body = document.getElementById('cfp-body');
+    body.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    document.getElementById('center-fullprofile-overlay').classList.add('show');
+    try {
+      const ref = doc(db, 'serviceCenterProfiles', uid);
+      let snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, { serviceCenterCode: saGenerateCenterCode(uid), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        snap = await getDoc(ref);
+        await logScTimelineEvent(uid, 'CENTER_CREATED', 'Service Center profile created');
+      }
+      // Coverage (districtsCovered/pincodesCovered) lives on the account
+      // doc — the same field this page's Coverage Analysis (conflicts &
+      // gaps) and routing logic already use — so it's read here rather
+      // than duplicated into serviceCenterProfiles.
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      await renderCfpBody({
+        id: uid, ...snap.data(),
+        districtsCovered: userData.districtsCovered || [],
+        pincodesCovered: userData.pincodesCovered || []
+      });
+    } catch (err) {
+      console.error('Load service center full profile failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
+    }
+  }
+  document.getElementById('cfp-close').addEventListener('click', () => document.getElementById('center-fullprofile-overlay').classList.remove('show'));
+  document.getElementById('center-fullprofile-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'center-fullprofile-overlay') e.target.classList.remove('show');
+  });
+
+  function cfpStaffRowHtml(row) {
+    row = row || {};
+    return `
+      <div class="cfp-staff-row" style="display:flex;gap:8px;align-items:center;">
+        <input type="text" class="cfp-staff-name" placeholder="Name" value="${escapeHtml(row.name || '')}" style="flex:1.3;">
+        <input type="text" class="cfp-staff-role" placeholder="Role" value="${escapeHtml(row.role || '')}" style="flex:1;">
+        <input type="tel" class="cfp-staff-phone" placeholder="Phone" value="${escapeHtml(row.phone || '')}" style="flex:1;">
+        <input type="email" class="cfp-staff-email" placeholder="Email" value="${escapeHtml(row.email || '')}" style="flex:1.3;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;"><input type="checkbox" class="cfp-staff-active" ${row.active !== false ? 'checked' : ''}>Active</label>
+        <button type="button" class="cfp-staff-remove" style="background:none;border:none;color:var(--err);cursor:pointer;">Remove</button>
+      </div>`;
+  }
+  function cfpAddStaffRow(row) {
+    const list = document.getElementById('cfp-staff-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = cfpStaffRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.cfp-staff-remove').addEventListener('click', () => rowEl.remove());
+  }
+  function cfpCollectStaff() {
+    const rows = [];
+    document.querySelectorAll('#cfp-staff-list .cfp-staff-row').forEach(rowEl => {
+      const name = rowEl.querySelector('.cfp-staff-name').value.trim();
+      const role = rowEl.querySelector('.cfp-staff-role').value.trim();
+      const phone = rowEl.querySelector('.cfp-staff-phone').value.trim();
+      const email = rowEl.querySelector('.cfp-staff-email').value.trim();
+      const active = rowEl.querySelector('.cfp-staff-active').checked;
+      if (name || role || phone || email) rows.push({ name, role, phone, email, active });
+    });
+    return rows;
+  }
+
+  async function renderCfpBody(d) {
+    const body = document.getElementById('cfp-body');
+    body.innerHTML = `
+      <div style="font-weight:600;margin-bottom:8px;">Service Center Master</div>
+      <div><strong>Service Center ID:</strong> ${escapeHtml(d.id)}</div>
+      <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || '—')}</div>
+      <div class="form-row"><label>Display Name</label><input type="text" id="cfp-display-name"></div>
+      <div class="form-row"><label>Center Type</label>
+        <select id="cfp-center-type">
+          <option value="">—</option>
+          <option value="COMPANY_OWNED">Company Owned</option>
+          <option value="FRANCHISE">Franchise</option>
+          <option value="AUTHORIZED_PARTNER">Authorized Partner</option>
+          <option value="THIRD_PARTY">Third Party</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Opening Date</label><input type="date" id="cfp-opening-date"></div>
+      <div class="form-row"><label>Status</label>
+        <select id="cfp-status">
+          <option value="PENDING_APPROVAL">Pending Approval</option>
+          <option value="ACTIVE">Active</option>
+          <option value="TEMPORARILY_CLOSED">Temporarily Closed</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="TERMINATED">Terminated</option>
+        </select>
+      </div>
+      <div style="font-size:12px;color:var(--stone);margin-top:4px;">Created ${d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString() : '—'} · Last updated ${d.updatedAt?.toDate ? d.updatedAt.toDate().toLocaleString() : '—'}</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Approval</div>
+      <div class="form-row"><label>Submitted By</label><input type="text" id="cfp-appr-submitted-by"></div>
+      <div class="form-row"><label>Submitted Date</label><input type="date" id="cfp-appr-submitted-date"></div>
+      <div class="form-row"><label>Approved By</label><input type="text" id="cfp-appr-approved-by"></div>
+      <div class="form-row"><label>Approved Date</label><input type="date" id="cfp-appr-approved-date"></div>
+      <div class="form-row"><label>Rejection Reason</label><input type="text" id="cfp-appr-rejection-reason" placeholder="Only if Status is rejected/not approved"></div>
+      <div class="form-row"><label>Suspension Reason</label><input type="text" id="cfp-appr-suspension-reason" placeholder="Only if Status is Suspended"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Contact Details</div>
+      <div class="form-row"><label>Official Mobile</label><input type="tel" id="cfp-official-mobile"></div>
+      <div class="form-row"><label>Alternate Mobile</label><input type="tel" id="cfp-alt-mobile"></div>
+      <div class="form-row"><label>Official Email</label><input type="email" id="cfp-official-email"></div>
+      <div class="form-row"><label>WhatsApp</label><input type="tel" id="cfp-whatsapp"></div>
+      <div class="form-row"><label>Landline</label><input type="text" id="cfp-landline"></div>
+      <div class="form-row"><label>Website</label><input type="text" id="cfp-website"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Contact Persons</div>
+      ${CFP_CONTACT_ROLES.map(([key, label]) => `
+        <div style="display:flex;gap:10px;margin-bottom:6px;">
+          <input type="text" id="cfp-cp-${key}-name" placeholder="${label} name" style="flex:1;">
+          <input type="tel" id="cfp-cp-${key}-phone" placeholder="${label} phone" style="flex:1;">
+        </div>`).join('')}
+
+      <div style="font-weight:600;margin:16px 0 8px;">Address &amp; Location</div>
+      <div class="form-row"><label>Address</label><input type="text" id="cfp-address"></div>
+      <div class="form-row"><label>Landmark</label><input type="text" id="cfp-landmark"></div>
+      <div class="form-row"><label>Pincode</label><input type="text" id="cfp-pincode" inputmode="numeric" maxlength="6"></div>
+      <div id="cfp-pincode-note" style="font-size:12px;color:var(--stone);margin:-6px 0 10px;"></div>
+      <div class="form-row"><label>Area</label><input type="text" id="cfp-area"></div>
+      <div class="form-row"><label>Post Office</label><input type="text" id="cfp-post-office"></div>
+      <div class="form-row"><label>City</label><input type="text" id="cfp-city"></div>
+      <div class="form-row"><label>Taluk</label><input type="text" id="cfp-taluk"></div>
+      <div class="form-row"><label>District</label><input type="text" id="cfp-district"></div>
+      <div class="form-row"><label>State</label><input type="text" id="cfp-state"></div>
+      <div class="form-row"><label>Latitude</label><input type="text" id="cfp-lat"></div>
+      <div class="form-row"><label>Longitude</label><input type="text" id="cfp-lng"></div>
+      <div class="form-row"><label>Map Location</label><input type="text" id="cfp-map-link" placeholder="https://maps.google.com/..."></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Manager &amp; Staff</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Manager and Service Coordinator are set under Contact Persons above. This app has one login per Service Center — staff below are informal records, not separate login accounts with their own permissions.</div>
+      <div id="cfp-staff-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button type="button" class="btn-secondary" id="cfp-add-staff" style="margin-top:4px;">+ Add staff member</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Legal &amp; Business</div>
+      <div class="form-row"><label>Legal Business Name</label><input type="text" id="cfp-legal-name"></div>
+      <div class="form-row"><label>Trade Name</label><input type="text" id="cfp-trade-name"></div>
+      <div class="form-row"><label>Business Type</label>
+        <select id="cfp-business-type">
+          <option value="">—</option>
+          <option value="SOLE_PROPRIETORSHIP">Sole Proprietorship</option>
+          <option value="PARTNERSHIP">Partnership</option>
+          <option value="PRIVATE_LIMITED">Private Limited</option>
+          <option value="LLP">LLP</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="form-row"><label>GSTIN</label><input type="text" id="cfp-gstin"></div>
+      <div class="form-row"><label>PAN</label><input type="text" id="cfp-pan"></div>
+      <div class="form-row"><label>Registration Number</label><input type="text" id="cfp-reg-number"></div>
+      <div class="form-row"><label>Service Agreement</label>
+        <div id="cfp-agreement-link" style="margin-bottom:4px;"></div>
+        <input type="file" id="cfp-agreement-file">
+      </div>
+      <div class="form-row"><label>Agreement Validity</label><input type="date" id="cfp-agreement-validity"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Brand Authorization</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Which brands this center is authorized to service — granted here by Super Admin. This is separate from the Brands checkboxes on the center's login account (used for routing); keep both in sync when a brand is added or withdrawn.</div>
+      <div id="cfp-brand-auth-block" style="display:flex;flex-direction:column;gap:10px;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Product &amp; Category Capability</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">What this center can service, from the same Category/Product/Model catalog managed under Catalog.</div>
+      <div id="cfp-capability-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="cfp-add-capability" style="margin-top:4px;">+ Add product capability</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Service Capability</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">What kinds of jobs this center is set up to perform.</div>
+      <div id="cfp-service-cap-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Coverage</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">This is the same Covered Districts/Pincodes used for routing and for the Coverage Analysis (conflicts &amp; gaps) page — shown here read-only; edit it from this row's "Edit" button on the Centers list (Coverage Districts/Pincodes fields) rather than here, so there's one place it's changed. Territory follows the Pincode Master hierarchy above; per-pincode Coverage Type, Priority and Effective Dates aren't tracked as separate fields — a pincode is simply covered or not.</div>
+      <div><strong>Covered Districts (${(d.districtsCovered || []).length}):</strong> ${(d.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
+      <div><strong>Covered Pincodes (${(d.pincodesCovered || []).length}):</strong> ${(d.pincodesCovered || []).length ? (d.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Working Hours</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 6px;">Day</th><th style="padding:4px 6px;">Working</th>
+            <th style="padding:4px 6px;">Opening Time</th><th style="padding:4px 6px;">Closing Time</th>
+            <th style="padding:4px 6px;">Break Start</th><th style="padding:4px 6px;">Break End</th>
+            <th style="padding:4px 6px;">Special Working Day</th>
+          </tr></thead>
+          <tbody id="cfp-wh-tbody"></tbody>
+        </table>
+      </div>
+      <div class="form-row" style="margin-top:8px;"><label>Special Working Day Notes</label><input type="text" id="cfp-wh-special-notes"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Holidays &amp; Closures</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">No appointment-booking system in this app reads this list automatically yet — it's a record only.</div>
+      <div id="cfp-holiday-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button type="button" class="btn-secondary" id="cfp-add-holiday" style="margin-top:4px;">+ Add holiday / closure</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Capacity</div>
+      <div class="form-row"><label>Maximum Jobs / Day</label><input type="number" min="0" id="cfp-cap-max-jobs"></div>
+      <div class="form-row"><label>Maximum Service Hours / Day</label><input type="number" min="0" step="0.5" id="cfp-cap-max-hours"></div>
+      <div class="form-row"><label>Installation Capacity</label><input type="number" min="0" id="cfp-cap-installation"></div>
+      <div class="form-row"><label>Repair Capacity</label><input type="number" min="0" id="cfp-cap-repair"></div>
+      <div class="form-row"><label>Inspection Capacity</label><input type="number" min="0" id="cfp-cap-inspection"></div>
+      <div class="form-row"><label>RMA Capacity</label><input type="number" min="0" id="cfp-cap-rma"></div>
+      <div style="font-size:12px;color:var(--stone);margin:4px 0 8px;">Live values below, computed from today's requests:</div>
+      <div id="cfp-cap-live" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technicians</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Summary only — click a linked technician's name for their complete profile (same as the Technicians page's "Full profile").</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr><th style="text-align:left;padding:4px 6px;">Technician</th><th style="padding:4px 6px;">Status</th><th style="padding:4px 6px;">Skills</th><th style="padding:4px 6px;">Today's Jobs</th><th style="padding:4px 6px;">Availability</th></tr></thead>
+          <tbody id="cfp-tech-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Infrastructure &amp; Facilities</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:4px;">Physical infrastructure (sq ft, optional)</div>
+      <div class="form-row"><label>Total Area</label><input type="number" min="0" id="cfp-infra-total-area"></div>
+      <div class="form-row"><label>Reception</label><input type="number" min="0" id="cfp-infra-reception"></div>
+      <div class="form-row"><label>Customer Waiting Area</label><input type="number" min="0" id="cfp-infra-waiting-area"></div>
+      <div class="form-row"><label>Service Area</label><input type="number" min="0" id="cfp-infra-service-area"></div>
+      <div class="form-row"><label>Testing Area</label><input type="number" min="0" id="cfp-infra-testing-area"></div>
+      <div class="form-row"><label>Storage</label><input type="number" min="0" id="cfp-infra-storage"></div>
+      <div class="form-row"><label>RMA Area</label><input type="number" min="0" id="cfp-infra-rma-area"></div>
+      <div class="form-row"><label>Office</label><input type="number" min="0" id="cfp-infra-office"></div>
+      <div class="form-row"><label>Parking</label><input type="number" min="0" id="cfp-infra-parking"></div>
+      <div style="font-size:12px;color:var(--stone);margin:8px 0 4px;">Facilities</div>
+      <div id="cfp-facilities-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Spare Parts / Inventory</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Uses the existing Spare Parts Master and Center Inventory — shown here read-only. Reserved/Available/Damaged quantities, Reorder Level and Maximum Stock aren't tracked as separate fields — only quantity on hand. Of the transaction types in the spec, this app tracks Stock Receipt and Issue; Transfer, Return, Adjustment, Reservation and Consumption aren't tracked as distinct transaction types.</div>
+      <div id="cfp-inv-summary" style="margin-bottom:8px;"></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr><th style="text-align:left;padding:4px 6px;">Code</th><th style="text-align:left;padding:4px 6px;">Part</th><th style="padding:4px 6px;">Quantity</th></tr></thead>
+          <tbody id="cfp-inv-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="font-size:12px;color:var(--stone);margin:8px 0 4px;">Recent stock movements</div>
+      <div id="cfp-inv-movements"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Bank &amp; Payment</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Restricted — used for this center's service claims, reimbursements and settlements. The account number is masked by default.</div>
+      <div class="form-row"><label>Account Name</label><input type="text" id="cfp-bank-account-name"></div>
+      <div class="form-row"><label>Bank</label><input type="text" id="cfp-bank-name"></div>
+      <div class="form-row"><label>Account Number</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="password" id="cfp-bank-account-number" autocomplete="off" style="flex:1;">
+          <button type="button" class="btn-secondary" id="cfp-bank-reveal" style="white-space:nowrap;">Show</button>
+        </div>
+      </div>
+      <div class="form-row"><label>IFSC</label><input type="text" id="cfp-bank-ifsc"></div>
+      <div class="form-row"><label>Branch</label><input type="text" id="cfp-bank-branch"></div>
+      <div class="form-row"><label>UPI</label><input type="text" id="cfp-bank-upi" placeholder="name@bank"></div>
+      <div class="form-row"><label>Payment Method</label>
+        <select id="cfp-bank-payment-method">
+          <option value="">—</option>
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+          <option value="UPI">UPI</option>
+          <option value="CHEQUE">Cheque</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Documents</div>
+      <div id="cfp-doc-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="cfp-add-doc" style="margin-top:4px;">+ Add document</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">SLA &amp; Escalation</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">SLA follows the central SLA Rules (by district/service type) managed under Coverage Analysis / SLA, not a separate per-center setting. It's a single due/breach window per request; there's no separate stage-by-stage target for Request Acceptance, Technician Assignment, First Visit, Diagnosis and Resolution.</div>
+      <div id="cfp-sla-summary" style="margin-bottom:10px;">Loading…</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:4px;">Escalation — Level 1 is the center's Manager (set under Contact Persons above). There's no Regional Manager role in this app, so Level 2 is a free-text contact; Level 3 is Super Admin.</div>
+      <div class="form-row"><label>Level 2 — Regional Manager (name)</label><input type="text" id="cfp-esc-l2-name"></div>
+      <div class="form-row"><label>Level 2 — Regional Manager (phone)</label><input type="tel" id="cfp-esc-l2-phone"></div>
+      <div><strong>Level 3:</strong> Super Admin</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Performance</div>
+      <div class="form-row"><label>Period</label>
+        <select id="cfp-perf-period">
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="quarter">This Quarter</option>
+          <option value="year">This Year</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div id="cfp-perf-custom-range" style="display:none;gap:10px;" class="form-row">
+        <input type="date" id="cfp-perf-from"> <span style="margin:0 6px;">to</span> <input type="date" id="cfp-perf-to">
+      </div>
+      <div id="cfp-perf-block"><div style="color:var(--stone);">Loading…</div></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Audit / History</div>
+      <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">An immutable activity log, same pattern as the Technician Timeline. Technician Removed isn't logged — this app has no way to remove a technician once added. Inventory Changed has its own permanent log already (stockMovements, shown under Spare Parts / Inventory above) rather than being duplicated here.</div>
+      <div id="cfp-timeline-block"><div style="color:var(--stone);">Loading…</div></div>
+
+      <div class="modal-error" id="cfp-error"></div>
+      <div class="modal-success" id="cfp-success"></div>
+      <button type="button" class="btn-primary" id="cfp-save" style="margin-top:8px;">Save changes</button>`;
+
+    document.getElementById('cfp-display-name').value = d.displayName || '';
+    document.getElementById('cfp-center-type').value = d.centerType || '';
+    document.getElementById('cfp-opening-date').value = d.openingDate || '';
+    document.getElementById('cfp-status').value = d.status || 'PENDING_APPROVAL';
+    const appr = d.approval || {};
+    document.getElementById('cfp-appr-submitted-by').value = appr.submittedBy || '';
+    document.getElementById('cfp-appr-submitted-date').value = appr.submittedDate || '';
+    document.getElementById('cfp-appr-approved-by').value = appr.approvedBy || '';
+    document.getElementById('cfp-appr-approved-date').value = appr.approvedDate || '';
+    document.getElementById('cfp-appr-rejection-reason').value = appr.rejectionReason || '';
+    document.getElementById('cfp-appr-suspension-reason').value = appr.suspensionReason || '';
+    document.getElementById('cfp-official-mobile').value = d.officialMobile || '';
+    document.getElementById('cfp-alt-mobile').value = d.alternateMobile || '';
+    document.getElementById('cfp-official-email').value = d.officialEmail || '';
+    document.getElementById('cfp-whatsapp').value = d.whatsapp || '';
+    document.getElementById('cfp-landline').value = d.landline || '';
+    document.getElementById('cfp-website').value = d.website || '';
+    const cp = d.contactPersons || {};
+    CFP_CONTACT_ROLES.forEach(([key]) => {
+      document.getElementById(`cfp-cp-${key}-name`).value = (cp[key] || {}).name || '';
+      document.getElementById(`cfp-cp-${key}-phone`).value = (cp[key] || {}).phone || '';
+    });
+    document.getElementById('cfp-address').value = d.address || '';
+    document.getElementById('cfp-landmark').value = d.landmark || '';
+    document.getElementById('cfp-pincode').value = d.pincode || '';
+    document.getElementById('cfp-area').value = d.area || '';
+    document.getElementById('cfp-post-office').value = d.postOffice || '';
+    document.getElementById('cfp-city').value = d.city || '';
+    document.getElementById('cfp-taluk').value = d.taluk || '';
+    document.getElementById('cfp-district').value = d.district || '';
+    document.getElementById('cfp-state').value = d.state || '';
+    document.getElementById('cfp-lat').value = d.latitude || '';
+    document.getElementById('cfp-lng').value = d.longitude || '';
+    document.getElementById('cfp-map-link').value = d.mapLink || '';
+    document.getElementById('cfp-staff-list').innerHTML = '';
+    (d.staffMembers || []).forEach(row => cfpAddStaffRow(row));
+    document.getElementById('cfp-add-staff').addEventListener('click', () => cfpAddStaffRow(null));
+    document.getElementById('cfp-legal-name').value = d.legalBusinessName || '';
+    document.getElementById('cfp-trade-name').value = d.tradeName || '';
+    document.getElementById('cfp-business-type').value = d.businessType || '';
+    document.getElementById('cfp-gstin').value = d.gstin || '';
+    document.getElementById('cfp-pan').value = d.pan || '';
+    document.getElementById('cfp-reg-number').value = d.registrationNumber || '';
+    document.getElementById('cfp-agreement-validity').value = d.agreementValidity || '';
+    document.getElementById('cfp-agreement-link').innerHTML = d.agreementUrl ? `<a href="${d.agreementUrl}" target="_blank" rel="noopener">View current agreement</a>` : `<span style="color:var(--stone);font-size:12px;">No agreement uploaded yet.</span>`;
+    renderCfpBrandAuthBlock(d);
+    await renderCfpCapabilityBlock(d);
+    document.getElementById('cfp-add-capability').addEventListener('click', () => addCfpCapabilityRow(null));
+    renderCfpServiceCapBlock(d);
+    renderCfpWorkingHoursBlock(d);
+    renderCfpHolidayBlock(d);
+    document.getElementById('cfp-add-holiday').addEventListener('click', () => cfpAddHolidayRow(null));
+    renderCfpCapacityFields(d);
+    await renderCfpCapacityLive(d);
+    await renderCfpTechniciansBlock(d);
+    renderCfpInfraBlock(d);
+    await renderCfpInventoryBlock(d.id, document.getElementById('cfp-inv-summary'), document.getElementById('cfp-inv-tbody'), document.getElementById('cfp-inv-movements'));
+    const bank = d.bankDetails || {};
+    document.getElementById('cfp-bank-account-name').value = bank.accountName || '';
+    document.getElementById('cfp-bank-name').value = bank.bankName || '';
+    document.getElementById('cfp-bank-account-number').value = bank.accountNumber || '';
+    document.getElementById('cfp-bank-ifsc').value = bank.ifsc || '';
+    document.getElementById('cfp-bank-branch').value = bank.branch || '';
+    document.getElementById('cfp-bank-upi').value = bank.upi || '';
+    document.getElementById('cfp-bank-payment-method').value = bank.paymentMethod || '';
+    document.getElementById('cfp-bank-account-number').type = 'password';
+    document.getElementById('cfp-bank-reveal').textContent = 'Show';
+    document.getElementById('cfp-bank-reveal').onclick = () => {
+      const inp = document.getElementById('cfp-bank-account-number');
+      const btn = document.getElementById('cfp-bank-reveal');
+      if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+      else { inp.type = 'password'; btn.textContent = 'Show'; }
+    };
+    renderCfpDocBlock(d);
+    document.getElementById('cfp-add-doc').addEventListener('click', () => cfpAddDocRow(null));
+    const esc = d.escalation || {};
+    document.getElementById('cfp-esc-l2-name').value = esc.level2Name || '';
+    document.getElementById('cfp-esc-l2-phone').value = esc.level2Phone || '';
+    await renderCfpSlaSummary(d.district || '');
+    await renderCfpPerformanceBlock(d.id);
+    document.getElementById('cfp-perf-period').addEventListener('change', (e) => {
+      document.getElementById('cfp-perf-custom-range').style.display = e.target.value === 'custom' ? 'flex' : 'none';
+      if (e.target.value !== 'custom') renderCfpPerformanceBlock(d.id);
+    });
+    document.getElementById('cfp-perf-from').addEventListener('change', () => renderCfpPerformanceBlock(d.id));
+    document.getElementById('cfp-perf-to').addEventListener('change', () => renderCfpPerformanceBlock(d.id));
+    await renderCfpTimelineBlock(d.id);
+
+    document.getElementById('cfp-pincode').addEventListener('blur', async (e) => {
+      const pin = e.target.value.trim();
+      const noteEl = document.getElementById('cfp-pincode-note');
+      noteEl.textContent = '';
+      if (!/^\d{6}$/.test(pin)) return;
+      try {
+        const pinSnap = await getDoc(doc(db, 'pincodes', pin));
+        if (pinSnap.exists()) {
+          const p = pinSnap.data();
+          document.getElementById('cfp-area').value = p.area || '';
+          document.getElementById('cfp-city').value = p.city || '';
+          document.getElementById('cfp-taluk').value = p.taluk || '';
+          document.getElementById('cfp-district').value = p.district || '';
+          document.getElementById('cfp-state').value = p.state || '';
+          noteEl.textContent = 'Filled from Pincode Master.';
+        } else {
+          noteEl.textContent = 'Not found in Pincode Master — fill in manually.';
+        }
+      } catch (err) {
+        console.warn('Pincode lookup failed (non-blocking):', err.message);
+      }
+    });
+
+    document.getElementById('cfp-save').addEventListener('click', async () => {
+      const btn = document.getElementById('cfp-save');
+      const errEl = document.getElementById('cfp-error');
+      const okEl = document.getElementById('cfp-success');
+      errEl.classList.remove('show'); okEl.classList.remove('show');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const contactPersons = {};
+        CFP_CONTACT_ROLES.forEach(([key]) => {
+          contactPersons[key] = {
+            name: document.getElementById(`cfp-cp-${key}-name`).value.trim(),
+            phone: document.getElementById(`cfp-cp-${key}-phone`).value.trim()
+          };
+        });
+        const update = {
+          displayName: document.getElementById('cfp-display-name').value.trim(),
+          centerType: document.getElementById('cfp-center-type').value,
+          openingDate: document.getElementById('cfp-opening-date').value,
+          status: document.getElementById('cfp-status').value,
+          officialMobile: document.getElementById('cfp-official-mobile').value.trim(),
+          alternateMobile: document.getElementById('cfp-alt-mobile').value.trim(),
+          officialEmail: document.getElementById('cfp-official-email').value.trim(),
+          whatsapp: document.getElementById('cfp-whatsapp').value.trim(),
+          landline: document.getElementById('cfp-landline').value.trim(),
+          website: document.getElementById('cfp-website').value.trim(),
+          contactPersons,
+          address: document.getElementById('cfp-address').value.trim(),
+          landmark: document.getElementById('cfp-landmark').value.trim(),
+          pincode: document.getElementById('cfp-pincode').value.trim(),
+          area: document.getElementById('cfp-area').value.trim(),
+          postOffice: document.getElementById('cfp-post-office').value.trim(),
+          city: document.getElementById('cfp-city').value.trim(),
+          taluk: document.getElementById('cfp-taluk').value.trim(),
+          district: document.getElementById('cfp-district').value.trim(),
+          state: document.getElementById('cfp-state').value.trim(),
+          latitude: document.getElementById('cfp-lat').value.trim(),
+          longitude: document.getElementById('cfp-lng').value.trim(),
+          mapLink: document.getElementById('cfp-map-link').value.trim(),
+          staffMembers: cfpCollectStaff(),
+          legalBusinessName: document.getElementById('cfp-legal-name').value.trim(),
+          tradeName: document.getElementById('cfp-trade-name').value.trim(),
+          businessType: document.getElementById('cfp-business-type').value,
+          gstin: document.getElementById('cfp-gstin').value.trim(),
+          pan: document.getElementById('cfp-pan').value.trim(),
+          registrationNumber: document.getElementById('cfp-reg-number').value.trim(),
+          agreementValidity: document.getElementById('cfp-agreement-validity').value,
+          brandAuthorizations: collectCfpBrandAuth(),
+          productCapabilities: cfpCollectCapabilities(),
+          serviceCapabilities: cfpCollectServiceCaps(),
+          ...cfpCollectWorkingHours(),
+          holidaysAndClosures: cfpCollectHolidays(),
+          capacity: cfpCollectCapacityFields(),
+          ...cfpCollectInfra(),
+          bankDetails: {
+            accountName: document.getElementById('cfp-bank-account-name').value.trim(),
+            bankName: document.getElementById('cfp-bank-name').value.trim(),
+            accountNumber: document.getElementById('cfp-bank-account-number').value.trim(),
+            ifsc: document.getElementById('cfp-bank-ifsc').value.trim(),
+            branch: document.getElementById('cfp-bank-branch').value.trim(),
+            upi: document.getElementById('cfp-bank-upi').value.trim(),
+            paymentMethod: document.getElementById('cfp-bank-payment-method').value
+          },
+          escalation: {
+            level2Name: document.getElementById('cfp-esc-l2-name').value.trim(),
+            level2Phone: document.getElementById('cfp-esc-l2-phone').value.trim()
+          },
+          approval: {
+            submittedBy: document.getElementById('cfp-appr-submitted-by').value.trim(),
+            submittedDate: document.getElementById('cfp-appr-submitted-date').value,
+            approvedBy: document.getElementById('cfp-appr-approved-by').value.trim(),
+            approvedDate: document.getElementById('cfp-appr-approved-date').value,
+            rejectionReason: document.getElementById('cfp-appr-rejection-reason').value.trim(),
+            suspensionReason: document.getElementById('cfp-appr-suspension-reason').value.trim()
+          },
+          updatedAt: serverTimestamp()
+        };
+        const agreementFile = document.getElementById('cfp-agreement-file').files[0];
+        if (agreementFile) {
+          btn.textContent = 'Uploading agreement…';
+          const fileRef = storageRef(storage, `serviceCenterProfiles/${d.id}/documents/agreement_${Date.now()}_${agreementFile.name}`);
+          await uploadBytes(fileRef, agreementFile);
+          update.agreementUrl = await getDownloadURL(fileRef);
+        }
+        btn.textContent = 'Uploading documents…';
+        update.documents = await cfpCollectDocuments(d.id);
+        btn.textContent = 'Saving…';
+        await updateDoc(doc(db, 'serviceCenterProfiles', d.id), update);
+        const timelineEvents = detectCfpTimelineEvents(d, update);
+        for (const [event, label] of timelineEvents) await logScTimelineEvent(d.id, event, label);
+        okEl.textContent = 'Saved.';
+        okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save service center full profile failed:', err);
+        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.classList.add('show');
+      }
+      btn.disabled = false; btn.textContent = 'Save changes';
+    });
   }
 
   async function renderTechniciansOverview() {
