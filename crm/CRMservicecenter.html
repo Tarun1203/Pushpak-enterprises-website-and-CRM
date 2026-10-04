@@ -409,6 +409,237 @@
   </div>
 </div>
 
+<!-- Technician detail / edit popup — Identity & Personal Details -->
+<div class="modal-overlay" id="tech-detail-overlay">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="tech-detail-title">Technician details</h3>
+    <form id="tech-detail-form">
+      <div style="font-weight:600;margin:4px 0 8px;">Identity &amp; Personal Details</div>
+      <div class="form-row"><label>Technician Code</label><input type="text" id="td-code" placeholder="e.g. TC-0001"></div>
+      <div class="form-row"><label>Full Name</label><input type="text" id="td-name" required></div>
+      <div class="form-row"><label>Gender</label>
+        <select id="td-gender"><option value="">—</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
+      </div>
+      <div class="form-row"><label>Date of Birth</label><input type="date" id="td-dob"></div>
+      <div class="form-row"><label>Mobile Number</label><input type="tel" id="td-phone" required></div>
+      <div class="form-row"><label>Alternate Mobile</label><input type="tel" id="td-alt-phone"></div>
+      <div class="form-row"><label>Email</label><input type="email" id="td-email"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Emergency Contact</div>
+      <div class="form-row"><label>Name</label><input type="text" id="td-ec-name"></div>
+      <div class="form-row"><label>Number</label><input type="tel" id="td-ec-phone"></div>
+      <div class="form-row"><label>Relationship</label><input type="text" id="td-ec-relation" placeholder="e.g. Spouse, Parent, Sibling"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Address</div>
+      <div class="form-row"><label>Address Line 1</label><input type="text" id="td-addr1"></div>
+      <div class="form-row"><label>Address Line 2</label><input type="text" id="td-addr2"></div>
+      <div class="form-row"><label>Pincode <span style="font-weight:400;color:var(--stone);">(looked up from the Pincode Master — fills area/city/taluk/district/state)</span></label><input type="text" id="td-pincode" inputmode="numeric" maxlength="6" placeholder="e.g. 584101"></div>
+      <div id="td-pincode-note" style="font-size:12px;color:var(--stone);margin:-6px 0 10px;"></div>
+      <div class="form-row"><label>Area</label><input type="text" id="td-area"></div>
+      <div class="form-row"><label>City</label><input type="text" id="td-city"></div>
+      <div class="form-row"><label>Taluk</label><input type="text" id="td-taluk"></div>
+      <div class="form-row"><label>District</label><input type="text" id="td-district"></div>
+      <div class="form-row"><label>State</label><input type="text" id="td-state"></div>
+
+      <div class="form-row" id="td-skills-row">
+        <label>Skills <span style="font-weight:400;color:var(--stone);">(informal entries only — linked accounts manage their own skills)</span></label>
+        <input type="text" id="td-skills" placeholder="e.g. Geyser repair, installation">
+      </div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Login &amp; Authentication</div>
+      <div id="td-login-block" style="font-size:14px;line-height:1.7;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Employment Details</div>
+      <div class="form-row"><label>Employee Code</label><input type="text" id="td-emp-code" placeholder="e.g. EMP-0012"></div>
+      <div class="form-row"><label>Technician Type</label>
+        <select id="td-emp-type">
+          <option value="">—</option>
+          <option value="IN_HOUSE">In-house</option>
+          <option value="SERVICE_CENTER">Service Center</option>
+          <option value="CONTRACT">Contract</option>
+          <option value="THIRD_PARTY">Third Party</option>
+          <option value="FREELANCE">Freelance</option>
+          <option value="TEMPORARY">Temporary</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Employment Type</label>
+        <select id="td-emp-employment-type">
+          <option value="">—</option>
+          <option value="FULL_TIME">Full-time</option>
+          <option value="PART_TIME">Part-time</option>
+          <option value="CONTRACT">Contract</option>
+          <option value="INTERN">Intern</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Designation</label><input type="text" id="td-emp-designation" placeholder="e.g. Senior Technician"></div>
+      <div class="form-row"><label>Department</label><input type="text" id="td-emp-department" placeholder="e.g. Field Service"></div>
+      <div class="form-row"><label>Joining Date</label><input type="date" id="td-emp-joining-date"></div>
+      <div class="form-row"><label>Probation End Date</label><input type="date" id="td-emp-probation-end"></div>
+      <div class="form-row"><label>Reporting Manager</label><input type="text" id="td-emp-reporting-manager"></div>
+      <div class="form-row"><label>Supervisor</label><input type="text" id="td-emp-supervisor"></div>
+      <div class="form-row"><label>Employment Status</label>
+        <select id="td-emp-status">
+          <option value="">—</option>
+          <option value="ACTIVE">Active</option>
+          <option value="ON_PROBATION">On Probation</option>
+          <option value="ON_LEAVE">On Leave</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="RESIGNED">Resigned</option>
+          <option value="TERMINATED">Terminated</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Exit Date</label><input type="date" id="td-emp-exit-date"></div>
+      <div class="form-row"><label>Exit Reason</label><input type="text" id="td-emp-exit-reason"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Brand Authorization</div>
+      <div id="td-brand-auth-block" style="display:flex;flex-direction:column;gap:14px;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Product Capability</div>
+      <div id="td-capability-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="td-add-capability" style="margin-top:4px;">+ Add product capability</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technical Skills</div>
+      <datalist id="td-skill-suggestions">
+        <option value="Panel Diagnosis"></option>
+        <option value="Power Supply Repair"></option>
+        <option value="Mainboard Repair"></option>
+        <option value="Backlight Repair"></option>
+        <option value="Firmware Update"></option>
+        <option value="Software Troubleshooting"></option>
+        <option value="Display Diagnosis"></option>
+        <option value="Remote Troubleshooting"></option>
+        <option value="Wall Mount Installation"></option>
+        <option value="TV Installation"></option>
+        <option value="Electrical Diagnosis"></option>
+      </datalist>
+      <div id="td-skill-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="td-add-skill" style="margin-top:4px;">+ Add technical skill</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Working Hours</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="td-working-hours-table">
+          <thead>
+            <tr style="text-align:left;">
+              <th style="padding:4px 6px;">Day</th>
+              <th style="padding:4px 6px;">Working</th>
+              <th style="padding:4px 6px;">Start</th>
+              <th style="padding:4px 6px;">End</th>
+              <th style="padding:4px 6px;">Break Start</th>
+              <th style="padding:4px 6px;">Break End</th>
+              <th style="padding:4px 6px;">Max Hrs</th>
+            </tr>
+          </thead>
+          <tbody id="td-working-hours-tbody"></tbody>
+        </table>
+      </div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Schedule Overrides</div>
+      <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Holiday Override <span style="font-weight:400;color:var(--stone);">(works through company holidays)</span></label><input type="checkbox" id="td-wh-holiday-override"></div>
+      <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Overtime Allowed</label><input type="checkbox" id="td-wh-overtime-allowed"></div>
+      <div class="form-row"><label>Max Overtime Hours / week</label><input type="number" min="0" step="0.5" id="td-wh-max-overtime"></div>
+      <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Temporary Schedule <span style="font-weight:400;color:var(--stone);">(the hours above are a temporary override)</span></label><input type="checkbox" id="td-wh-temporary"></div>
+      <div class="form-row"><label>Effective From</label><input type="date" id="td-wh-temp-from"></div>
+      <div class="form-row"><label>Effective To</label><input type="date" id="td-wh-temp-to"></div>
+      <div class="form-row"><label>Notes</label><input type="text" id="td-wh-notes" placeholder="e.g. covering for another technician until 15 Nov"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Capacity</div>
+      <div class="form-row"><label>Maximum Jobs / Day</label><input type="number" min="0" step="1" id="td-cap-max-jobs"></div>
+      <div class="form-row"><label>Maximum Service Hours / Day</label><input type="number" min="0" step="0.5" id="td-cap-max-service-hours"></div>
+      <div class="form-row"><label>Maximum Travel Hours / Day</label><input type="number" min="0" step="0.5" id="td-cap-max-travel-hours"></div>
+      <div style="font-size:12px;color:var(--stone);margin:-4px 0 10px;">Available/Reserved/Assigned/Used/Remaining hours for today are live numbers the routing engine would compute from actual job time tracking — that tracking doesn't exist in this system yet, so they aren't shown here. These three caps are the policy inputs that feed it once it does.</div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Leave &amp; Holidays</div>
+      <div id="td-leave-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="td-add-leave" style="margin-top:4px;">+ Add leave record</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Vehicle / Travel Information</div>
+      <div class="form-row"><label>Vehicle Type</label>
+        <select id="td-veh-type">
+          <option value="">—</option>
+          <option value="MOTORCYCLE">Motorcycle</option>
+          <option value="SCOOTER">Scooter</option>
+          <option value="CAR">Car</option>
+          <option value="VAN">Van</option>
+          <option value="COMPANY_VEHICLE">Company Vehicle</option>
+          <option value="PUBLIC_TRANSPORT">Public Transport</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Vehicle Number</label><input type="text" id="td-veh-number" placeholder="e.g. KA36 AB1234"></div>
+      <div class="form-row"><label>Vehicle Ownership</label>
+        <select id="td-veh-ownership">
+          <option value="">—</option>
+          <option value="OWN">Own</option>
+          <option value="COMPANY_PROVIDED">Company Provided</option>
+          <option value="RENTED">Rented</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Driving License Number</label><input type="text" id="td-veh-license-number"></div>
+      <div class="form-row"><label>License Expiry</label><input type="date" id="td-veh-license-expiry"></div>
+      <div class="form-row"><label>Maximum Daily Travel Distance (km)</label><input type="number" min="0" step="1" id="td-veh-max-distance"></div>
+      <div class="form-row"><label>Maximum Service Radius (km)</label><input type="number" min="0" step="1" id="td-veh-max-radius"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Tools &amp; Equipment</div>
+      <datalist id="td-tool-suggestions">
+        <option value="Digital Multimeter"></option>
+        <option value="Soldering Station"></option>
+        <option value="TV Test Board"></option>
+        <option value="Firmware Programmer"></option>
+        <option value="Panel Testing Tool"></option>
+        <option value="Wall Mount Tools"></option>
+        <option value="Safety Equipment"></option>
+        <option value="Tool Kit"></option>
+      </datalist>
+      <div id="td-tool-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="td-add-tool" style="margin-top:4px;">+ Add tool / equipment</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technician Spare Stock</div>
+      <div id="td-spare-stock-block" style="font-size:14px;line-height:1.7;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Service History</div>
+      <div id="td-service-history-block" style="font-size:14px;line-height:1.7;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Performance</div>
+      <div class="form-row"><label>Performance Period</label>
+        <select id="td-perf-period">
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="quarter">Quarter</option>
+          <option value="year">Year</option>
+          <option value="custom">Custom Range</option>
+        </select>
+      </div>
+      <div id="td-perf-custom-range" style="display:none;">
+        <div class="form-row"><label>From</label><input type="date" id="td-perf-from"></div>
+        <div class="form-row"><label>To</label><input type="date" id="td-perf-to"></div>
+      </div>
+      <div id="td-performance-block" style="font-size:14px;line-height:1.7;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Customer Feedback</div>
+      <div id="td-feedback-block" style="font-size:14px;line-height:1.7;color:var(--stone);"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Documents</div>
+      <div id="td-doc-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <button type="button" class="btn-secondary" id="td-add-doc" style="margin-top:4px;">+ Add document</button>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Financial / Claims</div>
+      <div id="td-claims-block" style="font-size:14px;line-height:1.7;"></div>
+
+      <div style="font-weight:600;margin:16px 0 8px;">Technician Timeline</div>
+      <div id="td-timeline-block" style="font-size:13px;line-height:1.7;"></div>
+
+      <div class="modal-error" id="td-error"></div>
+      <div class="modal-success" id="td-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-td">Close</button>
+        <button type="submit" class="btn-primary" id="submit-td">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Adjust Center Inventory modal -->
 <div class="modal-overlay" id="cinv-overlay">
   <div class="modal">
@@ -583,7 +814,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
@@ -1776,14 +2007,1177 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const accountLabel = d.technicianUid
           ? '<span class="status-pill ok">Linked</span>'
           : '<span class="status-pill low">Informal</span>';
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
+        tr.innerHTML = `<td><a href="#" class="tech-detail-link" data-id="${d.id}">${escapeHtml(d.name) || '—'}</a></td><td>${d.phone || '—'}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
         tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('.tech-detail-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          const t = docs.find(x => x.id === a.dataset.id);
+          if (t) openTechDetailModal(t);
+        });
       });
     } catch (err) {
       console.error('Load technicians failed:', err);
       tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--err);">Couldn't load roster. Check console for details.</td></tr>`;
     }
   }
+
+  // ---------------------------------------------------------------
+  // Technician detail / edit popup — Identity & Personal Details.
+  // Builds on the existing centerTechnicians doc; a linked account's
+  // Skills stay read-only here (managed on their own account), same
+  // rule the Add Technician form already follows.
+  // ---------------------------------------------------------------
+
+  const techDetailOverlay = document.getElementById('tech-detail-overlay');
+  const techDetailForm = document.getElementById('tech-detail-form');
+  const techDetailError = document.getElementById('td-error');
+  const techDetailSuccess = document.getElementById('td-success');
+  const techDetailSubmitBtn = document.getElementById('submit-td');
+  let techDetailContext = null;
+
+  async function renderTechLoginBlock(d) {
+    const el = document.getElementById('td-login-block');
+    if (!d.technicianUid) {
+      el.innerHTML = `<div style="color:var(--stone);">No login account — this is an informal roster entry with no app access.
+        Link a real account by re-adding this technician through "Add technician" and choosing their account.</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="color:var(--stone);">Loading account…</div>`;
+    try {
+      const snap = await getDoc(doc(db, 'users', d.technicianUid));
+      if (!snap.exists()) {
+        el.innerHTML = `<div style="color:var(--err);">Linked account (UID: ${d.technicianUid}) could not be found — it may have been removed.</div>`;
+        return;
+      }
+      const u = snap.data();
+      const createdLabel = u.createdAt ? (typeof u.createdAt === 'string' ? new Date(u.createdAt).toLocaleString() : (u.createdAt.toDate ? u.createdAt.toDate().toLocaleString() : '—')) : '—';
+      let rows = `
+        <div><strong>User ID:</strong> ${d.technicianUid}</div>
+        <div><strong>Login Email:</strong> ${escapeHtml(u.email || '—')}</div>
+        <div><strong>Account Type:</strong> ${escapeHtml(u.accountType || 'permanent')}</div>`;
+      if (u.accountType === 'temporary' && u.contractEndDate) {
+        rows += `<div><strong>Contract End Date:</strong> ${escapeHtml(u.contractEndDate)}</div>`;
+      }
+      rows += `<div><strong>Account Created:</strong> ${createdLabel}</div>`;
+      rows += `<div style="margin-top:8px;"><button type="button" class="btn-secondary" id="td-reset-password-btn">Send password reset email</button></div>`;
+      rows += `<div style="font-size:12px;color:var(--stone);margin-top:8px;">Account status, login history and MFA aren't tracked in this system yet — this account can sign in with its email and password as normal.</div>`;
+      el.innerHTML = rows;
+      const resetBtn = document.getElementById('td-reset-password-btn');
+      if (resetBtn && u.email) {
+        resetBtn.addEventListener('click', async () => {
+          resetBtn.disabled = true;
+          const original = resetBtn.textContent;
+          resetBtn.textContent = 'Sending…';
+          try {
+            await sendPasswordResetEmail(auth, u.email);
+            resetBtn.textContent = 'Reset email sent';
+          } catch (err) {
+            console.error('Password reset failed:', err);
+            resetBtn.textContent = 'Could not send — retry';
+            resetBtn.disabled = false;
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Load technician account failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load account details. Check console for details.</div>`;
+    }
+  }
+
+  // Fixed brand set — matches the brandsAuthorized checkboxes Super Admin
+  // uses for accounts (makwell/flyvision/skevia); authorization here is
+  // tracked per-brand, separate from technical skills.
+  const TD_BRANDS = [['makwell', 'MakWell'], ['flyvision', 'Flyvision'], ['skevia', 'Skevia']];
+
+  function renderBrandAuthBlock(d) {
+    const el = document.getElementById('td-brand-auth-block');
+    const existing = {};
+    (d.brandAuthorizations || []).forEach(b => { existing[b.brand] = b; });
+    el.innerHTML = TD_BRANDS.map(([val, label]) => {
+      const b = existing[val] || {};
+      return `
+        <div style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;">
+          <div style="font-weight:600;margin-bottom:8px;">${label}</div>
+          <div class="form-row"><label>Status</label>
+            <select class="td-brand-status" data-brand="${val}">
+              <option value="">—</option>
+              <option value="AUTHORIZED" ${b.status === 'AUTHORIZED' ? 'selected' : ''}>Authorized</option>
+              <option value="NOT_AUTHORIZED" ${b.status === 'NOT_AUTHORIZED' ? 'selected' : ''}>Not Authorized</option>
+              <option value="PENDING" ${b.status === 'PENDING' ? 'selected' : ''}>Pending</option>
+              <option value="EXPIRED" ${b.status === 'EXPIRED' ? 'selected' : ''}>Expired</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Level</label>
+            <select class="td-brand-level" data-brand="${val}">
+              <option value="">—</option>
+              <option value="BASIC" ${b.level === 'BASIC' ? 'selected' : ''}>Basic</option>
+              <option value="INTERMEDIATE" ${b.level === 'INTERMEDIATE' ? 'selected' : ''}>Intermediate</option>
+              <option value="ADVANCED" ${b.level === 'ADVANCED' ? 'selected' : ''}>Advanced</option>
+              <option value="EXPERT" ${b.level === 'EXPERT' ? 'selected' : ''}>Expert</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Certification Number</label><input type="text" class="td-brand-certnum" data-brand="${val}" value="${escapeHtml(b.certNumber || '')}"></div>
+          <div class="form-row"><label>Certification Date</label><input type="date" class="td-brand-certdate" data-brand="${val}" value="${b.certDate || ''}"></div>
+          <div class="form-row"><label>Expiry Date</label><input type="date" class="td-brand-expiry" data-brand="${val}" value="${b.expiryDate || ''}"></div>
+          <div class="form-row"><label>Approved By</label><input type="text" class="td-brand-approvedby" data-brand="${val}" value="${escapeHtml(b.approvedBy || '')}"></div>
+          <div class="form-row"><label>Notes</label><input type="text" class="td-brand-notes" data-brand="${val}" value="${escapeHtml(b.notes || '')}"></div>
+        </div>`;
+    }).join('');
+  }
+
+  function collectBrandAuthorizations() {
+    return TD_BRANDS.map(([val]) => {
+      const q = (cls) => document.querySelector(`.${cls}[data-brand="${val}"]`);
+      return {
+        brand: val,
+        status: q('td-brand-status').value,
+        level: q('td-brand-level').value,
+        certNumber: q('td-brand-certnum').value.trim(),
+        certDate: q('td-brand-certdate').value,
+        expiryDate: q('td-brand-expiry').value,
+        approvedBy: q('td-brand-approvedby').value.trim(),
+        notes: q('td-brand-notes').value.trim()
+      };
+    }).filter(b => b.status || b.level || b.certNumber || b.certDate || b.expiryDate || b.approvedBy || b.notes);
+  }
+
+  // ---------------------------------------------------------------
+  // Product Capability — cascading Brand → Category → Product → Model,
+  // sourced from the same master data Super Admin's Catalog manages
+  // (productCategories / products / productModels), so the options here
+  // always match what's actually in the catalog.
+  // ---------------------------------------------------------------
+  let tdCatalogCache = null; // { categories, products, models } — loaded once, reused across popup opens this session
+  async function loadTdCatalogCache() {
+    if (tdCatalogCache) return tdCatalogCache;
+    const [catSnap, prodSnap, modSnap] = await Promise.all([
+      getDocs(collection(db, 'productCategories')),
+      getDocs(collection(db, 'products')),
+      getDocs(collection(db, 'productModels'))
+    ]);
+    const categories = []; catSnap.forEach(d => categories.push({ id: d.id, ...d.data() }));
+    const products = []; prodSnap.forEach(d => products.push({ id: d.id, ...d.data() }));
+    const models = []; modSnap.forEach(d => models.push({ id: d.id, ...d.data() }));
+    tdCatalogCache = { categories, products, models };
+    return tdCatalogCache;
+  }
+
+  function tdCapabilityRowHtml(row) {
+    row = row || {};
+    return `
+      <div class="td-cap-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="td-cap-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <div class="form-row"><label>Brand</label>
+          <select class="td-cap-brand">
+            <option value="">—</option>
+            ${TD_BRANDS.map(([v, l]) => `<option value="${v}" ${row.brand === v ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row"><label>Category</label><select class="td-cap-category"><option value="">—</option></select></div>
+        <div class="form-row"><label>Product</label><select class="td-cap-product"><option value="">—</option></select></div>
+        <div class="form-row"><label>Model</label><select class="td-cap-model"><option value="">—</option></select></div>
+        <div class="form-row"><label>Capability Level</label>
+          <select class="td-cap-level">
+            <option value="">—</option>
+            <option value="BASIC" ${row.level === 'BASIC' ? 'selected' : ''}>Basic</option>
+            <option value="INTERMEDIATE" ${row.level === 'INTERMEDIATE' ? 'selected' : ''}>Intermediate</option>
+            <option value="ADVANCED" ${row.level === 'ADVANCED' ? 'selected' : ''}>Advanced</option>
+            <option value="EXPERT" ${row.level === 'EXPERT' ? 'selected' : ''}>Expert</option>
+          </select>
+        </div>
+        <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Certified</label><input type="checkbox" class="td-cap-certified" ${row.certified ? 'checked' : ''}></div>
+        <div class="form-row"><label>Certification Date</label><input type="date" class="td-cap-certdate" value="${row.certDate || ''}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-cap-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Notes</label><input type="text" class="td-cap-notes" value="${escapeHtml(row.notes || '')}"></div>
+      </div>`;
+  }
+
+  function wireTdCapabilityRow(rowEl, row) {
+    const catSelect = rowEl.querySelector('.td-cap-category');
+    const prodSelect = rowEl.querySelector('.td-cap-product');
+    const modelSelect = rowEl.querySelector('.td-cap-model');
+    const brandSelect = rowEl.querySelector('.td-cap-brand');
+
+    function fillCategories(brandId, selectedCategoryId) {
+      const cats = tdCatalogCache.categories.filter(c => c.brandId === brandId);
+      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${c.id}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
+      fillProducts(brandId, selectedCategoryId, null);
+    }
+    function fillProducts(brandId, categoryId, selectedProductId) {
+      const prods = tdCatalogCache.products.filter(p => p.brandId === brandId && (!categoryId || p.categoryId === categoryId));
+      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${p.id}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
+      fillModels(prodSelect.value, null);
+    }
+    function fillModels(productId, selectedModelId) {
+      productId = productId || prodSelect.value;
+      const mods = productId ? tdCatalogCache.models.filter(m => m.productId === productId) : [];
+      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
+    }
+
+    brandSelect.addEventListener('change', () => fillCategories(brandSelect.value, null));
+    catSelect.addEventListener('change', () => fillProducts(brandSelect.value, catSelect.value, null));
+    prodSelect.addEventListener('change', () => fillModels(prodSelect.value, null));
+    rowEl.querySelector('.td-cap-remove').addEventListener('click', () => rowEl.remove());
+
+    // Initial population for an existing row.
+    if (row && row.brand) {
+      fillCategories(row.brand, row.category || null);
+      if (row.category) fillProducts(row.brand, row.category, row.product || null);
+      if (row.product) fillModels(row.product, row.model || null);
+    }
+  }
+
+  function addTdCapabilityRow(row) {
+    const list = document.getElementById('td-capability-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = tdCapabilityRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    wireTdCapabilityRow(rowEl, row);
+  }
+
+  async function renderCapabilityBlock(d) {
+    const list = document.getElementById('td-capability-list');
+    list.innerHTML = '<div style="color:var(--stone);font-size:13px;">Loading catalog…</div>';
+    await loadTdCatalogCache();
+    list.innerHTML = '';
+    (d.productCapabilities || []).forEach(row => addTdCapabilityRow(row));
+  }
+
+  function collectCapabilities() {
+    const rows = [];
+    document.querySelectorAll('#td-capability-list .td-cap-row').forEach(rowEl => {
+      const brand = rowEl.querySelector('.td-cap-brand').value;
+      const category = rowEl.querySelector('.td-cap-category').value;
+      const product = rowEl.querySelector('.td-cap-product').value;
+      const model = rowEl.querySelector('.td-cap-model').value;
+      const level = rowEl.querySelector('.td-cap-level').value;
+      const certified = rowEl.querySelector('.td-cap-certified').checked;
+      const certDate = rowEl.querySelector('.td-cap-certdate').value;
+      const expiryDate = rowEl.querySelector('.td-cap-expiry').value;
+      const notes = rowEl.querySelector('.td-cap-notes').value.trim();
+      if (brand || category || product || model || level || certified || certDate || expiryDate || notes) {
+        rows.push({ brand, category, product, model, level, certified, certDate, expiryDate, notes });
+      }
+    });
+    return rows;
+  }
+
+  document.getElementById('td-add-capability').addEventListener('click', () => addTdCapabilityRow(null));
+
+  // ---------------------------------------------------------------
+  // Technical Skills — no separate Skill Master exists yet in this app
+  // (the account-level "skills" field elsewhere just pairs a product
+  // category with a level), so skill name is free text here, with the
+  // spec's example skills offered as datalist suggestions.
+  // ---------------------------------------------------------------
+  function tdSkillRowHtml(row) {
+    row = row || {};
+    return `
+      <div class="td-skill-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="td-skill-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <div class="form-row"><label>Skill</label><input type="text" class="td-skill-name" list="td-skill-suggestions" value="${escapeHtml(row.skill || '')}" placeholder="e.g. Panel Diagnosis"></div>
+        <div class="form-row"><label>Skill Category</label><input type="text" class="td-skill-category" value="${escapeHtml(row.category || '')}" placeholder="e.g. Hardware Repair"></div>
+        <div class="form-row"><label>Skill Level</label>
+          <select class="td-skill-level">
+            <option value="">—</option>
+            <option value="BASIC" ${row.level === 'BASIC' ? 'selected' : ''}>Basic</option>
+            <option value="INTERMEDIATE" ${row.level === 'INTERMEDIATE' ? 'selected' : ''}>Intermediate</option>
+            <option value="ADVANCED" ${row.level === 'ADVANCED' ? 'selected' : ''}>Advanced</option>
+            <option value="EXPERT" ${row.level === 'EXPERT' ? 'selected' : ''}>Expert</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Years of Experience</label><input type="number" min="0" step="0.5" class="td-skill-years" value="${row.yearsExperience ?? ''}"></div>
+        <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Certified</label><input type="checkbox" class="td-skill-certified" ${row.certified ? 'checked' : ''}></div>
+        <div class="form-row"><label>Certification Number</label><input type="text" class="td-skill-certnum" value="${escapeHtml(row.certNumber || '')}"></div>
+        <div class="form-row"><label>Certification Date</label><input type="date" class="td-skill-certdate" value="${row.certDate || ''}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-skill-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Assessment Date</label><input type="date" class="td-skill-assessdate" value="${row.assessmentDate || ''}"></div>
+        <div class="form-row"><label>Assessed By</label><input type="text" class="td-skill-assessedby" value="${escapeHtml(row.assessedBy || '')}"></div>
+        <div class="form-row"><label>Status</label>
+          <select class="td-skill-status">
+            <option value="">—</option>
+            <option value="ACTIVE" ${row.status === 'ACTIVE' ? 'selected' : ''}>Active</option>
+            <option value="EXPIRED" ${row.status === 'EXPIRED' ? 'selected' : ''}>Expired</option>
+            <option value="PENDING_ASSESSMENT" ${row.status === 'PENDING_ASSESSMENT' ? 'selected' : ''}>Pending Assessment</option>
+            <option value="INACTIVE" ${row.status === 'INACTIVE' ? 'selected' : ''}>Inactive</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Notes</label><input type="text" class="td-skill-notes" value="${escapeHtml(row.notes || '')}"></div>
+      </div>`;
+  }
+
+  function addTdSkillRow(row) {
+    const list = document.getElementById('td-skill-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = tdSkillRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.td-skill-remove').addEventListener('click', () => rowEl.remove());
+  }
+
+  function renderSkillListBlock(d) {
+    const list = document.getElementById('td-skill-list');
+    list.innerHTML = '';
+    (d.technicalSkills || []).forEach(row => addTdSkillRow(row));
+  }
+
+  function collectTechnicalSkills() {
+    const rows = [];
+    document.querySelectorAll('#td-skill-list .td-skill-row').forEach(rowEl => {
+      const skill = rowEl.querySelector('.td-skill-name').value.trim();
+      const category = rowEl.querySelector('.td-skill-category').value.trim();
+      const level = rowEl.querySelector('.td-skill-level').value;
+      const yearsExperience = rowEl.querySelector('.td-skill-years').value ? Number(rowEl.querySelector('.td-skill-years').value) : null;
+      const certified = rowEl.querySelector('.td-skill-certified').checked;
+      const certNumber = rowEl.querySelector('.td-skill-certnum').value.trim();
+      const certDate = rowEl.querySelector('.td-skill-certdate').value;
+      const expiryDate = rowEl.querySelector('.td-skill-expiry').value;
+      const assessmentDate = rowEl.querySelector('.td-skill-assessdate').value;
+      const assessedBy = rowEl.querySelector('.td-skill-assessedby').value.trim();
+      const status = rowEl.querySelector('.td-skill-status').value;
+      const notes = rowEl.querySelector('.td-skill-notes').value.trim();
+      if (skill || category || level || yearsExperience || certified || certNumber || certDate || expiryDate || assessmentDate || assessedBy || status || notes) {
+        rows.push({ skill, category, level, yearsExperience, certified, certNumber, certDate, expiryDate, assessmentDate, assessedBy, status, notes });
+      }
+    });
+    return rows;
+  }
+
+  document.getElementById('td-add-skill').addEventListener('click', () => addTdSkillRow(null));
+
+  // ---------------------------------------------------------------
+  // Working Hours — one row per day plus the schedule-override flags.
+  // ---------------------------------------------------------------
+  const TD_DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+
+  function renderWorkingHoursBlock(d) {
+    const wh = d.workingHours || {};
+    const tbody = document.getElementById('td-working-hours-tbody');
+    tbody.innerHTML = TD_DAYS.map(([key, label]) => {
+      const day = wh[key] || {};
+      const working = day.working !== false && day.working !== undefined ? !!day.working : false;
+      return `
+        <tr data-day="${key}">
+          <td style="padding:4px 6px;">${label}</td>
+          <td style="padding:4px 6px;"><input type="checkbox" class="td-wh-working" ${working ? 'checked' : ''}></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-start" value="${day.start || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-end" value="${day.end || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-start" value="${day.breakStart || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-end" value="${day.breakEnd || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="number" min="0" step="0.5" class="td-wh-max-hours" value="${day.maxHours ?? ''}" style="width:70px;"></td>
+        </tr>`;
+    }).join('');
+
+    const meta = d.workingHoursMeta || {};
+    document.getElementById('td-wh-holiday-override').checked = !!meta.holidayOverride;
+    document.getElementById('td-wh-overtime-allowed').checked = !!meta.overtimeAllowed;
+    document.getElementById('td-wh-max-overtime').value = meta.maxOvertimeHours ?? '';
+    document.getElementById('td-wh-temporary').checked = !!meta.temporarySchedule;
+    document.getElementById('td-wh-temp-from').value = meta.tempFrom || '';
+    document.getElementById('td-wh-temp-to').value = meta.tempTo || '';
+    document.getElementById('td-wh-notes').value = meta.notes || '';
+  }
+
+  function collectWorkingHours() {
+    const workingHours = {};
+    document.querySelectorAll('#td-working-hours-tbody tr').forEach(tr => {
+      const key = tr.dataset.day;
+      workingHours[key] = {
+        working: tr.querySelector('.td-wh-working').checked,
+        start: tr.querySelector('.td-wh-start').value,
+        end: tr.querySelector('.td-wh-end').value,
+        breakStart: tr.querySelector('.td-wh-break-start').value,
+        breakEnd: tr.querySelector('.td-wh-break-end').value,
+        maxHours: tr.querySelector('.td-wh-max-hours').value ? Number(tr.querySelector('.td-wh-max-hours').value) : null
+      };
+    });
+    const workingHoursMeta = {
+      holidayOverride: document.getElementById('td-wh-holiday-override').checked,
+      overtimeAllowed: document.getElementById('td-wh-overtime-allowed').checked,
+      maxOvertimeHours: document.getElementById('td-wh-max-overtime').value ? Number(document.getElementById('td-wh-max-overtime').value) : null,
+      temporarySchedule: document.getElementById('td-wh-temporary').checked,
+      tempFrom: document.getElementById('td-wh-temp-from').value,
+      tempTo: document.getElementById('td-wh-temp-to').value,
+      notes: document.getElementById('td-wh-notes').value.trim()
+    };
+    return { workingHours, workingHoursMeta };
+  }
+
+  function renderCapacityBlock(d) {
+    const cap = d.capacity || {};
+    document.getElementById('td-cap-max-jobs').value = cap.maxJobsPerDay ?? '';
+    document.getElementById('td-cap-max-service-hours').value = cap.maxServiceHoursPerDay ?? '';
+    document.getElementById('td-cap-max-travel-hours').value = cap.maxTravelHoursPerDay ?? '';
+  }
+
+  function collectCapacity() {
+    return {
+      maxJobsPerDay: document.getElementById('td-cap-max-jobs').value ? Number(document.getElementById('td-cap-max-jobs').value) : null,
+      maxServiceHoursPerDay: document.getElementById('td-cap-max-service-hours').value ? Number(document.getElementById('td-cap-max-service-hours').value) : null,
+      maxTravelHoursPerDay: document.getElementById('td-cap-max-travel-hours').value ? Number(document.getElementById('td-cap-max-travel-hours').value) : null
+    };
+  }
+
+  // ---------------------------------------------------------------
+  // Leave & Holidays — repeatable per-leave record.
+  // ---------------------------------------------------------------
+  function tdLeaveRowHtml(row) {
+    row = row || {};
+    const leaveId = row.leaveId || ('LV-' + Date.now().toString(36).toUpperCase());
+    return `
+      <div class="td-leave-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="td-leave-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <input type="hidden" class="td-leave-id" value="${escapeHtml(leaveId)}">
+        <div class="form-row"><label>Leave ID</label><input type="text" class="td-leave-id-display" value="${escapeHtml(leaveId)}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Leave Type</label>
+          <select class="td-leave-type">
+            <option value="">—</option>
+            <option value="CASUAL" ${row.leaveType === 'CASUAL' ? 'selected' : ''}>Casual</option>
+            <option value="SICK" ${row.leaveType === 'SICK' ? 'selected' : ''}>Sick</option>
+            <option value="ANNUAL" ${row.leaveType === 'ANNUAL' ? 'selected' : ''}>Annual</option>
+            <option value="PERSONAL" ${row.leaveType === 'PERSONAL' ? 'selected' : ''}>Personal</option>
+            <option value="EMERGENCY" ${row.leaveType === 'EMERGENCY' ? 'selected' : ''}>Emergency</option>
+            <option value="OTHER" ${row.leaveType === 'OTHER' ? 'selected' : ''}>Other</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Start Date</label><input type="date" class="td-leave-start-date" value="${row.startDate || ''}"></div>
+        <div class="form-row"><label>End Date</label><input type="date" class="td-leave-end-date" value="${row.endDate || ''}"></div>
+        <div class="form-row"><label>Start Time <span style="font-weight:400;color:var(--stone);">(for a partial-day leave)</span></label><input type="time" class="td-leave-start-time" value="${row.startTime || ''}"></div>
+        <div class="form-row"><label>End Time</label><input type="time" class="td-leave-end-time" value="${row.endTime || ''}"></div>
+        <div class="form-row"><label>Reason</label><input type="text" class="td-leave-reason" value="${escapeHtml(row.reason || '')}"></div>
+        <div class="form-row"><label>Requested Date</label><input type="date" class="td-leave-requested-date" value="${row.requestedDate || ''}"></div>
+        <div class="form-row"><label>Approved By</label><input type="text" class="td-leave-approved-by" value="${escapeHtml(row.approvedBy || '')}"></div>
+        <div class="form-row"><label>Approval Date</label><input type="date" class="td-leave-approval-date" value="${row.approvalDate || ''}"></div>
+        <div class="form-row"><label>Status</label>
+          <select class="td-leave-status">
+            <option value="PENDING" ${(!row.status || row.status === 'PENDING') ? 'selected' : ''}>Pending</option>
+            <option value="APPROVED" ${row.status === 'APPROVED' ? 'selected' : ''}>Approved</option>
+            <option value="REJECTED" ${row.status === 'REJECTED' ? 'selected' : ''}>Rejected</option>
+            <option value="CANCELLED" ${row.status === 'CANCELLED' ? 'selected' : ''}>Cancelled</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
+  function addTdLeaveRow(row) {
+    const list = document.getElementById('td-leave-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = tdLeaveRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.td-leave-remove').addEventListener('click', () => rowEl.remove());
+  }
+
+  function renderLeaveListBlock(d) {
+    const list = document.getElementById('td-leave-list');
+    list.innerHTML = '';
+    (d.leaveRecords || []).forEach(row => addTdLeaveRow(row));
+  }
+
+  function collectLeaveRecords() {
+    const rows = [];
+    document.querySelectorAll('#td-leave-list .td-leave-row').forEach(rowEl => {
+      const leaveId = rowEl.querySelector('.td-leave-id').value;
+      const leaveType = rowEl.querySelector('.td-leave-type').value;
+      const startDate = rowEl.querySelector('.td-leave-start-date').value;
+      const endDate = rowEl.querySelector('.td-leave-end-date').value;
+      const startTime = rowEl.querySelector('.td-leave-start-time').value;
+      const endTime = rowEl.querySelector('.td-leave-end-time').value;
+      const reason = rowEl.querySelector('.td-leave-reason').value.trim();
+      const requestedDate = rowEl.querySelector('.td-leave-requested-date').value;
+      const approvedBy = rowEl.querySelector('.td-leave-approved-by').value.trim();
+      const approvalDate = rowEl.querySelector('.td-leave-approval-date').value;
+      const status = rowEl.querySelector('.td-leave-status').value;
+      if (leaveType || startDate || endDate || reason || status !== 'PENDING') {
+        rows.push({ leaveId, leaveType, startDate, endDate, startTime, endTime, reason, requestedDate, approvedBy, approvalDate, status });
+      }
+    });
+    return rows;
+  }
+
+  document.getElementById('td-add-leave').addEventListener('click', () => addTdLeaveRow(null));
+
+  function renderVehicleBlock(d) {
+    const v = d.vehicleInfo || {};
+    document.getElementById('td-veh-type').value = v.vehicleType || '';
+    document.getElementById('td-veh-number').value = v.vehicleNumber || '';
+    document.getElementById('td-veh-ownership').value = v.ownership || '';
+    document.getElementById('td-veh-license-number').value = v.licenseNumber || '';
+    document.getElementById('td-veh-license-expiry').value = v.licenseExpiry || '';
+    document.getElementById('td-veh-max-distance').value = v.maxDailyTravelDistance ?? '';
+    document.getElementById('td-veh-max-radius').value = v.maxServiceRadius ?? '';
+  }
+
+  function collectVehicleInfo() {
+    return {
+      vehicleType: document.getElementById('td-veh-type').value,
+      vehicleNumber: document.getElementById('td-veh-number').value.trim(),
+      ownership: document.getElementById('td-veh-ownership').value,
+      licenseNumber: document.getElementById('td-veh-license-number').value.trim(),
+      licenseExpiry: document.getElementById('td-veh-license-expiry').value,
+      maxDailyTravelDistance: document.getElementById('td-veh-max-distance').value ? Number(document.getElementById('td-veh-max-distance').value) : null,
+      maxServiceRadius: document.getElementById('td-veh-max-radius').value ? Number(document.getElementById('td-veh-max-radius').value) : null
+    };
+  }
+
+  // ---------------------------------------------------------------
+  // Tools & Equipment — repeatable per-asset record.
+  // ---------------------------------------------------------------
+  function tdToolRowHtml(row) {
+    row = row || {};
+    const assetId = row.assetId || ('AST-' + Date.now().toString(36).toUpperCase());
+    return `
+      <div class="td-tool-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="td-tool-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <input type="hidden" class="td-tool-id" value="${escapeHtml(assetId)}">
+        <div class="form-row"><label>Asset ID</label><input type="text" class="td-tool-id-display" value="${escapeHtml(assetId)}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Tool Name</label><input type="text" class="td-tool-name" list="td-tool-suggestions" value="${escapeHtml(row.toolName || '')}"></div>
+        <div class="form-row"><label>Tool Category</label><input type="text" class="td-tool-category" value="${escapeHtml(row.toolCategory || '')}" placeholder="e.g. Diagnostic, Installation"></div>
+        <div class="form-row"><label>Serial Number</label><input type="text" class="td-tool-serial" value="${escapeHtml(row.serialNumber || '')}"></div>
+        <div class="form-row"><label>Assigned Date</label><input type="date" class="td-tool-assigned-date" value="${row.assignedDate || ''}"></div>
+        <div class="form-row"><label>Condition</label><input type="text" class="td-tool-condition" value="${escapeHtml(row.condition || '')}" placeholder="e.g. Good, Worn"></div>
+        <div class="form-row"><label>Last Inspection</label><input type="date" class="td-tool-last-inspection" value="${row.lastInspection || ''}"></div>
+        <div class="form-row"><label>Next Inspection</label><input type="date" class="td-tool-next-inspection" value="${row.nextInspection || ''}"></div>
+        <div class="form-row"><label>Return Date</label><input type="date" class="td-tool-return-date" value="${row.returnDate || ''}"></div>
+        <div class="form-row"><label>Status</label>
+          <select class="td-tool-status">
+            <option value="ASSIGNED" ${(!row.status || row.status === 'ASSIGNED') ? 'selected' : ''}>Assigned</option>
+            <option value="AVAILABLE" ${row.status === 'AVAILABLE' ? 'selected' : ''}>Available</option>
+            <option value="DAMAGED" ${row.status === 'DAMAGED' ? 'selected' : ''}>Damaged</option>
+            <option value="UNDER_REPAIR" ${row.status === 'UNDER_REPAIR' ? 'selected' : ''}>Under Repair</option>
+            <option value="LOST" ${row.status === 'LOST' ? 'selected' : ''}>Lost</option>
+            <option value="RETURNED" ${row.status === 'RETURNED' ? 'selected' : ''}>Returned</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
+  function addTdToolRow(row) {
+    const list = document.getElementById('td-tool-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = tdToolRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.td-tool-remove').addEventListener('click', () => rowEl.remove());
+  }
+
+  function renderToolListBlock(d) {
+    const list = document.getElementById('td-tool-list');
+    list.innerHTML = '';
+    (d.tools || []).forEach(row => addTdToolRow(row));
+  }
+
+  function collectTools() {
+    const rows = [];
+    document.querySelectorAll('#td-tool-list .td-tool-row').forEach(rowEl => {
+      const assetId = rowEl.querySelector('.td-tool-id').value;
+      const toolName = rowEl.querySelector('.td-tool-name').value.trim();
+      const toolCategory = rowEl.querySelector('.td-tool-category').value.trim();
+      const serialNumber = rowEl.querySelector('.td-tool-serial').value.trim();
+      const assignedDate = rowEl.querySelector('.td-tool-assigned-date').value;
+      const condition = rowEl.querySelector('.td-tool-condition').value.trim();
+      const lastInspection = rowEl.querySelector('.td-tool-last-inspection').value;
+      const nextInspection = rowEl.querySelector('.td-tool-next-inspection').value;
+      const returnDate = rowEl.querySelector('.td-tool-return-date').value;
+      const status = rowEl.querySelector('.td-tool-status').value;
+      if (toolName || toolCategory || serialNumber || assignedDate || condition || lastInspection || nextInspection || returnDate || status !== 'ASSIGNED') {
+        rows.push({ assetId, toolName, toolCategory, serialNumber, assignedDate, condition, lastInspection, nextInspection, returnDate, status });
+      }
+    });
+    return rows;
+  }
+
+  document.getElementById('td-add-tool').addEventListener('click', () => addTdToolRow(null));
+
+  // ---------------------------------------------------------------
+  // Technician Spare Stock — read-only, pulled live from the same
+  // `inventory` docs (location:'technician', technicianUid) that
+  // Warehouse dispatches write and the technician's own Inventory page
+  // reads. Not re-entered here, so the two views can never drift apart.
+  // ---------------------------------------------------------------
+  async function renderSpareStockBlock(d) {
+    const el = document.getElementById('td-spare-stock-block');
+    if (!d.technicianUid) {
+      el.innerHTML = `<div style="color:var(--stone);">No individual stock — this is an informal roster entry with no linked inventory account.</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="color:var(--stone);">Loading stock…</div>`;
+    try {
+      const [invSnap, parts] = await Promise.all([
+        getDocs(query(collection(db, 'inventory'), where('location', '==', 'technician'), where('technicianUid', '==', d.technicianUid))),
+        getSparePartsListCache()
+      ]);
+      const rows = [];
+      invSnap.forEach(s => rows.push({ id: s.id, ...s.data() }));
+      const withStock = rows.filter(r => (r.quantity || 0) > 0);
+      if (!withStock.length) {
+        el.innerHTML = `<div style="color:var(--stone);">No spare stock currently held — stock appears here once Warehouse dispatches parts to this technician.</div>`;
+        return;
+      }
+      const partName = (partId) => { const p = parts.find(x => x.id === partId); return p ? (p.name || partId) : partId; };
+      el.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;"><th style="padding:4px 6px;">Part</th><th style="padding:4px 6px;">Quantity</th></tr></thead>
+          <tbody>
+            ${withStock.map(r => `<tr><td style="padding:4px 6px;">${escapeHtml(partName(r.partId))}</td><td style="padding:4px 6px;">${r.quantity}</td></tr>`).join('')}
+          </tbody>
+        </table>`;
+    } catch (err) {
+      console.error('Load technician spare stock failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load stock. Check console for details.</div>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Service History — read-only, computed live from this technician's
+  // actual centerRequests jobs. Counters and the recent-jobs list only
+  // use fields this app really tracks; Reopened Jobs and RMA Jobs aren't
+  // tracked anywhere yet, so they're labeled "not tracked" rather than
+  // faked as zero.
+  // ---------------------------------------------------------------
+  async function renderServiceHistoryBlock(d) {
+    const el = document.getElementById('td-service-history-block');
+    if (!d.technicianUid) {
+      el.innerHTML = `<div style="color:var(--stone);">No job history — this is an informal roster entry with no linked account to track jobs against.</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="color:var(--stone);">Loading history…</div>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', d.technicianUid)));
+      const jobs = [];
+      snap.forEach(s => jobs.push({ id: s.id, ...s.data() }));
+      if (!jobs.length) {
+        el.innerHTML = `<div style="color:var(--stone);">No jobs assigned to this technician yet.</div>`;
+        return;
+      }
+      const total = jobs.length;
+      const completed = jobs.filter(j => j.status === 'completed').length;
+      const pending = jobs.filter(j => ['new', 'assigned', 'in_progress'].includes(j.status)).length;
+      const cancelled = jobs.filter(j => j.status === 'cancelled').length;
+      const warranty = jobs.filter(j => j.warrantyStatus === 'in_warranty').length;
+      const paid = jobs.filter(j => j.warrantyStatus === 'out_of_warranty').length;
+      const installation = jobs.filter(j => j.type === 'installation').length;
+
+      jobs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const recent = jobs.slice(0, 10);
+
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+          <div><strong>${total}</strong><br><span style="color:var(--stone);font-size:12px;">Total Jobs</span></div>
+          <div><strong>${completed}</strong><br><span style="color:var(--stone);font-size:12px;">Completed</span></div>
+          <div><strong>${pending}</strong><br><span style="color:var(--stone);font-size:12px;">Pending</span></div>
+          <div><strong>${cancelled}</strong><br><span style="color:var(--stone);font-size:12px;">Cancelled</span></div>
+          <div><strong>${warranty}</strong><br><span style="color:var(--stone);font-size:12px;">Warranty Jobs</span></div>
+          <div><strong>${paid}</strong><br><span style="color:var(--stone);font-size:12px;">Paid Jobs</span></div>
+          <div><strong>${installation}</strong><br><span style="color:var(--stone);font-size:12px;">Installation Jobs</span></div>
+          <div><strong>—</strong><br><span style="color:var(--stone);font-size:12px;">Reopened / RMA (not tracked)</span></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;"><th style="padding:4px 6px;">Job ID</th><th style="padding:4px 6px;">Customer</th><th style="padding:4px 6px;">Product</th><th style="padding:4px 6px;">Status</th><th style="padding:4px 6px;">Scheduled</th></tr></thead>
+          <tbody>
+            ${recent.map(j => `<tr><td style="padding:4px 6px;">${escapeHtml(j.requestId || j.id)}</td><td style="padding:4px 6px;">${escapeHtml(j.customerName || '—')}</td><td style="padding:4px 6px;">${escapeHtml(j.product || j.modelText || '—')}</td><td style="padding:4px 6px;">${escapeHtml(j.status || '—')}</td><td style="padding:4px 6px;">${escapeHtml(j.scheduledDate || '—')}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="font-size:12px;color:var(--stone);margin-top:6px;">Showing the 10 most recent jobs.</div>`;
+    } catch (err) {
+      console.error('Load service history failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load service history. Check console for details.</div>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Performance — read-only KPIs computed live from the same
+  // centerRequests jobs as Service History, filtered to the chosen
+  // period. First Visit Fix %, SLA Compliance %, response/resolution
+  // times, Repeat Complaint %, Customer Rating, No-Show % and Travel
+  // Distance all need data this app doesn't capture yet (SLA targets,
+  // visit counts, timestamps beyond created/closed, ratings, GPS) —
+  // shown as "not tracked yet" rather than invented numbers.
+  // ---------------------------------------------------------------
+  function tdPeriodRange(period) {
+    const now = new Date();
+    let from, to = now;
+    if (period === 'today') {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (period === 'week') {
+      const dow = now.getDay();
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    } else if (period === 'month') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (period === 'quarter') {
+      from = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    } else if (period === 'year') {
+      from = new Date(now.getFullYear(), 0, 1);
+    } else if (period === 'custom') {
+      const fromVal = document.getElementById('td-perf-from').value;
+      const toVal = document.getElementById('td-perf-to').value;
+      from = fromVal ? new Date(fromVal) : new Date(0);
+      to = toVal ? new Date(toVal + 'T23:59:59') : now;
+    }
+    return { from, to };
+  }
+
+  async function renderPerformanceBlock(d) {
+    const el = document.getElementById('td-performance-block');
+    if (!d.technicianUid) {
+      el.innerHTML = `<div style="color:var(--stone);">No performance data — this is an informal roster entry with no linked account to track jobs against.</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="color:var(--stone);">Loading…</div>`;
+    try {
+      const period = document.getElementById('td-perf-period').value;
+      const { from, to } = tdPeriodRange(period);
+      const snap = await getDocs(query(collection(db, 'centerRequests'), where('technicianUid', '==', d.technicianUid)));
+      const jobs = [];
+      snap.forEach(s => jobs.push({ id: s.id, ...s.data() }));
+      const inRange = jobs.filter(j => {
+        const ts = j.createdAt?.seconds ? j.createdAt.seconds * 1000 : null;
+        if (!ts) return false;
+        return ts >= from.getTime() && ts <= to.getTime();
+      });
+      const assigned = inRange.length;
+      const completed = inRange.filter(j => j.status === 'completed').length;
+      const cancelled = inRange.filter(j => j.status === 'cancelled').length;
+      const dayMs = 24 * 60 * 60 * 1000;
+      const spanDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / dayMs));
+      const jobsPerDay = (completed / spanDays).toFixed(2);
+
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+          <div><strong>${assigned}</strong><br><span style="color:var(--stone);font-size:12px;">Jobs Assigned</span></div>
+          <div><strong>${completed}</strong><br><span style="color:var(--stone);font-size:12px;">Jobs Completed</span></div>
+          <div><strong>${cancelled}</strong><br><span style="color:var(--stone);font-size:12px;">Jobs Cancelled</span></div>
+          <div><strong>${jobsPerDay}</strong><br><span style="color:var(--stone);font-size:12px;">Jobs Per Day</span></div>
+        </div>
+        <div style="font-size:12px;color:var(--stone);">
+          Not tracked yet (need data this app doesn't capture): Jobs Reopened, First Visit Fix %, SLA Compliance %, Average Response Time, Average Resolution Time, Repeat Complaint %, Customer Rating, No-Show %, Travel Distance.
+        </div>`;
+    } catch (err) {
+      console.error('Load performance failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load performance data. Check console for details.</div>`;
+    }
+  }
+
+  document.getElementById('td-perf-period').addEventListener('change', (e) => {
+    document.getElementById('td-perf-custom-range').style.display = e.target.value === 'custom' ? 'block' : 'none';
+    if (techDetailContext) renderPerformanceBlock(techDetailContext);
+  });
+  document.getElementById('td-perf-from').addEventListener('change', () => { if (techDetailContext) renderPerformanceBlock(techDetailContext); });
+  document.getElementById('td-perf-to').addEventListener('change', () => { if (techDetailContext) renderPerformanceBlock(techDetailContext); });
+
+  // ---------------------------------------------------------------
+  // Customer Feedback — the spec is explicit that technicians (and,
+  // by the same integrity logic, this Service Center popup) must not
+  // be able to modify customer feedback: it has to come from the
+  // customer themselves. This app has no customer-facing feedback
+  // flow yet (no post-job link/SMS, no feedback collection anywhere),
+  // so there's nothing real to show read-only either — building an
+  // editable field here would violate the spec's own rule, and
+  // faking a read-only "0 feedback" view would misrepresent a
+  // missing feature as a built one. Left as an honest placeholder.
+  // ---------------------------------------------------------------
+  function renderFeedbackBlock(d) {
+    const el = document.getElementById('td-feedback-block');
+    el.innerHTML = `No customer feedback to show — this app doesn't have a customer-facing feedback flow yet (e.g. a rating link sent after job completion). That would need to be built as its own feature before anything can display here; this popup won't let feedback be entered or edited manually, since it has to come from the customer.`;
+  }
+
+  // ---------------------------------------------------------------
+  // Documents — repeatable list with an actual file upload (reuses
+  // the same Storage upload pattern Center Requests already uses for
+  // invoice/photo attachments). A new file is only uploaded when the
+  // form is actually saved, so cancelling the popup never leaves an
+  // orphaned upload behind.
+  // ---------------------------------------------------------------
+  const TD_DOC_TYPES = ['Profile Photo', 'Identity Proof', 'Address Proof', 'Employment Document', 'Training Certificate', 'Technical Certificate', 'Driving License', 'Vehicle Document', 'Agreement', 'Other Documents'];
+
+  function tdDocRowHtml(row) {
+    row = row || {};
+    const docId = row.docId || ('DOC-' + Date.now().toString(36).toUpperCase());
+    return `
+      <div class="td-doc-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
+        <button type="button" class="td-doc-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
+        <input type="hidden" class="td-doc-id" value="${escapeHtml(docId)}">
+        <input type="hidden" class="td-doc-fileurl" value="${escapeHtml(row.fileUrl || '')}">
+        <div class="form-row"><label>Document Type</label>
+          <select class="td-doc-type">
+            <option value="">—</option>
+            ${TD_DOC_TYPES.map(t => `<option value="${t}" ${row.docType === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row"><label>File</label>
+          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${row.fileUrl}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
+          <input type="file" class="td-doc-file">
+        </div>
+        <div class="form-row"><label>Issue Date</label><input type="date" class="td-doc-issue-date" value="${row.issueDate || ''}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-doc-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Uploaded By</label><input type="text" class="td-doc-uploaded-by" value="${escapeHtml(row.uploadedBy || '')}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Uploaded Date</label><input type="text" class="td-doc-uploaded-date" value="${row.uploadedDate || ''}" disabled style="opacity:0.6;"></div>
+        <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Verified</label><input type="checkbox" class="td-doc-verified" ${row.verified ? 'checked' : ''}></div>
+        <div class="form-row"><label>Verified By</label><input type="text" class="td-doc-verified-by" value="${escapeHtml(row.verifiedBy || '')}"></div>
+        <div class="form-row"><label>Verification Date</label><input type="date" class="td-doc-verification-date" value="${row.verificationDate || ''}"></div>
+      </div>`;
+  }
+
+  function addTdDocRow(row) {
+    const list = document.getElementById('td-doc-list');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = tdDocRowHtml(row);
+    const rowEl = wrapper.firstElementChild;
+    list.appendChild(rowEl);
+    rowEl.querySelector('.td-doc-remove').addEventListener('click', () => rowEl.remove());
+  }
+
+  function renderDocListBlock(d) {
+    const list = document.getElementById('td-doc-list');
+    list.innerHTML = '';
+    (d.documents || []).forEach(row => addTdDocRow(row));
+  }
+
+  // Uploads any newly-chosen files, then returns the full documents
+  // array (unchanged rows keep their existing fileUrl/uploadedBy/date).
+  async function collectDocuments(techId) {
+    const rows = [];
+    const rowEls = document.querySelectorAll('#td-doc-list .td-doc-row');
+    for (const rowEl of rowEls) {
+      const docId = rowEl.querySelector('.td-doc-id').value;
+      const docType = rowEl.querySelector('.td-doc-type').value;
+      let fileUrl = rowEl.querySelector('.td-doc-fileurl').value;
+      let uploadedBy = rowEl.querySelector('.td-doc-uploaded-by').value;
+      let uploadedDate = rowEl.querySelector('.td-doc-uploaded-date').value;
+      const fileInput = rowEl.querySelector('.td-doc-file');
+      const newFile = fileInput.files && fileInput.files[0];
+      if (newFile) {
+        const fileRef = storageRef(storage, `centerTechnicians/${techId}/documents/${docId}_${Date.now()}_${newFile.name}`);
+        await uploadBytes(fileRef, newFile);
+        fileUrl = await getDownloadURL(fileRef);
+        uploadedBy = currentUser && currentUser.email ? currentUser.email : 'Service Center';
+        uploadedDate = new Date().toLocaleDateString();
+      }
+      const issueDate = rowEl.querySelector('.td-doc-issue-date').value;
+      const expiryDate = rowEl.querySelector('.td-doc-expiry').value;
+      const verified = rowEl.querySelector('.td-doc-verified').checked;
+      const verifiedBy = rowEl.querySelector('.td-doc-verified-by').value.trim();
+      const verificationDate = rowEl.querySelector('.td-doc-verification-date').value;
+      if (docType || fileUrl || issueDate || expiryDate || verified || verifiedBy || verificationDate) {
+        rows.push({ docId, docType, fileUrl, issueDate, expiryDate, uploadedBy, uploadedDate, verified, verifiedBy, verificationDate });
+      }
+    }
+    return rows;
+  }
+
+  document.getElementById('td-add-doc').addEventListener('click', () => addTdDocRow(null));
+
+  // ---------------------------------------------------------------
+  // Financial / Claims — read-only, pulled from the real `claims`
+  // collection (Warehouse's Claims pipeline already handles service
+  // claims, travel claims, reimbursements etc. for claimantType
+  // 'technician'). Not re-entered here, so this can't drift from the
+  // actual claim lifecycle/status Warehouse manages.
+  // ---------------------------------------------------------------
+  async function renderClaimsBlock(d) {
+    const el = document.getElementById('td-claims-block');
+    if (!d.technicianUid) {
+      el.innerHTML = `<div style="color:var(--stone);">No claims — this is an informal roster entry with no linked account to file claims against.</div>`;
+      return;
+    }
+    el.innerHTML = `<div style="color:var(--stone);">Loading claims…</div>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'claims'), where('claimantType', '==', 'technician'), where('claimantUid', '==', d.technicianUid)));
+      const claims = [];
+      snap.forEach(s => claims.push({ id: s.id, ...s.data() }));
+      if (!claims.length) {
+        el.innerHTML = `<div style="color:var(--stone);">No claims filed by this technician yet.</div>`;
+        return;
+      }
+      claims.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      el.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="text-align:left;"><th style="padding:4px 6px;">Claim ID</th><th style="padding:4px 6px;">Description</th><th style="padding:4px 6px;">Amount</th><th style="padding:4px 6px;">Status</th></tr></thead>
+          <tbody>
+            ${claims.map(c => `<tr><td style="padding:4px 6px;">${escapeHtml(c.claimId || c.id)}</td><td style="padding:4px 6px;">${escapeHtml(c.description || '—')}</td><td style="padding:4px 6px;">₹${(c.amount || 0).toLocaleString('en-IN')}</td><td style="padding:4px 6px;">${escapeHtml(c.status || '—')}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="font-size:12px;color:var(--stone);margin-top:6px;">Claims are managed end-to-end from Warehouse → Claims — this is a read-only summary.</div>`;
+    } catch (err) {
+      console.error('Load technician claims failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load claims. Check console for details.</div>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Technician Timeline — an append-only activity log in its own
+  // `technicianTimeline` collection (never updated/deleted, same
+  // immutable-log pattern as auditLogs/categoryHistory elsewhere in
+  // this app). Events are detected by diffing the form's values at
+  // save time against the snapshot the popup opened with.
+  // ---------------------------------------------------------------
+  async function logTimelineEvent(techId, event, label) {
+    try {
+      await addDoc(collection(db, 'technicianTimeline'), {
+        technicianDocId: techId,
+        event, label,
+        performedBy: currentUser ? currentUser.email : 'unknown',
+        createdAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Timeline log failed (non-blocking):', err.message);
+    }
+  }
+
+  async function renderTimelineBlock(d) {
+    const el = document.getElementById('td-timeline-block');
+    el.innerHTML = `<div style="color:var(--stone);">Loading timeline…</div>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'technicianTimeline'), where('technicianDocId', '==', d.id)));
+      const events = [];
+      snap.forEach(s => events.push({ id: s.id, ...s.data() }));
+      if (!events.length) {
+        el.innerHTML = `<div style="color:var(--stone);">No activity recorded yet.</div>`;
+        return;
+      }
+      events.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      el.innerHTML = events.map(e => {
+        const dateLabel = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : '—';
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--line, #eee);"><strong>${dateLabel}</strong> — ${escapeHtml(e.label || e.event || '')}</div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load timeline failed:', err);
+      el.innerHTML = `<div style="color:var(--err);">Could not load timeline. Check console for details.</div>`;
+    }
+  }
+
+  // Diffs the "before" snapshot (techDetailContext, captured when the
+  // popup opened) against what's about to be saved, and returns the
+  // timeline events this save should log. Deliberately only covers
+  // what's actually editable from this popup — spare stock, claims
+  // and service history are read-only views sourced elsewhere, so
+  // SPARE_ISSUED/CLAIM_SUBMITTED/SERVICE_COMPLETED aren't logged here.
+  function detectTimelineEvents(before, update) {
+    const events = [];
+    const identityFields = ['name', 'gender', 'dob', 'phone', 'altPhone', 'email', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'addressLine1', 'addressLine2', 'pincode', 'area', 'city', 'taluk', 'district', 'state'];
+    if (identityFields.some(f => (before[f] || '') !== (update[f] || ''))) {
+      events.push(['PROFILE_UPDATED', 'Profile details updated']);
+    }
+    const beforeStatus = before.employmentStatus || '';
+    const afterStatus = update.employmentStatus || '';
+    if (beforeStatus !== afterStatus && afterStatus) {
+      if (afterStatus === 'ACTIVE') events.push(['ACCOUNT_ACTIVATED', 'Employment status set to Active']);
+      else if (afterStatus === 'SUSPENDED') events.push(['ACCOUNT_SUSPENDED', 'Employment status set to Suspended']);
+      else events.push(['STATUS_CHANGED', `Employment status changed to ${afterStatus}`]);
+    }
+    const beforeBrands = {}; (before.brandAuthorizations || []).forEach(b => { beforeBrands[b.brand] = b.status; });
+    (update.brandAuthorizations || []).forEach(b => {
+      if (b.status === 'AUTHORIZED' && beforeBrands[b.brand] !== 'AUTHORIZED') {
+        events.push(['BRAND_AUTHORIZED', `${b.brand} authorization added`]);
+      }
+    });
+    const beforeSkillNames = new Set((before.technicalSkills || []).map(s => s.skill).filter(Boolean));
+    (update.technicalSkills || []).forEach(s => {
+      if (s.skill && !beforeSkillNames.has(s.skill)) {
+        events.push(['SKILL_ADDED', `Skill added — ${s.skill}`]);
+      }
+    });
+    const beforeLeaveById = {}; (before.leaveRecords || []).forEach(l => { beforeLeaveById[l.leaveId] = l.status; });
+    (update.leaveRecords || []).forEach(l => {
+      if (l.status === 'APPROVED' && beforeLeaveById[l.leaveId] !== 'APPROVED') {
+        events.push(['LEAVE_APPROVED', `Leave approved — ${l.leaveType || l.leaveId}`]);
+      }
+    });
+    const beforeToolById = {}; (before.tools || []).forEach(t => { beforeToolById[t.assetId] = t.status; });
+    (update.tools || []).forEach(t => {
+      const prevStatus = beforeToolById[t.assetId];
+      if (prevStatus === undefined && t.toolName) {
+        events.push(['TOOL_ASSIGNED', `Tool assigned — ${t.toolName}`]);
+      } else if (t.status === 'RETURNED' && prevStatus !== 'RETURNED') {
+        events.push(['TOOL_RETURNED', `Tool returned — ${t.toolName || t.assetId}`]);
+      }
+    });
+    return events;
+  }
+
+  function openTechDetailModal(d) {
+    techDetailForm.reset();
+    techDetailError.classList.remove('show');
+    techDetailSuccess.classList.remove('show');
+    techDetailSubmitBtn.disabled = false;
+    techDetailSubmitBtn.textContent = 'Save changes';
+    document.getElementById('tech-detail-title').textContent = d.name || 'Technician details';
+    document.getElementById('td-pincode-note').textContent = '';
+    techDetailContext = d;
+    renderTechLoginBlock(d);
+    renderBrandAuthBlock(d);
+    renderCapabilityBlock(d);
+    renderSkillListBlock(d);
+    renderWorkingHoursBlock(d);
+    renderCapacityBlock(d);
+    renderLeaveListBlock(d);
+    renderVehicleBlock(d);
+    renderToolListBlock(d);
+    renderSpareStockBlock(d);
+    renderServiceHistoryBlock(d);
+    document.getElementById('td-perf-period').value = 'month';
+    document.getElementById('td-perf-custom-range').style.display = 'none';
+    document.getElementById('td-perf-from').value = '';
+    document.getElementById('td-perf-to').value = '';
+    renderPerformanceBlock(d);
+    renderFeedbackBlock(d);
+    renderDocListBlock(d);
+    renderClaimsBlock(d);
+    renderTimelineBlock(d);
+
+    document.getElementById('td-code').value = d.technicianCode || '';
+    document.getElementById('td-name').value = d.name || '';
+    document.getElementById('td-gender').value = d.gender || '';
+    document.getElementById('td-dob').value = d.dob || '';
+    document.getElementById('td-phone').value = d.phone || '';
+    document.getElementById('td-alt-phone').value = d.altPhone || '';
+    document.getElementById('td-email').value = d.email || '';
+    document.getElementById('td-ec-name').value = d.emergencyContactName || '';
+    document.getElementById('td-ec-phone').value = d.emergencyContactPhone || '';
+    document.getElementById('td-ec-relation').value = d.emergencyContactRelation || '';
+    document.getElementById('td-addr1').value = d.addressLine1 || '';
+    document.getElementById('td-addr2').value = d.addressLine2 || '';
+    document.getElementById('td-pincode').value = d.pincode || '';
+    document.getElementById('td-area').value = d.area || '';
+    document.getElementById('td-city').value = d.city || '';
+    document.getElementById('td-taluk').value = d.taluk || '';
+    document.getElementById('td-district').value = d.district || '';
+    document.getElementById('td-state').value = d.state || '';
+    document.getElementById('td-skills').value = d.skills || '';
+
+    document.getElementById('td-emp-code').value = d.employeeCode || '';
+    document.getElementById('td-emp-type').value = d.technicianType || '';
+    document.getElementById('td-emp-employment-type').value = d.employmentType || '';
+    document.getElementById('td-emp-designation').value = d.designation || '';
+    document.getElementById('td-emp-department').value = d.department || '';
+    document.getElementById('td-emp-joining-date').value = d.joiningDate || '';
+    document.getElementById('td-emp-probation-end').value = d.probationEndDate || '';
+    document.getElementById('td-emp-reporting-manager').value = d.reportingManager || '';
+    document.getElementById('td-emp-supervisor').value = d.supervisor || '';
+    document.getElementById('td-emp-status').value = d.employmentStatus || '';
+    document.getElementById('td-emp-exit-date').value = d.exitDate || '';
+    document.getElementById('td-emp-exit-reason').value = d.exitReason || '';
+
+    // Linked accounts manage their own skills (see Add Technician form's
+    // same rule) — keep it visible here but read-only to avoid the two
+    // places drifting apart.
+    const skillsInput = document.getElementById('td-skills');
+    skillsInput.disabled = !!d.technicianUid;
+    document.getElementById('td-skills-row').querySelector('label').innerHTML = d.technicianUid
+      ? 'Skills <span style="font-weight:400;color:var(--stone);">(managed on their linked account, not editable here)</span>'
+      : 'Skills <span style="font-weight:400;color:var(--stone);">(informal entries only — linked accounts manage their own skills)</span>';
+
+    techDetailOverlay.classList.add('show');
+  }
+  function closeTechDetailModal() { techDetailOverlay.classList.remove('show'); techDetailContext = null; }
+  document.getElementById('cancel-td').addEventListener('click', closeTechDetailModal);
+  techDetailOverlay.addEventListener('click', (e) => { if (e.target === techDetailOverlay) closeTechDetailModal(); });
+
+  // Pincode Master lookup — same `pincodes/{pin}` collection Super
+  // Admin's Pincode Master writes to, so the master stays the single
+  // source of truth for area/city/taluk/district/state.
+  document.getElementById('td-pincode').addEventListener('blur', async (e) => {
+    const pin = e.target.value.trim();
+    const noteEl = document.getElementById('td-pincode-note');
+    noteEl.textContent = '';
+    if (!/^\d{6}$/.test(pin)) return;
+    try {
+      const snap = await getDoc(doc(db, 'pincodes', pin));
+      if (snap.exists()) {
+        const p = snap.data();
+        document.getElementById('td-area').value = p.area || '';
+        document.getElementById('td-city').value = p.city || '';
+        document.getElementById('td-taluk').value = p.taluk || '';
+        document.getElementById('td-district').value = p.district || '';
+        document.getElementById('td-state').value = p.state || '';
+        noteEl.textContent = 'Filled from Pincode Master.';
+      } else {
+        noteEl.textContent = 'Not found in Pincode Master — fill area/city/district/state in manually.';
+      }
+    } catch (err) {
+      console.warn('Pincode lookup failed (non-blocking):', err.message);
+    }
+  });
+
+  techDetailForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    techDetailError.classList.remove('show');
+    techDetailSuccess.classList.remove('show');
+    if (!techDetailContext) return;
+    techDetailSubmitBtn.disabled = true;
+    techDetailSubmitBtn.textContent = 'Saving…';
+    try {
+      const update = {
+        technicianCode: document.getElementById('td-code').value.trim(),
+        name: document.getElementById('td-name').value.trim(),
+        gender: document.getElementById('td-gender').value,
+        dob: document.getElementById('td-dob').value,
+        phone: document.getElementById('td-phone').value.trim(),
+        altPhone: document.getElementById('td-alt-phone').value.trim(),
+        email: document.getElementById('td-email').value.trim(),
+        emergencyContactName: document.getElementById('td-ec-name').value.trim(),
+        emergencyContactPhone: document.getElementById('td-ec-phone').value.trim(),
+        emergencyContactRelation: document.getElementById('td-ec-relation').value.trim(),
+        addressLine1: document.getElementById('td-addr1').value.trim(),
+        addressLine2: document.getElementById('td-addr2').value.trim(),
+        pincode: document.getElementById('td-pincode').value.trim(),
+        area: document.getElementById('td-area').value.trim(),
+        city: document.getElementById('td-city').value.trim(),
+        taluk: document.getElementById('td-taluk').value.trim(),
+        district: document.getElementById('td-district').value.trim(),
+        state: document.getElementById('td-state').value.trim(),
+        employeeCode: document.getElementById('td-emp-code').value.trim(),
+        technicianType: document.getElementById('td-emp-type').value,
+        employmentType: document.getElementById('td-emp-employment-type').value,
+        designation: document.getElementById('td-emp-designation').value.trim(),
+        department: document.getElementById('td-emp-department').value.trim(),
+        joiningDate: document.getElementById('td-emp-joining-date').value,
+        probationEndDate: document.getElementById('td-emp-probation-end').value,
+        reportingManager: document.getElementById('td-emp-reporting-manager').value.trim(),
+        supervisor: document.getElementById('td-emp-supervisor').value.trim(),
+        employmentStatus: document.getElementById('td-emp-status').value,
+        exitDate: document.getElementById('td-emp-exit-date').value,
+        exitReason: document.getElementById('td-emp-exit-reason').value.trim(),
+        brandAuthorizations: collectBrandAuthorizations(),
+        productCapabilities: collectCapabilities(),
+        technicalSkills: collectTechnicalSkills(),
+        updatedAt: serverTimestamp()
+      };
+      const wh = collectWorkingHours();
+      update.workingHours = wh.workingHours;
+      update.workingHoursMeta = wh.workingHoursMeta;
+      update.capacity = collectCapacity();
+      update.leaveRecords = collectLeaveRecords();
+      update.vehicleInfo = collectVehicleInfo();
+      update.tools = collectTools();
+      if (!techDetailContext.technicianUid) {
+        update.skills = document.getElementById('td-skills').value.trim();
+      }
+      techDetailSubmitBtn.textContent = 'Uploading documents…';
+      update.documents = await collectDocuments(techDetailContext.id);
+      techDetailSubmitBtn.textContent = 'Saving…';
+      const timelineEvents = detectTimelineEvents(techDetailContext, update);
+      await updateDoc(doc(db, 'centerTechnicians', techDetailContext.id), update);
+      for (const [event, label] of timelineEvents) {
+        await logTimelineEvent(techDetailContext.id, event, label);
+      }
+      techDetailSuccess.textContent = 'Saved.';
+      techDetailSuccess.classList.add('show');
+      techDetailSubmitBtn.disabled = false;
+      techDetailSubmitBtn.textContent = 'Save changes';
+      if (document.getElementById('tech-tbody')) loadCenterTechnicians();
+      setTimeout(closeTechDetailModal, 800);
+    } catch (err) {
+      console.error('Save technician details failed:', err);
+      techDetailError.textContent = 'Could not save. Check console for details.';
+      techDetailError.classList.add('show');
+      techDetailSubmitBtn.disabled = false;
+      techDetailSubmitBtn.textContent = 'Save changes';
+    }
+  });
 
   const techOverlay = document.getElementById('tech-overlay');
   const techForm = document.getElementById('tech-form');
@@ -1854,7 +3248,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techSubmitBtn.textContent = 'Saving…';
     try {
       const linkedUid = techLinkSelect.value || null;
-      await addDoc(collection(db, 'centerTechnicians'), {
+      const newTechRef = await addDoc(collection(db, 'centerTechnicians'), {
         serviceCenterUid: currentUser.uid,
         name: document.getElementById('tech-name').value.trim(),
         phone: document.getElementById('tech-phone').value.trim(),
@@ -1871,6 +3265,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           console.warn('Could not lock technician to this center (non-fatal):', err.message);
         }
       }
+      await logTimelineEvent(newTechRef.id, 'PROFILE_CREATED', 'Technician profile created');
       techSuccess.textContent = 'Added.';
       techSuccess.classList.add('show');
       techSubmitBtn.disabled = false;
