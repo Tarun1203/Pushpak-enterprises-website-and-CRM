@@ -500,6 +500,17 @@
   </div>
 </div>
 
+<!-- Claim detail — full ticket/job breakdown + payment record -->
+<div class="modal-overlay" id="claim-detail-overlay">
+  <div class="modal" style="max-width:720px;">
+    <h3 id="claim-detail-title">Claim details</h3>
+    <div id="claim-detail-body" style="font-size:13.5px;color:var(--ink);line-height:1.7;"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cancel-claim-detail">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- New Return modal -->
 <div class="modal-overlay" id="return-overlay">
   <div class="modal">
@@ -4420,6 +4431,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   });
 
+  let claimsDocsCache = [];
+
   async function renderClaims(filterValue, tabId, label) {
     contentEl.innerHTML = `
       <div class="panel">
@@ -4428,6 +4441,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <button class="btn-primary" id="open-claim-request">+ New Claim</button>
         </div>
         <div class="panel-body" style="padding:0;">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--line,#e8e1d4);">
+            <input type="text" id="claims-search" placeholder="Search by ticket ID, claim ID, or customer name…" style="width:100%;max-width:420px;">
+          </div>
           <table>
             <thead>
               <tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Description</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
@@ -4437,7 +4453,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>`;
     document.getElementById('open-claim-request').addEventListener('click', openClaimModal);
+    document.getElementById('claims-search').addEventListener('input', (e) => {
+      renderClaimsRows(filterClaimsDocs(claimsDocsCache, e.target.value), tabId);
+    });
     loadClaims(filterValue, tabId);
+  }
+
+  function filterClaimsDocs(docs, term) {
+    const q = (term || '').trim().toLowerCase();
+    if (!q) return docs;
+    return docs.filter(d => {
+      const haystack = [
+        d.claimId, d.id, d.claimantName, d.description,
+        ...(d.ticketIds || []), ...(d.walletTxnIds || []),
+        ...((d.lineItems || []).flatMap(li => [li.sourceJobId, li.sourceJobLabel, li.customerName]))
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
   }
 
   async function loadClaims(filterValue, tabId) {
@@ -4454,40 +4486,148 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
       docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      if (docs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = '';
-      docs.forEach(d => {
-        const tr = document.createElement('tr');
-        let actionHtml = '—';
-        if (d.status === 'submitted') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
-        } else if (d.status === 'verified') {
-          actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
-        } else if (d.status === 'rejected') {
-          actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
-        }
-        tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
-          <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
-          <td>${d.claimantName || '—'}</td>
-          <td>${d.description || '—'}</td>
-          <td>₹${d.amount ?? '—'}</td>
-          <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
-          <td>${actionHtml}</td>`;
-        tbody.appendChild(tr);
-      });
-      tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'verified', tabId)));
-      tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', () => openPaymentModal('claim', btn.dataset.id, tabId)));
-      tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'rejected', tabId)));
-      tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', () => advanceClaim(btn.dataset.id, 'submitted', tabId)));
+      claimsDocsCache = docs;
+      const searchInput = document.getElementById('claims-search');
+      renderClaimsRows(filterClaimsDocs(docs, searchInput ? searchInput.value : ''), tabId);
     } catch (err) {
       console.error('Load claims failed:', err);
       tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load claims. Check console for details.</td></tr>`;
     }
   }
+
+  function renderClaimsRows(docs, tabId) {
+    const tbody = document.getElementById('claims-tbody');
+    if (!tbody) return;
+    if (docs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row">Nothing here.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = '';
+    docs.forEach(d => {
+      const tr = document.createElement('tr');
+      tr.className = 'claim-row';
+      tr.style.cursor = 'pointer';
+      tr.dataset.id = d.id;
+      let actionHtml = '—';
+      if (d.status === 'submitted') {
+        actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+      } else if (d.status === 'verified') {
+        actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+      } else if (d.status === 'rejected') {
+        actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
+      }
+      tr.innerHTML = `
+        <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+        <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
+        <td>${d.claimantName || '—'}</td>
+        <td>${d.description || '—'}</td>
+        <td>₹${d.amount ?? '—'}</td>
+        <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
+        <td>${actionHtml}</td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll('.claim-row').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        openClaimDetailModal(tr.dataset.id);
+      });
+    });
+    tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'verified', tabId); }));
+    tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openPaymentModal('claim', btn.dataset.id, tabId); }));
+    tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'rejected', tabId); }));
+    tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'submitted', tabId); }));
+  }
+
+  async function openClaimDetailModal(claimId) {
+    const overlay = document.getElementById('claim-detail-overlay');
+    const bodyEl = document.getElementById('claim-detail-body');
+    document.getElementById('claim-detail-title').textContent = 'Claim details';
+    bodyEl.innerHTML = 'Loading…';
+    overlay.classList.add('show');
+    try {
+      const claimSnap = await getDoc(doc(db, 'claims', claimId));
+      if (!claimSnap.exists()) { bodyEl.innerHTML = 'Claim not found.'; return; }
+      const c = claimSnap.data();
+      document.getElementById('claim-detail-title').textContent = c.claimId || claimId;
+
+      const paySnap = await getDocs(query(collection(db, 'payments'), where('sourceType', '==', 'claim'), where('sourceId', '==', claimId)));
+      const payments = [];
+      paySnap.forEach(p => payments.push(p.data()));
+
+      const lineItems = c.lineItems || [];
+      const lineItemsHtml = lineItems.length ? `
+        <table style="width:100%;margin:10px 0;">
+          <thead><tr><th>Ticket / Job</th><th>Customer</th><th>Spares</th><th>Service</th><th>Other</th><th>Total</th></tr></thead>
+          <tbody>
+            ${lineItems.map((li, idx) => `
+              <tr class="claim-lineitem-row" data-idx="${idx}" style="cursor:pointer;">
+                <td>${escapeHtml(li.sourceJobLabel || li.sourceJobId || '—')}</td>
+                <td>${escapeHtml(li.customerName || '—')}</td>
+                <td>₹${li.sparePartsCost || 0}</td>
+                <td>₹${li.serviceCharge || 0}</td>
+                <td>₹${li.otherCharges || 0}</td>
+                <td>₹${li.total || 0}</td>
+              </tr>
+              <tr class="claim-lineitem-detail" data-detail-idx="${idx}" style="display:none;">
+                <td colspan="6" style="background:var(--linen,#faf7f0);"><div class="claim-lineitem-content">Loading full ticket details…</div></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>` : '<div style="color:var(--stone);">No line-item breakdown on file.</div>';
+
+      const paymentHtml = payments.length ? payments.map(p => `
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12.5px;padding:8px 4px;border:1px solid var(--line,#e8e1d4);border-radius:8px;margin-top:6px;">
+          <div style="color:var(--stone);">Amount</div><div>₹${p.amount ?? '—'}</div>
+          <div style="color:var(--stone);">Method</div><div style="text-transform:capitalize;">${escapeHtml(p.method) || '—'}</div>
+          <div style="color:var(--stone);">Reference No.</div><div>${escapeHtml(p.referenceNumber) || '—'}</div>
+          <div style="color:var(--stone);">Paid Date</div><div>${escapeHtml(p.paidDate) || '—'}</div>
+        </div>`).join('') : '<div style="color:var(--stone);font-size:12.5px;">Not yet settled — no payment recorded.</div>';
+
+      bodyEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12.5px;">
+          <div style="color:var(--stone);">Claimant</div><div>${escapeHtml(c.claimantName) || '—'} (${c.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'})</div>
+          <div style="color:var(--stone);">Description</div><div>${escapeHtml(c.description) || '—'}</div>
+          <div style="color:var(--stone);">Amount</div><div>₹${c.amount ?? '—'}</div>
+          <div style="color:var(--stone);">Status</div><div><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${CLAIM_STATUS_LABELS[c.status] || c.status}</span></div>
+        </div>
+        <h4 style="margin:14px 0 4px;">Ticket / job breakdown</h4>
+        ${lineItemsHtml}
+        <h4 style="margin:14px 0 4px;">Payment details</h4>
+        ${paymentHtml}`;
+
+      bodyEl.querySelectorAll('.claim-lineitem-row').forEach(row => {
+        row.addEventListener('click', () => toggleClaimLineItemDetail(row.dataset.idx, lineItems[row.dataset.idx]));
+      });
+    } catch (err) {
+      console.error('Load claim detail failed:', err);
+      bodyEl.innerHTML = '<div style="color:var(--err);">Could not load claim details. Check console for details.</div>';
+    }
+  }
+
+  async function toggleClaimLineItemDetail(idx, lineItem) {
+    const detailRow = document.querySelector(`.claim-lineitem-detail[data-detail-idx="${idx}"]`);
+    if (!detailRow) return;
+    const isOpen = detailRow.style.display !== 'none';
+    if (isOpen) { detailRow.style.display = 'none'; return; }
+    detailRow.style.display = '';
+    const contentEl = detailRow.querySelector('.claim-lineitem-content');
+    if (!lineItem || !lineItem.sourceJobCollection || !lineItem.sourceJobId) {
+      contentEl.innerHTML = '<div style="font-size:12.5px;color:var(--stone);">No further details on file.</div>';
+      return;
+    }
+    try {
+      const jobSnap = await getDoc(doc(db, lineItem.sourceJobCollection, lineItem.sourceJobId));
+      contentEl.innerHTML = jobSnap.exists()
+        ? renderUnclaimedDetailFields(jobSnap.data())
+        : '<div style="font-size:12.5px;color:var(--stone);">Original ticket/job record not found (may have been removed).</div>';
+    } catch (err) {
+      console.error('Load line-item job detail failed:', err);
+      contentEl.innerHTML = '<div style="font-size:12.5px;color:var(--err);">Could not load details.</div>';
+    }
+  }
+  document.getElementById('cancel-claim-detail').addEventListener('click', () => document.getElementById('claim-detail-overlay').classList.remove('show'));
+  document.getElementById('claim-detail-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'claim-detail-overlay') e.target.classList.remove('show');
+  });
 
   async function advanceClaim(id, nextStatus, tabId) {
     try {
