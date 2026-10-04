@@ -482,6 +482,24 @@
   </div>
 </div>
 
+<!-- Unclaimed Amounts — breakdown + process-on-behalf modal -->
+<div class="modal-overlay" id="unclaimed-detail-overlay">
+  <div class="modal" style="max-width:560px;">
+    <h3 id="unclaimed-detail-title">Unclaimed amount</h3>
+    <div style="font-size:12.5px;color:var(--stone);margin-bottom:12px;">Submits a claim on their behalf for the tickets/jobs below, then opens the usual payment screen to settle it right away.</div>
+    <table style="width:100%;margin-bottom:12px;">
+      <thead><tr><th>Ticket / Job</th><th>Customer</th><th>Amount</th></tr></thead>
+      <tbody id="unclaimed-detail-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+    </table>
+    <div style="text-align:right;font-weight:600;margin-bottom:16px;">Total: <span id="unclaimed-detail-total">₹0</span></div>
+    <div class="modal-error" id="unclaimed-detail-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="cancel-unclaimed-detail">Close</button>
+      <button type="button" class="btn-primary" id="process-unclaimed-detail">Process &amp; settle</button>
+    </div>
+  </div>
+</div>
+
 <!-- New Return modal -->
 <div class="modal-overlay" id="return-overlay">
   <div class="modal">
@@ -4129,24 +4147,164 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (byCenterUid.size === 0) {
         centerTbody.innerHTML = `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
       } else {
-        const rows = await Promise.all(Array.from(byCenterUid.entries()).map(async ([uid, entry]) => ({ name: await resolveName(uid), ...entry })));
+        const rows = await Promise.all(Array.from(byCenterUid.entries()).map(async ([uid, entry]) => ({ uid, name: await resolveName(uid), ...entry })));
         rows.sort((a, b) => b.amount - a.amount);
         centerTbody.innerHTML = rows.map(r => `
-          <tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td></tr>`).join('');
+          <tr class="unclaimed-row" data-type="servicecenter" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
+            <td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td>
+          </tr>`).join('');
       }
       if (byTechUid.size === 0) {
         techTbody.innerHTML = `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
       } else {
-        const rows = await Promise.all(Array.from(byTechUid.entries()).map(async ([uid, entry]) => ({ name: await resolveName(uid), ...entry })));
+        const rows = await Promise.all(Array.from(byTechUid.entries()).map(async ([uid, entry]) => ({ uid, name: await resolveName(uid), ...entry })));
         rows.sort((a, b) => b.amount - a.amount);
         techTbody.innerHTML = rows.map(r => `
-          <tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td></tr>`).join('');
+          <tr class="unclaimed-row" data-type="technician" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
+            <td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td>
+          </tr>`).join('');
       }
+      document.querySelectorAll('.unclaimed-row').forEach(tr => {
+        tr.addEventListener('click', () => openUnclaimedDetailModal(tr.dataset.type, tr.dataset.uid, tr.dataset.name));
+      });
     } catch (err) {
       console.error('Load unclaimed amounts failed:', err);
       document.getElementById('unclaimed-centers-tbody').innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
     }
   }
+
+  // ---------------------------------------------------------------
+  // Unclaimed Amounts — click-through breakdown, with a "process on
+  // behalf" action that submits a claim exactly like the service
+  // center/technician's own bulk-claim screen would (same claims doc
+  // shape, same source-doc updates), then opens the usual payment
+  // modal to settle it immediately. Lets Warehouse close these out
+  // without waiting for the center/technician to submit it first.
+  // ---------------------------------------------------------------
+
+  let unclaimedDetailContext = null;
+
+  async function openUnclaimedDetailModal(type, uid, name) {
+    const overlay = document.getElementById('unclaimed-detail-overlay');
+    const tbody = document.getElementById('unclaimed-detail-tbody');
+    const totalEl = document.getElementById('unclaimed-detail-total');
+    const errEl = document.getElementById('unclaimed-detail-error');
+    const processBtn = document.getElementById('process-unclaimed-detail');
+    errEl.classList.remove('show');
+    processBtn.disabled = false;
+    processBtn.textContent = 'Process & settle';
+    document.getElementById('unclaimed-detail-title').textContent =
+      `${name} — ${type === 'technician' ? 'unclaimed wallet balance' : 'unclaimed amount'}`;
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-row">Loading…</td></tr>`;
+    totalEl.textContent = '₹0';
+    overlay.classList.add('show');
+    try {
+      if (type === 'servicecenter') {
+        const snap = await getDocs(query(
+          collection(db, 'centerRequests'),
+          where('serviceCenterUid', '==', uid),
+          where('billingStatus', '==', 'ready_to_claim')
+        ));
+        const tickets = [];
+        snap.forEach(d => tickets.push({ id: d.id, ...d.data() }));
+        const total = tickets.reduce((sum, t) => sum + (t.billingTotal || 0), 0);
+        unclaimedDetailContext = { type, uid, name, tickets, total };
+        tbody.innerHTML = tickets.length ? tickets.map(t => `
+          <tr><td>${escapeHtml(t.requestId || t.id)}</td><td>${escapeHtml(t.customerName) || '—'}</td><td>₹${t.billingTotal || 0}</td></tr>`).join('')
+          : `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
+        totalEl.textContent = `₹${total}`;
+      } else {
+        const snap = await getDocs(query(
+          collection(db, 'walletTransactions'),
+          where('technicianUid', '==', uid),
+          where('status', '==', 'unclaimed')
+        ));
+        const txns = [];
+        snap.forEach(d => txns.push({ id: d.id, ...d.data() }));
+        const total = txns.reduce((sum, t) => sum + (t.amount || 0), 0);
+        unclaimedDetailContext = { type, uid, name, txns, total };
+        tbody.innerHTML = txns.length ? txns.map(t => `
+          <tr><td>${escapeHtml(t.sourceJobLabel || t.sourceJobId)}</td><td>—</td><td>₹${t.amount || 0}</td></tr>`).join('')
+          : `<tr><td colspan="3" class="empty-row">Nothing unclaimed.</td></tr>`;
+        totalEl.textContent = `₹${total}`;
+      }
+    } catch (err) {
+      console.error('Load unclaimed detail failed:', err);
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-row" style="color:var(--err);">Couldn't load. Check console for details.</td></tr>`;
+      unclaimedDetailContext = null;
+    }
+  }
+  function closeUnclaimedDetailModal() {
+    document.getElementById('unclaimed-detail-overlay').classList.remove('show');
+    unclaimedDetailContext = null;
+  }
+  document.getElementById('cancel-unclaimed-detail').addEventListener('click', closeUnclaimedDetailModal);
+  document.getElementById('unclaimed-detail-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'unclaimed-detail-overlay') closeUnclaimedDetailModal();
+  });
+
+  document.getElementById('process-unclaimed-detail').addEventListener('click', async () => {
+    if (!unclaimedDetailContext) return;
+    const { type, uid, name, tickets, txns, total } = unclaimedDetailContext;
+    const errEl = document.getElementById('unclaimed-detail-error');
+    errEl.classList.remove('show');
+    if (!total) {
+      errEl.textContent = 'Nothing to process.';
+      errEl.classList.add('show');
+      return;
+    }
+    const btn = document.getElementById('process-unclaimed-detail');
+    btn.disabled = true;
+    btn.textContent = 'Processing…';
+    try {
+      const claimId = await generateClaimId();
+      let newClaimRef;
+      if (type === 'servicecenter') {
+        const lineItems = tickets.map(t => ({
+          sourceJobId: t.id, sourceJobCollection: 'centerRequests',
+          sourceJobLabel: t.requestId || t.id, serialNumber: t.serialNumber || null,
+          customerName: t.customerName || null, sparePartsCost: t.sparePartsCost || 0,
+          serviceCharge: t.serviceCharge || 0, otherCharges: t.otherCharges || 0, total: t.billingTotal || 0
+        }));
+        newClaimRef = await addDoc(collection(db, 'claims'), {
+          claimId, claimantType: 'servicecenter', claimantUid: uid, claimantName: name,
+          description: `Warranty claim (processed by Head Office) — ${tickets.length} ticket${tickets.length > 1 ? 's' : ''} (${tickets.map(t => t.requestId || t.id).join(', ')})`,
+          amount: total, lineItems, ticketIds: tickets.map(t => t.id), notes: '',
+          status: 'submitted', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+        await Promise.all(tickets.map(t => updateDoc(doc(db, 'centerRequests', t.id), {
+          billingStatus: 'claimed', claimId, updatedAt: serverTimestamp()
+        })));
+      } else {
+        const lineItems = txns.map(t => ({
+          sourceJobId: t.sourceJobId, sourceJobCollection: t.sourceJobCollection,
+          sourceJobLabel: t.sourceJobLabel, serialNumber: t.serialNumber || null, total: t.amount || 0
+        }));
+        newClaimRef = await addDoc(collection(db, 'claims'), {
+          claimId, claimantType: 'technician', claimantUid: uid, claimantName: name,
+          description: `Warranty service-charge claim (processed by Head Office) — ${txns.length} job${txns.length > 1 ? 's' : ''} (${txns.map(t => t.sourceJobLabel || t.sourceJobId).join(', ')})`,
+          amount: total, lineItems, walletTxnIds: txns.map(t => t.id), notes: '',
+          status: 'submitted', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        });
+        await Promise.all(txns.map(t => updateDoc(doc(db, 'walletTransactions', t.id), {
+          status: 'claimed', claimId, updatedAt: serverTimestamp()
+        })));
+      }
+      // Jump straight to settlement — the usual payment screen
+      // (amount pre-filled from the claim, method/reference/date to
+      // fill in). tabId is left null; the payment screen's own submit
+      // handler detects it's not on the Claims page and refreshes
+      // Unclaimed Amounts instead.
+      closeUnclaimedDetailModal();
+      openPaymentModal('claim', newClaimRef.id, null);
+    } catch (err) {
+      console.error('Process unclaimed amount failed:', err);
+      errEl.textContent = 'Could not process this claim. Check console for details.';
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Process & settle';
+    }
+  });
 
   async function renderClaims(filterValue, tabId, label) {
     contentEl.innerHTML = `
@@ -4291,7 +4449,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       });
       if (sourceType === 'claim') {
         await updateDoc(doc(db, 'claims', sourceId), { status: 'settled', updatedAt: serverTimestamp() });
-        loadClaims(CLAIMS_TABS[tabId], tabId);
+        // Settling can be triggered from the Claims page itself (a
+        // real tabId) or from Unclaimed Amounts' "process on behalf"
+        // flow (tabId is null there) — refresh whichever is actually
+        // on screen rather than assuming the Claims tab.
+        if (tabId && document.getElementById('claims-tbody')) loadClaims(CLAIMS_TABS[tabId], tabId);
+        else if (document.getElementById('unclaimed-centers-tbody')) renderUnclaimedAmounts();
       } else {
         await updateDoc(doc(db, 'localPurchases', sourceId), { status: 'reimbursed', updatedAt: serverTimestamp() });
         loadLocalPurchases(LOCAL_PURCHASE_TABS[tabId], tabId, tabId !== 'lp-history');
