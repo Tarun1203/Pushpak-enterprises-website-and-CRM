@@ -4384,7 +4384,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     contentEl.innerHTML = `
       <div id="routing-auto-notice"></div>
       <div class="panel">
-        <div class="panel-header"><h2>All service activity</h2></div>
+        <div class="panel-header">
+          <h2>All service activity</h2>
+          <button class="btn-secondary" id="backfill-public-tracking" title="One-time: makes every existing CRM ticket (PE-CR-/PE-JOB-) trackable on the website's Track Service page. Safe to run more than once.">Backfill website tracking</button>
+        </div>
+        <div class="modal-success" id="backfill-tracking-result" style="margin:0 16px 12px;"></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Source</th><th>ID</th><th>Customer</th><th>Assigned To</th><th>Status</th></tr></thead>
@@ -4393,6 +4397,61 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>`;
     loadServiceOverview();
+    document.getElementById('backfill-public-tracking').addEventListener('click', backfillPublicTracking);
+  }
+
+  // One-time (but safe to re-run) migration: writes the narrow public
+  // publicTicketStatus mirror (see CRMservicecenter.html/CRMtechnician.
+  // html's syncPublicTicketMirror) for every EXISTING centerRequests/
+  // serviceJobs ticket, so tickets raised before that sync code went
+  // live also become trackable on the website's Track Service page.
+  // New tickets no longer need this — they're synced automatically.
+  async function backfillPublicTracking() {
+    const btn = document.getElementById('backfill-public-tracking');
+    const resultEl = document.getElementById('backfill-tracking-result');
+    btn.disabled = true;
+    btn.textContent = 'Backfilling…';
+    resultEl.classList.remove('show');
+    try {
+      const [jobsSnap, requestsSnap] = await Promise.all([
+        getDocs(collection(db, 'serviceJobs')),
+        getDocs(collection(db, 'centerRequests')),
+      ]);
+      const writes = [];
+      let skipped = 0;
+      function queueMirror(coll, docId, d) {
+        const ticketId = d.requestId || d.jobId;
+        if (!ticketId || !d.customerPhone) { skipped++; return; }
+        writes.push(setDoc(doc(db, 'publicTicketStatus', ticketId), {
+          ticketId,
+          source: coll,
+          sourceDocId: docId,
+          customerPhone: d.customerPhone,
+          requestType: d.type === 'installation' ? 'installation' : 'repair',
+          category: d.category || null,
+          status: d.status || 'new',
+          warrantyStatus: d.warrantyStatus || null,
+          createdAt: d.createdAt || serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true }));
+      }
+      jobsSnap.forEach(d => queueMirror('serviceJobs', d.id, d.data()));
+      requestsSnap.forEach(d => queueMirror('centerRequests', d.id, d.data()));
+      // Firestore write batches cap at 500 — chunk if there happen to
+      // be more tickets than that.
+      for (let i = 0; i < writes.length; i += 450) {
+        await Promise.all(writes.slice(i, i + 450));
+      }
+      resultEl.textContent = `Done — ${writes.length} ticket(s) are now trackable on the website${skipped ? `, ${skipped} skipped (no customer phone on file)` : ''}.`;
+      resultEl.classList.add('show');
+    } catch (err) {
+      console.error('Backfill public tracking failed:', err);
+      resultEl.textContent = 'Could not backfill. Check console for details.';
+      resultEl.style.color = 'var(--err)';
+      resultEl.classList.add('show');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Backfill website tracking';
   }
 
   async function loadServiceOverview() {

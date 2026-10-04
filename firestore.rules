@@ -350,7 +350,16 @@ service cloud.firestore {
     // app's own ticket-creation and status-change code paths.
     match /publicTicketStatus/{ticketId} {
       allow get: if true;
-      allow list: if isAdmin();
+      // Public list: the Warranty Status check needs to QUERY this
+      // collection by customerPhone for anyone, signed in or not —
+      // same tradeoff already accepted for productRegistrations above
+      // (Firestore rules can't restrict a query to "only your own
+      // phone number's results"). Safe here because this collection
+      // was deliberately built to hold only the narrow, already-public
+      // fields (status/type/category/warranty/phone) — never the
+      // customer's name, address, or technician/closure details that
+      // live on the real centerRequests/serviceJobs docs.
+      allow list: if true;
       allow create, update: if isAdmin() || isStaff();
       allow delete: if isAdmin();
     }

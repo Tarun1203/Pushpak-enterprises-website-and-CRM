@@ -1383,13 +1383,32 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone)));
+      const [regSnap, ticketSnap] = await Promise.all([
+        getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone))),
+        getDocs(query(collection(db, 'publicTicketStatus'), where('customerPhone', '==', normalizedPhone)))
+      ]);
       const matches = [];
-      snap.forEach(docSnap => matches.push(docSnap.data()));
-      if (matches.length === 0) {
-        warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registered products found for that mobile number.</div></div>';
+      regSnap.forEach(docSnap => matches.push(docSnap.data()));
+      const ticketMatches = [];
+      ticketSnap.forEach(docSnap => ticketMatches.push(docSnap.data()));
+      if (matches.length === 0 && ticketMatches.length === 0) {
+        warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registered products or service tickets found for that mobile number.</div></div>';
       } else {
         warrantyResult.innerHTML = '';
+        // Service tickets raised directly (website or CRM) — shown
+        // first since they carry a real, technician-confirmed warranty
+        // result, not just the as-sold warranty term.
+        ticketMatches.forEach(d => {
+          const card = document.createElement('div');
+          card.className = 'warranty-result-card';
+          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+          card.innerHTML = `
+            <h4>${escapeHtml(d.category) || 'Service ticket'} — ${escapeHtml(d.ticketId)}</h4>
+            <div class="row"><span>Request Type</span><span>${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</span></div>
+            <div class="row"><span>Submitted</span><span>${dateStr}</span></div>
+            <div style="margin-top:8px;"><span class="status-pill ${d.warrantyStatus === 'in_warranty' ? 'active' : d.warrantyStatus === 'out_of_warranty' ? 'expired' : ''}">${warrantyStatusLabel(d.warrantyStatus)}</span></div>`;
+          warrantyResult.appendChild(card);
+        });
         matches.forEach(d => {
           const card = document.createElement('div');
           card.className = 'warranty-result-card';
