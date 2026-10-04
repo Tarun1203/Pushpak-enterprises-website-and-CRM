@@ -3002,10 +3002,29 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         stockLine = `<div style="font-size:13px;color:var(--stone);">Warehouse stock of ${escapeHtml(part.name)}: <strong>${avail}</strong></div>`;
       } catch (err) { /* non-blocking */ }
     }
+    // Ship-to details — who's receiving it and, if they've filled in
+    // their own Profile, where to actually send it. Falls back to the
+    // free-text serviceCenter label when there's no linked account
+    // (an old manually-typed request) or no address on file yet.
+    let shipToLine = '';
+    if (loc) {
+      const profile = await getWhRequesterProfile(loc.uid);
+      const destType = loc.location === 'technician' ? 'Technician' : 'Service Center';
+      const phoneLine = profile && profile.phone ? ` · ${escapeHtml(profile.phone)}` : '';
+      shipToLine = `
+        <div style="border:1px solid var(--hairline);border-radius:4px;padding:10px 12px;margin:10px 0;">
+          <div style="font-size:11.5px;color:var(--stone);text-transform:uppercase;letter-spacing:0.02em;">Ship to (${destType})</div>
+          <div style="font-weight:600;">${escapeHtml(loc.label)}${phoneLine}</div>
+          <div style="font-size:13px;">${profile && profile.address ? escapeHtml(profile.address) : '<span style="color:var(--warn);">No address on file yet — ask them to fill it in under their own Profile page.</span>'}</div>
+        </div>`;
+    } else if (d.serviceCenter) {
+      shipToLine = `<div style="font-size:13px;color:var(--stone);margin:10px 0;"><strong>Ship to:</strong> ${escapeHtml(d.serviceCenter)} <span style="color:var(--warn);">(no linked account — address not on file)</span></div>`;
+    }
     whSrDetailBody.innerHTML = `
       <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
       <div><strong>Requested qty:</strong> ${d.quantity ?? '—'}</div>
       ${stockLine}
+      ${shipToLine}
       ${!part ? `<div style="font-size:13px;color:var(--warn);">Couldn't match this item to a Spare Parts master record — stock won't be auto-adjusted. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
       ${!loc ? `<div style="font-size:13px;color:var(--warn);">Couldn't identify which center/technician account this came from — stock won't be auto-credited to them. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
       ${whTransportFormHtml(d.quantity, part ? avail : null)}`;
@@ -3118,6 +3137,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
     whSrDetailBody.innerHTML = `
       <div><strong>${roleLabel}:</strong> ${escapeHtml(requesterName) || '—'}</div>
+      <div><strong>Address:</strong> ${profile && profile.address ? escapeHtml(profile.address) : '<span style="color:var(--warn);">Not on file yet</span>'}</div>
       ${districts ? `<div><strong>District:</strong> ${escapeHtml(districts)}</div>` : ''}
       ${state ? `<div><strong>State:</strong> ${escapeHtml(state)}</div>` : ''}
       ${contactParts.length ? `<div><strong>Contact:</strong> ${escapeHtml(contactParts.join(' · '))}</div>` : ''}

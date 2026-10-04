@@ -2719,6 +2719,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Name</label><input type="text" id="profile-name"></div>
           <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
+          <div class="form-row"><label>Address <span style="font-weight:400;color:var(--stone);">(where Warehouse should ship spares to)</span></label><input type="text" id="profile-address"></div>
           <div class="form-row"><label>Skills</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
           <div class="form-row"><label>Brand authorization</label><input type="text" id="profile-brands" placeholder="e.g. MakWell, Flyvision"></div>
           <div class="modal-error" id="profile-error"></div>
@@ -2733,6 +2734,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-name').value = d.name || '';
       document.getElementById('profile-email').value = currentUser.email || '';
       document.getElementById('profile-phone').value = d.phone || '';
+      document.getElementById('profile-address').value = d.address || '';
       document.getElementById('profile-skills').value = d.skills || '';
       document.getElementById('profile-brands').value = d.brandAuthorization || '';
     } catch (err) {
@@ -2750,6 +2752,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         await setDoc(doc(db, 'users', currentUser.uid), {
           name: document.getElementById('profile-name').value.trim(),
           phone: document.getElementById('profile-phone').value.trim(),
+          address: document.getElementById('profile-address').value.trim(),
           skills: document.getElementById('profile-skills').value.trim(),
           brandAuthorization: document.getElementById('profile-brands').value.trim(),
         }, { merge: true });
