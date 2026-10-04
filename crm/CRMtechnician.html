@@ -846,6 +846,38 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } catch (err) {
       console.warn('Status log write failed (non-blocking):', err.message);
     }
+    if (coll === 'centerRequests' || coll === 'serviceJobs') await syncPublicTicketMirror(coll, docId, status);
+  }
+
+  // Keeps a narrow, public-safe mirror (publicTicketStatus) of this
+  // CRM-raised ticket up to date, so the website's Track Service page
+  // can look it up by its own ticket ID (PE-CR-.../PE-JOB-...) the
+  // same way it already can for a website-raised request — without
+  // ever giving the public query access to the real collection
+  // (which carries the customer's address, closure notes, etc.).
+  // Non-blocking: never stops the real update.
+  async function syncPublicTicketMirror(coll, docId, statusOverride) {
+    try {
+      const snap = await getDoc(doc(db, coll, docId));
+      if (!snap.exists()) return;
+      const d = snap.data();
+      const ticketId = d.requestId || d.jobId;
+      if (!ticketId || !d.customerPhone) return;
+      await setDoc(doc(db, 'publicTicketStatus', ticketId), {
+        ticketId,
+        source: coll,
+        sourceDocId: docId,
+        customerPhone: d.customerPhone,
+        requestType: d.type === 'installation' ? 'installation' : 'repair',
+        category: d.category || null,
+        status: statusOverride || d.status || 'new',
+        warrantyStatus: d.warrantyStatus || null,
+        createdAt: d.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Public ticket mirror sync failed (non-blocking):', err.message);
+    }
   }
 
   async function advanceJob(id, nextStatus, coll) {
@@ -1639,6 +1671,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       } catch (warrantyErr) {
         console.warn('Automatic warranty billing failed (non-blocking):', warrantyErr.message);
       }
+      // Re-sync the public mirror now that warrantyStatus is settled —
+      // the earlier logTicketStatus() sync above ran before this block
+      // and would have missed it.
+      await syncPublicTicketMirror(closureJobColl, jobId, 'completed');
 
       closureSuccess.textContent = 'Completed.';
       closureSuccess.classList.add('show');
@@ -1690,7 +1726,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     jobSubmitBtn.textContent = 'Saving…';
     try {
       const jobId = await generateJobId();
-      await addDoc(collection(db, 'serviceJobs'), {
+      const jobRef = await addDoc(collection(db, 'serviceJobs'), {
         jobId,
         technicianUid: currentUser.uid,
         technicianEmail: currentUser.email,
@@ -1711,6 +1747,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      await syncPublicTicketMirror('serviceJobs', jobRef.id, 'assigned');
       jobSuccess.textContent = `Saved — ${jobId}`;
       jobSuccess.classList.add('show');
       jobSubmitBtn.textContent = 'Save job';

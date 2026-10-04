@@ -338,6 +338,23 @@ service cloud.firestore {
       }
     }
 
+    // A narrow, public-safe mirror of a centerRequests/serviceJobs
+    // ticket, so a CRM-raised ticket (PE-CR-.../PE-JOB-...) can be
+    // looked up on the public Track Service page the same way a
+    // website-raised publicServiceRequests ticket already can —
+    // without opening the real collections (which carry the
+    // customer's address, technician identity, closure notes, etc.)
+    // to public query. Keyed by the ticket ID itself, exactly like
+    // publicServiceRequests, so a "get" never needs a public list.
+    // Only staff (service center/technician/admin) write it, from the
+    // app's own ticket-creation and status-change code paths.
+    match /publicTicketStatus/{ticketId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() || isStaff();
+      allow delete: if isAdmin();
+    }
+
     match /dealerEnquiries/{id} {
       allow read, update, delete: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid);

@@ -1207,6 +1207,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // displayed, to limit what's exposed if a ticket ID is guessed.
   // =================================================================
 
+  // Turns a ticket's stored warrantyStatus ('in_warranty' /
+  // 'out_of_warranty', set automatically once a technician closes the
+  // job, or absent while it's still open) into the plain-language line
+  // shown on the Track Service result.
+  function warrantyStatusLabel(warrantyStatus) {
+    if (warrantyStatus === 'in_warranty') return 'In warranty — covered by company';
+    if (warrantyStatus === 'out_of_warranty') return 'Out of warranty — chargeable';
+    return 'Not yet determined';
+  }
+
   const trackOverlay = document.getElementById('track-overlay');
   const trackTicket = document.getElementById('track-ticket');
   const trackPhone = document.getElementById('track-phone');
@@ -1240,11 +1250,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      // The ticket prefix tells us which kind it is — a PE-REG-
-      // ticket is a product registration, not a service request, and
-      // lives in a different collection with a different lookup
-      // (registrations use an auto-generated doc ID, so this needs a
-      // query by the registrationId field, not a direct get by ID).
+      // The ticket prefix tells us which kind it is and which
+      // collection to look it up in:
+      //  - PE-REG- — a product registration (query by field, since
+      //    the doc ID is auto-generated)
+      //  - PE-CR-/PE-JOB- — a ticket raised directly in the CRM by a
+      //    Service Center or Technician. These live in centerRequests/
+      //    serviceJobs, which aren't publicly queryable (they carry
+      //    the customer's address, technician identity, etc.), so
+      //    this looks up the narrow public-safe mirror kept in sync
+      //    at publicTicketStatus instead, by the ticket ID itself.
+      //  - anything else (PE-SVC- or unrecognized, for backward
+      //    compatibility) — a website-raised publicServiceRequests
+      //    ticket, whose own doc ID IS the ticket number.
       if (ticket.startsWith('PE-REG-')) {
         const regSnap = await getDocs(query(collection(db, 'productRegistrations'), where('registrationId', '==', ticket)));
         let match = null;
@@ -1265,6 +1283,27 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               <div class="value" style="font-size:13.5px;">${dateStr}</div>
             </div>`;
         }
+      } else if (ticket.startsWith('PE-CR-') || ticket.startsWith('PE-JOB-')) {
+        const snap = await getDoc(doc(db, 'publicTicketStatus', ticket));
+        if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
+          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+        } else {
+          const d = snap.data();
+          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+          trackResult.innerHTML = `
+            <div class="track-status-box">
+              <div class="label">Status</div>
+              <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
+              <div class="label">Request Type</div>
+              <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
+              <div class="label">Product</div>
+              <div class="value" style="font-size:13.5px;">${escapeHtml(d.category) || '—'}</div>
+              <div class="label">Warranty</div>
+              <div class="value" style="font-size:13.5px;">${warrantyStatusLabel(d.warrantyStatus)}</div>
+              <div class="label">Submitted</div>
+              <div class="value" style="font-size:13.5px;">${dateStr}</div>
+            </div>`;
+        }
       } else {
         const snap = await getDoc(doc(db, 'publicServiceRequests', ticket));
         if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
@@ -1280,6 +1319,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
               <div class="label">Product</div>
               <div class="value" style="font-size:13.5px;">${escapeHtml(d.brand) || ''} ${escapeHtml(d.category) || ''}</div>
+              <div class="label">Warranty</div>
+              <div class="value" style="font-size:13.5px;">${warrantyStatusLabel(d.warrantyStatus)}</div>
               <div class="label">Submitted</div>
               <div class="value" style="font-size:13.5px;">${dateStr}</div>
             </div>`;
