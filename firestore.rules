@@ -73,9 +73,13 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow create: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+        // Service Center Code counter — signed-in only (unlike the
+        // ticket counters above, nothing on the public site needs it).
+        || (counterId == 'servicecenter-master' && isSignedIn()))
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+        || (counterId == 'servicecenter-master' && isSignedIn()))
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -876,8 +880,19 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /serviceCenterProfiles/{uid} {
-      allow read, create, update: if isAdmin()
+      allow read: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid);
+      // The Service Center Code is issued from counters/servicecenter-
+      // master at creation (see createScProfileWithCode) and must be
+      // in that sequential SC-0001 form.
+      allow create: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
+        && request.resource.data.serviceCenterCode is string
+        && request.resource.data.serviceCenterCode.matches('^SC-[0-9]{4,}$');
+      // ...and can never be changed afterwards, by the center itself
+      // or by an admin — it's an identifier other records may quote.
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
+        && (!('serviceCenterCode' in resource.data)
+            || request.resource.data.serviceCenterCode == resource.data.serviceCenterCode);
       allow delete: if isAdmin();
     }
 

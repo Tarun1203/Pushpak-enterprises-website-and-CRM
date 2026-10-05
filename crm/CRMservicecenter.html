@@ -4864,8 +4864,30 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // so neither can drift from the other. Status is admin-controlled —
   // shown read-only here.
   // ---------------------------------------------------------------
-  function scGenerateCenterCode(uid) {
-    return 'SC-' + uid.slice(0, 5).toUpperCase();
+  // Creates the profile doc AND issues its Service Center Code in one
+  // transaction: the code is the next number from a single shared
+  // counter (counters/servicecenter-master), so two centers can never
+  // be handed the same one, and a center + Super Admin opening the
+  // same profile at once can't burn a number (the loser of the race
+  // sees the doc already exists and writes nothing). Returns true only
+  // if this call actually created it. The code is immutable after
+  // creation (firestore.rules rejects any change to it).
+  async function createScProfileWithCode(uid) {
+    const profileRef = doc(db, 'serviceCenterProfiles', uid);
+    const counterRef = doc(db, 'counters', 'servicecenter-master');
+    return runTransaction(db, async (transaction) => {
+      const existing = await transaction.get(profileRef);
+      if (existing.exists()) return false;
+      const counterSnap = await transaction.get(counterRef);
+      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
+      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      transaction.set(profileRef, {
+        serviceCenterCode: 'SC-' + String(n).padStart(4, '0'),
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      return true;
+    });
   }
 
   const SCFP_CONTACT_ROLES = [
@@ -5412,12 +5434,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const ref = doc(db, 'serviceCenterProfiles', currentUser.uid);
       let snap = await getDoc(ref);
       if (!snap.exists()) {
-        await setDoc(ref, {
-          serviceCenterCode: scGenerateCenterCode(currentUser.uid),
-          createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-        });
+        const created = await createScProfileWithCode(currentUser.uid);
         snap = await getDoc(ref);
-        await logScTimelineEvent(currentUser.uid, 'CENTER_CREATED', 'Service Center profile created');
+        if (created) await logScTimelineEvent(currentUser.uid, 'CENTER_CREATED', 'Service Center profile created');
       }
       // Coverage (districtsCovered/pincodesCovered) lives on the account
       // doc (users/{uid}) — that's the SAME field the routing/coverage-
