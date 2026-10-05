@@ -473,15 +473,19 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // Inventory — any staff member may read (Warehouse, Area
-    // Manager read-only views, future Service Center views, etc.).
-    // Writes to a 'technician'-location doc are restricted to that
-    // technician's own uid, or an admin; Warehouse's own stock
-    // docs are effectively admin-only in practice already.
+    // Inventory — scoped the same way the writes below already are:
+    // a Service Center/Technician reads only their OWN stock doc,
+    // Warehouse/Super Admin read everything. (Previously isStaff()
+    // let any Service Center or Technician read every OTHER center's
+    // and technician's stock levels directly via the SDK — the real
+    // UI never queries unscoped, so this closes that without changing
+    // any page's behavior.)
     // ---------------------------------------------------------------
 
     match /inventory/{invId} {
-      allow read: if isStaff();
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid);
       // Helper checks (inlined, since rules can't share functions across
       // a get()'s field access easily): a technician<->center transfer
       // is authorized either by the linkedServiceCenterUid stamp on the
@@ -578,7 +582,13 @@ service cloud.firestore {
     }
 
     match /stockMovements/{moveId} {
-      allow read: if isStaff();
+      // Scoped the same way create already is — Warehouse/Super Admin
+      // see every movement, a Service Center/Technician only their own.
+      // (isStaff() previously let any of them read every OTHER center's
+      // and technician's stock movement history company-wide.)
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
@@ -586,7 +596,18 @@ service cloud.firestore {
     }
 
     match /spareRequests/{reqId} {
-      allow read: if isStaff();
+      // Scoped to the requester, plus the one cross-reference case the
+      // update rule below already has to handle: a Service Center can
+      // dispatch a spare request on behalf of one of its OWN roster
+      // technicians (requestedByUid is the center's uid, not theirs),
+      // and that technician still needs to read it via their own job.
+      // (isStaff() previously let any Service Center/Technician read
+      // every OTHER center's and technician's spare requests company-
+      // wide — real UI queries are always scoped like this already.)
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.requestedByUid == request.auth.uid)
+        || (isSignedIn() && resource.data.sourceJobCollection == 'centerRequests'
+            && get(/databases/$(database)/documents/centerRequests/$(resource.data.sourceJobId)).data.technicianUid == request.auth.uid);
       // Technicians request spares directly from Diagnosis, tagged
       // with their own uid — Warehouse/Super Admin can also create
       // requests on a center's behalf as before. Advancing a request
@@ -621,12 +642,21 @@ service cloud.firestore {
     }
 
     match /localPurchases/{lpId} {
-      allow read: if isStaff();
+      // Financial reimbursement records — Warehouse/Super Admin only.
+      // Neither Service Center nor Technician dashboards read this
+      // collection at all, so isStaff() was pure unnecessary exposure
+      // of every center's reimbursement claims to every other center.
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
     match /returns/{returnId} {
-      allow read: if isStaff();
+      // Scoped to the two owner tags already stamped on every doc at
+      // creation. (isStaff() previously let any Service Center or
+      // Technician read every OTHER one's return history company-wide.)
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
       // A service center or technician can only ever start a return as
       // 'requested' (headed to Head Office, not yet in their hands) or
       // 'sent_to_center' (handed to their own center first) — never as
@@ -665,7 +695,14 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /serviceChargeRates/{rateId} {
-      allow read: if isStaff();
+      // 'default' rows are the shared Head Office rate card — fine for
+      // any staff to see. A 'center' override row is that one center's
+      // own commercial term, so it's scoped the same way the writes
+      // below already are. (isStaff() previously let any center read
+      // every OTHER center's custom rate overrides.)
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.scope == 'default')
+        || (isSignedIn() && resource.data.scope == 'center' && resource.data.serviceCenterUid == request.auth.uid);
       allow create, update: if isAdmin()
         || (isSignedIn() && request.resource.data.scope == 'center'
             && request.resource.data.serviceCenterUid == request.auth.uid);
@@ -699,7 +736,10 @@ service cloud.firestore {
     }
 
     match /rmaRequests/{rmaId} {
-      allow read: if isStaff();
+      // Warehouse/Super Admin only — neither Service Center nor
+      // Technician dashboards read this collection; isStaff() was
+      // unnecessary exposure.
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
@@ -737,7 +777,13 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /payments/{paymentId} {
-      allow read: if isStaff();
+      // Settlement records — real financial data (method, reference,
+      // amount paid) for claims/local purchases across every center
+      // and technician. Warehouse/Super Admin only; neither Service
+      // Center nor Technician dashboards read this collection at all,
+      // so isStaff() was exposing every other account's payment
+      // history company-wide.
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
