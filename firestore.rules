@@ -22,6 +22,14 @@ service cloud.firestore {
       return isSignedIn() && callerRole() in ['superadmin', 'warehouse'];
     }
 
+    // Narrower than isAdmin() — Warehouse is deliberately treated as
+    // admin-tier for operational data (inventory, claims, products,
+    // etc.) everywhere else in this file, but account provisioning
+    // for the 'superadmin' role itself must stay Super-Admin-only.
+    function isSuperAdmin() {
+      return isSignedIn() && callerRole() == 'superadmin';
+    }
+
     function isStaff() {
       // Any recognized internal role — used where dealers/technicians
       // should NOT have access but any office/field staff role should.
@@ -101,9 +109,27 @@ service cloud.firestore {
       // standard service-charge rate for automatic warranty billing.
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin()
         || resource.data.role == 'technician' || resource.data.role == 'servicecenter');
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin()
-        || (isSignedIn() && request.auth.uid == userId && request.resource.data.role == resource.data.role)
+      // Warehouse is isAdmin() too, but minting or touching a
+      // 'superadmin' account is restricted to an actual Super Admin —
+      // see isSuperAdmin() above. Without this, Warehouse's own
+      // "Import staff accounts" bulk-CSV tab (role column accepts
+      // 'superadmin') could be used to self-escalate.
+      allow create: if isAdmin() && (request.resource.data.role != 'superadmin' || isSuperAdmin());
+      allow delete: if isAdmin();
+      allow update: if (isAdmin()
+            && (request.resource.data.role != 'superadmin' || isSuperAdmin())
+            && (resource.data.role != 'superadmin' || isSuperAdmin()))
+        // A user may self-edit their own doc (name, phone, etc.), but
+        // never their own role, and never the routing-critical fields
+        // (coverage/brand authorization/roster linkage) that the rest
+        // of this app treats as admin-only everywhere else — without
+        // this deny-list, any signed-in user could grant themselves
+        // extra districts, pincodes or brand authorizations just by
+        // writing their own /users/{uid} doc directly.
+        || (isSignedIn() && request.auth.uid == userId
+            && request.resource.data.role == resource.data.role
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+                 ['districtsCovered', 'pincodesCovered', 'brandsAuthorized', 'linkedServiceCenterUid', 'createdAt']))
         // A service center (or technician's own account, via isStaff())
         // claiming/releasing a technician onto/off its own roster —
         // this is the ONLY field a staff member may touch on someone

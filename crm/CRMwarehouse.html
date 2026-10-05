@@ -2586,10 +2586,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   }
 
   function mountUsersImport(container) {
-    const validRoles = ['superadmin', 'warehouse', 'servicecenter', 'technician', 'dealer', 'distributor'];
+    // 'superadmin' is deliberately excluded here (and rejected server-side
+    // by firestore.rules regardless) — provisioning a Super Admin account
+    // is Super Admin's own call, not something a Warehouse user should be
+    // able to do via a CSV upload.
+    const validRoles = ['warehouse', 'servicecenter', 'technician', 'dealer', 'distributor'];
     mountAccountImportTab(container, {
       title: 'Import staff accounts',
-      hint: 'Columns: name, email, role. Role must be one of: superadmin, warehouse, servicecenter, technician, dealer, distributor. Role-specific details (districts, skills, coverage, distribution) aren\'t captured here — add those afterward from Super Admin\'s Users &amp; Access → Edit, or use that role\'s own tab instead for a one-step import.',
+      hint: 'Columns: name, email, role. Role must be one of: warehouse, servicecenter, technician, dealer, distributor. Role-specific details (districts, skills, coverage, distribution) aren\'t captured here — add those afterward from Super Admin\'s Users &amp; Access → Edit, or use that role\'s own tab instead for a one-step import.',
       sampleCsv: 'name,email,role\nRavi Kumar,ravi@example.com,warehouse\n',
       sampleFilename: 'users-sample.csv',
       parseRow: (row) => (row.name && row.email && validRoles.includes((row.role || '').toLowerCase().trim())) ? row : null,
