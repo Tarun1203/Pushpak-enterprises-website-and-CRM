@@ -164,6 +164,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     if (user) routeAfterLogin(user);
   });
 
+  // A dashboard's auth gate redirects here with ?deactivated=1 when
+  // the signed-in account's role is still valid but the account
+  // itself (service center status, technician employment status)
+  // has been deactivated/suspended/terminated by an admin.
+  if (new URLSearchParams(window.location.search).get('deactivated') === '1') {
+    showError('Your account has been deactivated. Contact your admin if you believe this is a mistake.');
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearError();

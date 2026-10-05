@@ -868,6 +868,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         window.location.href = 'login.html';
         return;
       }
+      // Account-status gate: a center the Super Admin has set to
+      // INACTIVE (Full Profile → Status & Approval, section 21)
+      // is deactivated and must not be able to use the CRM, even
+      // though its Auth account and role assignment still exist.
+      const profileSnap = await getDoc(doc(db, 'serviceCenterProfiles', user.uid));
+      if (profileSnap.exists() && profileSnap.data().status === 'INACTIVE') {
+        await signOut(auth);
+        window.location.href = 'login.html?deactivated=1';
+        return;
+      }
     } catch (err) {
       console.error('Role check failed:', err);
       window.location.href = 'login.html';

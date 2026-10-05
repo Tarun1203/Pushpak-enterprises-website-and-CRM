@@ -484,6 +484,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         window.location.href = 'login.html';
         return;
       }
+      // Account-status gate: a technician whose Employment Status
+      // (Super Admin → Technicians → Full Profile) has been set to
+      // Suspended, Terminated or Resigned must not be able to use
+      // the CRM, even though their Auth account and role still
+      // exist. On Leave / On Probation / Active may still sign in —
+      // those aren't "no longer has access" states.
+      const techSnap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', user.uid)));
+      const blockedStatuses = ['SUSPENDED', 'TERMINATED', 'RESIGNED'];
+      let blocked = false;
+      techSnap.forEach(s => { if (blockedStatuses.includes(s.data().employmentStatus)) blocked = true; });
+      if (blocked) {
+        await signOut(auth);
+        window.location.href = 'login.html?deactivated=1';
+        return;
+      }
     } catch (err) {
       console.error('Role check failed:', err);
       window.location.href = 'login.html';

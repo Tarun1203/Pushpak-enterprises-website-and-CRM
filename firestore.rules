@@ -794,6 +794,52 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Service Center Master profile — doc id IS the owning Service
+    // Center's own uid, same self-uid-as-doc-id pattern as
+    // technicianAvailability above. The Service Center reads/writes
+    // only its own doc (including the very first auto-create on
+    // first visit to "Full profile"); Super Admin/Warehouse can
+    // read/write any center's doc for the admin-side Full Profile
+    // view and edits.
+    // ---------------------------------------------------------------
+
+    match /serviceCenterProfiles/{uid} {
+      allow read, create, update: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Timeline / activity logs — append-only, immutable, same pattern
+    // as categoryHistory/auditLogs above. Staff-wide read (so the
+    // owning center/technician, and any admin, can see the log);
+    // update and delete are never allowed, preserving the immutable
+    // history.
+    //
+    // technicianTimeline is tagged with technicianDocId, which is the
+    // centerTechnicians document's own auto-generated id — NOT the
+    // technician's auth uid (centerTechnicians docs are addDoc()'d
+    // with a random id; the owning technician is recorded separately
+    // in that doc's technicianUid field). So a self-service create has
+    // to be verified with a lookup rather than a direct uid match.
+    // ---------------------------------------------------------------
+
+    match /technicianTimeline/{entryId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn()
+            && get(/databases/$(database)/documents/centerTechnicians/$(request.resource.data.technicianDocId)).data.technicianUid == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    match /serviceCenterTimeline/{entryId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.centerDocId == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------
     // Deny by default. Every collection actually used by the app has
     // an explicit rule above — this is a real security boundary, not
     // a temporary placeholder. If a new collection is added later, it

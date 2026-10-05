@@ -78,6 +78,20 @@ service firebase.storage {
         && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
     }
 
+    // ---------------------------------------------------------------
+    // Service Center Master documents (licenses, agreements, etc.)
+    // and the signed-agreement upload, both filed under the owning
+    // center's own uid. Internal-only, same as diagnosis photos;
+    // allows PDF too since these are usually scanned certificates.
+    // ---------------------------------------------------------------
+
+    match /serviceCenterProfiles/{centerId}/documents/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+
     // Deny everything else by default.
     match /{allPaths=**} {
       allow read, write: if false;
