@@ -17,7 +17,7 @@ const db = getFirestore();
 // IMPORTANT: must match the location of your Firestore database
 // (Firebase Console -> Firestore Database -> the location shown at the
 // top, e.g. asia-south1 for Mumbai). A mismatch makes the deploy fail.
-const REGION = 'us-central1';
+const REGION = 'asia-south1';
 
 // Clients can no longer set these codes (firestore.rules rejects it), so
 // this is the only place they are issued. Triggering on every write —
