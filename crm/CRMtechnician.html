@@ -903,11 +903,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // A Cloud Function re-checks every status change (legal move,
+  // closure details present) and reverts a bad one, recording why in
+  // `lifecycleRejected`. Look for that shortly after a change.
+  async function lifecycleRejectionFor(coll, id, nextStatus) {
+    for (let i = 0; i < 3; i++) {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        const d = (await getDoc(doc(db, coll, id))).data() || {};
+        if (d.lifecycleRejected && d.lifecycleRejected.to === nextStatus) return d.lifecycleRejected.reason;
+        if (d.status === nextStatus && i >= 1) return null;
+      } catch (e) { return null; }
+    }
+    return null;
+  }
+
   async function advanceJob(id, nextStatus, coll) {
     coll = coll || 'serviceJobs';
     try {
       await updateDoc(doc(db, coll, id), { status: nextStatus, updatedAt: serverTimestamp() });
       await logTicketStatus(coll, id, nextStatus);
+      const rejected = await lifecycleRejectionFor(coll, id, nextStatus);
+      if (rejected) alert(rejected);
       loadMyJobs();
     } catch (err) {
       console.error('Update job failed:', err);
@@ -943,6 +960,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       jdRow('Serial No.', jobDoc.serialNumber),
       jdRow('Purchased', jobDoc.purchaseDate ? `${jobDoc.purchaseDate}${jobDoc.purchasedFrom ? ' — ' + jobDoc.purchasedFrom : ''}` : ''),
       jdRow('Issue', jobDoc.issue),
+      jdRow('Last change rejected', jobDoc.lifecycleRejected ? jobDoc.lifecycleRejected.reason : ''),
+      jdRow('Appointment rejected', jobDoc.scheduleRejected ? jobDoc.scheduleRejected.reason : ''),
       jdRow('Scheduled', jobDoc.scheduledDate ? `${jobDoc.scheduledDate}${jobDoc.scheduledStartTime ? ' ' + jobDoc.scheduledStartTime : ''}` : ''),
       `<div style="margin-top:6px;">Status: <span class="status-pill ${JOB_STATUS_PILL_CLASS[jobDoc.status] || ''}">${JOB_STATUS_LABELS[jobDoc.status] || jobDoc.status}</span>${jobDoc.coll === 'centerRequests' ? ' <span style="color:var(--stone);">(via center)</span>' : ''}</div>`
     ].filter(Boolean).join('');
@@ -1650,6 +1669,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         updatedAt: serverTimestamp()
       });
       await logTicketStatus(closureJobColl, jobId, 'completed', `Closure code: ${closureCode}`);
+      const closureRejected = await lifecycleRejectionFor(closureJobColl, jobId, 'completed');
+      if (closureRejected) throw new Error(closureRejected);
 
       // Warranty-aware auto billing: check warranty against the exact
       // part(s) just replaced first (per-component cover can outlast
@@ -1706,7 +1727,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeClosureModal, 800);
     } catch (err) {
       console.error('Close job failed:', err);
-      closureError.textContent = err.message && err.message.includes('Spare Bag')
+      closureError.textContent = err.message && (err.message.includes('Spare Bag') || err.message.includes("can't move") || err.message.startsWith('Closing needs') || err.message.includes('own account'))
         ? err.message
         : 'Could not complete this job. Check the console for details.';
       closureError.classList.add('show');

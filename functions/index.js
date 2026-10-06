@@ -271,3 +271,35 @@ for (const coll of SCHEDULE_COLLECTIONS) {
     (event) => enforceSchedule(coll, event, event.data && event.data.before ? event.data.before.data() : null)
   );
 }
+
+// ---------------------------------------------------------------
+// Job lifecycle. The technician flow (accept -> on the way -> at
+// customer -> in progress -> completed) used to exist only in the
+// browser; the rules let a technician write any status. Now a status
+// change by a technician or service center is checked here: it must be
+// a legal move (lifecycle.js), and "completed" must carry the closure
+// code, action taken and parts used, under the closer's own account.
+// An illegal change is reverted and `lifecycleRejected` says why.
+// Super Admin / Warehouse may move a ticket anywhere (verify, close,
+// reopen). Writes with no matching user account (the Cloud Functions
+// themselves) are not checked.
+// ---------------------------------------------------------------
+for (const coll of ['centerRequests', 'serviceJobs']) {
+  exports[`checkLifecycle_${coll}`] = onDocumentUpdatedWithAuthContext(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      if (!event.authId || !event.data) return;
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+      if (before.status === after.status) return;
+      const actor = await db.collection('users').doc(event.authId).get();
+      if (!actor.exists || ['superadmin', 'warehouse'].includes(actor.get('role'))) return;
+      const reason = checkTransition(before, after, event.authId);
+      if (!reason) return;
+      await event.data.after.ref.update({
+        status: before.status,
+        lifecycleRejected: { from: before.status, to: after.status, reason, at: FieldValue.serverTimestamp() }
+      });
+    }
+  );
+}

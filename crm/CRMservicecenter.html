@@ -1201,6 +1201,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     if (d.scheduledDate) rows.push(['Appointment', `${d.scheduledDate}${d.scheduledStartTime ? ' ' + d.scheduledStartTime + (d.scheduledEndTime ? '–' + d.scheduledEndTime : '') : ''}`]);
     if (d.scheduleRejected) rows.push(['Last appointment rejected', d.scheduleRejected.reason || 'slot not available']);
+    if (d.lifecycleRejected) rows.push(['Last status change rejected', d.lifecycleRejected.reason || 'not allowed']);
     if (d.assignmentRejected) rows.push(['Assignment rejected', d.assignmentRejected.reason || 'technician not eligible']);
     if (Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length) {
       rows.push(['Possible duplicate of', d.possibleDuplicateOf.join(', ')]);
