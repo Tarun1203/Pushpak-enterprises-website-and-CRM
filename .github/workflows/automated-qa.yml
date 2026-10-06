@@ -47,7 +47,7 @@ jobs:
           QA_EMAIL: ${{ secrets.QA_EMAIL }}
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_ROLE: ${{ secrets.QA_ROLE }}
-        run: npx playwright test tests/e2e/crm-auth.spec.js
+        run: npx playwright test tests/e2e/crm-auth.spec.js tests/e2e/crm-phase2-contract.spec.js
 
       - name: Upload QA report and evidence
         if: always()
