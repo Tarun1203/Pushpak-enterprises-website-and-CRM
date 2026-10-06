@@ -73,14 +73,14 @@ service cloud.firestore {
 
     match /counters/{counterId} {
       allow get: if true;
-      allow create: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
-        // Service Center / Technician Code counters — signed-in only
-        // (unlike the ticket counters above, nothing on the public site
-        // needs them).
-        || ((counterId == 'servicecenter-master' || counterId == 'technician-master') && isSignedIn()))
+      // counters/servicecenter-master and counters/technician-master are
+      // deliberately NOT listed here: only the Cloud Functions in
+      // functions/index.js (which bypass these rules) may write them, so
+      // no client can bump or reset the Service Center / Technician Code
+      // numbering.
+      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == 1;
-      allow update: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
-        || ((counterId == 'servicecenter-master' || counterId == 'technician-master') && isSignedIn()))
+      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -239,20 +239,14 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if (isAdmin()
             || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && request.resource.data.technicianCode is string
-        && request.resource.data.technicianCode.matches('^TC-[0-9]{4,}$');
+        && !('technicianCode' in request.resource.data);
       allow update:
-        // Admin / owning center: anything, EXCEPT the Technician Code —
-        // issued from counters/technician-master, TC-0001 form, and
-        // never changed once set. (A record that has none yet — every
-        // one created before codes were issued, which may also hold an
-        // empty string — may be given one, in that form.)
+        // Admin / owning center: anything, EXCEPT the Technician Code
+        // (TC-0001 …) — issued by a Cloud Function (functions/index.js),
+        // never by a client; once set (or while still unset) no client
+        // may add, change or remove it.
         if ((isAdmin() || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid))
-            && ((resource.data.get('technicianCode', '') != ''
-                  && request.resource.data.technicianCode == resource.data.technicianCode)
-                || (resource.data.get('technicianCode', '') == ''
-                  && (request.resource.data.get('technicianCode', '') == ''
-                      || request.resource.data.technicianCode.matches('^TC-[0-9]{4,}$')))))
+            && request.resource.data.get('technicianCode', '') == resource.data.get('technicianCode', ''))
         // The technician themselves: only the personal/address/vehicle
         // fields their own profile page edits, plus APPENDING one leave
         // request (must arrive PENDING — approving is the admin's call)
@@ -921,17 +915,14 @@ service cloud.firestore {
     match /serviceCenterProfiles/{uid} {
       allow read: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid);
-      // The Service Center Code is issued from counters/servicecenter-
-      // master at creation (see createScProfileWithCode) and must be
-      // in that sequential SC-0001 form.
+      // The Service Center Code (SC-0001 …) is issued by a Cloud Function
+      // (functions/index.js), never by a client: a profile is created
+      // without one, and once the function has set it, no client — the
+      // center or an admin — may add, change or remove it.
       allow create: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
-        && request.resource.data.serviceCenterCode is string
-        && request.resource.data.serviceCenterCode.matches('^SC-[0-9]{4,}$');
-      // ...and can never be changed afterwards, by the center itself
-      // or by an admin — it's an identifier other records may quote.
+        && !('serviceCenterCode' in request.resource.data);
       allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
-        && (!('serviceCenterCode' in resource.data)
-            || request.resource.data.serviceCenterCode == resource.data.serviceCenterCode);
+        && request.resource.data.get('serviceCenterCode', '') == resource.data.get('serviceCenterCode', '');
       allow delete: if isAdmin();
     }
 

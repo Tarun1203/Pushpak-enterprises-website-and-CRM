@@ -4091,30 +4091,31 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // section at a time like the Technician Master). Status is the one
   // field only Super Admin can set.
   // -----------------------------------------------------------------
-  // Creates the profile doc AND issues its Service Center Code in one
-  // transaction: the code is the next number from a single shared
-  // counter (counters/servicecenter-master), so two centers can never
-  // be handed the same one, and a center + Super Admin opening the
-  // same profile at once can't burn a number (the loser of the race
-  // sees the doc already exists and writes nothing). Returns true only
-  // if this call actually created it. The code is immutable after
-  // creation (firestore.rules rejects any change to it).
-  async function createScProfileWithCode(uid) {
+  // Creates the profile doc. The Service Center Code (SC-0001 …) is NOT
+  // set here: a Cloud Function (functions/index.js) issues it from a
+  // shared counter a moment after creation, and firestore.rules refuses
+  // any attempt by a client to set or change it. Creating inside a
+  // transaction means a center and Super Admin opening the same new
+  // profile at once still produce exactly one document. Returns true
+  // only if this call actually created it.
+  async function createScProfile(uid) {
     const profileRef = doc(db, 'serviceCenterProfiles', uid);
-    const counterRef = doc(db, 'counters', 'servicecenter-master');
     return runTransaction(db, async (transaction) => {
       const existing = await transaction.get(profileRef);
       if (existing.exists()) return false;
-      const counterSnap = await transaction.get(counterRef);
-      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
-      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      transaction.set(profileRef, {
-        serviceCenterCode: 'SC-' + String(n).padStart(4, '0'),
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-      });
+      transaction.set(profileRef, { createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return true;
     });
+  }
+  // Waits (up to ~8s) for the server-issued code to appear on a doc,
+  // then returns its latest snapshot either way.
+  async function waitForServerCode(ref, field) {
+    let snap = await getDoc(ref);
+    for (let i = 0; i < 8 && !(snap.exists() && snap.data()[field]); i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      snap = await getDoc(ref);
+    }
+    return snap;
   }
   const CFP_CONTACT_ROLES = [
     ['manager', 'Manager'], ['serviceCoordinator', 'Service Coordinator'],
@@ -4752,8 +4753,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const ref = doc(db, 'serviceCenterProfiles', uid);
       let snap = await getDoc(ref);
       if (!snap.exists()) {
-        const created = await createScProfileWithCode(uid);
-        snap = await getDoc(ref);
+        const created = await createScProfile(uid);
+        snap = await waitForServerCode(ref, 'serviceCenterCode');
         if (created) await logScTimelineEvent(uid, 'CENTER_CREATED', 'Service Center profile created');
       }
       // Coverage (districtsCovered/pincodesCovered) lives on the account
@@ -4815,7 +4816,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     body.innerHTML = `
       <div style="font-weight:600;margin-bottom:8px;">Service Center Master</div>
       <div><strong>Service Center ID:</strong> ${escapeHtml(d.id)}</div>
-      <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || '—')}</div>
+      <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || 'Being assigned…')}</div>
       <div class="form-row"><label>Display Name</label><input type="text" id="cfp-display-name"></div>
       <div class="form-row"><label>Center Type</label>
         <select id="cfp-center-type">

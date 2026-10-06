@@ -5,3 +5,6 @@
 # explicitly removed (git rm --cached) — see chat for why that's a
 # separate, deliberate step.
 crm/
+
+# Cloud Functions dependencies (installed locally / by the deploy)
+functions/node_modules/

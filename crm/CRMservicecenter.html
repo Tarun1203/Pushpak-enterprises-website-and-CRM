@@ -3017,38 +3017,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return events;
   }
 
-  // Technician Codes (TC-0001 …) come from one shared counter
-  // (counters/technician-master), issued inside the same transaction
-  // that creates — or, for older records, first updates — the roster
-  // document, so two technicians can never be given the same number.
-  // The code is immutable once set (firestore.rules enforces it).
-  async function createCenterTechnicianWithCode(data) {
-    const techRef = doc(collection(db, 'centerTechnicians'));
-    const counterRef = doc(db, 'counters', 'technician-master');
-    await runTransaction(db, async (transaction) => {
-      const counterSnap = await transaction.get(counterRef);
-      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
-      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      transaction.set(techRef, { ...data, technicianCode: 'TC-' + String(n).padStart(4, '0'), createdAt: serverTimestamp() });
-    });
-    return techRef;
-  }
-  async function ensureTechnicianCode(techId) {
-    const techRef = doc(db, 'centerTechnicians', techId);
-    const counterRef = doc(db, 'counters', 'technician-master');
-    return runTransaction(db, async (transaction) => {
-      const techSnap = await transaction.get(techRef);
-      if (!techSnap.exists()) return '';
-      if (techSnap.data().technicianCode) return techSnap.data().technicianCode;
-      const counterSnap = await transaction.get(counterRef);
-      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
-      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      const code = 'TC-' + String(n).padStart(4, '0');
-      transaction.update(techRef, { technicianCode: code });
-      return code;
-    });
+  // Technician Codes (TC-0001 …) are issued by a Cloud Function
+  // (functions/index.js) from a shared counter; firestore.rules refuses
+  // any client attempt to set or change one. New roster records get
+  // theirs a moment after creation. For a record that has none (all the
+  // ones created before codes existed), a harmless updatedAt write wakes
+  // the function, then we wait briefly for the code to appear.
+  async function requestTechnicianCode(techId) {
+    const ref = doc(db, 'centerTechnicians', techId);
+    const first = await getDoc(ref);
+    if (first.exists() && first.data().technicianCode) return first.data().technicianCode;
+    await updateDoc(ref, { updatedAt: serverTimestamp() });
+    let snap = first;
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      snap = await getDoc(ref);
+      if (snap.exists() && snap.data().technicianCode) return snap.data().technicianCode;
+    }
+    return '';
   }
 
   function openTechDetailModal(d) {
@@ -3086,14 +3072,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     if (!d.technicianCode) {
       // Roster records created before codes were issued get one the
       // first time they're opened (same shared counter as new ones).
-      tdCodeEl.placeholder = 'Assigning…';
-      ensureTechnicianCode(d.id).then(code => {
-        if (!code) return;
+      tdCodeEl.placeholder = 'Being assigned…';
+      requestTechnicianCode(d.id).then(code => {
+        if (!code) { tdCodeEl.placeholder = 'Assigned automatically'; return; }
         d.technicianCode = code;
         if (techDetailContext && techDetailContext.id === d.id) tdCodeEl.value = code;
       }).catch(err => {
-        console.warn('Could not assign a technician code (non-blocking):', err.message);
-        tdCodeEl.placeholder = 'Could not assign a code yet';
+        console.warn('Could not fetch a technician code (non-blocking):', err.message);
+        tdCodeEl.placeholder = 'Assigned automatically';
       });
     }
     document.getElementById('td-name').value = d.name || '';
@@ -3314,12 +3300,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techSubmitBtn.textContent = 'Saving…';
     try {
       const linkedUid = techLinkSelect.value || null;
-      const newTechRef = await createCenterTechnicianWithCode({
+      const newTechRef = await addDoc(collection(db, 'centerTechnicians'), {
         serviceCenterUid: currentUser.uid,
         name: document.getElementById('tech-name').value.trim(),
         phone: document.getElementById('tech-phone').value.trim(),
         skills: linkedUid ? '' : document.getElementById('tech-skills').value.trim(),
-        technicianUid: linkedUid
+        technicianUid: linkedUid,
+        createdAt: serverTimestamp()
       });
       // Lock this technician account to this service center so no
       // other center can claim/see them on their own roster.
@@ -4919,30 +4906,31 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // so neither can drift from the other. Status is admin-controlled —
   // shown read-only here.
   // ---------------------------------------------------------------
-  // Creates the profile doc AND issues its Service Center Code in one
-  // transaction: the code is the next number from a single shared
-  // counter (counters/servicecenter-master), so two centers can never
-  // be handed the same one, and a center + Super Admin opening the
-  // same profile at once can't burn a number (the loser of the race
-  // sees the doc already exists and writes nothing). Returns true only
-  // if this call actually created it. The code is immutable after
-  // creation (firestore.rules rejects any change to it).
-  async function createScProfileWithCode(uid) {
+  // Creates the profile doc. The Service Center Code (SC-0001 …) is NOT
+  // set here: a Cloud Function (functions/index.js) issues it from a
+  // shared counter a moment after creation, and firestore.rules refuses
+  // any attempt by a client to set or change it. Creating inside a
+  // transaction means a center and Super Admin opening the same new
+  // profile at once still produce exactly one document. Returns true
+  // only if this call actually created it.
+  async function createScProfile(uid) {
     const profileRef = doc(db, 'serviceCenterProfiles', uid);
-    const counterRef = doc(db, 'counters', 'servicecenter-master');
     return runTransaction(db, async (transaction) => {
       const existing = await transaction.get(profileRef);
       if (existing.exists()) return false;
-      const counterSnap = await transaction.get(counterRef);
-      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
-      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      transaction.set(profileRef, {
-        serviceCenterCode: 'SC-' + String(n).padStart(4, '0'),
-        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-      });
+      transaction.set(profileRef, { createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       return true;
     });
+  }
+  // Waits (up to ~8s) for the server-issued code to appear on a doc,
+  // then returns its latest snapshot either way.
+  async function waitForServerCode(ref, field) {
+    let snap = await getDoc(ref);
+    for (let i = 0; i < 8 && !(snap.exists() && snap.data()[field]); i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      snap = await getDoc(ref);
+    }
+    return snap;
   }
 
   const SCFP_CONTACT_ROLES = [
@@ -5489,8 +5477,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const ref = doc(db, 'serviceCenterProfiles', currentUser.uid);
       let snap = await getDoc(ref);
       if (!snap.exists()) {
-        const created = await createScProfileWithCode(currentUser.uid);
-        snap = await getDoc(ref);
+        const created = await createScProfile(currentUser.uid);
+        snap = await waitForServerCode(ref, 'serviceCenterCode');
         if (created) await logScTimelineEvent(currentUser.uid, 'CENTER_CREATED', 'Service Center profile created');
       }
       // Coverage (districtsCovered/pincodesCovered) lives on the account
@@ -5548,7 +5536,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     el.innerHTML = `
       <div style="font-weight:600;margin-bottom:8px;">Service Center Master</div>
       <div><strong>Service Center ID:</strong> ${escapeHtml(d.id)}</div>
-      <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || '—')}</div>
+      <div><strong>Service Center Code:</strong> ${escapeHtml(d.serviceCenterCode || 'Being assigned…')}</div>
       <div class="form-row"><label>Display Name</label><input type="text" id="scfp-display-name"></div>
       <div class="form-row"><label>Center Type</label>
         <select id="scfp-center-type">
