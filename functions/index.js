@@ -1,4 +1,4 @@
-const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext } = require('firebase-functions/v2/firestore');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
@@ -136,3 +136,58 @@ for (const coll of REQUEST_COLLECTIONS) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Technician assignment check. A service center picks a technician for
+// its own ticket from the browser, which could write any uid. When the
+// caller IS the ticket's service center, the technician must be on that
+// center's roster and eligible (not suspended / terminated / on leave /
+// contract expired / declared-unauthorized for the brand). If not, the
+// assignment is reverted and `assignmentRejected` explains why. Admins
+// (Super Admin / Warehouse) may assign anyone and are not checked.
+// ---------------------------------------------------------------
+async function checkAssignment(ticket, techUid) {
+  const rosterSnap = await db.collection('centerTechnicians')
+    .where('serviceCenterUid', '==', ticket.serviceCenterUid).where('technicianUid', '==', techUid).limit(1).get();
+  if (rosterSnap.empty) return 'technician is not on this center\'s roster';
+  const rosterDoc = rosterSnap.docs[0];
+  const [userSnap, availSnap] = await Promise.all([
+    db.collection('users').doc(techUid).get(),
+    db.collection('technicianAvailability').doc(techUid).get()
+  ]);
+  const ranked = rankTechnicians({
+    ticket, roster: [{ id: rosterDoc.id, ...rosterDoc.data() }],
+    users: { [techUid]: userSnap.exists ? userSnap.data() : {} },
+    avail: availSnap.exists ? { [techUid]: availSnap.data() } : {},
+    openCounts: {}, today: new Date().toISOString().slice(0, 10)
+  });
+  return ranked[0].eligible ? null : `technician is not eligible: ${ranked[0].excludedReason}`;
+}
+
+async function enforceAssignment(event, ticket, before) {
+  if (!event.authId || event.authId !== ticket.serviceCenterUid) return;
+  const techUid = ticket.technicianUid;
+  if (!techUid || (before && before.technicianUid === techUid)) return;
+  const reason = await checkAssignment(ticket, techUid);
+  if (!reason) return;
+  const revert = {
+    technicianUid: before ? before.technicianUid || null : null,
+    technicianName: before ? before.technicianName || null : null,
+    assignmentRejected: { technicianUid: techUid, reason, at: FieldValue.serverTimestamp() }
+  };
+  if (!before || !before.technicianUid) revert.status = before ? before.status : 'new';
+  await event.data.ref.update(revert);
+}
+
+exports.checkAssignmentOnCreate = onDocumentCreatedWithAuthContext(
+  { document: 'centerRequests/{docId}', region: REGION },
+  async (event) => { if (event.data) await enforceAssignment(event, event.data.data(), null); }
+);
+
+exports.checkAssignmentOnUpdate = onDocumentUpdatedWithAuthContext(
+  { document: 'centerRequests/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    await enforceAssignment(event, event.data.after.data(), event.data.before.data());
+  }
+);

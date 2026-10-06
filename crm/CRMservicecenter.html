@@ -812,6 +812,7 @@
   </div>
 </div>
 
+<script src="technicianMatch.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -1165,6 +1166,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       rows.push(['Warranty at intake', w.status === 'in_warranty' ? `In warranty${w.expiresOn ? ' until ' + w.expiresOn : ''}`
         : w.status === 'out_of_warranty' ? `Out of warranty${w.expiresOn ? ' (expired ' + w.expiresOn + ')' : ''}` : 'Unknown (no purchase date on file)']);
     }
+    if (d.assignmentRejected) rows.push(['Assignment rejected', d.assignmentRejected.reason || 'technician not eligible']);
     if (Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length) {
       rows.push(['Possible duplicate of', d.possibleDuplicateOf.join(', ')]);
     }
@@ -1700,28 +1702,66 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   let reqAssignTechJobId = null;
   let reqAssignTechFilter = 'all';
 
-  async function populateTechnicianSelect(selectEl, currentTechUid) {
+  // Ranks this center's roster for a ticket — capability, availability
+  // and current workload — using the same module the server uses to
+  // check assignments (technicianMatch.js). Hard blocks (suspended,
+  // on leave, contract expired, declared-unauthorized brand) are shown
+  // disabled with the reason; softer gaps show as a warning.
+  const OPEN_STATUSES_SC = ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
+  async function getRankedTechnicians(ticket) {
+    const [rosterSnap, ticketSnap] = await Promise.all([
+      getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid))),
+      getDocs(query(collection(db, 'centerRequests'), where('serviceCenterUid', '==', currentUser.uid)))
+    ]);
+    const roster = rosterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const openCounts = {};
+    ticketSnap.forEach(d => {
+      const t = d.data();
+      if (t.technicianUid && OPEN_STATUSES_SC.includes(t.status)) openCounts[t.technicianUid] = (openCounts[t.technicianUid] || 0) + 1;
+    });
+    const users = {}; const avail = {};
+    await Promise.all(roster.filter(r => r.technicianUid).map(async (r) => {
+      try { const u = await getDoc(doc(db, 'users', r.technicianUid)); if (u.exists()) users[r.technicianUid] = u.data(); } catch (e) { /* non-fatal */ }
+      try { const a = await getDoc(doc(db, 'technicianAvailability', r.technicianUid)); if (a.exists()) avail[r.technicianUid] = a.data(); } catch (e) { /* non-fatal */ }
+    }));
+    return TechnicianMatch.rankTechnicians({
+      ticket, roster, users, avail, openCounts, today: new Date().toISOString().slice(0, 10)
+    });
+  }
+
+  const AVAIL_LABELS_SC = { available: 'Available', on_the_way: 'On the way', at_customer: 'At customer', in_progress: 'In progress', break: 'On a break', leave: 'On leave', holiday: 'Holiday', offline: 'Offline' };
+
+  function fillTechnicianSelect(selectEl, ranked, currentTechUid) {
+    selectEl.innerHTML = '<option value="">Unassigned</option>';
+    let recommended = true;
+    ranked.forEach(t => {
+      const isCurrent = !!t.uid && t.uid === currentTechUid;
+      if (!t.eligible && !isCurrent) {
+        const o = document.createElement('option');
+        o.value = ''; o.disabled = true;
+        o.textContent = `${t.name} — ${t.excludedReason}`;
+        selectEl.appendChild(o);
+        return;
+      }
+      const bits = [];
+      if (t.availability) bits.push(AVAIL_LABELS_SC[t.availability] || t.availability);
+      if (t.uid) bits.push(`${t.openJobs} open`);
+      if (t.warnings.length) bits.push('⚠ ' + t.warnings[0]);
+      if (!t.eligible) bits.push('(' + t.excludedReason + ')');
+      const opt = document.createElement('option');
+      opt.value = `${t.name}|${t.uid || ''}`;
+      opt.textContent = `${recommended && t.eligible ? '★ ' : ''}${t.name}${t.uid ? ' ✓' : ''}${bits.length ? ' — ' + bits.join(' · ') : ''}`;
+      if (t.eligible) recommended = false;
+      if (isCurrent) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  async function populateTechnicianSelect(selectEl, currentTechUid, ticket) {
     selectEl.innerHTML = '<option value="">Unassigned</option>';
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
-      const roster = [];
-      snap.forEach(d => roster.push({ id: d.id, ...d.data() }));
-      for (const r of roster) {
-        let suspended = false;
-        if (r.technicianUid) {
-          try {
-            const availSnap = await getDoc(doc(db, 'technicianAvailability', r.technicianUid));
-            suspended = availSnap.exists() && availSnap.data().suspended === true;
-          } catch (err) { /* non-fatal */ }
-        }
-        if (suspended && r.technicianUid !== currentTechUid) continue;
-        const opt = document.createElement('option');
-        opt.value = `${r.name}|${r.technicianUid || ''}`;
-        opt.textContent = r.technicianUid ? `${r.name}${suspended ? ' (suspended)' : ' ✓'}` : r.name;
-        if (r.technicianUid && r.technicianUid === currentTechUid) opt.selected = true;
-        selectEl.appendChild(opt);
-      }
+      fillTechnicianSelect(selectEl, await getRankedTechnicians(ticket || {}), currentTechUid);
     } catch (err) {
       console.error('Load technicians for assign form failed:', err);
     }
@@ -1736,7 +1776,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqAssignTechSubmitBtn.disabled = false;
     reqAssignTechSubmitBtn.textContent = 'Save';
     document.getElementById('req-assign-tech-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
-    populateTechnicianSelect(reqAssignTechSelect, jobDoc.technicianUid || null);
+    populateTechnicianSelect(reqAssignTechSelect, jobDoc.technicianUid || null, jobDoc);
     reqAssignTechOverlay.classList.add('show');
   }
   function closeReqAssignTechModal() { reqAssignTechOverlay.classList.remove('show'); }
@@ -1783,27 +1823,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqTechSelect.innerHTML = '<option value="">Unassigned</option>';
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(collection(db, 'centerTechnicians'), where('serviceCenterUid', '==', currentUser.uid)));
-      const roster = [];
-      snap.forEach(d => roster.push({ id: d.id, ...d.data() }));
-      for (const r of roster) {
-        let suspended = false;
-        if (r.technicianUid) {
-          try {
-            const availSnap = await getDoc(doc(db, 'technicianAvailability', r.technicianUid));
-            suspended = availSnap.exists() && availSnap.data().suspended === true;
-          } catch (err) { /* non-fatal */ }
-        }
-        if (suspended) continue; // suspended technicians can't be assigned new work
-        const opt = document.createElement('option');
-        opt.value = `${r.name}|${r.technicianUid || ''}`;
-        opt.textContent = r.technicianUid ? `${r.name} ✓` : r.name;
-        reqTechSelect.appendChild(opt);
-      }
+      const ticket = { brandId: document.getElementById('req-brand').value, category: document.getElementById('req-category').value };
+      fillTechnicianSelect(reqTechSelect, await getRankedTechnicians(ticket), null);
     } catch (err) {
       console.error('Load technicians for request form failed:', err);
     }
   }
+  // Re-rank as soon as the brand or category is picked.
+  ['req-brand', 'req-category'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+    const keep = reqTechSelect.value;
+    populateReqTechnicianOptions().then(() => { if (keep) reqTechSelect.value = keep; });
+  }));
 
   // Brand -> Model number cascades off the product catalog (the same
   // products/productModels collections Super Admin's Master Data uses).

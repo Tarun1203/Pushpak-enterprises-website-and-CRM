@@ -208,7 +208,7 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf'])
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected'])
         && (isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
@@ -225,7 +225,7 @@ service cloud.firestore {
                'warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt'])));
       allow create: if (isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —
