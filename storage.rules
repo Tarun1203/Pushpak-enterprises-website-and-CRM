@@ -129,6 +129,13 @@ service firebase.storage {
     }
 
     // Deny everything else by default.
+    // Bills / receipts attached to a free-form claim, in the claimant's
+    // own folder. Head Office reads them when verifying.
+    match /claims/{uid}/{allPaths=**} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid && okImageOrPdf();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -283,7 +283,15 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback'])
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback',
+            // Billing is decided by the server (billOnClose_* / applyBillingRequest) and
+            // claim locking by checkClaim — a browser only files a billingRequest.
+            'warrantyStatus', 'serviceCharge', 'sparePartsCost', 'otherCharges', 'billingTotal', 'billingType', 'billingStatus',
+            'billedAt', 'claimId', 'claimDocId', 'customerPaymentMethod', 'customerPaymentRef', 'billingRejected', 'billingDecidedAt'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['billingRequest'])
+            || (resource.data.serviceCenterUid == request.auth.uid
+                && request.resource.data.billingRequest.byUid == request.auth.uid
+                && request.resource.data.billingRequest.requestedAt == request.time))
         && (isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
@@ -676,17 +684,50 @@ service cloud.firestore {
 
     match /claims/{claimId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.claimantUid == request.auth.uid);
-      // A submitted claim starts as 'submitted', carries no server fields,
-      // and has a sane amount; the checkClaim function then recomputes it
-      // from the credits / tickets it points at and stores `claimCheck`.
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.claimantUid == request.auth.uid
-            && request.resource.data.get('status', '') == 'submitted'
-            && request.resource.data.amount is number
-            && request.resource.data.amount >= 0
-            && request.resource.data.amount <= 10000000
-            && !request.resource.data.keys().hasAny(['claimCheck', 'approvedAmount', 'paidAt']));
-      allow update, delete: if isAdmin();
+      // Filed as 'submitted' with no server fields. A claim is either built
+      // from wallet credits / tickets (the checkClaim function locks them
+      // to it) or free-form — which needs a claim type and a bill photo
+      // unless Head Office files it.
+      allow create: if isSignedIn()
+        && request.resource.data.get('status', '') == 'submitted'
+        && (request.resource.data.get('amount', null) == null
+            || (request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount <= 10000000))
+        && !request.resource.data.keys().hasAny(['claimCheck', 'lock', 'history', 'approvedAmount', 'verifiedByUid', 'verifiedAt',
+             'rejectReason', 'rejectedByUid', 'paidAt', 'paidByUid', 'paymentMethod', 'paymentRef', 'paidDate'])
+        && (isAdmin()
+            || (request.resource.data.claimantUid == request.auth.uid
+                && request.resource.data.claimantType == callerRole()
+                && request.resource.data.amount is number && request.resource.data.amount > 0
+                && ((request.resource.data.get('walletTxnIds', null) is list && request.resource.data.walletTxnIds.size() >= 1 && request.resource.data.walletTxnIds.size() <= 50)
+                    || (request.resource.data.get('ticketIds', null) is list && request.resource.data.ticketIds.size() >= 1 && request.resource.data.ticketIds.size() <= 50)
+                    || (request.resource.data.get('claimType', '') in ['travel', 'local_purchase', 'tools', 'other']
+                        && request.resource.data.get('attachmentUrl', '') is string
+                        && request.resource.data.get('attachmentUrl', '').size() > 10))));
+      allow update: if
+        // Warehouse (or Super Admin) verifies an approved amount — never
+        // more than claimed, nor more than the locked items add up to.
+        (isAdmin() && resource.data.status == 'submitted' && request.resource.data.status == 'verified'
+          && (resource.data.get('lock', {}).get('status', '') in ['locked', 'manual']
+              || (!('lock' in resource.data) && 'claimCheck' in resource.data))
+          && request.resource.data.approvedAmount is number && request.resource.data.approvedAmount > 0
+          && (resource.data.get('amount', null) == null || request.resource.data.approvedAmount <= resource.data.amount)
+          && (resource.data.get('lock', {}).get('status', '') != 'locked' || request.resource.data.approvedAmount <= resource.data.claimCheck.verified)
+          && request.resource.data.verifiedByUid == request.auth.uid
+          && request.resource.data.verifiedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'approvedAmount', 'verifiedByUid', 'verifiedByEmail', 'verifiedAt', 'verifyNote', 'updatedAt']))
+        // Rejected before payment, with a reason (the items are released).
+        || (isAdmin() && resource.data.status in ['submitted', 'verified'] && request.resource.data.status == 'rejected'
+          && request.resource.data.rejectReason is string && request.resource.data.rejectReason.size() >= 3
+          && request.resource.data.rejectedByUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectReason', 'rejectedByUid', 'rejectedAt', 'updatedAt']))
+        // Only Super Admin pays, and not a claim they verified themselves;
+        // the payment record (approved amount) is written by the server.
+        || (isSuperAdmin() && resource.data.status == 'verified' && request.resource.data.status == 'settled'
+          && resource.data.get('verifiedByUid', '') != request.auth.uid
+          && request.resource.data.paidByUid == request.auth.uid
+          && request.resource.data.paidAt == request.time
+          && request.resource.data.paymentMethod is string && request.resource.data.paymentMethod.size() > 0
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidByUid', 'paidByEmail', 'paidAt', 'paymentMethod', 'paymentRef', 'paidDate', 'updatedAt']));
     }
 
     // ---------------------------------------------------------------
@@ -935,11 +976,9 @@ service cloud.firestore {
       // The technician may only flip their own still-unclaimed entry to
       // 'claimed' (stamping which claim it went into) — nothing else on
       // the record is theirs to touch.
-      allow update: if isAdmin()
-        || (isSignedIn() && resource.data.technicianUid == request.auth.uid
-            && resource.data.status == 'unclaimed'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'claimId', 'updatedAt'])
-            && request.resource.data.status == 'claimed');
+      // Locking a credit into a claim (and releasing / paying it) is done
+      // by the checkClaim / claimUpdated functions, not by any browser.
+      allow update: if false;
       allow delete: if isAdmin();
     }
 
@@ -995,14 +1034,13 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /payments/{paymentId} {
-      // Settlement records — real financial data (method, reference,
-      // amount paid) for claims/local purchases across every center
-      // and technician. Warehouse/Super Admin only; neither Service
-      // Center nor Technician dashboards read this collection at all,
-      // so isStaff() was exposing every other account's payment
-      // history company-wide.
+      // Settlement records. A claim's payment is written by the
+      // claimUpdated function when Super Admin settles it (amount = the
+      // verified amount); Warehouse / Super Admin still record local
+      // purchase reimbursements here directly.
       allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.get('sourceType', '') != 'claim';
+      allow update, delete: if isSuperAdmin() && resource.data.get('sourceType', '') != 'claim';
     }
 
     match /settings/{settingId} {

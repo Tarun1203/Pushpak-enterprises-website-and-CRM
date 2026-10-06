@@ -7450,8 +7450,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const snap = await getDocs(collection(db, 'claims'));
       snap.forEach(docSnap => {
         const d = docSnap.data();
-        if (d.status === 'settled' || d.status === 'rejected') return;
-        saPaymentPendingItems.push({ id: docSnap.id, refId: d.claimId || docSnap.id, description: d.description || '', who: d.claimantName || '', amount: Number(d.amount) || 0, createdAt: d.createdAt?.seconds || 0 });
+        // Only claims Warehouse has verified can be paid, for the approved
+        // amount, and not by whoever verified them.
+        if (d.status !== 'verified') return;
+        if (auth.currentUser && d.verifiedByUid === auth.currentUser.uid) return;
+        saPaymentPendingItems.push({ id: docSnap.id, refId: d.claimId || docSnap.id, description: d.description || '', who: d.claimantName || '', amount: Number(d.approvedAmount) || 0, createdAt: d.createdAt?.seconds || 0 });
       });
     } else {
       const snap = await getDocs(collection(db, 'localPurchases'));
@@ -7587,6 +7590,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       // sharing the same method/reference/date since in practice this
       // is one bank transfer or cheque covering several claims at once.
       for (const rec of saPaymentSelectedItems) {
+        if (sourceType === 'claim') {
+          // The payment record (for the approved amount) is written by the
+          // claimUpdated function when the claim is marked settled.
+          await updateDoc(doc(db, 'claims', rec.id), {
+            status: 'settled', paidByUid: auth.currentUser.uid, paidByEmail: auth.currentUser.email || '', paidAt: serverTimestamp(),
+            paymentMethod: method || 'other', paymentRef: referenceNumber, paidDate, updatedAt: serverTimestamp()
+          });
+          continue;
+        }
         await addDoc(collection(db, 'payments'), {
           sourceType,
           sourceId: rec.id,
@@ -7598,11 +7610,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           paidDate,
           createdAt: serverTimestamp()
         });
-        if (sourceType === 'claim') {
-          await updateDoc(doc(db, 'claims', rec.id), { status: 'settled', updatedAt: serverTimestamp() });
-        } else {
-          await updateDoc(doc(db, 'localPurchases', rec.id), { status: 'reimbursed', updatedAt: serverTimestamp() });
-        }
+        await updateDoc(doc(db, 'localPurchases', rec.id), { status: 'reimbursed', updatedAt: serverTimestamp() });
         try {
           await addDoc(collection(db, 'auditLogs'), {
             entityType: 'payment', entityId: rec.id, action: 'settled',

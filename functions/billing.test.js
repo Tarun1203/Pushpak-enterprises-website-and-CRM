@@ -47,3 +47,32 @@ test('ticket claim: totals, ownership and reuse', () => {
   assert.strictEqual(bad.status, 'mismatch');
   assert.match(bad.issues.join(' '), /another center/);
 });
+
+test('claim items lock only if they are the claimant\'s own and still open', () => {
+  const B = require('./billing');
+  const claim = { claimantUid: 't1', walletTxnIds: ['a', 'b'] };
+  const ok = B.lockCheck(claim, [{ id: 'a', technicianUid: 't1', status: 'unclaimed', amount: 300 }, { id: 'b', technicianUid: 't1', status: 'unclaimed', amount: 200.5 }], 'wallet');
+  assert.deepStrictEqual(ok, { ok: true, total: 500.5 });
+  assert.match(B.lockCheck(claim, [{ id: 'a', technicianUid: 't1', status: 'claimed', claimId: 'CL-1' }, { id: 'b', technicianUid: 't1', status: 'unclaimed' }], 'wallet').reason, /already claimed \(CL-1\)/);
+  assert.match(B.lockCheck(claim, [{ id: 'a', technicianUid: 'x', status: 'unclaimed' }, { id: 'b', technicianUid: 't1', status: 'unclaimed' }], 'wallet').reason, /someone else/);
+  assert.match(B.lockCheck({ claimantUid: 't1', walletTxnIds: ['a', 'a'] }, [], 'wallet').reason, /twice/);
+  const tk = B.lockCheck({ claimantUid: 'c1', ticketIds: ['t'] }, [{ id: 't', serviceCenterUid: 'c1', billingStatus: 'ready_to_claim', billingTotal: 450 }], 'ticket');
+  assert.deepStrictEqual(tk, { ok: true, total: 450 });
+  assert.ok(!B.lockCheck({ claimantUid: 'c1', ticketIds: ['t'] }, [{ id: 't', serviceCenterUid: 'c1', billingStatus: 'claimed' }], 'ticket').ok);
+});
+
+test('center billing decision is checked on the server', () => {
+  const B = require('./billing');
+  const done = { status: 'completed' };
+  assert.deepStrictEqual(B.billingDecision(done, null, { treatAs: 'in' }, 450).update.billingTotal, 450);
+  assert.match(B.billingDecision(done, false, { treatAs: 'in' }, 450).error, /out of warranty/);
+  assert.match(B.billingDecision(done, true, { treatAs: 'in' }, 0).error, /No service charge rate/);
+  const techClosed = { status: 'completed', serviceCharge: 300, billingComputedAt: 1 };
+  assert.strictEqual(B.billingDecision(techClosed, true, { treatAs: 'in' }, 450).update.billingTotal, 0);
+  const out = B.billingDecision(done, true, { treatAs: 'out', sparePartsCost: '100', otherCharges: 0, serviceCharge: 250.555, paymentMethod: 'upi' }, 450).update;
+  assert.strictEqual(out.billingTotal, 350.56);
+  assert.strictEqual(out.billingStatus, 'collected');
+  assert.match(B.billingDecision({ status: 'completed', billingStatus: 'claimed' }, true, { treatAs: 'out' }, 0).error, /Already billed/);
+  assert.match(B.billingDecision({ status: 'in_progress' }, true, { treatAs: 'in' }, 10).error, /completed/);
+  assert.match(B.billingDecision(done, true, { treatAs: 'out', sparePartsCost: -1, otherCharges: 0, serviceCharge: 0 }, 0).error, /Amounts/);
+});

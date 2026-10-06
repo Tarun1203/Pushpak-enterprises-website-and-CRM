@@ -4777,9 +4777,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           amount: total, lineItems, ticketIds: tickets.map(t => t.id), notes: '',
           status: 'submitted', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
-        await Promise.all(tickets.map(t => updateDoc(doc(db, 'centerRequests', t.id), {
-          billingStatus: 'claimed', claimId, updatedAt: serverTimestamp()
-        })));
+
       } else {
         const txns = selectedItems.map(it => it.raw);
         const lineItems = txns.map(t => ({
@@ -4792,17 +4790,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           amount: total, lineItems, walletTxnIds: selectedItems.map(it => it.id), notes: '',
           status: 'submitted', createdAt: serverTimestamp(), updatedAt: serverTimestamp()
         });
-        await Promise.all(selectedItems.map(it => updateDoc(doc(db, 'walletTransactions', it.id), {
-          status: 'claimed', claimId, updatedAt: serverTimestamp()
-        })));
+
       }
-      // Jump straight to settlement — the usual payment screen
-      // (amount pre-filled from the claim, method/reference/date to
-      // fill in). tabId is left null; the payment screen's own submit
-      // handler detects it's not on the Claims page and refreshes
-      // Unclaimed Amounts instead.
+      // The server locks the items to the claim; it then goes through
+      // the normal steps — Warehouse verifies, Super Admin pays.
       closeUnclaimedDetailModal();
-      openPaymentModal('claim', newClaimRef.id, null);
+      alert(`Claim ${claimId} created. Verify it under Claims Verification; Super Admin then pays it.`);
+      renderUnclaimedAmounts();
     } catch (err) {
       console.error('Process unclaimed amount failed:', err);
       errEl.textContent = 'Could not process this claim. Check console for details.';
@@ -4893,16 +4887,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (d.status === 'submitted') {
         actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
       } else if (d.status === 'verified') {
-        actionHtml = `<div class="row-actions"><button class="btn-primary claim-settle-btn" data-id="${d.id}">Mark Settled</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
-      } else if (d.status === 'rejected') {
-        actionHtml = `<button class="btn-secondary claim-reopen-btn" data-id="${d.id}">Reopen</button>`;
+        // Only Super Admin pays a verified claim (never the person who
+        // verified it) — Warehouse can still reject it before payment.
+        actionHtml = `<div class="row-actions"><span style="font-size:12px;color:var(--stone);">Approved ₹${d.approvedAmount ?? '—'} — awaiting Super Admin payment</span><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+      } else if (d.status === 'rejected' && d.rejectReason) {
+        actionHtml = `<span style="font-size:12px;color:var(--stone);">${escapeHtml(d.rejectReason)}</span>`;
       }
       tr.innerHTML = `
         <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
         <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
         <td>${d.claimantName || '—'}</td>
         <td>${escapeHtml(d.description || '—')}</td>
-        <td>₹${d.amount ?? '—'}${claimCheckBadge(d)}</td>
+        <td>₹${d.amount ?? '—'}${claimCheckBadge(d)}${d.attachmentUrl ? `<div><a href="${escapeHtml(d.attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11.5px;">View bill</a>${d.claimType ? ' · ' + escapeHtml(d.claimType.replace('_', ' ')) : ''}</div>` : ''}</td>
         <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
         <td>${actionHtml}</td>`;
       tbody.appendChild(tr);
@@ -4913,10 +4909,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         openClaimDetailModal(tr.dataset.id);
       });
     });
-    tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'verified', tabId); }));
-    tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openPaymentModal('claim', btn.dataset.id, tabId); }));
-    tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'rejected', tabId); }));
-    tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'submitted', tabId); }));
+    tbody.querySelectorAll('.claim-verify-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); verifyClaim(docs.find(x => x.id === btn.dataset.id), tabId); }));
+    tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); rejectClaim(btn.dataset.id, tabId); }));
   }
 
   // Server-computed check of the claimed amount against the credits /
@@ -4926,7 +4920,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const c = d.claimCheck;
     if (!c) return '';
     if (c.status === 'ok') return `<div style="font-size:11.5px;color:var(--ok, #2e7d32);">✓ matches records</div>`;
-    if (c.status === 'manual') return `<div style="font-size:11.5px;color:var(--stone);">Manual claim, not checked</div>`;
+    if (c.status === 'manual') return `<div style="font-size:11.5px;color:var(--stone);">Free-form claim — check the bill</div>`;
+    if (d.lock && d.lock.status === 'locked' && c.status !== 'ok') return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ items add up to ₹${c.verified} — approve at most that</div>`;
     return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ ${escapeHtml((c.issues || ['mismatch'])[0])}</div>`;
   }
 
@@ -5021,13 +5016,41 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (e.target.id === 'claim-detail-overlay') e.target.classList.remove('show');
   });
 
-  async function advanceClaim(id, nextStatus, tabId) {
+  // Verify: Warehouse sets the approved amount (firestore.rules caps it at
+  // the amount claimed and, for wallet/ticket claims, at what the locked
+  // items add up to). Payment is then Super Admin's.
+  async function verifyClaim(d, tabId) {
+    if (!d) return;
+    const cap = d.lock && d.lock.status === 'locked' && d.claimCheck ? Math.min(Number(d.amount) || Infinity, Number(d.claimCheck.verified) || 0) : Number(d.amount);
+    const input = prompt(`Approve amount for ${d.claimId || d.id}${Number.isFinite(cap) ? ` (max ₹${cap})` : ''}:`, Number.isFinite(cap) ? String(cap) : '');
+    if (input === null) return;
+    const approvedAmount = Math.round(Number(input) * 100) / 100;
+    if (!(approvedAmount > 0) || (Number.isFinite(cap) && approvedAmount > cap)) { alert(`Enter an amount above 0${Number.isFinite(cap) ? ' and at most ₹' + cap : ''}.`); return; }
+    const note = prompt('Note (optional):', '') || '';
     try {
-      await updateDoc(doc(db, 'claims', id), { status: nextStatus, updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, 'claims', d.id), {
+        status: 'verified', approvedAmount, verifiedByUid: auth.currentUser.uid, verifiedByEmail: auth.currentUser.email || '',
+        verifiedAt: serverTimestamp(), verifyNote: note.slice(0, 300), updatedAt: serverTimestamp()
+      });
       loadClaims(CLAIMS_TABS[tabId], tabId);
     } catch (err) {
-      console.error('Update claim failed:', err);
-      alert('Could not update this claim. Check the console for details.');
+      console.error('Verify claim failed:', err);
+      alert('Could not verify this claim — it may not be locked yet (wait a few seconds) or the amount is above what its items add up to.');
+    }
+  }
+  async function rejectClaim(id, tabId) {
+    const reason = prompt('Reason for rejecting (shown to the claimant):', '');
+    if (reason === null) return;
+    if (reason.trim().length < 3) { alert('Please give a reason.'); return; }
+    try {
+      await updateDoc(doc(db, 'claims', id), {
+        status: 'rejected', rejectReason: reason.trim().slice(0, 300), rejectedByUid: auth.currentUser.uid,
+        rejectedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+      loadClaims(CLAIMS_TABS[tabId], tabId);
+    } catch (err) {
+      console.error('Reject claim failed:', err);
+      alert('Could not reject this claim. Check the console for details.');
     }
   }
 

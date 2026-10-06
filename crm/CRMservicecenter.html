@@ -797,6 +797,14 @@
         <input type="number" id="cclaim-amount" min="0" step="0.01" required>
       </div>
       <div class="form-row">
+        <label>Claim type</label>
+        <select id="cclaim-type" required><option value="">Select…</option><option value="travel">Travel / conveyance</option><option value="local_purchase">Local purchase</option><option value="tools">Tools / consumables</option><option value="other">Other</option></select>
+      </div>
+      <div class="form-row">
+        <label>Bill / receipt (photo or PDF, required)</label>
+        <input type="file" id="cclaim-bill" accept="image/*,application/pdf" required>
+      </div>
+      <div class="form-row">
         <label>Notes (optional)</label>
         <textarea id="cclaim-notes"></textarea>
       </div>
@@ -4638,51 +4646,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     billingSubmitBtn.disabled = true;
     billingSubmitBtn.textContent = 'Saving…';
     try {
-      if (treatAsInWarranty) {
-        // Spares consumed on an in-warranty job are never billed to
-        // Head Office per ticket — they come out of Center Inventory
-        // and get restocked through Spare Requests instead. The ONLY
-        // thing claimable is the service charge: if a technician
-        // already closed this job, they were already auto-credited it
-        // in their own wallet (see CRMtechnician.html), so the
-        // center's own claim here is 0 — it isn't paid out twice. If
-        // the center closed it directly (no technician), the rate
-        // card's resolved amount is what's claimed, never a number
-        // typed in here.
-        const serviceCharge = ticket.serviceCharge || centerServiceCharge || 0;
-        const billingTotal = ticket.serviceCharge ? 0 : serviceCharge;
-        const update = {
-          warrantyStatus: 'in_warranty',
-          sparePartsCost: 0,
-          otherCharges: 0,
-          billingTotal,
-          billingType: 'claim',
-          billingStatus: 'ready_to_claim',
-          billedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        if (!ticket.serviceCharge && centerServiceCharge) update.serviceCharge = centerServiceCharge;
-        await updateDoc(doc(db, 'centerRequests', ticket.id), update);
-        await syncPublicTicketMirror('centerRequests', ticket.id);
-      } else {
-        const sparePartsCost = Number(document.getElementById('billing-spare-cost').value) || 0;
-        const otherCharges = Number(document.getElementById('billing-other-charges').value) || 0;
-        const serviceCharge = Number(document.getElementById('billing-service-charge').value) || 0;
-        const method = document.getElementById('billing-payment-method').value;
-        const ref = document.getElementById('billing-payment-ref').value.trim();
-        const billingTotal = sparePartsCost + serviceCharge + otherCharges;
-        await updateDoc(doc(db, 'centerRequests', ticket.id), {
-          warrantyStatus: 'out_of_warranty',
-          sparePartsCost, serviceCharge, otherCharges, billingTotal,
-          billingType: 'customer',
-          billingStatus: 'collected',
-          customerPaymentMethod: method,
-          customerPaymentRef: ref || null,
-          billedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        await syncPublicTicketMirror('centerRequests', ticket.id);
+      // The server re-checks the warranty and the rate card and writes the
+      // billing itself (applyBillingRequest); this only says how to bill.
+      const req = { treatAs: treatAsInWarranty ? 'in' : 'out', byUid: currentUser.uid, requestedAt: serverTimestamp() };
+      if (!treatAsInWarranty) {
+        req.sparePartsCost = Number(document.getElementById('billing-spare-cost').value) || 0;
+        req.otherCharges = Number(document.getElementById('billing-other-charges').value) || 0;
+        req.serviceCharge = Number(document.getElementById('billing-service-charge').value) || 0;
+        req.paymentMethod = document.getElementById('billing-payment-method').value;
+        req.paymentRef = document.getElementById('billing-payment-ref').value.trim();
       }
+      const ticketRef = doc(db, 'centerRequests', ticket.id);
+      const beforeRejectedAt = ticket.billingRejected && ticket.billingRejected.at ? ticket.billingRejected.at.seconds : 0;
+      await updateDoc(ticketRef, { billingRequest: req, updatedAt: serverTimestamp() });
+      let outcome = null;
+      for (let i = 0; i < 15 && !outcome; i++) {
+        await new Promise(r => setTimeout(r, i < 4 ? 700 : 1500));
+        const d = (await getDoc(ticketRef)).data() || {};
+        if (d.billingStatus) outcome = { ok: true };
+        else if (d.billingRejected && d.billingRejected.at && d.billingRejected.at.seconds !== beforeRejectedAt) outcome = { ok: false, reason: d.billingRejected.reason };
+      }
+      if (outcome && !outcome.ok) throw Object.assign(new Error(outcome.reason), { userMsg: true });
+      if (!outcome) throw Object.assign(new Error('Still being processed — refresh in a minute to see the result.'), { userMsg: true });
       billingSuccess.textContent = 'Saved.';
       billingSuccess.classList.add('show');
       billingSubmitBtn.disabled = false;
@@ -4691,7 +4676,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeBillingModal, 800);
     } catch (err) {
       console.error('Save billing failed:', err);
-      billingError.textContent = 'Could not save. Check console for details.';
+      billingError.textContent = err.userMsg ? err.message : 'Could not save. Check console for details.';
       billingError.classList.add('show');
       billingSubmitBtn.disabled = false;
       billingSubmitBtn.textContent = 'Save';
@@ -4719,7 +4704,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       }));
       const amount = lineItems.reduce((sum, li) => sum + li.total, 0);
       const claimId = await generateClaimId();
-      await addDoc(collection(db, 'claims'), {
+      const claimRef = await addDoc(collection(db, 'claims'), {
         claimId,
         claimantType: 'servicecenter',
         claimantUid: currentUser.uid,
@@ -4733,11 +4718,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      await Promise.all(tickets.map(t => updateDoc(doc(db, 'centerRequests', t.id), {
-        billingStatus: 'claimed',
-        claimId,
-        updatedAt: serverTimestamp()
-      })));
+      // The server locks the tickets to this claim (or refuses it if any
+      // is already in another claim) — no browser marks them claimed.
+      const locked = await waitForClaimLock(claimRef);
+      if (locked && locked.status === 'rejected') { alert(`Claim not accepted — ${locked.lock.reason || locked.rejectReason}`); loadServiceBilling(); return; }
       try {
         await addDoc(collection(db, 'notifications'), {
           recipientType: 'role', recipientValue: 'warehouse',
@@ -4763,6 +4747,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // ---------------------------------------------------------------
 
   const CLAIM_STATUS_LABELS_C = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
+
+
+  // Waits for the checkClaim function to lock (or refuse) a new claim.
+  async function waitForClaimLock(ref) {
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, i < 4 ? 700 : 1500));
+      const snap = await getDoc(ref);
+      const d = snap.exists() ? snap.data() : null;
+      if (d && d.lock) return d;
+    }
+    return null;
+  }
+  // Uploads a claim's bill / receipt to the claimant's own folder.
+  async function uploadClaimBill(file) {
+    if (!file) throw Object.assign(new Error('Attach the bill or receipt.'), { userMsg: true });
+    if (file.size > 10 * 1024 * 1024) throw Object.assign(new Error('The bill must be under 10 MB.'), { userMsg: true });
+    const fileRef = storageRef(storage, `claims/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(fileRef, file);
+    return getDownloadURL(fileRef);
+  }
 
   async function generateClaimId() {
     const next = await nextMonthlySerial(`claim-${currentYYYYMM()}`);
@@ -4807,7 +4811,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
           <td>${escapeHtml(d.description || '—')}</td>
           <td>₹${d.amount ?? '—'}</td>
-          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span></td>`;
+          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span>${d.status === 'rejected' && d.rejectReason ? `<div style="font-size:11.5px;color:var(--err);">${escapeHtml(d.rejectReason)}</div>` : ''}${d.approvedAmount != null && d.status !== 'rejected' ? `<div style="font-size:11.5px;color:var(--stone);">Approved ₹${d.approvedAmount}</div>` : ''}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -4842,12 +4846,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     cclaimSubmitBtn.disabled = true;
     cclaimSubmitBtn.textContent = 'Submitting…';
     try {
+      const claimType = document.getElementById('cclaim-type').value;
+      if (!claimType) throw Object.assign(new Error('Choose the claim type.'), { userMsg: true });
+      const attachmentUrl = await uploadClaimBill(document.getElementById('cclaim-bill').files[0]);
       const claimId = await generateClaimId();
       await addDoc(collection(db, 'claims'), {
         claimId,
         claimantType: 'servicecenter',
         claimantUid: currentUser.uid,
         claimantName: currentUser.email,
+        claimType, attachmentUrl,
         description: document.getElementById('cclaim-description').value.trim(),
         amount: Number(document.getElementById('cclaim-amount').value) || 0,
         notes: document.getElementById('cclaim-notes').value.trim(),
@@ -4872,7 +4880,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeCClaimModal, 1000);
     } catch (err) {
       console.error('Submit claim failed:', err);
-      cclaimError.textContent = 'Could not submit claim. Check console for details.';
+      cclaimError.textContent = err.userMsg ? err.message : 'Could not submit this claim. Check console for details.';
       cclaimError.classList.add('show');
       cclaimSubmitBtn.disabled = false;
       cclaimSubmitBtn.textContent = 'Submit claim';

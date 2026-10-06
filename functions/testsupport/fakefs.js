@@ -68,6 +68,7 @@ const db = {
       getAll: async (...refs) => refs.map((r) => new Snap(r)),
       set: (r, d, o) => writes.push([r.path, d, o && o.merge ? 'merge' : 'set']),
       update: (r, d) => writes.push([r.path, d, 'update']),
+      create: (r, d) => { if (store.has(r.path)) throw new Error('already exists ' + r.path); writes.push([r.path, d, 'set']); },
     };
     const out = await fn(tx);
     writes.forEach(([p, d, m]) => applyWrite(p, d, m));

@@ -101,6 +101,66 @@ function verifyTicketClaim(claim, tickets) {
   return { kind: 'ticket', status: issues.length ? 'mismatch' : 'ok', claimed, verified, issues };
 }
 
+// Free-form claim types (a bill / receipt photo is required for these).
+const CLAIM_TYPES = ['travel', 'local_purchase', 'tools', 'other'];
+
+// Can every item a claim lists be locked to it? Wallet credits must be the
+// claimant's own and still unclaimed; tickets must be the claimant
+// center's own and ready to claim. Returns { ok, reason, total }.
+function lockCheck(claim, items, kind) {
+  const ids = (kind === 'wallet' ? claim.walletTxnIds : claim.ticketIds) || [];
+  if (!ids.length) return { ok: false, reason: 'No items listed.' };
+  if (ids.length > 50) return { ok: false, reason: 'At most 50 items per claim.' };
+  if (new Set(ids).size !== ids.length) return { ok: false, reason: 'The same item is listed twice.' };
+  let total = 0;
+  for (const id of ids) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return { ok: false, reason: `${id} does not exist.` };
+    if (kind === 'wallet') {
+      if (it.technicianUid !== claim.claimantUid) return { ok: false, reason: `Credit ${it.sourceJobLabel || id} belongs to someone else.` };
+      if (it.status !== 'unclaimed') return { ok: false, reason: `Credit ${it.sourceJobLabel || id} is already ${it.status}${it.claimId ? ' (' + it.claimId + ')' : ''}.` };
+      total += Number(it.amount) || 0;
+    } else {
+      if (it.serviceCenterUid !== claim.claimantUid) return { ok: false, reason: `Ticket ${it.requestId || id} isn't this center's.` };
+      if (it.billingStatus !== 'ready_to_claim') return { ok: false, reason: `Ticket ${it.requestId || id} is ${it.billingStatus || 'not billed yet'}${it.claimId ? ' (' + it.claimId + ')' : ''}.` };
+      total += Number(it.billingTotal) || 0;
+    }
+  }
+  return { ok: true, total: round2(total) };
+}
+
+// A service center's billing decision on a completed ticket, checked here
+// instead of trusted from the browser. verdict: true / false / null (the
+// server's own warranty check); rate: the center's rate-card amount.
+// req: { treatAs: 'in'|'out', sparePartsCost, otherCharges, serviceCharge, paymentMethod, paymentRef }
+function billingDecision(ticket, verdict, req, rate) {
+  if (!['completed', 'verification', 'closed'].includes(ticket.status)) return { error: 'Bill a ticket only after it is completed.' };
+  if (ticket.billingStatus) return { error: `Already billed (${ticket.billingStatus}).` };
+  const money = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1000000 ? round2(n) : null; };
+  if (req.treatAs === 'in') {
+    if (verdict === false) return { error: 'The warranty check says this product is out of warranty — bill the customer instead.' };
+    const techCredited = !!(ticket.serviceCharge && ticket.billingComputedAt);
+    const claimable = techCredited ? 0 : (Number(rate) || 0);
+    if (!techCredited && !(claimable > 0)) return { error: 'No service charge rate is set for this category/type — set it under Service Charge Rates first.' };
+    return { update: {
+      warrantyStatus: 'in_warranty', billingType: 'claim', billingStatus: 'ready_to_claim', billingTotal: claimable,
+      serviceCharge: techCredited ? ticket.serviceCharge : claimable, sparePartsCost: 0, otherCharges: 0
+    } };
+  }
+  if (req.treatAs === 'out') {
+    const spare = money(req.sparePartsCost), other = money(req.otherCharges), svc = money(req.serviceCharge);
+    if (spare === null || other === null || svc === null) return { error: 'Amounts must be between 0 and 10,00,000.' };
+    return { update: {
+      warrantyStatus: 'out_of_warranty', billingType: 'customer', billingStatus: 'collected',
+      sparePartsCost: spare, otherCharges: other, serviceCharge: svc, billingTotal: round2(spare + other + svc),
+      customerPaymentMethod: ['cash', 'upi', 'card', 'other'].includes(req.paymentMethod) ? req.paymentMethod : 'other',
+      customerPaymentRef: String(req.paymentRef || '').slice(0, 80) || null
+    } };
+  }
+  return { error: 'Choose in-warranty or out-of-warranty.' };
+}
+
 module.exports = {
+  CLAIM_TYPES, lockCheck, billingDecision,
   computeClosureWarranty, rateCardKey, rateLookupKeys, pickRate, verifyWalletClaim, verifyTicketClaim
 };

@@ -546,29 +546,153 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
 }
 
 // ---------------------------------------------------------------
-// Claim check. When a claim is submitted, recompute what it should be
-// worth from the records it points at and store the result as
-// `claimCheck` (server-only). Wallet claims are checked against the
-// technician's credits; service center claims against the tickets'
-// stored billing totals. Free-form claims are marked "manual" for the
-// approver to judge. Nothing is blocked — Warehouse sees the flag.
+// Claims. When a claim is filed, the wallet credits / tickets it lists
+// are locked to it in one transaction (each must be the claimant's own
+// and still open), so the same credit or ticket can never be in two
+// claims; if any can't be locked the claim is rejected straight away
+// with the reason. Free-form claims (with a bill photo) are marked
+// 'manual'. Then: Warehouse verifies an approved amount (firestore.rules
+// caps it at what the locked items add up to), Super Admin pays — never
+// the same person who verified — and the payment record is written here
+// from the approved amount. Rejecting releases the items. Every status
+// change goes into the claim's history.
 // ---------------------------------------------------------------
+async function itemsFor(tx, claim) {
+  if (Array.isArray(claim.walletTxnIds) && claim.walletTxnIds.length) {
+    const refs = claim.walletTxnIds.slice(0, 50).map((id) => db.collection('walletTransactions').doc(String(id)));
+    return { kind: 'wallet', refs, snaps: await tx.getAll(...refs) };
+  }
+  if (Array.isArray(claim.ticketIds) && claim.ticketIds.length) {
+    const refs = claim.ticketIds.slice(0, 50).map((id) => db.collection('centerRequests').doc(String(id)));
+    return { kind: 'ticket', refs, snaps: await tx.getAll(...refs) };
+  }
+  return { kind: 'manual', refs: [], snaps: [] };
+}
+
 exports.checkClaim = onDocumentCreated(
   { document: 'claims/{docId}', region: REGION },
   async (event) => {
     if (!event.data) return;
-    const claim = event.data.data();
-    let check;
-    if (Array.isArray(claim.walletTxnIds) && claim.walletTxnIds.length) {
-      const snaps = await Promise.all(claim.walletTxnIds.slice(0, 50).map((id) => db.collection('walletTransactions').doc(id).get()));
-      check = Billing.verifyWalletClaim(claim, snaps.filter((x) => x.exists).map((x) => ({ id: x.id, ...x.data() })));
-    } else if (Array.isArray(claim.ticketIds) && claim.ticketIds.length) {
-      const snaps = await Promise.all(claim.ticketIds.slice(0, 50).map((id) => db.collection('centerRequests').doc(id).get()));
-      check = Billing.verifyTicketClaim(claim, snaps.filter((x) => x.exists).map((x) => ({ id: x.id, ...x.data() })));
-    } else {
-      check = { kind: 'manual', status: 'manual', claimed: Number(claim.amount) || 0, verified: null, issues: [] };
+    const ref = event.data.ref;
+    await db.runTransaction(async (tx) => {
+      const claim = (await tx.get(ref)).data();
+      if (!claim || claim.lock) return;
+      const { kind, refs, snaps } = await itemsFor(tx, claim);
+      const items = snaps.filter((x) => x.exists).map((x) => ({ id: x.id, ...x.data() }));
+      const at = FieldValue.serverTimestamp();
+      if (kind === 'manual') {
+        tx.update(ref, {
+          lock: { status: 'manual', at },
+          claimCheck: { kind: 'manual', status: 'manual', claimed: Number(claim.amount) || 0, verified: null, issues: [], at }
+        });
+        return;
+      }
+      const lock = Billing.lockCheck(claim, items, kind);
+      const check = kind === 'wallet' ? Billing.verifyWalletClaim(claim, items) : Billing.verifyTicketClaim(claim, items);
+      if (!lock.ok) {
+        tx.update(ref, {
+          status: 'rejected', rejectReason: `Not accepted: ${lock.reason}`, lock: { status: 'failed', reason: lock.reason, at },
+          claimCheck: { ...check, at }
+        });
+        return;
+      }
+      refs.forEach((r) => tx.update(r, kind === 'wallet'
+        ? { status: 'claimed', claimId: claim.claimId || ref.id, claimDocId: ref.id, updatedAt: at }
+        : { billingStatus: 'claimed', claimId: claim.claimId || ref.id, claimDocId: ref.id, updatedAt: at }));
+      tx.update(ref, { lock: { status: 'locked', at }, claimCheck: { ...check, verified: lock.total, at } });
+    });
+  }
+);
+
+exports.claimUpdated = onDocumentUpdatedWithAuthContext(
+  { document: 'claims/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    if (before.status === after.status) return;
+    const ref = event.data.after.ref;
+    const note = after.status === 'rejected' ? (after.rejectReason || '') : after.status === 'verified' ? (after.verifyNote || '') : after.status === 'settled' ? (after.paymentRef || '') : '';
+    const jobs = [ref.update({ history: FieldValue.arrayUnion({ from: before.status || null, to: after.status, byUid: event.authId || null, note, at: Timestamp.now() }) })];
+    if (after.status === 'rejected' && after.lock && after.lock.status === 'locked') {
+      // Release whatever this claim had locked, so it can be claimed again.
+      jobs.push(db.runTransaction(async (tx) => {
+        const { kind, refs, snaps } = await itemsFor(tx, after);
+        snaps.forEach((snap, i) => {
+          if (!snap.exists || snap.get('claimDocId') !== ref.id) return;
+          tx.update(refs[i], kind === 'wallet'
+            ? { status: 'unclaimed', claimId: null, claimDocId: null, updatedAt: FieldValue.serverTimestamp() }
+            : { billingStatus: 'ready_to_claim', claimId: null, claimDocId: null, updatedAt: FieldValue.serverTimestamp() });
+        });
+        tx.update(ref, { lock: { status: 'released', at: FieldValue.serverTimestamp() } });
+      }));
     }
-    await event.data.ref.update({ claimCheck: { ...check, at: FieldValue.serverTimestamp() } });
+    if (after.status === 'settled') {
+      jobs.push(db.runTransaction(async (tx) => {
+        const payRef = db.collection('payments').doc(`claim_${ref.id}`);
+        const existing = await tx.get(payRef);
+        const { kind, refs, snaps } = await itemsFor(tx, after);
+        if (existing.exists) return;
+        tx.create(payRef, {
+          sourceType: 'claim', sourceId: ref.id, sourceRef: after.claimId || ref.id, description: after.description || '',
+          payeeUid: after.claimantUid || null, payeeName: after.claimantName || '',
+          amount: after.approvedAmount, method: after.paymentMethod || '', referenceNumber: after.paymentRef || '', paidDate: after.paidDate || '',
+          verifiedByUid: after.verifiedByUid || null, paidByUid: after.paidByUid || event.authId || null, createdAt: FieldValue.serverTimestamp()
+        });
+        if (kind === 'wallet') snaps.forEach((snap, i) => { if (snap.exists && snap.get('claimDocId') === ref.id) tx.update(refs[i], { status: 'paid', paidAt: FieldValue.serverTimestamp() }); });
+      }));
+      if (after.claimantUid) {
+        jobs.push(db.collection('notifications').add({
+          recipientType: 'uid', recipientValue: after.claimantUid, title: 'Claim paid',
+          message: `${after.claimId || ref.id}: ₹${after.approvedAmount} paid${after.paymentMethod ? ' by ' + after.paymentMethod : ''}${after.paymentRef ? ' (ref ' + after.paymentRef + ')' : ''}.`,
+          read: false, createdAt: FieldValue.serverTimestamp()
+        }));
+      }
+    }
+    if (after.status === 'rejected' && after.claimantUid) {
+      jobs.push(db.collection('notifications').add({
+        recipientType: 'uid', recipientValue: after.claimantUid, title: 'Claim rejected',
+        message: `${after.claimId || ref.id}: ${after.rejectReason || 'rejected'}`, read: false, createdAt: FieldValue.serverTimestamp()
+      }));
+    }
+    await Promise.all(jobs);
+  }
+);
+
+// ---------------------------------------------------------------
+// Center billing. A service center no longer writes a ticket's warranty
+// verdict, charges or billing status itself: it files a billingRequest
+// (in-warranty claim, or out-of-warranty with what the customer paid)
+// and this checks it against the server's own warranty verdict and the
+// rate card (Billing.billingDecision) before writing the billing fields.
+// ---------------------------------------------------------------
+exports.applyBillingRequest = onDocumentUpdated(
+  { document: 'centerRequests/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    const ms = (r) => (r && r.requestedAt && r.requestedAt.toMillis ? r.requestedAt.toMillis() : 0);
+    if (!ms(after.billingRequest) || ms(after.billingRequest) === ms(before.billingRequest)) return;
+    const ref = event.data.after.ref;
+    const req = after.billingRequest;
+    if (req.byUid !== after.serviceCenterUid) {
+      await ref.update({ billingRejected: { reason: 'Only the ticket\'s service center can bill it.', at: FieldValue.serverTimestamp() } });
+      return;
+    }
+    const { reg, partNames, rate } = await closureContext(ref, after);
+    const verdict = Billing.computeClosureWarranty(reg, after, partNames).inWarranty;
+    await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data();
+      const decision = Billing.billingDecision(fresh, verdict, req, rate);
+      if (decision.error) {
+        tx.update(ref, { billingRejected: { reason: decision.error, at: FieldValue.serverTimestamp() } });
+        return;
+      }
+      tx.update(ref, { ...decision.update, billingRejected: null, billedAt: FieldValue.serverTimestamp(), billingDecidedAt: FieldValue.serverTimestamp() });
+      const ticketId = fresh.requestId || fresh.jobId;
+      if (ticketId && fresh.customerPhone) {
+        tx.set(db.collection('publicTicketStatus').doc(ticketId), { warrantyStatus: decision.update.warrantyStatus }, { merge: true });
+      }
+    });
   }
 );
 

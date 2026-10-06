@@ -164,3 +164,40 @@ test('spare stock ops: transfers, use on jobs, no negatives, approvals, defectiv
   const notes = [...store.entries()].filter(([k]) => k.startsWith('notifications/')).map(([, d]) => d);
   ok(notes.length === n0 + 1 && /Thermostat/.test(notes.at(-1).message), 'low-stock alert raised');
 });
+
+test('claims lock their items, reject releases, settle pays the approved amount; center billing is server-decided', async () => {
+  const Billing = require('./billing');
+  set('walletTransactions/w1', { technicianUid: 'tA', amount: 300, status: 'unclaimed', sourceJobLabel: 'J1' });
+  set('walletTransactions/w2', { technicianUid: 'tA', amount: 200, status: 'unclaimed', sourceJobLabel: 'J2' });
+  set('claims/k1', { claimId: 'CL-1', claimantUid: 'tA', claimantType: 'technician', amount: 500, walletTxnIds: ['w1', 'w2'], status: 'submitted' });
+  await created('checkClaim', 'claims/k1', { docId: 'k1' });
+  ok(get('claims/k1').lock.status === 'locked' && get('walletTransactions/w1').status === 'claimed' && get('walletTransactions/w1').claimDocId === 'k1', 'credits locked to the claim');
+  set('claims/k2', { claimId: 'CL-2', claimantUid: 'tA', claimantType: 'technician', amount: 300, walletTxnIds: ['w1'], status: 'submitted' });
+  await created('checkClaim', 'claims/k2', { docId: 'k2' });
+  ok(get('claims/k2').status === 'rejected' && /already claimed/.test(get('claims/k2').rejectReason), 'second claim on the same credit refused');
+  await updated('claimUpdated', 'claims/k1', { status: 'rejected', rejectReason: 'wrong job', rejectedByUid: 'wh1' }, 'wh1', { docId: 'k1' });
+  ok(get('walletTransactions/w1').status === 'unclaimed' && get('walletTransactions/w2').status === 'unclaimed', 'reject releases the credits');
+  ok(get('claims/k1').history.some((h) => h.to === 'rejected'), 'history recorded');
+  set('claims/k3', { claimId: 'CL-3', claimantUid: 'tA', claimantType: 'technician', amount: 500, walletTxnIds: ['w1', 'w2'], status: 'submitted' });
+  await created('checkClaim', 'claims/k3', { docId: 'k3' });
+  ok(get('claims/k3').claimCheck.verified === 500, 'locked total 500');
+  await updated('claimUpdated', 'claims/k3', { status: 'verified', approvedAmount: 450, verifiedByUid: 'wh1' }, 'wh1', { docId: 'k3' });
+  await updated('claimUpdated', 'claims/k3', { status: 'settled', paidByUid: 'sa1', paymentMethod: 'NEFT', paymentRef: 'UTR7' }, 'sa1', { docId: 'k3' });
+  const pay = get('payments/claim_k3');
+  ok(pay && pay.amount === 450 && pay.verifiedByUid === 'wh1' && pay.paidByUid === 'sa1', 'payment written for the approved amount');
+  ok(get('walletTransactions/w1').status === 'paid', 'credits marked paid');
+  await updated('claimUpdated', 'claims/k3', { status: 'settled', paymentRef: 'again' }, 'sa1', { docId: 'k3' });
+  ok(get('payments/claim_k3').referenceNumber === 'UTR7', 'no second payment');
+
+  // center billing via request
+  set(`serviceChargeRates/${Billing.rateCardKey('default', null, 'Geyser', 'repair', null)}`, { amount: 450 });
+  set('centerRequests/jb', { requestId: 'PE-CR-9', serviceCenterUid: 'cB', status: 'completed', category: 'Geyser', type: 'service' });
+  await updated('applyBillingRequest', 'centerRequests/jb', { billingRequest: { treatAs: 'in', byUid: 'cB', requestedAt: Timestamp.now() } }, 'cB', { docId: 'jb' });
+  ok(get('centerRequests/jb').billingStatus === 'ready_to_claim' && get('centerRequests/jb').billingTotal === 450, 'in-warranty billed at the rate card, not a typed amount');
+  await new Promise((r) => setTimeout(r, 5));
+  await updated('applyBillingRequest', 'centerRequests/jb', { billingRequest: { treatAs: 'out', sparePartsCost: 1, otherCharges: 0, serviceCharge: 0, byUid: 'cB', requestedAt: Timestamp.now() } }, 'cB', { docId: 'jb' });
+  ok(/Already billed/.test(get('centerRequests/jb').billingRejected.reason), 'cannot re-bill');
+  set('claims/k4', { claimId: 'CL-4', claimantUid: 'cB', claimantType: 'servicecenter', amount: 450, ticketIds: ['jb'], status: 'submitted' });
+  await created('checkClaim', 'claims/k4', { docId: 'k4' });
+  ok(get('centerRequests/jb').billingStatus === 'claimed' && get('claims/k4').lock.status === 'locked', 'ticket locked to the center claim');
+});

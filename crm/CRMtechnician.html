@@ -415,6 +415,14 @@
         <input type="number" id="tclaim-amount" min="0" step="0.01" required>
       </div>
       <div class="form-row">
+        <label>Claim type</label>
+        <select id="tclaim-type" required><option value="">Select…</option><option value="travel">Travel / conveyance</option><option value="local_purchase">Local purchase</option><option value="tools">Tools / consumables</option><option value="other">Other</option></select>
+      </div>
+      <div class="form-row">
+        <label>Bill / receipt (photo or PDF, required)</label>
+        <input type="file" id="tclaim-bill" accept="image/*,application/pdf" required>
+      </div>
+      <div class="form-row">
         <label>Notes (optional)</label>
         <textarea id="tclaim-notes" placeholder="Any additional context…"></textarea>
       </div>
@@ -2300,6 +2308,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+
+  // Waits for the checkClaim function to lock (or refuse) a new claim.
+  async function waitForClaimLock(ref) {
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, i < 4 ? 700 : 1500));
+      const snap = await getDoc(ref);
+      const d = snap.exists() ? snap.data() : null;
+      if (d && d.lock) return d;
+    }
+    return null;
+  }
+  // Uploads a claim's bill / receipt to the claimant's own folder.
+  async function uploadClaimBill(file) {
+    if (!file) throw Object.assign(new Error('Attach the bill or receipt.'), { userMsg: true });
+    if (file.size > 10 * 1024 * 1024) throw Object.assign(new Error('The bill must be under 10 MB.'), { userMsg: true });
+    const fileRef = storageRef(storage, `claims/${currentUser.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(fileRef, file);
+    return getDownloadURL(fileRef);
+  }
+
   async function submitWalletClaim() {
     const selected = Array.from(document.querySelectorAll('.wallet-select-cb:checked')).map(cb => cb.dataset.id);
     if (selected.length === 0 || !currentUser) return;
@@ -2317,7 +2345,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       }));
       const amount = lineItems.reduce((sum, li) => sum + li.total, 0);
       const claimId = await generateClaimId();
-      await addDoc(collection(db, 'claims'), {
+      const claimRef = await addDoc(collection(db, 'claims'), {
         claimId,
         claimantType: 'technician',
         claimantUid: currentUser.uid,
@@ -2331,11 +2359,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      await Promise.all(txns.map(t => updateDoc(doc(db, 'walletTransactions', t.id), {
-        status: 'claimed',
-        claimId,
-        updatedAt: serverTimestamp()
-      })));
+      // The server locks these credits to this claim (or refuses it if
+      // any is already claimed) — the browser never marks them itself.
+      const locked = await waitForClaimLock(claimRef);
+      if (locked && locked.status === 'rejected') { alert(`Claim not accepted — ${locked.lock.reason || locked.rejectReason}`); loadWallet(); return; }
       try {
         await addDoc(collection(db, 'notifications'), {
           recipientType: 'role', recipientValue: 'warehouse',
@@ -2379,7 +2406,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
           <td>${escapeHtml(d.description || '—')}</td>
           <td>₹${d.amount ?? '—'}</td>
-          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_T[d.status] || d.status}</span></td>`;
+          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_T[d.status] || d.status}</span>${d.status === 'rejected' && d.rejectReason ? `<div style="font-size:11.5px;color:var(--err);">${escapeHtml(d.rejectReason)}</div>` : ''}${d.approvedAmount != null && d.status !== 'rejected' ? `<div style="font-size:11.5px;color:var(--stone);">Approved ₹${d.approvedAmount}</div>` : ''}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -2414,12 +2441,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     tclaimSubmitBtn.disabled = true;
     tclaimSubmitBtn.textContent = 'Submitting…';
     try {
+      const claimType = document.getElementById('tclaim-type').value;
+      if (!claimType) throw Object.assign(new Error('Choose the claim type.'), { userMsg: true });
+      const attachmentUrl = await uploadClaimBill(document.getElementById('tclaim-bill').files[0]);
       const claimId = await generateClaimId();
       await addDoc(collection(db, 'claims'), {
         claimId,
         claimantType: 'technician',
         claimantUid: currentUser.uid,
         claimantName: currentUser.email,
+        claimType, attachmentUrl,
         description: document.getElementById('tclaim-description').value.trim(),
         amount: Number(document.getElementById('tclaim-amount').value) || 0,
         notes: document.getElementById('tclaim-notes').value.trim(),
@@ -2444,7 +2475,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeTClaimModal, 1000);
     } catch (err) {
       console.error('Submit claim failed:', err);
-      tclaimError.textContent = 'Could not submit claim. Check console for details.';
+      tclaimError.textContent = err.userMsg ? err.message : 'Could not submit this claim. Check console for details.';
       tclaimError.classList.add('show');
       tclaimSubmitBtn.disabled = false;
       tclaimSubmitBtn.textContent = 'Submit claim';
