@@ -303,3 +303,30 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Spare request pipeline: new -> approved -> picking -> packing ->
+// dispatched -> in transit -> received (or back order). Applies to
+// everyone with an account, Warehouse and Super Admin included, because
+// the pipeline order IS the control. "Dispatched" must carry the
+// transporter and docket. A bad move is reverted with `pipelineRejected`.
+// The dispatch screens move the stock and set the status in ONE
+// transaction, so the stock and the status can't drift apart.
+// ---------------------------------------------------------------
+exports.checkSparePipeline = onDocumentUpdatedWithAuthContext(
+  { document: 'spareRequests/{docId}', region: REGION },
+  async (event) => {
+    if (!event.authId || !event.data) return;
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    if (before.status === after.status) return;
+    const actor = await db.collection('users').doc(event.authId).get();
+    if (!actor.exists) return; // the Cloud Functions' own writes
+    const reason = checkSpareTransition(before, after);
+    if (!reason) return;
+    await event.data.after.ref.update({
+      status: before.status,
+      pipelineRejected: { from: before.status, to: after.status, reason, at: FieldValue.serverTimestamp() }
+    });
+  }
+);

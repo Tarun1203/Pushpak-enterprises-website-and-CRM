@@ -681,8 +681,17 @@ service cloud.firestore {
       // through the pipeline (approved/picking/dispatched/etc.) stays
       // admin-only — a technician can ask for a part, not move it
       // through the warehouse themselves.
+      // A non-admin request always starts as 'new' (or 'fulfilled_by_center'
+      // when a center/technician issues from its own shelf) — never
+      // pre-dispatched or pre-received — with no dispatch/receipt fields
+      // and a sane quantity.
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid
+            && request.resource.data.get('status', '') in ['new', 'fulfilled_by_center']
+            && !request.resource.data.keys().hasAny(['transport', 'dispatchedQty', 'receivedAt', 'consumedAt', 'consumedQty', 'pipelineRejected'])
+            && request.resource.data.quantity is number
+            && request.resource.data.quantity >= 1
+            && request.resource.data.quantity <= 1000);
       // Warehouse/Super Admin can move a request through every stage.
       // The center/technician that raised it can additionally confirm
       // receipt themselves — but only that one transition (dispatched or
@@ -691,7 +700,8 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.requestedByUid == request.auth.uid
             && resource.data.status in ['dispatched', 'intransit']
-            && request.resource.data.status == 'received')
+            && request.resource.data.status == 'received'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'receivedAt', 'updatedAt']))
         // Marking a received (or already center-fulfilled) part as
         // actually installed on the job — only the consumedAt/
         // consumedQty/updatedAt fields, only once, and only by the

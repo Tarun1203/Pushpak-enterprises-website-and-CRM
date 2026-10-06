@@ -6716,6 +6716,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
       <div><strong>Priority:</strong> ${escapeHtml(d.priority) || 'normal'}</div>
       <div><strong>Status:</strong> <span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></div>
+      ${d.pipelineRejected ? `<div style="color:var(--err);"><strong>Last change rejected:</strong> ${escapeHtml(d.pipelineRejected.reason)}</div>` : ''}
       ${d.sourceJobLabel ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel)}</div>` : ''}
       ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
       ${t ? `
@@ -6919,6 +6920,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       errEl.textContent = '';
       const qty = Number(document.getElementById('sr-transfer-qty').value) || 0;
       if (qty <= 0) { errEl.textContent = 'Enter a quantity greater than 0.'; return; }
+      if (d.quantity && qty > d.quantity) { errEl.textContent = `This request is for ${d.quantity} — you can't transfer more than was asked for.`; return; }
       const btn = document.getElementById('sr-transfer-btn');
       btn.disabled = true;
       btn.textContent = 'Uploading…';
@@ -6926,9 +6928,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (!transport) { btn.disabled = false; btn.textContent = 'Transfer Stock & Dispatch'; return; }
       btn.textContent = 'Transferring…';
       try {
+        // Stock transfer, movement record and status change commit
+        // together, so a failed or repeated click can't move stock twice.
         const fromRef = doc(db, 'inventory', `warehouse_${partId}`);
         const toRef = doc(db, 'inventory', `servicecenter_${center.uid}_${partId}`);
+        const reqRef = doc(db, 'spareRequests', docId);
+        const moveRef = doc(collection(db, 'stockMovements'));
         await runTransaction(db, async (transaction) => {
+          const reqSnap = await transaction.get(reqRef);
+          const current = reqSnap.exists() ? reqSnap.data().status : null;
+          if (['dispatched', 'intransit', 'received'].includes(current)) throw new Error('This request has already been dispatched — refresh the list.');
           const fromSnap = await transaction.get(fromRef);
           const fromQty = fromSnap.exists() ? (fromSnap.data().quantity || 0) : 0;
           if (fromQty < qty) throw new Error(`Only ${fromQty} in Warehouse stock — can't transfer ${qty}.`);
@@ -6936,15 +6945,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
           transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
           transaction.set(toRef, { partId, location: 'servicecenter', serviceCenterUid: center.uid, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
+          transaction.set(moveRef, {
+            partId, type: 'transfer', location: 'warehouse', quantity: qty,
+            toLocation: `servicecenter_${center.uid}`, toLabel: `${center.name || center.email} (Service Center)`,
+            reason: `Spare request ${d.requestId || docId}`, sourceRequestId: docId,
+            transport,
+            createdAt: serverTimestamp()
+          });
+          transaction.update(reqRef, { status: 'dispatched', dispatchedQty: qty, transport, updatedAt: serverTimestamp() });
         });
-        await addDoc(collection(db, 'stockMovements'), {
-          partId, type: 'transfer', location: 'warehouse', quantity: qty,
-          toLocation: `servicecenter_${center.uid}`, toLabel: `${center.name || center.email} (Service Center)`,
-          reason: `Spare request ${d.requestId || docId}`, sourceRequestId: docId,
-          transport,
-          createdAt: serverTimestamp()
-        });
-        await updateDoc(doc(db, 'spareRequests', docId), { status: 'dispatched', transport, updatedAt: serverTimestamp() });
         openSpareRequestPopup(docId);
         if (document.getElementById('sr-tbody')) renderSpareRequestOverview();
         if (document.getElementById('sm-tbody')) loadStockMovementLog();

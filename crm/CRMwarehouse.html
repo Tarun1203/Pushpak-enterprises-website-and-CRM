@@ -3211,6 +3211,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         errEl.style.display = 'block';
         return;
       }
+      if (d.quantity && qty > d.quantity) {
+        errEl.textContent = `This request is for ${d.quantity} — you can't dispatch more than was asked for.`;
+        errEl.style.display = 'block';
+        return;
+      }
       if (avail != null && qty > avail) {
         errEl.textContent = `Only ${avail} in warehouse stock — reduce the quantity.`;
         errEl.style.display = 'block';
@@ -3229,10 +3234,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         }
         const transport = { transporter, docket, vehicle: vehicle || null, dispatchDate: dispDate, photoUrl };
 
+        // Stock transfer, movement record and the request's own status
+        // change commit together in one transaction, so a failed or
+        // repeated click can never move stock twice or leave the request
+        // un-dispatched after its stock has already left the shelf.
+        const reqRef = doc(db, 'spareRequests', d.id);
+        const dispatchFields = { status: 'dispatched', dispatchedQty: qty, transport, updatedAt: serverTimestamp() };
         if (part && loc) {
           const whInvRef = doc(db, 'inventory', `warehouse_${part.id}`);
           const destInvRef = doc(db, 'inventory', `${loc.docId}_${part.id}`);
+          const moveRef = doc(collection(db, 'stockMovements'));
           await runTransaction(db, async (t) => {
+            const reqSnap = await t.get(reqRef);
+            const current = reqSnap.exists() ? reqSnap.data().status : null;
+            if (['dispatched', 'intransit', 'received'].includes(current)) throw new Error('This request has already been dispatched — refresh the list.');
             const whSnap = await t.get(whInvRef);
             const whQty = whSnap.exists() ? (whSnap.data().quantity || 0) : 0;
             if (whQty < qty) throw new Error(`Only ${whQty} in warehouse stock — cannot dispatch ${qty}.`);
@@ -3241,19 +3256,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             t.update(whInvRef, { quantity: whQty - qty });
             if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
             else t.set(destInvRef, { location: loc.location, [loc.uidField]: loc.uid, partId: part.id, quantity: qty });
+            t.set(moveRef, {
+              type: 'transfer', partId: part.id, partName: part.name,
+              from: 'warehouse', to: loc.docId,
+              quantity: qty, sourceRequestId: d.id, transport,
+              createdAt: serverTimestamp(), createdByEmail: auth.currentUser ? auth.currentUser.email : null
+            });
+            t.update(reqRef, dispatchFields);
           });
-          await addDoc(collection(db, 'stockMovements'), {
-            type: 'transfer', partId: part.id, partName: part.name,
-            from: 'warehouse', to: loc.docId,
-            quantity: qty, sourceRequestId: d.id, transport,
-            createdAt: serverTimestamp(), createdByEmail: auth.currentUser ? auth.currentUser.email : null
-          });
+        } else {
+          await updateDoc(reqRef, dispatchFields);
         }
-
-        await updateDoc(doc(db, 'spareRequests', d.id), {
-          status: 'dispatched', dispatchedQty: qty, transport,
-          updatedAt: serverTimestamp()
-        });
         whSrDetailOverlay.classList.remove('show');
         loadSpareRequests(currentTabStatus);
       } catch (err) {
@@ -3312,6 +3325,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><strong>Status:</strong> <span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></div>
       ${d.sourceJobLabel || d.sourceJobId ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel || d.sourceJobId)}</div>` : ''}
       ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
+      ${d.pipelineRejected ? `<div style="color:var(--err);"><strong>Last change rejected:</strong> ${escapeHtml(d.pipelineRejected.reason)}</div>` : ''}
       ${d.transport ? `
         <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px;">
           <div style="font-weight:600;margin-bottom:4px;">Transport / dispatch details</div>

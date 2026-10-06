@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { checkTransition, TRANSITIONS } = require('./lifecycle');
+const { checkTransition, TRANSITIONS, checkSpareTransition, SPARE_TRANSITIONS } = require('./lifecycle');
 const done = { closureCode: 'REPAIRED', actionTaken: 'Replaced element', partsUsedNotes: 'None', closedByUid: 'u1' };
 
 test('unchanged or missing status is never blocked', () => {
@@ -34,4 +34,30 @@ test('closure must be under the actor\'s own uid', () => {
 test('unknown previous status is not blocked; every target in the table is itself a known status or terminal', () => {
   assert.strictEqual(checkTransition({ status: 'weird' }, { status: 'assigned' }, 'u1'), null);
   for (const targets of Object.values(TRANSITIONS)) for (const t of targets) assert.ok(t in TRANSITIONS, t);
+});
+
+const tr = { transporter: 'VRL', docket: 'D123' };
+test('spare: the normal warehouse pipeline is allowed', () => {
+  const path = ['new', 'approved', 'picking', 'packing', 'dispatched', 'intransit', 'received'];
+  for (let i = 0; i < path.length - 1; i++) assert.strictEqual(checkSpareTransition({ status: path[i] }, { status: path[i + 1], transport: tr }), null, path[i]);
+});
+test('spare: direct dispatch from any pre-dispatch stage is allowed (Super Admin flow)', () => {
+  for (const s of ['new', 'approved', 'picking', 'packing']) assert.strictEqual(checkSpareTransition({ status: s }, { status: 'dispatched', transport: tr }), null, s);
+});
+test('spare: dispatch without transport details is rejected', () => {
+  assert.match(checkSpareTransition({ status: 'packing' }, { status: 'dispatched' }), /transporter/);
+  assert.match(checkSpareTransition({ status: 'packing' }, { status: 'dispatched', transport: { transporter: 'VRL', docket: ' ' } }), /docket/);
+});
+test('spare: cannot skip to received, go backwards, or leave a final state', () => {
+  assert.match(checkSpareTransition({ status: 'new' }, { status: 'received' }), /can't move/);
+  assert.match(checkSpareTransition({ status: 'packing' }, { status: 'approved' }), /can't move/);
+  assert.match(checkSpareTransition({ status: 'received' }, { status: 'new' }), /can't move/);
+  assert.match(checkSpareTransition({ status: 'dispatched' }, { status: 'new' }), /can't move/);
+});
+test('spare: back order can only retry as new; unchanged and unknown are ignored', () => {
+  assert.strictEqual(checkSpareTransition({ status: 'backorder' }, { status: 'new' }), null);
+  assert.match(checkSpareTransition({ status: 'backorder' }, { status: 'approved' }), /can't move/);
+  assert.strictEqual(checkSpareTransition({ status: 'new' }, { status: 'new' }), null);
+  assert.strictEqual(checkSpareTransition({ status: 'weird' }, { status: 'approved' }), null);
+  for (const targets of Object.values(SPARE_TRANSITIONS)) for (const x of targets) assert.ok(x in SPARE_TRANSITIONS, x);
 });

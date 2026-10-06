@@ -42,4 +42,34 @@ function checkTransition(before, after, actorUid) {
   return null;
 }
 
-module.exports = { TRANSITIONS, CLOSURE_FIELDS, checkTransition };
+// Spare request pipeline (Warehouse / Super Admin / requester). Both
+// dispatch screens can dispatch straight from any not-yet-sent stage,
+// so every pre-dispatch stage may go to "dispatched".
+const SPARE_TRANSITIONS = {
+  new:                 ['approved', 'backorder', 'dispatched'],
+  approved:            ['picking', 'packing', 'backorder', 'dispatched'],
+  picking:             ['packing', 'backorder', 'dispatched'],
+  packing:             ['dispatched', 'backorder'],
+  dispatched:          ['intransit', 'received'],
+  intransit:           ['received'],
+  backorder:           ['new'],
+  received:            [],
+  fulfilled_by_center: []
+};
+
+// Returns an error message, or null when the move is acceptable.
+function checkSpareTransition(before, after) {
+  const from = before && before.status;
+  const to = after && after.status;
+  if (!to || from === to) return null;
+  if (from && Object.prototype.hasOwnProperty.call(SPARE_TRANSITIONS, from) && !SPARE_TRANSITIONS[from].includes(to)) {
+    return `A spare request can't move from "${from}" to "${to}".`;
+  }
+  if (to === 'dispatched') {
+    const t = after.transport || {};
+    if (!str(t.transporter) || !str(t.docket)) return 'Dispatch needs the transporter name and docket number.';
+  }
+  return null;
+}
+
+module.exports = { TRANSITIONS, CLOSURE_FIELDS, checkTransition, SPARE_TRANSITIONS, checkSpareTransition };
