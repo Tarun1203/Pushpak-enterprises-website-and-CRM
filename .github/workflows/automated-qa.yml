@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -70,6 +70,24 @@ jobs:
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
             gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+          fi
+
+      - name: Publish bug snapshot for Bug Tracker
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" --paginate | \
+            jq -s --arg generated "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+            '{generated_at:$generated, source:"GitHub Issues", issues:(add | map(select(.pull_request == null)))}' > crm/bug-data.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crm/bug-data.json
+          if git diff --cached --quiet; then
+            echo "Bug snapshot unchanged"
+          else
+            git commit -m "[skip ci] Update automated QA bug snapshot"
+            git push
           fi
 
       - name: Fail workflow when QA fails
