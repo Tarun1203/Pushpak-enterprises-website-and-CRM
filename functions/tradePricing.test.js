@@ -45,6 +45,7 @@ test('bad lines are rejected', () => {
   assert.ok(P.validateLines([{ modelId: 'm1', qty: 1.5 }]));
   assert.ok(P.validateLines([{ modelId: 'm1', qty: 1 }, { modelId: 'm1', qty: 2 }]));
   assert.strictEqual(P.validateLines([{ modelId: 'm1', qty: 3 }]), null);
+  assert.match(P.validateLines([{ modelId: 'm1', qty: 300 }, { modelId: 'm2', qty: 101 }]), /400 units/);
   assert.strictEqual(P.priceOrder('x', models, {}, {}).pricing.status, 'invalid');
 });
 

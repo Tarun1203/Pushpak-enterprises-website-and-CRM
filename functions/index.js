@@ -13,6 +13,7 @@ const Feedback = require('./feedback');
 const ProfileGuard = require('./profileGuard');
 const TradePricing = require('./tradePricing');
 const Finance = require('./finance');
+const Stock = require('./stock');
 
 initializeApp();
 const db = getFirestore();
@@ -728,6 +729,21 @@ for (const coll of ['dealerOrders', 'distributorOrders']) {
         jobs.push(priceTradeOrder(coll, event.data.after.ref, after));
       }
       const companySold = TradePricing.partiesFor(coll, after).seller === 'company';
+      const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
+      if (Array.isArray(after.lines) && after.status === 'confirmed'
+          && ((before.status === 'placed') || (ms(after.stockRecheckAt) && ms(after.stockRecheckAt) !== ms(before.stockRecheckAt)))) {
+        jobs.push(reserveForOrder(coll, event.data.after.ref));
+      }
+      if (Array.isArray(after.lines) && before.status === 'confirmed' && after.status === 'cancelled') {
+        jobs.push(releaseReservation(event.data.after.ref));
+      }
+      const reqAt = after.dispatchRequest && after.dispatchRequest.requestedAt;
+      if (after.status === 'confirmed' && ms(reqAt) && ms(reqAt) !== ms(before.dispatchRequest && before.dispatchRequest.requestedAt)) {
+        jobs.push(processDispatch(coll, event.data.after.ref));
+      }
+      if (Array.isArray(after.lines) && before.status === 'dispatched' && after.status === 'delivered') {
+        jobs.push(processDelivery(coll, event.data.after.ref));
+      }
       if (companySold && before.status === 'placed' && after.status === 'confirmed' && Array.isArray(after.lines) && after.totals) {
         jobs.push(createInvoice(coll, event.data.after.ref, after, event.authId));
       }
@@ -738,7 +754,8 @@ for (const coll of ['dealerOrders', 'distributorOrders']) {
         jobs.push(event.data.after.ref.update({
           statusHistory: FieldValue.arrayUnion({
             from: before.status || null, to: after.status || null,
-            byUid: event.authId || null, note: after.statusNote || '', at: Timestamp.now()
+            byUid: event.authId || (after.status === 'dispatched' && after.dispatch ? after.dispatch.byUid || null : null),
+            note: after.statusNote || '', at: Timestamp.now()
           })
         }));
       }
@@ -886,6 +903,211 @@ exports.applyTradePayment = onDocumentCreated(
       }, { merge: true });
       const allocations = result.allocations.map((a) => ({ ...a, invoiceNo: byId[a.invoiceId].invoiceNo || '' }));
       tx.update(payRef, { allocations, unallocated: result.unallocated, processedAt: FieldValue.serverTimestamp() });
+    });
+  }
+);
+
+// ---------------------------------------------------------------
+// Finished-goods stock (stock.js). Warehouse receives stock with one
+// serial per unit; an approved order reserves stock (or waits for it);
+// dispatch is done here, not in the browser: the seller enters a serial
+// for every unit and this checks each one is in stock at that location
+// and of the right model, then moves stock, serials and the order to
+// 'dispatched' in one transaction. Goods delivered to a distributor
+// become that distributor's stock. All stock documents are server-only.
+// ---------------------------------------------------------------
+function stockRef(location, modelId) { return db.collection('productStock').doc(Stock.stockDocId(location, modelId)); }
+
+async function reserveForOrder(coll, orderRef) {
+  let location = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(orderRef);
+    if (!snap.exists) return;
+    const o = snap.data();
+    if (o.status !== 'confirmed' || !Array.isArray(o.lines) || o.stockStatus === 'ready' || o.stockStatus === 'dispatched') return;
+    location = Stock.locationForSeller(TradePricing.partiesFor(coll, o).seller);
+    const modelIds = [...new Set(o.lines.map((l) => l.modelId))];
+    const snaps = await tx.getAll(...modelIds.map((m) => stockRef(location, m)));
+    const stock = {};
+    snaps.forEach((s, i) => { stock[modelIds[i]] = s.exists ? s.data() : { onHand: 0, reserved: 0 }; });
+    const plan = Stock.planReservation(o.lines, stock, o.stockAllocation || {});
+    Object.entries(plan.add).forEach(([m, n]) => {
+      tx.set(stockRef(location, m), { location, modelId: m, reserved: FieldValue.increment(n), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    });
+    tx.update(orderRef, { stockLocation: location, stockAllocation: plan.allocation, stockStatus: plan.ready ? 'ready' : 'waiting' });
+  });
+}
+
+async function releaseReservation(orderRef) {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(orderRef);
+    const o = snap.data();
+    if (!o || o.status !== 'cancelled' || !o.stockLocation || !o.stockAllocation) return;
+    Object.entries(o.stockAllocation).forEach(([m, n]) => {
+      if (n > 0) tx.set(stockRef(o.stockLocation, m), { reserved: FieldValue.increment(-n), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    });
+    tx.update(orderRef, { stockAllocation: {}, stockStatus: 'released' });
+  });
+  const o = (await orderRef.get()).data();
+  if (o && o.stockLocation) await allocateWaiting(o.stockLocation);
+}
+
+// Gives newly free stock at a location to orders waiting for it, oldest first.
+async function allocateWaiting(location) {
+  for (const coll of ['dealerOrders', 'distributorOrders']) {
+    const snap = await db.collection(coll).where('stockLocation', '==', location).where('stockStatus', '==', 'waiting').get();
+    const docs = snap.docs.sort((a, b) => (a.get('createdAt') ? a.get('createdAt').toMillis() : 0) - (b.get('createdAt') ? b.get('createdAt').toMillis() : 0));
+    for (const d of docs) await reserveForOrder(coll, d.ref);
+  }
+}
+
+async function processDispatch(coll, orderRef) {
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(orderRef);
+    const o = snap.data();
+    const req = o && o.dispatchRequest;
+    if (!o || o.status !== 'confirmed' || !req || !req.requestedAt) return;
+    const key = req.requestedAt.toMillis();
+    if (o.dispatchProcessedFor === key) return;
+    const fail = (reason) => tx.update(orderRef, { dispatchRejected: { reason, at: Timestamp.now() }, dispatchProcessedFor: key });
+    if (!Array.isArray(o.lines)) return fail('Older orders without a price list are dispatched the old way.');
+    if (o.stockStatus !== 'ready') return fail('Not all the stock for this order is reserved yet — receive stock or press Check stock.');
+    const location = o.stockLocation;
+    const lines = (o.pricedLines && o.pricedLines.length ? o.pricedLines : o.lines);
+    const serialsByModel = {};
+    let count = 0;
+    Object.entries(req.serials || {}).forEach(([m, list]) => {
+      serialsByModel[m] = (Array.isArray(list) ? list : []).map(Stock.normalizeSerial);
+      count += serialsByModel[m].length;
+    });
+    if (count > Stock.MAX_RECEIPT_SERIALS) return fail('Too many serials in one dispatch.');
+    const allSerials = [...new Set([].concat(...Object.values(serialsByModel)))].filter((x) => Stock.SERIAL_RE.test(x));
+    const serialSnaps = allSerials.length ? await tx.getAll(...allSerials.map((x) => db.collection('unitSerials').doc(x))) : [];
+    const serialDocs = {};
+    serialSnaps.forEach((s) => { serialDocs[s.id] = s.exists ? s.data() : null; });
+    const err = Stock.validateDispatchSerials(lines, serialsByModel, serialDocs, location);
+    if (err) return fail(err);
+    const parties = TradePricing.partiesFor(coll, o);
+    const buyerName = coll === 'distributorOrders' ? (o.distributorName || o.distributorEmail || '') : (o.dealerName || o.dealerEmail || '');
+    lines.forEach((l) => {
+      tx.set(stockRef(location, l.modelId), { onHand: FieldValue.increment(-l.qty), reserved: FieldValue.increment(-l.qty), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    });
+    allSerials.forEach((x) => {
+      tx.update(db.collection('unitSerials').doc(x), {
+        status: 'dispatched', location: 'transit', fromLocation: location,
+        soldToUid: parties.buyer, soldToType: coll === 'distributorOrders' ? 'distributor' : 'dealer', soldToName: buyerName,
+        orderCollection: coll, orderDocId: orderRef.id, orderId: o.orderId || orderRef.id, invoiceNo: o.invoiceNo || null,
+        dispatchedAt: FieldValue.serverTimestamp(),
+        history: FieldValue.arrayUnion({ event: 'dispatched', to: parties.buyer, orderId: o.orderId || orderRef.id, at: Timestamp.now() })
+      });
+    });
+    tx.set(db.collection('productMovements').doc(), {
+      type: 'dispatch', location, orderCollection: coll, orderDocId: orderRef.id, orderId: o.orderId || orderRef.id,
+      lines: lines.map((l) => ({ modelId: l.modelId, qty: l.qty })), serialCount: allSerials.length,
+      byUid: req.byUid || null, at: FieldValue.serverTimestamp()
+    });
+    tx.update(orderRef, {
+      status: 'dispatched', statusNote: '',
+      dispatch: { transporter: req.transporter || '', docket: req.docket || '', vehicle: req.vehicle || '', date: new Date().toISOString().slice(0, 10), byUid: req.byUid || null },
+      dispatchedSerials: serialsByModel, stockAllocation: {}, stockStatus: 'dispatched',
+      dispatchRejected: null, dispatchProcessedFor: key
+    });
+  });
+}
+
+async function processDelivery(coll, orderRef) {
+  let distLocation = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(orderRef);
+    const o = snap.data();
+    if (!o || o.status !== 'delivered' || o.deliveryProcessed || !o.dispatchedSerials) return;
+    const parties = TradePricing.partiesFor(coll, o);
+    const toDistributor = coll === 'distributorOrders';
+    const dest = toDistributor ? Stock.locationForSeller(parties.buyer) : `dealer_${parties.buyer}`;
+    const lines = (o.pricedLines && o.pricedLines.length ? o.pricedLines : o.lines) || [];
+    Object.values(o.dispatchedSerials).forEach((list) => (list || []).forEach((x) => {
+      tx.update(db.collection('unitSerials').doc(x), {
+        status: toDistributor ? 'in_stock' : 'delivered', location: dest, deliveredAt: FieldValue.serverTimestamp(),
+        history: FieldValue.arrayUnion({ event: 'delivered', to: parties.buyer, orderId: o.orderId || orderRef.id, at: Timestamp.now() })
+      });
+    }));
+    if (toDistributor) {
+      distLocation = dest;
+      lines.forEach((l) => {
+        tx.set(stockRef(dest, l.modelId), { location: dest, modelId: l.modelId, onHand: FieldValue.increment(l.qty), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      });
+      tx.set(db.collection('productMovements').doc(), {
+        type: 'receive', location: dest, fromLocation: o.stockLocation || 'warehouse', orderCollection: coll, orderDocId: orderRef.id,
+        orderId: o.orderId || orderRef.id, lines: lines.map((l) => ({ modelId: l.modelId, qty: l.qty })), at: FieldValue.serverTimestamp()
+      });
+    }
+    tx.update(orderRef, { deliveryProcessed: true });
+  });
+  if (distLocation) await allocateWaiting(distLocation);
+}
+
+exports.processStockReceipt = onDocumentCreated(
+  { document: 'stockReceipts/{receiptId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const ref = event.data.ref;
+    let accepted = false;
+    await db.runTransaction(async (tx) => {
+      const r = (await tx.get(ref)).data();
+      if (!r || r.processedAt) return;
+      const reject = (reason) => tx.update(ref, { status: 'rejected', reason, processedAt: FieldValue.serverTimestamp() });
+      const serials = (Array.isArray(r.serials) ? r.serials : []).map(Stock.normalizeSerial);
+      const bad = Stock.validateReceiptSerials(serials);
+      if (bad) return reject(bad);
+      const [modelSnap, ...serialSnaps] = await tx.getAll(db.collection('productModels').doc(String(r.modelId || '-')), ...serials.map((x) => db.collection('unitSerials').doc(x)));
+      if (!modelSnap.exists) return reject('That product model no longer exists.');
+      const dupes = serialSnaps.filter((s) => s.exists).map((s) => s.id);
+      if (dupes.length) return reject(`Already received before: ${dupes.slice(0, 10).join(', ')}${dupes.length > 10 ? ` and ${dupes.length - 10} more` : ''}. Nothing from this receipt was added.`);
+      serials.forEach((x) => tx.set(db.collection('unitSerials').doc(x), {
+        serial: x, modelId: r.modelId, status: 'in_stock', location: 'warehouse', receiptId: ref.id,
+        receivedAt: FieldValue.serverTimestamp(), supplier: r.supplier || '',
+        history: [{ event: 'received', at: Timestamp.now(), receiptId: ref.id }]
+      }));
+      tx.set(stockRef('warehouse', r.modelId), { location: 'warehouse', modelId: r.modelId, onHand: FieldValue.increment(serials.length), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.set(db.collection('productMovements').doc(), {
+        type: 'receive', location: 'warehouse', receiptId: ref.id, lines: [{ modelId: r.modelId, qty: serials.length }],
+        byUid: r.createdByUid || null, at: FieldValue.serverTimestamp()
+      });
+      tx.update(ref, { status: 'accepted', quantity: serials.length, processedAt: FieldValue.serverTimestamp() });
+      accepted = true;
+    });
+    if (accepted) await allocateWaiting('warehouse');
+  }
+);
+
+// A product registration with a serial is checked against the unit's
+// record: was it received, has it left the warehouse, and (for a dealer's
+// own registration) was it sold to that dealer. The result is shown to
+// staff; it doesn't block the registration.
+exports.checkRegistrationSerial = onDocumentCreated(
+  { document: 'productRegistrations/{regId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const reg = event.data.data();
+    const serial = Stock.normalizeSerial(reg.serialNumber || reg.serialNo || '');
+    if (!serial) return;
+    const unitRef = db.collection('unitSerials').doc(serial);
+    await db.runTransaction(async (tx) => {
+      const unitSnap = await tx.get(unitRef);
+      let check;
+      if (!unitSnap.exists) check = { status: 'not_found', note: 'This serial was never received into Head Office stock.' };
+      else {
+        const u = unitSnap.data();
+        if (u.registrationId && u.registrationId !== event.params.regId) check = { status: 'already_registered', note: `Already registered (${u.registrationId}).` };
+        else if (u.status === 'in_stock' && u.location === 'warehouse') check = { status: 'not_sold', note: 'This unit is still in the Head Office warehouse.' };
+        else if (reg.dealerUid && u.soldToUid && u.soldToUid !== reg.dealerUid) check = { status: 'other_dealer', note: `Sold to ${u.soldToName || 'another account'}, not this dealer.` };
+        else check = { status: 'verified', note: `Sold to ${u.soldToName || '—'}${u.invoiceNo ? ' on invoice ' + u.invoiceNo : ''}.`, modelId: u.modelId };
+        if (check.status === 'verified' || check.status === 'other_dealer') {
+          tx.update(unitRef, { registrationId: event.params.regId, registeredAt: FieldValue.serverTimestamp(),
+            history: FieldValue.arrayUnion({ event: 'registered', registrationId: event.params.regId, at: Timestamp.now() }) });
+        }
+      }
+      tx.update(event.data.ref, { serialCheck: { ...check, serial, at: FieldValue.serverTimestamp() } });
     });
   }
 );

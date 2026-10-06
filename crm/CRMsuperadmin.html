@@ -1066,6 +1066,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
+  import * as PStock from './productStock.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -1173,6 +1174,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'stockmovement', label: 'Stock Movement', built: true },
       { id: 'sparerequest', label: 'Spare Request & Logistics', built: true },
       { id: 'localpurchase', label: 'Local Purchase', built: true },
+      { id: 'fg-stock', label: 'Finished Goods Stock', built: true },
+      { id: 'fg-serial', label: 'Serial Lookup', built: true },
     ]},
     { group: 'Finance & Claims', items: [
       { id: 'finance', label: 'Finance', built: true },
@@ -1249,7 +1252,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       renderDashboard();
     } else if (id === 'trade-orders') {
       pageSub.textContent = 'Direct dealer and distributor orders (Warehouse approves; you can too)';
-      Trade.renderOrderQueue(contentEl, { db, mode: 'company', isSuperAdmin: true });
+      Trade.renderOrderQueue(contentEl, { db, mode: 'company', isSuperAdmin: true, uid: auth.currentUser.uid });
+    } else if (id === 'fg-stock') {
+      pageSub.textContent = 'Finished goods at Head Office — receive with one serial per unit';
+      PStock.renderWarehouseStock(contentEl, { db, user: auth.currentUser });
+    } else if (id === 'fg-serial') {
+      pageSub.textContent = 'Where a unit is, who it was sold to, and its history';
+      PStock.renderSerialLookup(contentEl, { db });
     } else if (id === 'trade-accounts') {
       pageSub.textContent = 'Credit limits, payment terms, outstanding and ageing';
       Fin.renderAccounts(contentEl, { db, user: auth.currentUser, isSuperAdmin: true });
@@ -3776,7 +3785,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12px;color:var(--stone);">${d.registrationId || '—'}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
-          <td>${escapeHtml(d.serialNumber || '—')}</td>
+          <td>${escapeHtml(d.serialNumber || '—')}${d.serialCheck ? `<div style="font-size:11.5px;${d.serialCheck.status === 'verified' ? 'color:#1E7B34;' : 'color:var(--err);'}" title="${escapeHtml(d.serialCheck.note || '')}">${d.serialCheck.status === 'verified' ? '✓ serial verified' : '⚠ ' + escapeHtml(d.serialCheck.note || d.serialCheck.status)}</div>` : ''}</td>
           <td>${d.purchaseDate || '—'}</td>
           <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
         tbody.appendChild(tr);

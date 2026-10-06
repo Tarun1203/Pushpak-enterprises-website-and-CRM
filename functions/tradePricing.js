@@ -14,7 +14,10 @@
   else root.TradePricing = factory();
 }(typeof self !== 'undefined' ? self : this, function () {
   var MAX_LINES = 50;
-  var MAX_QTY = 100000;
+  var MAX_QTY = 400;
+  // Every unit is dispatched with its own serial in one transaction, so an
+  // order is capped at 400 units in total; place more as further orders.
+  var MAX_UNITS = 400;
   var GST_RATES = [0, 3, 5, 12, 18, 28];
 
   // placed -> confirmed (approved) -> dispatched -> delivered; the seller
@@ -40,13 +43,16 @@
     if (!Array.isArray(lines) || !lines.length) return 'The order has no lines.';
     if (lines.length > MAX_LINES) return 'An order can have at most ' + MAX_LINES + ' lines.';
     var seen = {};
+    var units = 0;
     for (var i = 0; i < lines.length; i++) {
       var l = lines[i] || {};
       if (typeof l.modelId !== 'string' || !l.modelId) return 'Line ' + (i + 1) + ' has no product.';
       if (!Number.isInteger(l.qty) || l.qty < 1 || l.qty > MAX_QTY) return 'Line ' + (i + 1) + ' has an invalid quantity.';
       if (seen[l.modelId]) return 'The same product appears on two lines.';
       seen[l.modelId] = true;
+      units += l.qty;
     }
+    if (units > MAX_UNITS) return 'An order can have at most ' + MAX_UNITS + ' units in total — place the rest as another order.';
     return null;
   }
 
@@ -88,7 +94,7 @@
   }
 
   return {
-    MAX_LINES: MAX_LINES, MAX_QTY: MAX_QTY, GST_RATES: GST_RATES,
+    MAX_LINES: MAX_LINES, MAX_QTY: MAX_QTY, MAX_UNITS: MAX_UNITS, GST_RATES: GST_RATES,
     SELLER_NEXT: SELLER_NEXT, BUYER_NEXT: BUYER_NEXT, STATUS_LABELS: STATUS_LABELS,
     priceDocId: priceDocId, partiesFor: partiesFor, validateLines: validateLines,
     priceOrder: priceOrder, formatINR: formatINR

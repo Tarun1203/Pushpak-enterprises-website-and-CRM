@@ -97,7 +97,19 @@ function historyHtml(order) {
 function dispatchHtml(order) {
   const d = order.dispatch;
   if (!d) return '';
-  return `<div style="font-size:12.5px;margin-top:6px;"><b>Dispatch:</b> ${esc(d.transporter || '—')}${d.docket ? ' · Docket ' + esc(d.docket) : ''}${d.vehicle ? ' · ' + esc(d.vehicle) : ''}${d.date ? ' · ' + esc(d.date) : ''}</div>`;
+  const serials = order.dispatchedSerials ? Object.values(order.dispatchedSerials).flat() : [];
+  return `<div style="font-size:12.5px;margin-top:6px;"><b>Dispatch:</b> ${esc(d.transporter || '—')}${d.docket ? ' · Docket ' + esc(d.docket) : ''}${d.vehicle ? ' · ' + esc(d.vehicle) : ''}${d.date ? ' · ' + esc(d.date) : ''}</div>`
+    + (serials.length ? `<details style="font-size:12px;margin-top:4px;"><summary>${serials.length} serial number${serials.length > 1 ? 's' : ''}</summary>${serials.map(esc).join(', ')}</details>` : '');
+}
+
+// Stock reserved for an approved order (functions: reserveForOrder).
+function stockHtml(order) {
+  if (order.status !== 'confirmed' || !Array.isArray(order.lines)) return '';
+  const lines = order.pricedLines && order.pricedLines.length ? order.pricedLines : order.lines;
+  const alloc = order.stockAllocation || {};
+  if (!order.stockStatus) return `<div style="font-size:12.5px;margin-top:6px;color:var(--stone);"><b>Stock:</b> checking… (press Check stock if this stays)</div>`;
+  if (order.stockStatus === 'ready') return `<div style="font-size:12.5px;margin-top:6px;color:#1E7B34;"><b>Stock:</b> all units reserved — ready to dispatch</div>`;
+  return `<div style="font-size:12.5px;margin-top:6px;color:#8A6D00;"><b>Waiting for stock:</b> ${lines.map((l) => `${esc(l.label || l.modelId)} ${alloc[l.modelId] || 0} of ${l.qty}`).join('; ')}</div>`;
 }
 
 // -----------------------------------------------------------------
@@ -306,7 +318,9 @@ export async function renderOrderQueue(el, opts) {
       const btn = (to, label, cls) => `<button type="button" class="${cls} to-act" data-i="${i}" data-to="${to}">${label}</button>`;
       const actions = [
         next.includes('confirmed') ? (priced ? btn('confirmed', 'Approve', 'btn-primary') : `<span style="font-size:12px;color:var(--stone);">Can't approve until every line is priced</span>`) : '',
-        next.includes('dispatched') ? btn('dispatched', 'Mark dispatched', 'btn-primary') : '',
+        next.includes('dispatched') && !Array.isArray(o.lines) ? btn('dispatched', 'Mark dispatched', 'btn-primary') : '',
+        next.includes('dispatched') && Array.isArray(o.lines) && o.stockStatus === 'ready' ? `<button type="button" class="btn-primary to-dispatch" data-i="${i}">Dispatch…</button>` : '',
+        o.status === 'confirmed' && Array.isArray(o.lines) && o.stockStatus !== 'ready' ? `<button type="button" class="btn-secondary to-recheck" data-i="${i}">Check stock</button>` : '',
         next.includes('delivered') ? btn('delivered', 'Mark delivered', 'btn-primary') : '',
         next.includes('rejected') ? btn('rejected', 'Reject', 'btn-secondary') : '',
         next.includes('cancelled') && o.status !== 'placed' ? btn('cancelled', 'Cancel', 'btn-secondary') : '',
@@ -320,7 +334,8 @@ export async function renderOrderQueue(el, opts) {
         <div style="margin-top:8px;">${linesTableHtml(o)}</div>
         ${o.notes ? `<div style="font-size:12.5px;color:var(--stone);margin-top:6px;">Notes: ${esc(o.notes)}</div>` : ''}
         ${o.statusNote ? `<div style="font-size:12.5px;margin-top:6px;">Note: ${esc(o.statusNote)}</div>` : ''}
-        ${credit}${dispatchHtml(o)}${historyHtml(o)}
+        ${credit}${stockHtml(o)}${o.status === 'confirmed' && o.dispatchRejected ? `<div style="font-size:12.5px;margin-top:6px;color:var(--err, #B3261E);"><b>Dispatch refused:</b> ${esc(o.dispatchRejected.reason)}</div>` : ''}${dispatchHtml(o)}${historyHtml(o)}
+        <div class="to-dispatch-form" data-i="${i}"></div>
         ${actions ? `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${actions}</div>` : ''}
       </div>`;
     }).join('');
@@ -360,6 +375,67 @@ export async function renderOrderQueue(el, opts) {
         alert('Could not update this order — it may have changed. Refresh and try again.');
       }
       renderOrderQueue(el, opts);
+    }));
+    body.querySelectorAll('.to-recheck').forEach((b) => b.addEventListener('click', async () => {
+      const o = orders[Number(b.dataset.i)];
+      b.disabled = true; b.textContent = 'Checking…';
+      try { await updateDoc(doc(db, o.coll, o.id), { stockRecheckAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
+      catch (err) { console.error('Stock check failed:', err); alert('Could not request a stock check.'); }
+      setTimeout(() => renderOrderQueue(el, opts), 3000);
+    }));
+    // Dispatch: one serial per unit; the server checks every serial is in
+    // stock here and of the right model before the order is dispatched.
+    body.querySelectorAll('.to-dispatch').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.dataset.i);
+      const o = orders[i];
+      const lines = o.pricedLines && o.pricedLines.length ? o.pricedLines : o.lines;
+      const box = body.querySelector(`.to-dispatch-form[data-i="${i}"]`);
+      box.innerHTML = `<div style="border-top:1px dashed var(--hairline, #ccc);margin-top:10px;padding-top:10px;">
+        <div class="form-row"><label>Transporter / courier</label><input type="text" class="tdf-transporter" maxlength="100"></div>
+        <div class="form-row"><label>Docket / LR no.</label><input type="text" class="tdf-docket" maxlength="60"></div>
+        <div class="form-row"><label>Vehicle no.</label><input type="text" class="tdf-vehicle" maxlength="30"></div>
+        ${lines.map((l) => `<div class="form-row"><label>Serials — ${esc(l.label || l.modelId)} (${l.qty})</label>
+          <textarea class="tdf-serials" data-model="${esc(l.modelId)}" data-qty="${l.qty}" rows="${Math.min(6, Math.max(2, l.qty))}" placeholder="Scan or type one serial per line"></textarea>
+          <div class="tdf-count" style="font-size:12px;color:var(--stone);">0 of ${l.qty}</div></div>`).join('')}
+        <div class="modal-error tdf-err"></div>
+        <button type="button" class="btn-primary tdf-go">Dispatch</button> <button type="button" class="btn-secondary tdf-cancel">Close</button></div>`;
+      const parse = (t) => (window.TradeStockParse ? window.TradeStockParse(t) : String(t || '').split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean));
+      box.querySelectorAll('.tdf-serials').forEach((ta) => ta.addEventListener('input', () => {
+        const n = parse(ta.value).length;
+        const c = ta.parentElement.querySelector('.tdf-count');
+        c.textContent = `${n} of ${ta.dataset.qty}`;
+        c.style.color = n === Number(ta.dataset.qty) ? '#1E7B34' : 'var(--stone)';
+      }));
+      box.querySelector('.tdf-cancel').addEventListener('click', () => { box.innerHTML = ''; });
+      box.querySelector('.tdf-go').addEventListener('click', async () => {
+        const err = box.querySelector('.tdf-err'); err.classList.remove('show');
+        const transporter = box.querySelector('.tdf-transporter').value.trim();
+        const serials = {};
+        let problem = transporter ? null : 'Enter the transporter / courier.';
+        box.querySelectorAll('.tdf-serials').forEach((ta) => {
+          const list = parse(ta.value);
+          if (!problem && list.length !== Number(ta.dataset.qty)) problem = `Enter exactly ${ta.dataset.qty} serial(s) for each product.`;
+          serials[ta.dataset.model] = list;
+        });
+        if (problem) { err.textContent = problem; err.classList.add('show'); return; }
+        const go = box.querySelector('.tdf-go'); go.disabled = true; go.textContent = 'Checking serials…';
+        try {
+          await updateDoc(doc(db, o.coll, o.id), {
+            dispatchRequest: {
+              serials, transporter: transporter.slice(0, 100),
+              docket: box.querySelector('.tdf-docket').value.trim().slice(0, 60),
+              vehicle: box.querySelector('.tdf-vehicle').value.trim().slice(0, 30),
+              byUid: opts.uid || (opts.user && opts.user.uid) || null, requestedAt: serverTimestamp()
+            },
+            updatedAt: serverTimestamp()
+          });
+          setTimeout(() => renderOrderQueue(el, opts), 3500);
+        } catch (e) {
+          console.error('Dispatch request failed:', e);
+          err.textContent = 'Could not send the dispatch. Check console for details.'; err.classList.add('show');
+          go.disabled = false; go.textContent = 'Dispatch';
+        }
+      });
     }));
     body.querySelectorAll('.to-reprice').forEach((b) => b.addEventListener('click', async () => {
       const o = orders[Number(b.dataset.i)];

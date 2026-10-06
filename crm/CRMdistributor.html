@@ -268,6 +268,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
+  import * as PStock from './productStock.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -337,7 +338,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "my-account", "label": "Account & Invoices", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "dealer-prices", "label": "Dealer Price List", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "my-account", "label": "Account & Invoices", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "dealer-prices", "label": "Dealer Price List", "built": true}, {"id": "my-stock", "label": "My Stock", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -398,6 +399,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'incoming-orders') {
       pageSub.textContent = 'Approve, dispatch and deliver orders from dealers under you';
       Trade.renderOrderQueue(contentEl, { db, mode: 'distributor', uid: currentUser.uid });
+    } else if (id === 'my-stock') {
+      pageSub.textContent = 'Units delivered to you and not yet dispatched to dealers';
+      PStock.renderDistributorStock(contentEl, { db, uid: currentUser.uid });
     } else if (id === 'dealer-prices') {
       pageSub.textContent = 'What your dealers pay you, per model (excl. GST)';
       renderDealerPrices();
