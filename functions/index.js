@@ -587,6 +587,11 @@ exports.processFeedback = onDocumentCreated(
     const ticketSnap = await ticketRef.get();
     if (!ticketSnap.exists) return;
     const ticket = ticketSnap.data();
+    // The mirror is staff-written, so re-check against the real ticket.
+    if (!Feedback.ticketAcceptsFeedback(ticket, event.params.ticketId, fb.customerPhone)) {
+      await event.data.ref.delete();
+      return;
+    }
     const enrich = Feedback.enrichmentFor(ticket, m, ticketRef.parent.id, ticketRef.id);
     await Promise.all([
       event.data.ref.update(enrich),

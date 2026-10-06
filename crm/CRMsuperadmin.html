@@ -6004,7 +6004,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       ? `<div style="color:var(--err);"><b>Needs manual routing:</b> ${escapeHtml(ROUTE_REASONS[rt.reason] || rt.reason || '')}</div>`
       : (rt && rt.status === 'routed' ? `<div><b>Auto-routed:</b> by ${escapeHtml(rt.method || '')} match</div>` : '');
     return routeLine + (w ? `<div><b>Warranty at intake:</b> ${escapeHtml(label)}${w.source && w.source !== 'none' ? ' <span style="color:var(--stone);font-size:12px;">(' + escapeHtml(w.source) + ')</span>' : ''}</div>` : '')
-      + (dups.length ? `<div style="color:var(--err);"><b>Possible duplicate of:</b> ${dups.map(escapeHtml).join(', ')}</div>` : '');
+      + (dups.length ? `<div style="color:var(--err);"><b>Possible duplicate of:</b> ${dups.map(escapeHtml).join(', ')}</div>` : '')
+      + customerFeedbackHtml(f.customerFeedback);
+  }
+  // Rating the customer gave on the public Track page (server-copied
+  // onto the ticket by the processFeedback function; read only).
+  function customerFeedbackHtml(cf) {
+    if (!cf || !cf.rating) return '';
+    return `<div${cf.rating <= 2 ? ' style="color:var(--err);"' : ''}><b>Customer rating:</b> ${'★'.repeat(cf.rating)}${'☆'.repeat(5 - cf.rating)} (${cf.rating}/5)${cf.comment ? ' — “' + escapeHtml(cf.comment) + '”' : ''}</div>`;
   }
 
   // The single popup every ticket opens into. What's shown in the

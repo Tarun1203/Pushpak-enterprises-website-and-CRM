@@ -177,11 +177,11 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
             && !request.resource.data.keys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']));
       allow delete: if isAdmin();
 
       // Append-only status/progress log — every status change any
@@ -214,7 +214,7 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt'])
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback'])
         && (isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
@@ -230,7 +230,7 @@ service cloud.firestore {
                ])));
       allow create: if (isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —
@@ -459,6 +459,32 @@ service cloud.firestore {
       // live on the real centerRequests/serviceJobs docs.
       allow list: if true;
       allow create, update: if isAdmin() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Customer feedback, one record per ticket (doc ID = ticket ID).
+    // Anyone may create it from the public Track page, but only for a
+    // finished ticket whose public mirror carries the same phone number,
+    // with a whole-number rating 1-5 and a short comment. It can never
+    // be edited afterwards. The processFeedback function then re-checks
+    // the real ticket and adds the service center / technician uids,
+    // which is what lets them read their own feedback below.
+    match /serviceFeedback/{ticketId} {
+      allow create: if request.resource.data.keys().hasOnly(['ticketId', 'customerPhone', 'rating', 'comment', 'createdAt'])
+        && request.resource.data.ticketId == ticketId
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.get('comment', '') is string
+        && request.resource.data.get('comment', '').size() <= 500
+        && request.resource.data.customerPhone is string
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/publicTicketStatus/$(ticketId))
+        && get(/databases/$(database)/documents/publicTicketStatus/$(ticketId)).data.status in ['completed', 'verification', 'closed']
+        && get(/databases/$(database)/documents/publicTicketStatus/$(ticketId)).data.customerPhone == request.resource.data.customerPhone;
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.get('serviceCenterUid', null) == request.auth.uid
+                             || resource.data.get('technicianUid', null) == request.auth.uid));
+      allow update: if false;
       allow delete: if isAdmin();
     }
 

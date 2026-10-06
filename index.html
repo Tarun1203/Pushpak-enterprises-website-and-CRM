@@ -208,6 +208,12 @@
   .track-status-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:16px;}
   .track-status-box .label{font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;margin-bottom:4px;}
   .track-status-box .value{font-size:15px;font-weight:700;margin-bottom:12px;}
+  .fb-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:12px;}
+  .fb-stars{display:flex;gap:6px;margin:8px 0 12px;}
+  .fb-stars button{font-size:26px;line-height:1;background:none;border:none;cursor:pointer;color:#C9C9C9;padding:0 2px;}
+  .fb-stars button.on{color:#E8A317;}
+  .fb-box textarea{width:100%;min-height:70px;border:1px solid var(--hairline);border-radius:var(--radius);padding:10px;font:inherit;font-size:14px;box-sizing:border-box;}
+  .fb-box .fb-msg{font-size:13.5px;margin-top:10px;}
   .status-pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;}
   .status-pill.active{background:#D9EEE0;color:#1C7A46;}
   .status-pill.low{background:#FBEAD2;color:#9A6A15;}
@@ -1235,6 +1241,52 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   document.getElementById('track-close').addEventListener('click', closeTrackModal);
   trackOverlay.addEventListener('click', (e) => { if (e.target === trackOverlay) closeTrackModal(); });
 
+  // Customer feedback — shown under a finished ticket. One rating per
+  // ticket: firestore.rules only accept it while the ticket is
+  // completed/closed and the phone matches, and never allow a second one.
+  const FEEDBACK_STATUSES = ['completed', 'verification', 'closed'];
+  function showFeedbackForm(ticketId, phone, status) {
+    if (!FEEDBACK_STATUSES.includes(status)) return;
+    const box = document.createElement('div');
+    box.className = 'fb-box';
+    box.innerHTML = `
+      <div class="label" style="font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;">Rate your service</div>
+      <div class="fb-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" aria-label="${n} star${n > 1 ? 's' : ''}">★</button>`).join('')}</div>
+      <textarea maxlength="500" placeholder="Anything you'd like to tell us? (optional)"></textarea>
+      <button type="button" class="fb-submit" style="margin-top:10px;background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:11px 22px;border:none;border-radius:var(--radius);cursor:pointer;">Submit feedback</button>
+      <div class="fb-msg"></div>`;
+    trackResult.appendChild(box);
+    let rating = 0;
+    const stars = box.querySelectorAll('.fb-stars button');
+    stars.forEach(b => b.addEventListener('click', () => {
+      rating = Number(b.dataset.n);
+      stars.forEach(x => x.classList.toggle('on', Number(x.dataset.n) <= rating));
+    }));
+    const msg = box.querySelector('.fb-msg');
+    const submit = box.querySelector('.fb-submit');
+    submit.addEventListener('click', async () => {
+      if (!rating) { msg.style.color = '#B3261E'; msg.textContent = 'Please choose 1 to 5 stars.'; return; }
+      submit.disabled = true;
+      submit.textContent = 'Sending…';
+      try {
+        await setDoc(doc(db, 'serviceFeedback', ticketId), {
+          ticketId, customerPhone: phone, rating,
+          comment: box.querySelector('textarea').value.trim().slice(0, 500),
+          createdAt: serverTimestamp()
+        });
+        box.innerHTML = '<div class="fb-msg" style="color:#1E7B34;font-weight:600;">Thank you — your feedback has been recorded.</div>';
+      } catch (err) {
+        console.warn('Feedback not saved:', err);
+        msg.style.color = '#B3261E';
+        msg.textContent = err && err.code === 'permission-denied'
+          ? 'Feedback for this request has already been received.'
+          : 'Could not send feedback right now. Please try again.';
+        submit.disabled = false;
+        submit.textContent = 'Submit feedback';
+      }
+    });
+  }
+
   document.getElementById('track-search-btn').addEventListener('click', async () => {
     trackError.classList.remove('show');
     trackResult.innerHTML = '';
@@ -1303,18 +1355,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               <div class="label">Submitted</div>
               <div class="value" style="font-size:13.5px;">${dateStr}</div>
             </div>`;
+          showFeedbackForm(ticket, normalizedPhone, d.status);
         }
       } else {
-        const snap = await getDoc(doc(db, 'publicServiceRequests', ticket));
+        const [snap, mirrorSnap] = await Promise.all([
+          getDoc(doc(db, 'publicServiceRequests', ticket)),
+          getDoc(doc(db, 'publicTicketStatus', ticket)).catch(() => null)
+        ]);
+        // Once a website request is routed, its service center keeps the
+        // public mirror up to date — that status is the current one.
+        const mirror = mirrorSnap && mirrorSnap.exists() && mirrorSnap.data().customerPhone === normalizedPhone ? mirrorSnap.data() : null;
         if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
           trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
         } else {
           const d = snap.data();
+          const currentStatus = (mirror && mirror.status) || d.status || 'new';
           const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
           trackResult.innerHTML = `
             <div class="track-status-box">
               <div class="label">Status</div>
-              <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
+              <div class="value">${currentStatus.replace('_', ' ')}</div>
               <div class="label">Request Type</div>
               <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
               <div class="label">Product</div>
@@ -1324,6 +1384,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               <div class="label">Submitted</div>
               <div class="value" style="font-size:13.5px;">${dateStr}</div>
             </div>`;
+          if (mirror) showFeedbackForm(ticket, normalizedPhone, mirror.status);
         }
       }
     } catch (err) {
