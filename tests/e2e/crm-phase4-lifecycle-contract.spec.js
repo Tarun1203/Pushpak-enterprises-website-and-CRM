@@ -2,18 +2,30 @@ const { test, expect } = require('@playwright/test');
 
 const CRM_BASE = './crm/';
 
+function qaCredentialsConfigured() {
+  return Boolean(process.env.QA_EMAIL && process.env.QA_PASSWORD);
+}
+
 async function loginAsQa(page) {
-  test.skip(!process.env.QA_EMAIL || !process.env.QA_PASSWORD,
-    'Phase 4 requires QA_EMAIL and QA_PASSWORD GitHub Actions secrets.');
+  test.skip(!qaCredentialsConfigured(),
+    'Phase 4 authenticated QA is not configured: add QA_EMAIL and QA_PASSWORD GitHub Actions secrets.');
   test.skip((process.env.QA_ROLE || '').toLowerCase() !== 'servicecenter',
-    'Phase 4 lifecycle browser checks require QA_ROLE=servicecenter.');
+    'Phase 4 authenticated QA requires QA_ROLE=servicecenter.');
 
   await page.goto(`${CRM_BASE}login.html`, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#email')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#password')).toBeVisible({ timeout: 10_000 });
   await page.locator('#email').fill(process.env.QA_EMAIL);
   await page.locator('#password').fill(process.env.QA_PASSWORD);
-  await page.locator('#login-btn').click();
-  await page.waitForURL(/CRMservicecenter\.html$/, { timeout: 20_000 });
+  await expect(page.locator('#password')).toHaveAttribute('type', 'password');
+
+  await Promise.all([
+    page.waitForURL(/CRMservicecenter\.html$/, { timeout: 20_000 }),
+    page.locator('#login-btn').click(),
+  ]);
+
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#gate')).toBeAttached({ timeout: 10_000 });
 }
 
 test('Phase 4 exposes the complete service lifecycle surface', async ({ page }) => {
