@@ -58,7 +58,7 @@ jobs:
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site Test Failures in:title" --json number --jq '.[0].number')
           BODY="## Automated QA failure\n\nThe scheduled/CI browser test detected one or more failures.\n\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the detailed Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
-            gh issue create --title "$ISSUE_TITLE" --body "$BODY" --label "bug,automated-qa,high"
+            gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
             gh issue comment "$ISSUE_NUMBER" --body "$BODY"
           fi
