@@ -77,6 +77,16 @@ jobs:
           QA_ROLE: ${{ secrets.QA_ROLE }}
         run: npx playwright test tests/e2e/crm-phase4-lifecycle-contract.spec.js
 
+      - name: Run CRM Phase 5 security and data-integrity QA
+        id: phase5_qa
+        continue-on-error: true
+        env:
+          BASE_URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/
+          QA_EMAIL: ${{ secrets.QA_EMAIL }}
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_ROLE: ${{ secrets.QA_ROLE }}
+        run: npx playwright test tests/e2e/crm-phase5-security-contract.spec.js
+
       - name: Upload QA report and evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,13 +97,13 @@ jobs:
           retention-days: 14
 
       - name: Create or update QA bug
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ISSUE_TITLE="Automated QA: Site/CRM Test Failures"
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site/CRM Test Failures in:title" --json number --jq '.[0].number')
-          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
+          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
@@ -119,5 +129,5 @@ jobs:
           fi
 
       - name: Fail workflow when QA fails
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure'
         run: exit 1
