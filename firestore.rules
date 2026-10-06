@@ -112,8 +112,11 @@ service cloud.firestore {
       // profiles are readable the same way — a technician needs to
       // read their own linked center's profile to pick up its
       // standard service-charge rate for automatic warranty billing.
+      // Staff only (not dealers/distributors — their pages only ever
+      // read their own user doc), so a dealer can't pull every
+      // technician's and service center's contact/coverage details.
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin()
-        || resource.data.role == 'technician' || resource.data.role == 'servicecenter');
+        || (isStaff() && (resource.data.role == 'technician' || resource.data.role == 'servicecenter')));
       // Warehouse is isAdmin() too, but minting or touching a
       // 'superadmin' account is restricted to an actual Super Admin —
       // see isSuperAdmin() above. Without this, Warehouse's own
@@ -181,8 +184,11 @@ service cloud.firestore {
       // current status. Same broad staff read as everywhere else this
       // ticket's own data is visible; entries are never edited or
       // removed once written.
+      // Scoped to the job's own technician (previously any staff member
+      // could read, or append entries to, ANY job's log).
       match /statusLog/{logId} {
-        allow read, create: if isStaff() || isDistributor();
+        allow read, create: if isAdmin()
+          || (isSignedIn() && get(/databases/$(database)/documents/serviceJobs/$(jobId)).data.technicianUid == request.auth.uid);
         allow update, delete: if isAdmin();
       }
     }
@@ -220,9 +226,13 @@ service cloud.firestore {
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
       allow delete: if isAdmin();
 
-      // Same append-only status/progress log as serviceJobs above.
+      // Same append-only status/progress log as serviceJobs above —
+      // scoped to the ticket's own service center and assigned technician.
       match /statusLog/{logId} {
-        allow read, create: if isStaff() || isDistributor();
+        allow read, create: if isAdmin()
+          || (isSignedIn() && (
+                get(/databases/$(database)/documents/centerRequests/$(reqId)).data.serviceCenterUid == request.auth.uid
+             || get(/databases/$(database)/documents/centerRequests/$(reqId)).data.technicianUid == request.auth.uid));
         allow update, delete: if isAdmin();
       }
     }
@@ -286,11 +296,17 @@ service cloud.firestore {
       // Distributor can then see and progress (confirm/dispatch/
       // deliver) that one order, same as Warehouse/Super Admin can
       // any order, without opening up every dealer's order history.
-      allow read, update: if isAdmin()
+      // The dealer places and reads their own orders but can't edit
+      // one afterwards (status, items, amounts) — their page never
+      // does; progressing an order is the Distributor's/admin's job.
+      allow read: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid)
         || (isDistributor() && resource.data.distributorUid == request.auth.uid);
+      allow update: if isAdmin()
+        || (isDistributor() && resource.data.distributorUid == request.auth.uid);
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid
+            && request.resource.data.status == 'placed');
       allow delete: if isAdmin();
     }
 
@@ -759,8 +775,17 @@ service cloud.firestore {
 
     match /walletTransactions/{txnId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+      // A technician's own credit must be 'unclaimed' and point at a real
+      // job assigned to them — they can't credit themselves against
+      // someone else's job or one that doesn't exist. (The amount, and
+      // one-credit-per-job, can't be checked from rules; that needs the
+      // credit moved server-side — see the notes on this review.)
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
+            && request.resource.data.status == 'unclaimed'
+            && request.resource.data.sourceJobCollection in ['serviceJobs', 'centerRequests']
+            && request.resource.data.sourceJobId is string
+            && get(/databases/$(database)/documents/$(request.resource.data.sourceJobCollection)/$(request.resource.data.sourceJobId)).data.technicianUid == request.auth.uid);
       // The technician may only flip their own still-unclaimed entry to
       // 'claimed' (stamping which claim it went into) — nothing else on
       // the record is theirs to touch.
@@ -802,7 +827,17 @@ service cloud.firestore {
         || (resource.data.recipientType == 'uid' && resource.data.recipientValue == request.auth.uid)
         || (resource.data.recipientType == 'role' && resource.data.recipientValue == callerRole())
       );
-      allow create: if request.resource.data.keys().hasAll(['recipientType', 'recipientValue', 'title', 'message', 'read', 'createdAt']);
+      // An anonymous visitor (the public enquiry form) may only raise the
+      // one notification that form sends — to Super Admin, unread, with
+      // bounded text — so the open endpoint can't be used to spam other
+      // roles or individual users. Signed-in users keep the general form.
+      allow create: if request.resource.data.keys().hasAll(['recipientType', 'recipientValue', 'title', 'message', 'read', 'createdAt'])
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.message is string && request.resource.data.message.size() <= 2000
+        && (isSignedIn()
+            || (request.resource.data.recipientType == 'role'
+                && request.resource.data.recipientValue == 'superadmin'
+                && request.resource.data.read == false));
       allow delete: if isAdmin();
     }
 
