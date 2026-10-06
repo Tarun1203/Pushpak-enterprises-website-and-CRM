@@ -25,7 +25,7 @@ test('CRM login page renders and exposes the expected authentication controls', 
   const response = await page.goto(`${CRM_BASE}login.html`, { waitUntil: 'domcontentloaded' });
 
   expect(response && response.ok(), `CRM login HTTP status: ${response && response.status()}`).toBeTruthy();
-  await expect(page).toHaveTitle(/CRM login/i);
+  await expect(page).toHaveTitle(/Pushpak Enterprises CRM.*Login/i);
   await expect(page.locator('#login-form')).toBeVisible();
   await expect(page.locator('#email')).toHaveAttribute('type', 'email');
   await expect(page.locator('#password')).toHaveAttribute('type', 'password');
