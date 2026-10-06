@@ -41,6 +41,36 @@ service cloud.firestore {
       return isSignedIn() && callerRole() == 'distributor';
     }
 
+    // Dealer / distributor orders (see functions/tradePricing.js).
+    // The seller steps an order forward one status at a time; it can only
+    // be approved ('confirmed') once the server has priced every line.
+    // Prices, GST, totals and the status history are server-only.
+    function orderStepOk(from, to) {
+      return (from == 'placed' && to in ['confirmed', 'rejected', 'cancelled'])
+        || (from == 'confirmed' && to in ['dispatched', 'cancelled'])
+        || (from == 'dispatched' && to == 'delivered');
+    }
+    function sellerOrderUpdateOk() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'statusNote', 'dispatch', 'repriceRequestedAt'])
+        && ((request.resource.data.status == resource.data.status
+              && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['repriceRequestedAt']) || resource.data.status == 'placed'))
+            || (orderStepOk(resource.data.status, request.resource.data.status)
+                && (request.resource.data.status != 'confirmed'
+                    || !('lines' in resource.data)
+                    || resource.data.get('pricing', {}).get('status', '') == 'ok')));
+    }
+    function buyerCancelOk() {
+      return resource.data.status == 'placed' && request.resource.data.status == 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'statusNote']);
+    }
+    function newOrderLinesOk() {
+      return request.resource.data.lines is list
+        && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 50
+        && request.resource.data.get('notes', '') is string && request.resource.data.get('notes', '').size() <= 1000
+        && request.resource.data.status == 'placed'
+        && request.resource.data.createdAt == request.time;
+    }
+
     // ---------------------------------------------------------------
     // Public website content — readable by anyone, writable only
     // by Super Admin / Warehouse via the CRM's Website Management.
@@ -122,7 +152,8 @@ service cloud.firestore {
       // read their own user doc), so a dealer can't pull every
       // technician's and service center's contact/coverage details.
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin()
-        || (isStaff() && (resource.data.role == 'technician' || resource.data.role == 'servicecenter')));
+        || (isStaff() && (resource.data.role == 'technician' || resource.data.role == 'servicecenter'))
+        || (isDistributor() && resource.data.role == 'dealer' && resource.data.get('distributorUid', '') == request.auth.uid));
       // Warehouse is isAdmin() too, but minting or touching a
       // 'superadmin' account is restricted to an actual Super Admin —
       // see isSuperAdmin() above. Without this, Warehouse's own
@@ -305,42 +336,28 @@ service cloud.firestore {
     }
 
     match /dealerOrders/{id} {
-      // A Dealer "Under a Distributor" has their order stamped with
-      // that Distributor's uid at creation (CRMdealer.html) — the
-      // Distributor can then see and progress (confirm/dispatch/
-      // deliver) that one order, same as Warehouse/Super Admin can
-      // any order, without opening up every dealer's order history.
-      // The dealer places and reads their own orders but can't edit
-      // one afterwards (status, items, amounts) — their page never
-      // does; progressing an order is the Distributor's/admin's job.
+      // A Direct dealer's order is sold and approved by Head Office
+      // (Warehouse / Super Admin); a dealer under a distributor buys from
+      // that distributor, who approves and fulfils it. Super Admin and
+      // Warehouse can still see and act on every order.
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid)
         || (isDistributor() && resource.data.distributorUid == request.auth.uid);
-      // The distributor may only move the status forward one step
-      // (placed -> confirmed -> dispatched -> delivered, or cancel before
-      // dispatch) and touch nothing else on the order.
-      allow update: if isAdmin()
-        || (isDistributor() && resource.data.distributorUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && ((resource.data.status == 'placed' && request.resource.data.status in ['confirmed', 'cancelled'])
-                || (resource.data.status == 'confirmed' && request.resource.data.status in ['dispatched', 'cancelled'])
-                || (resource.data.status == 'dispatched' && request.resource.data.status == 'delivered')));
-      // Only a dealer places a dealer order, as 'placed', and the
-      // distributor it is routed to must be the one on the dealer's own
+      allow update: if (isAdmin() && sellerOrderUpdateOk())
+        || (isDistributor() && resource.data.get('distributorUid', '') == request.auth.uid && sellerOrderUpdateOk())
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid && buyerCancelOk());
+      // Only a dealer places a dealer order, with products and quantities
+      // only, and the distributor it goes to is the one on the dealer's own
       // account (set by Super Admin/Warehouse), never one they pick.
-      allow create: if isAdmin()
-        || (isSignedIn() && callerRole() == 'dealer'
+      allow create: if isSignedIn() && callerRole() == 'dealer'
             && request.resource.data.dealerUid == request.auth.uid
-            && request.resource.data.status == 'placed'
-            && request.resource.data.keys().hasOnly(['orderId', 'dealerUid', 'dealerEmail', 'dealerName', 'product', 'quantity', 'notes', 'status', 'distributorUid', 'distributorName', 'createdAt', 'updatedAt'])
-            && request.resource.data.quantity is int && request.resource.data.quantity >= 1 && request.resource.data.quantity <= 100000
-            && request.resource.data.get('product', '') is string && request.resource.data.get('product', '').size() <= 200
-            && request.resource.data.get('notes', '') is string && request.resource.data.get('notes', '').size() <= 1000
+            && request.resource.data.keys().hasOnly(['orderId', 'dealerUid', 'dealerEmail', 'dealerName', 'lines', 'notes', 'status', 'distributorUid', 'distributorName', 'createdAt', 'updatedAt'])
+            && newOrderLinesOk()
             && ((get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributionType', '') == 'underDistributor'
                  && request.resource.data.get('distributorUid', '') == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributorUid', ''))
               || (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributionType', '') != 'underDistributor'
-                 && request.resource.data.get('distributorUid', '') == '')));
-      allow delete: if isAdmin();
+                 && request.resource.data.get('distributorUid', '') == ''));
+      allow delete: if isSuperAdmin();
     }
 
     match /dealerSales/{id} {
@@ -371,14 +388,15 @@ service cloud.firestore {
     }
 
     match /distributorOrders/{id} {
+      // A distributor buys from Head Office; Warehouse / Super Admin approve.
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
-      allow create: if isAdmin()
-        || (isDistributor() && request.resource.data.distributorUid == request.auth.uid
-            && request.resource.data.status == 'placed'
-            && request.resource.data.keys().hasOnly(['orderId', 'distributorUid', 'distributorEmail', 'product', 'quantity', 'notes', 'status', 'createdAt', 'updatedAt'])
-            && request.resource.data.quantity is int && request.resource.data.quantity >= 1 && request.resource.data.quantity <= 100000);
-      allow update, delete: if isAdmin();
+      allow create: if isDistributor() && request.resource.data.distributorUid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['orderId', 'distributorUid', 'distributorEmail', 'distributorName', 'lines', 'notes', 'status', 'createdAt', 'updatedAt'])
+            && newOrderLinesOk();
+      allow update: if (isAdmin() && sellerOrderUpdateOk())
+        || (isDistributor() && resource.data.distributorUid == request.auth.uid && buyerCancelOk());
+      allow delete: if isSuperAdmin();
     }
 
     match /distributorSales/{id} {
@@ -517,6 +535,34 @@ service cloud.firestore {
                              || resource.data.get('technicianUid', null) == request.auth.uid));
       allow update: if false;
       allow delete: if isAdmin();
+    }
+
+    // Private trade prices, one doc per seller + buyer + model:
+    // priceLists/<seller>_<buyer>_<modelId>. Head Office ('company') prices
+    // are set by Super Admin only; a distributor sets prices only for its
+    // own dealers. A buyer reads its own prices and the standard price its
+    // seller offers everyone of its kind. Warehouse can read all of them.
+    match /priceLists/{priceId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.buyer == request.auth.uid || resource.data.seller == request.auth.uid))
+        || (isSignedIn() && resource.data.seller == 'company' && resource.data.buyer == 'default-dealer' && callerRole() == 'dealer')
+        || (isDistributor() && resource.data.seller == 'company' && resource.data.buyer == 'default-distributor')
+        || (isSignedIn() && resource.data.buyer == 'default' && callerRole() == 'dealer'
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributorUid', '') == resource.data.seller);
+      allow create, update: if request.resource.data.keys().hasOnly(['seller', 'buyer', 'modelId', 'price', 'updatedAt', 'updatedBy'])
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0 && request.resource.data.price <= 100000000
+        && priceId == request.resource.data.seller + '_' + request.resource.data.buyer + '_' + request.resource.data.modelId
+        && (resource == null || (resource.data.seller == request.resource.data.seller && resource.data.buyer == request.resource.data.buyer))
+        && ((isSuperAdmin() && request.resource.data.seller == 'company'
+             && (request.resource.data.buyer in ['default-dealer', 'default-distributor']
+                 || get(/databases/$(database)/documents/users/$(request.resource.data.buyer)).data.role in ['dealer', 'distributor']))
+          || (isDistributor() && request.resource.data.seller == request.auth.uid
+             && (request.resource.data.buyer == 'default'
+                 || (get(/databases/$(database)/documents/users/$(request.resource.data.buyer)).data.role == 'dealer'
+                     && get(/databases/$(database)/documents/users/$(request.resource.data.buyer)).data.get('distributorUid', '') == request.auth.uid))));
+      allow delete: if (isSuperAdmin() && resource.data.seller == 'company')
+        || (isDistributor() && resource.data.seller == request.auth.uid);
     }
 
     match /dealerEnquiries/{id} {

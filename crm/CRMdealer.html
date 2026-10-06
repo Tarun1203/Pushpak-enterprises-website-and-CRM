@@ -260,10 +260,12 @@
   </div>
 </div>
 
+<script src="tradePricing.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import * as Trade from './tradeOrders.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -576,22 +578,29 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return `PE-DO-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Dealer`;
   }
 
+  // Priced ordering (tradeOrders.js): pick products and quantities; the
+  // price comes from your price list and is set by the server. A dealer
+  // under a distributor buys from that distributor at its prices.
   async function renderOrders() {
-    contentEl.innerHTML = `
-      <div class="panel">
-        <div class="panel-header">
-          <h2>My orders</h2>
-          <button class="btn-primary" id="open-order">+ Place Order</button>
-        </div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Routed to</th><th>Notes</th></tr></thead>
-            <tbody id="order-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
-    document.getElementById('open-order').addEventListener('click', openOrderModal);
-    loadOrders();
+    contentEl.innerHTML = `<div id="trade-form"></div><div id="trade-list" style="margin-top:16px;"></div>`;
+    const under = !!(currentDealerData && currentDealerData.distributionType === 'underDistributor' && currentDealerData.distributorUid);
+    pageSub.textContent = under ? `Orders placed with ${currentDealerData.distributorName || 'your distributor'}` : 'Orders placed with Pushpak Enterprises';
+    const listEl = document.getElementById('trade-list');
+    const listOpts = { db, collectionName: 'dealerOrders', ownerField: 'dealerUid', uid: currentUser.uid };
+    Trade.renderMyOrders(listEl, listOpts);
+    Trade.renderOrderForm(document.getElementById('trade-form'), {
+      db, user: currentUser, collectionName: 'dealerOrders',
+      seller: under ? currentDealerData.distributorUid : 'company',
+      defaultKey: under ? 'default' : 'default-dealer',
+      buyerFields: {
+        dealerUid: currentUser.uid, dealerEmail: currentUser.email,
+        dealerName: (currentDealerData && currentDealerData.name) || '',
+        distributorUid: under ? currentDealerData.distributorUid : '',
+        distributorName: under ? (currentDealerData.distributorName || '') : ''
+      },
+      generateOrderId,
+      onPlaced: () => Trade.renderMyOrders(listEl, listOpts)
+    });
   }
 
   async function loadOrders() {

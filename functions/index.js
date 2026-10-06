@@ -1,6 +1,6 @@
 const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
 const { buildAuditEntries } = require('./audit');
 const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
@@ -11,6 +11,7 @@ const { checkTransition, checkSpareTransition } = require('./lifecycle');
 const Billing = require('./billing');
 const Feedback = require('./feedback');
 const ProfileGuard = require('./profileGuard');
+const TradePricing = require('./tradePricing');
 
 initializeApp();
 const db = getFirestore();
@@ -644,3 +645,96 @@ exports.guardServiceCenterProfile = onDocumentUpdatedWithAuthContext(
     await Promise.all(jobs);
   }
 );
+
+// ---------------------------------------------------------------
+// Dealer / distributor orders. The buyer only sends products and
+// quantities; the price of every line, GST and the totals are worked out
+// here from the seller's private price list (see tradePricing.js), so a
+// browser can never set its own price. An order with a missing price or
+// GST rate is marked incomplete and can't be approved (firestore.rules)
+// until the seller fills the gap and presses Re-price. Every status
+// change is recorded with who made it.
+// ---------------------------------------------------------------
+async function priceTradeOrder(collectionName, ref, order) {
+  const parties = TradePricing.partiesFor(collectionName, order);
+  const lines = Array.isArray(order.lines) ? order.lines : [];
+  const modelIds = [...new Set(lines.map((l) => l && l.modelId).filter((id) => typeof id === 'string' && id))].slice(0, TradePricing.MAX_LINES);
+  const models = {};
+  const prices = {};
+  if (modelIds.length && parties.buyer) {
+    const modelSnaps = await db.getAll(...modelIds.map((id) => db.collection('productModels').doc(id)));
+    const productIds = [...new Set(modelSnaps.filter((m) => m.exists && m.get('productId')).map((m) => m.get('productId')))];
+    const productSnaps = productIds.length ? await db.getAll(...productIds.map((id) => db.collection('products').doc(id))) : [];
+    const productNames = {};
+    productSnaps.forEach((p) => { if (p.exists) productNames[p.id] = p.get('name') || ''; });
+    modelSnaps.forEach((m) => {
+      if (!m.exists) return;
+      const d = m.data();
+      const name = [productNames[d.productId], d.modelNumber].filter(Boolean).join(' — ') || m.id;
+      models[m.id] = { label: name, gstRate: typeof d.gstRate === 'number' ? d.gstRate : null, status: d.status || 'active' };
+    });
+    const priceRefs = [];
+    modelIds.forEach((id) => {
+      priceRefs.push(db.collection('priceLists').doc(TradePricing.priceDocId(parties.seller, parties.buyer, id)));
+      priceRefs.push(db.collection('priceLists').doc(TradePricing.priceDocId(parties.seller, parties.defaultKey, id)));
+    });
+    const priceSnaps = await db.getAll(...priceRefs);
+    priceSnaps.forEach((p) => { if (p.exists && typeof p.get('price') === 'number') prices[p.id] = p.get('price'); });
+  }
+  const result = TradePricing.priceOrder(lines, models, prices, parties);
+  await ref.update({
+    pricedLines: result.pricedLines,
+    totals: result.totals,
+    pricing: { ...result.pricing, seller: parties.seller, at: FieldValue.serverTimestamp() }
+  });
+  return result;
+}
+
+for (const coll of ['dealerOrders', 'distributorOrders']) {
+  exports[`priceOnCreate_${coll}`] = onDocumentCreated(
+    { document: `${coll}/{orderId}`, region: REGION },
+    async (event) => {
+      if (!event.data) return;
+      const order = event.data.data();
+      if (!Array.isArray(order.lines)) return; // older free-text orders
+      const result = await priceTradeOrder(coll, event.data.ref, order);
+      const parties = TradePricing.partiesFor(coll, order);
+      const who = coll === 'distributorOrders' ? 'Distributor' : 'Dealer';
+      const buyerName = order.dealerName || order.distributorEmail || order.dealerEmail || '';
+      const amount = result.totals ? TradePricing.formatINR(result.totals.total) : 'price incomplete';
+      await db.collection('notifications').add({
+        ...(parties.seller === 'company'
+          ? { recipientType: 'role', recipientValue: 'warehouse' }
+          : { recipientType: 'uid', recipientValue: parties.seller }),
+        title: `New ${who.toLowerCase()} order to approve`,
+        message: `${order.orderId || event.params.orderId} from ${buyerName || who} — ${amount}`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    }
+  );
+
+  exports[`orderUpdated_${coll}`] = onDocumentUpdatedWithAuthContext(
+    { document: `${coll}/{orderId}`, region: REGION },
+    async (event) => {
+      if (!event.data) return;
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+      const jobs = [];
+      // Re-price on request, only while the order still awaits approval.
+      const askedBefore = before.repriceRequestedAt ? before.repriceRequestedAt.toMillis() : 0;
+      const askedAfter = after.repriceRequestedAt ? after.repriceRequestedAt.toMillis() : 0;
+      if (askedAfter && askedAfter !== askedBefore && after.status === 'placed' && Array.isArray(after.lines)) {
+        jobs.push(priceTradeOrder(coll, event.data.after.ref, after));
+      }
+      if (before.status !== after.status) {
+        jobs.push(event.data.after.ref.update({
+          statusHistory: FieldValue.arrayUnion({
+            from: before.status || null, to: after.status || null,
+            byUid: event.authId || null, note: after.statusNote || '', at: Timestamp.now()
+          })
+        }));
+      }
+      await Promise.all(jobs);
+    }
+  );
+}

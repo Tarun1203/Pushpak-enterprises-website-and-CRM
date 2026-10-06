@@ -260,10 +260,12 @@
   </div>
 </div>
 
+<script src="tradePricing.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import * as Trade from './tradeOrders.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -333,7 +335,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "dealer-prices", "label": "Dealer Price List", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -389,8 +391,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       pageSub.textContent = 'Register a product for warranty';
       renderRegistrations();
     } else if (id === 'incoming-orders') {
-      pageSub.textContent = 'Orders from dealers under you';
-      renderIncomingOrders();
+      pageSub.textContent = 'Approve, dispatch and deliver orders from dealers under you';
+      Trade.renderOrderQueue(contentEl, { db, mode: 'distributor', uid: currentUser.uid });
+    } else if (id === 'dealer-prices') {
+      pageSub.textContent = 'What your dealers pay you, per model (excl. GST)';
+      renderDealerPrices();
     } else if (id === 'sla-escalations') {
       pageSub.textContent = 'Breached service tickets in your coverage area';
       renderSlaEscalations();
@@ -585,22 +590,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return `PE-DO-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Distributor`;
   }
 
+  // Priced ordering from Head Office (tradeOrders.js).
   async function renderOrders() {
-    contentEl.innerHTML = `
-      <div class="panel">
-        <div class="panel-header">
-          <h2>My orders</h2>
-          <button class="btn-primary" id="open-order">+ Place Order</button>
-        </div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Status</th><th>Notes</th></tr></thead>
-            <tbody id="order-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
-    document.getElementById('open-order').addEventListener('click', openOrderModal);
-    loadOrders();
+    contentEl.innerHTML = `<div id="trade-form"></div><div id="trade-list" style="margin-top:16px;"></div>`;
+    const listEl = document.getElementById('trade-list');
+    const listOpts = { db, collectionName: 'distributorOrders', ownerField: 'distributorUid', uid: currentUser.uid };
+    Trade.renderMyOrders(listEl, listOpts);
+    Trade.renderOrderForm(document.getElementById('trade-form'), {
+      db, user: currentUser, collectionName: 'distributorOrders',
+      seller: 'company', defaultKey: 'default-distributor',
+      buyerFields: {
+        distributorUid: currentUser.uid, distributorEmail: currentUser.email,
+        distributorName: (currentDistributorData && currentDistributorData.name) || ''
+      },
+      generateOrderId,
+      onPlaced: () => Trade.renderMyOrders(listEl, listOpts)
+    });
   }
 
   async function loadOrders() {
@@ -640,6 +645,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // dispatch → deliver), same status flow as Warehouse/Super Admin
   // would use for a Direct dealer's order.
   // -----------------------------------------------------------------
+
+  async function renderDealerPrices() {
+    contentEl.innerHTML = `<div class="panel"><div class="panel-body">Loading…</div></div>`;
+    try {
+      const buyers = await Trade.distributorBuyers(db, currentUser.uid);
+      Trade.renderPriceEditor(contentEl, { db, user: currentUser, seller: currentUser.uid, buyers });
+    } catch (err) {
+      console.error('Load dealers failed:', err);
+      contentEl.innerHTML = `<div class="panel"><div class="panel-body" style="color:var(--err);">Couldn't load your dealers.</div></div>`;
+    }
+  }
 
   async function renderIncomingOrders() {
     contentEl.innerHTML = `
