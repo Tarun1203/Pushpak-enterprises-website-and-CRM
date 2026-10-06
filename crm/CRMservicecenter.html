@@ -333,8 +333,13 @@
         </select>
       </div>
       <div class="form-row">
-        <label>Scheduled date (optional)</label>
-        <input type="date" id="req-scheduled-date">
+        <label>Appointment (optional)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <input type="date" id="req-scheduled-date" aria-label="Appointment date">
+          <input type="time" id="req-scheduled-start" aria-label="Start time">
+          <input type="time" id="req-scheduled-end" aria-label="End time">
+        </div>
+        <div class="hint" style="font-size:12px;color:var(--stone);margin-top:4px;">Working hours 08:00–20:00. Needs date, start and end together to book a slot.</div>
       </div>
       <div class="modal-error" id="req-error"></div>
       <div class="modal-success" id="req-success"></div>
@@ -373,6 +378,26 @@
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="cancel-req-assign-tech">Cancel</button>
         <button type="submit" class="btn-primary" id="submit-req-assign-tech">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Schedule appointment modal -->
+<div class="modal-overlay" id="req-schedule-overlay">
+  <div class="modal">
+    <h3>Schedule appointment</h3>
+    <div style="font-size:12.5px;color:var(--stone);margin-bottom:10px;" id="req-schedule-label"></div>
+    <form id="req-schedule-form">
+      <div class="form-row"><label>Date</label><input type="date" id="req-schedule-date" required></div>
+      <div class="form-row"><label>Start time</label><input type="time" id="req-schedule-start" required></div>
+      <div class="form-row"><label>End time</label><input type="time" id="req-schedule-end" required></div>
+      <div id="req-schedule-suggest" style="font-size:12.5px;margin-bottom:10px;"></div>
+      <div class="modal-error" id="req-schedule-error"></div>
+      <div class="modal-success" id="req-schedule-success"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancel-req-schedule">Cancel</button>
+        <button type="submit" class="btn-primary" id="submit-req-schedule">Save appointment</button>
       </div>
     </form>
   </div>
@@ -813,6 +838,7 @@
 </div>
 
 <script src="technicianMatch.js"></script>
+<script src="appointment.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -1103,7 +1129,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
     if (reassignable.includes(d.status)) {
-      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button></div>`;
+      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button><button class="btn-secondary req-schedule-btn" data-id="${d.id}">${d.scheduledDate ? 'Reschedule' : 'Schedule'}</button></div>`;
     }
     return actionHtml;
   }
@@ -1124,6 +1150,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     });
     container.querySelectorAll('.req-cancel-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'cancelled', typeFilter); if (onAction) onAction(); }));
     container.querySelectorAll('.req-resume-btn').forEach(b => b.addEventListener('click', () => { advanceRequest(b.dataset.id, 'in_progress', typeFilter); if (onAction) onAction(); }));
+    container.querySelectorAll('.req-schedule-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const jobDoc = docsList.find(x => x.id === b.dataset.id);
+        if (onAction) onAction();
+        if (jobDoc) openReqScheduleModal(jobDoc, typeFilter);
+      });
+    });
     container.querySelectorAll('.req-spare-btn').forEach(b => {
       b.addEventListener('click', () => {
         const jobDoc = docsList.find(x => x.id === b.dataset.id);
@@ -1147,7 +1180,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     ['category', 'Category'], ['product', 'Product'], ['modelText', 'Model'],
     ['serialNumber', 'Serial Number'], ['purchaseDate', 'Purchase Date'],
     ['purchasedFrom', 'Purchased From'], ['issue', 'Issue'],
-    ['technicianName', 'Technician'], ['scheduledDate', 'Scheduled Date'],
+    ['technicianName', 'Technician'],
   ];
   function openRequestDetailModal(d, typeFilter) {
     const overlay = document.getElementById('req-detail-overlay');
@@ -1166,6 +1199,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       rows.push(['Warranty at intake', w.status === 'in_warranty' ? `In warranty${w.expiresOn ? ' until ' + w.expiresOn : ''}`
         : w.status === 'out_of_warranty' ? `Out of warranty${w.expiresOn ? ' (expired ' + w.expiresOn + ')' : ''}` : 'Unknown (no purchase date on file)']);
     }
+    if (d.scheduledDate) rows.push(['Appointment', `${d.scheduledDate}${d.scheduledStartTime ? ' ' + d.scheduledStartTime + (d.scheduledEndTime ? '–' + d.scheduledEndTime : '') : ''}`]);
+    if (d.scheduleRejected) rows.push(['Last appointment rejected', d.scheduleRejected.reason || 'slot not available']);
     if (d.assignmentRejected) rows.push(['Assignment rejected', d.assignmentRejected.reason || 'technician not eligible']);
     if (Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length) {
       rows.push(['Possible duplicate of', d.possibleDuplicateOf.join(', ')]);
@@ -1812,6 +1847,115 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   });
 
+  // ---------------------------------------------------------------
+  // Appointment scheduling. Rules (working hours, not in the past,
+  // approved leave, no double booking) live in appointment.js and are
+  // enforced again by a Cloud Function, which reverts a bad slot and
+  // records why in `scheduleRejected`.
+  // ---------------------------------------------------------------
+  const reqScheduleOverlay = document.getElementById('req-schedule-overlay');
+  const reqScheduleForm = document.getElementById('req-schedule-form');
+  const reqScheduleError = document.getElementById('req-schedule-error');
+  const reqScheduleSuccess = document.getElementById('req-schedule-success');
+  const reqScheduleSubmitBtn = document.getElementById('submit-req-schedule');
+  let reqScheduleJob = null;
+  let reqScheduleFilter = 'all';
+
+  async function ownBookingsFor(job, date) {
+    if (!job.technicianUid || !date) return [];
+    const snap = await getDocs(query(collection(db, 'centerRequests'),
+      where('serviceCenterUid', '==', currentUser.uid), where('technicianUid', '==', job.technicianUid), where('scheduledDate', '==', date)));
+    const out = [];
+    snap.forEach(d => {
+      if (d.id === job.id) return;
+      const o = d.data();
+      out.push({ date: o.scheduledDate, start: o.scheduledStartTime, end: o.scheduledEndTime, status: o.status, label: o.customerName || o.requestId || d.id });
+    });
+    return out;
+  }
+
+  async function refreshScheduleSuggestions() {
+    const el = document.getElementById('req-schedule-suggest');
+    const date = document.getElementById('req-schedule-date').value;
+    if (!reqScheduleJob || !date) { el.innerHTML = ''; return; }
+    try {
+      const others = await ownBookingsFor(reqScheduleJob, date);
+      const free = Appointment.suggestSlots(date, 60, others, Date.now(), 5);
+      const who = reqScheduleJob.technicianName ? `${escapeHtml(reqScheduleJob.technicianName)} is free` : 'Free';
+      el.innerHTML = free.length
+        ? `${who} (1 h): ` + free.map(f => `<button type="button" class="btn-secondary sched-suggest" data-s="${f.start}" data-e="${f.end}" style="padding:2px 8px;margin:2px;">${f.start}</button>`).join('')
+        : '<span style="color:var(--stone);">No free 1-hour slot that day.</span>';
+      el.querySelectorAll('.sched-suggest').forEach(b => b.addEventListener('click', () => {
+        document.getElementById('req-schedule-start').value = b.dataset.s;
+        document.getElementById('req-schedule-end').value = b.dataset.e;
+      }));
+    } catch (err) { el.innerHTML = ''; }
+  }
+
+  function openReqScheduleModal(jobDoc, typeFilter) {
+    reqScheduleJob = jobDoc;
+    reqScheduleFilter = typeFilter || 'all';
+    reqScheduleError.classList.remove('show');
+    reqScheduleSuccess.classList.remove('show');
+    reqScheduleSubmitBtn.disabled = false;
+    reqScheduleSubmitBtn.textContent = 'Save appointment';
+    document.getElementById('req-schedule-label').textContent =
+      `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'} — ${jobDoc.technicianName ? 'Technician: ' + jobDoc.technicianName : 'No technician assigned yet'}`;
+    document.getElementById('req-schedule-date').value = jobDoc.scheduledDate || '';
+    document.getElementById('req-schedule-start').value = jobDoc.scheduledStartTime || '';
+    document.getElementById('req-schedule-end').value = jobDoc.scheduledEndTime || '';
+    document.getElementById('req-schedule-date').min = Appointment.todayIST(Date.now());
+    refreshScheduleSuggestions();
+    reqScheduleOverlay.classList.add('show');
+  }
+  function closeReqScheduleModal() { reqScheduleOverlay.classList.remove('show'); }
+  document.getElementById('cancel-req-schedule').addEventListener('click', closeReqScheduleModal);
+  reqScheduleOverlay.addEventListener('click', (e) => { if (e.target === reqScheduleOverlay) closeReqScheduleModal(); });
+  document.getElementById('req-schedule-date').addEventListener('change', refreshScheduleSuggestions);
+
+  reqScheduleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    reqScheduleError.classList.remove('show');
+    reqScheduleSuccess.classList.remove('show');
+    const slot = {
+      date: document.getElementById('req-schedule-date').value,
+      start: document.getElementById('req-schedule-start').value,
+      end: document.getElementById('req-schedule-end').value
+    };
+    const fail = (msg) => { reqScheduleError.textContent = msg; reqScheduleError.classList.add('show'); reqScheduleSubmitBtn.disabled = false; reqScheduleSubmitBtn.textContent = 'Save appointment'; };
+    let err = !slot.date || !slot.start || !slot.end ? 'Enter a date, start and end time.' : Appointment.validateSlot(slot, Date.now());
+    if (err) return fail(err);
+    reqScheduleSubmitBtn.disabled = true;
+    reqScheduleSubmitBtn.textContent = 'Checking…';
+    try {
+      const clash = Appointment.findConflict(slot, await ownBookingsFor(reqScheduleJob, slot.date));
+      if (clash) return fail(`${reqScheduleJob.technicianName || 'The technician'} is already booked ${clash.start}–${clash.end} that day (${clash.label}).`);
+      await updateDoc(doc(db, 'centerRequests', reqScheduleJob.id), {
+        scheduledDate: slot.date, scheduledStartTime: slot.start, scheduledEndTime: slot.end, updatedAt: serverTimestamp()
+      });
+      await logTicketStatus('centerRequests', reqScheduleJob.id, reqScheduleJob.status, `Appointment ${slot.date} ${slot.start}–${slot.end}`);
+      // The server re-checks the slot (leave, bookings at other centers,
+      // simultaneous bookings) and reverts it if it fails — look for that.
+      let rejected = null;
+      for (let i = 0; i < 4 && !rejected; i++) {
+        await new Promise(r => setTimeout(r, 1200));
+        const s = await getDoc(doc(db, 'centerRequests', reqScheduleJob.id));
+        const d = s.data() || {};
+        if (d.scheduleRejected && d.scheduleRejected.attempted && d.scheduleRejected.attempted.date === slot.date) rejected = d.scheduleRejected.reason;
+        else if (i >= 1 && d.scheduledDate === slot.date && d.scheduledStartTime === slot.start) break;
+      }
+      if (rejected) return fail(rejected);
+      reqScheduleSuccess.textContent = 'Appointment saved.';
+      reqScheduleSuccess.classList.add('show');
+      reqScheduleSubmitBtn.textContent = 'Saved';
+      loadCenterRequests(reqScheduleFilter);
+      setTimeout(closeReqScheduleModal, 700);
+    } catch (e2) {
+      console.error('Save appointment failed:', e2);
+      fail('Could not save this appointment. Check console for details.');
+    }
+  });
+
   const reqOverlay = document.getElementById('req-overlay');
   const reqForm = document.getElementById('req-form');
   const reqError = document.getElementById('req-error');
@@ -1948,6 +2092,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     reqError.classList.remove('show');
     reqSuccess.classList.remove('show');
     if (!currentUser) return;
+    const slotErr = Appointment.validateSlot({
+      date: document.getElementById('req-scheduled-date').value,
+      start: document.getElementById('req-scheduled-start').value,
+      end: document.getElementById('req-scheduled-end').value
+    }, Date.now());
+    if (slotErr) { reqError.textContent = slotErr; reqError.classList.add('show'); return; }
     reqSubmitBtn.disabled = true;
     reqSubmitBtn.textContent = 'Saving…';
     try {
@@ -1978,6 +2128,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         technicianName: technicianName || null,
         technicianUid: technicianUid || null,
         scheduledDate: document.getElementById('req-scheduled-date').value || null,
+        scheduledStartTime: document.getElementById('req-scheduled-start').value || null,
+        scheduledEndTime: document.getElementById('req-scheduled-end').value || null,
         status: technicianName ? 'assigned' : 'new',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -3399,7 +3551,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       ));
       let docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-      docs = docs.filter(d => d.scheduledDate).sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+      docs = docs.filter(d => d.scheduledDate).sort((a, b) => (a.scheduledDate + (a.scheduledStartTime || '00:00')).localeCompare(b.scheduledDate + (b.scheduledStartTime || '00:00')));
       if (docs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No scheduled requests yet.</td></tr>`;
         return;
@@ -3408,7 +3560,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${d.scheduledDate}</b></td>
+          <td><b>${d.scheduledDate}</b>${d.scheduledStartTime ? `<div style="font-size:12px;color:var(--stone);">${d.scheduledStartTime}${d.scheduledEndTime ? '–' + d.scheduledEndTime : ''}</div>` : ''}</td>
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${d.technicianName || '—'}</td>

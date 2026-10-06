@@ -1049,6 +1049,7 @@
   </div>
 </div>
 
+<script src="appointment.js"></script>
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
@@ -5686,6 +5687,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       scheduleError.classList.add('show');
       return;
     }
+    const slotErr = Appointment.validateSlot({ date, start, end }, Date.now());
+    if (slotErr) {
+      scheduleError.textContent = slotErr;
+      scheduleError.classList.add('show');
+      return;
+    }
     if (end <= start) {
       scheduleError.textContent = 'End time must be after start time.';
       scheduleError.classList.add('show');
@@ -5723,7 +5730,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       await updateDoc(doc(db, schedulingRow.coll, schedulingRow.docId), {
         scheduledDate: date, scheduledStartTime: start, scheduledEndTime: end, updatedAt: serverTimestamp()
       });
-      scheduleSuccess.textContent = 'Scheduled.';
+      scheduleSuccess.textContent = 'Scheduled. (The server re-checks leave and bookings at other centers; if it rejects the slot, the ticket keeps its previous time and shows the reason.)';
       scheduleSuccess.classList.add('show');
       scheduleSubmitBtn.textContent = 'Saved';
       loadAppointments(schedulingFilter);

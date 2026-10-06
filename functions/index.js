@@ -191,3 +191,83 @@ exports.checkAssignmentOnUpdate = onDocumentUpdatedWithAuthContext(
     await enforceAssignment(event, event.data.after.data(), event.data.before.data());
   }
 );
+
+// ---------------------------------------------------------------
+// Appointment check. When a ticket's scheduledDate / scheduledStartTime
+// / scheduledEndTime changes (from any dashboard), the slot is validated
+// here: real date, not in the past, inside working hours, sensible
+// length, the technician not on approved leave, and no overlap with
+// that technician's other bookings across centerRequests AND
+// serviceJobs. A bad slot is reverted and `scheduleRejected` explains
+// why. A lock document per technician+date, written inside the
+// transaction, serializes two people booking the same slot at once.
+// ---------------------------------------------------------------
+const SCHEDULE_COLLECTIONS = ['centerRequests', 'serviceJobs'];
+const slotOf = (d) => ({ date: (d && d.scheduledDate) || '', start: (d && d.scheduledStartTime) || '', end: (d && d.scheduledEndTime) || '' });
+const sameSlot = (a, b) => a.date === b.date && a.start === b.start && a.end === b.end;
+const millis = (t) => (t && t.toMillis ? t.toMillis() : 0);
+
+async function enforceSchedule(coll, event, before) {
+  if (!event.authId || !event.data) return;
+  const afterSnap = before ? event.data.after : event.data;
+  const after = afterSnap.data();
+  const prevSlot = slotOf(before);
+  const slot = slotOf(after);
+  if (sameSlot(prevSlot, slot)) return;
+  // Our own revert changes the slot too; don't re-check it.
+  if (after.scheduleRejected && millis(after.scheduleRejected.at) !== millis(before && before.scheduleRejected && before.scheduleRejected.at)) return;
+
+  const ref = afterSnap.ref;
+  const techUid = after.technicianUid || '';
+  const lockRef = db.collection('scheduleLocks').doc(`${techUid || 'none'}_${slot.date || 'none'}`);
+
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(ref);
+    if (!fresh.exists || !sameSlot(slotOf(fresh.data()), slot)) return; // a newer write will be checked on its own
+    await tx.get(lockRef);
+
+    let reason = Appointment.validateSlot(slot, Date.now());
+    if (!reason && slot.date && slot.start && techUid) {
+      const rosterQ = await tx.get(db.collection('centerTechnicians').where('technicianUid', '==', techUid).limit(1));
+      const leave = rosterQ.empty ? [] : (rosterQ.docs[0].get('leaveRecords') || []);
+      if (Appointment.onApprovedLeave(leave, slot.date)) reason = 'The technician is on approved leave on that date.';
+      if (!reason) {
+        const others = [];
+        for (const c of SCHEDULE_COLLECTIONS) {
+          const q = await tx.get(db.collection(c).where('technicianUid', '==', techUid).where('scheduledDate', '==', slot.date));
+          q.forEach((d) => {
+            if (c === coll && d.id === ref.id) return;
+            const o = d.data();
+            others.push({ date: o.scheduledDate, start: o.scheduledStartTime, end: o.scheduledEndTime, status: o.status,
+              label: o.customerName || o.requestId || o.jobId || d.id });
+          });
+        }
+        const clash = Appointment.findConflict(slot, others);
+        if (clash) reason = `The technician is already booked ${clash.start}-${clash.end} that day (${clash.label}).`;
+      }
+    }
+
+    if (reason) {
+      tx.update(ref, {
+        scheduledDate: before ? (before.scheduledDate || null) : null,
+        scheduledStartTime: before ? (before.scheduledStartTime || null) : null,
+        scheduledEndTime: before ? (before.scheduledEndTime || null) : null,
+        scheduleRejected: { reason, attempted: slot, at: FieldValue.serverTimestamp() }
+      });
+    } else if (fresh.get('scheduleRejected')) {
+      tx.update(ref, { scheduleRejected: FieldValue.delete() });
+    }
+    tx.set(lockRef, { ticket: ref.path, at: FieldValue.serverTimestamp() });
+  });
+}
+
+for (const coll of SCHEDULE_COLLECTIONS) {
+  exports[`checkScheduleOnCreate_${coll}`] = onDocumentCreatedWithAuthContext(
+    { document: `${coll}/{docId}`, region: REGION },
+    (event) => enforceSchedule(coll, event, null)
+  );
+  exports[`checkScheduleOnUpdate_${coll}`] = onDocumentUpdatedWithAuthContext(
+    { document: `${coll}/{docId}`, region: REGION },
+    (event) => enforceSchedule(coll, event, event.data && event.data.before ? event.data.before.data() : null)
+  );
+}
