@@ -62,6 +62,7 @@ class CollRef extends Query {
 }
 const db = {
   collection: (n) => new CollRef(n),
+  batch: () => { const w = []; return { set: (r, d, o) => w.push([r.path, d, o && o.merge ? 'merge' : 'set']), update: (r, d) => w.push([r.path, d, 'update']), commit: async () => w.forEach(([p, d, m]) => applyWrite(p, d, m)) }; },
   getAll: async (...refs) => refs.map((r) => new Snap(r)),
   runTransaction: async (fn) => {
     const writes = [];

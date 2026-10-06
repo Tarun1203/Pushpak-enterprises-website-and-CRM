@@ -1045,7 +1045,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="stat-card"><div class="label">New Requests</div><div class="value" id="stat-new">…</div><div class="hint">Awaiting assignment</div></div>
         <div class="stat-card"><div class="label">In Progress</div><div class="value" id="stat-progress">…</div><div class="hint">Currently being worked</div></div>
         <div class="stat-card"><div class="label">Technicians</div><div class="value" id="stat-techs">…</div><div class="hint">On your roster</div></div>
-        <div class="stat-card"><div class="label">Alerts</div><div class="value">—</div><div class="hint">Module not built yet</div></div>
+        <div class="stat-card"><div class="label">Alerts</div><div class="value" id="stat-alerts">…</div><div class="hint">Documents and notices</div></div>
+      </div>
+      <div class="panel" id="dash-alerts" style="display:none;margin-bottom:16px;">
+        <div class="panel-header"><h2>Needs your attention</h2></div>
+        <div class="panel-body" id="dash-alerts-body" style="font-size:13.5px;line-height:1.8;"></div>
       </div>
       <div class="panel">
         <div class="panel-header"><h2>Getting started</h2></div>
@@ -1064,6 +1068,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('stat-new').textContent = newSnap.size;
       document.getElementById('stat-progress').textContent = progressSnap.size;
       document.getElementById('stat-techs').textContent = techSnap.size;
+      // Expiring / expired documents (yours and your technicians') and your
+      // latest notices (approvals, claims, ratings, reminders).
+      const items = [];
+      const profSnap = await getDoc(doc(db, 'serviceCenterProfiles', currentUser.uid));
+      const check = (who, d) => { const b = expiryBadge(d.expiryDate); if (b) items.push(`${escapeHtml(who)}: ${escapeHtml(d.docType || 'Document')} —${b}`); };
+      if (profSnap.exists()) (profSnap.data().documents || []).forEach(d => check('Your center', d));
+      techSnap.forEach(t => (t.data().documents || []).forEach(d => check(t.data().name || t.data().fullName || 'Technician', d)));
+      let notes = [];
+      try {
+        const nSnap = await getDocs(query(collection(db, 'notifications'), where('recipientType', '==', 'uid'), where('recipientValue', '==', currentUser.uid)));
+        nSnap.forEach(n => notes.push(n.data()));
+        notes = notes.filter(n => !n.read).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 10);
+      } catch (e) { console.warn('Notifications load failed:', e.message); }
+      document.getElementById('stat-alerts').textContent = items.length + notes.length;
+      if (items.length || notes.length) {
+        document.getElementById('dash-alerts').style.display = 'block';
+        document.getElementById('dash-alerts-body').innerHTML = items.map(x => `<div>${x}</div>`).join('')
+          + notes.map(n => `<div><b>${escapeHtml(n.title || '')}</b> — ${escapeHtml(n.message || '')} <span style="color:var(--stone);font-size:12px;">${n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleDateString() : ''}</span></div>`).join('');
+      }
     } catch (err) {
       console.error('Dashboard stats failed:', err);
     }
@@ -3019,7 +3042,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <input type="file" class="td-doc-file">
         </div>
         <div class="form-row"><label>Issue Date</label><input type="date" class="td-doc-issue-date" value="${row.issueDate || ''}"></div>
-        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-doc-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Expiry Date${expiryBadge(row.expiryDate)}</label><input type="date" class="td-doc-expiry" value="${row.expiryDate || ''}" ${row.verified ? 'disabled title="Locked once verified"' : ''}></div>
         <div class="form-row"><label>Uploaded By</label><input type="text" class="td-doc-uploaded-by" value="${escapeHtml(row.uploadedBy || '')}" disabled style="opacity:0.6;"></div>
         <div class="form-row"><label>Uploaded Date</label><input type="text" class="td-doc-uploaded-date" value="${row.uploadedDate || ''}" disabled style="opacity:0.6;"></div>
         <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Verified</label><input type="checkbox" class="td-doc-verified" ${row.verified ? 'checked' : ''}></div>
@@ -5441,12 +5464,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
   }
 
+  // Expiry badge for a document date (YYYY-MM-DD): red once expired,
+  // amber within 30 days. Reminders are also sent daily by the server.
+  function expiryBadge(dateStr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return '';
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+    const days = Math.round((Date.parse(dateStr) - Date.parse(today)) / 86400000);
+    if (days < 0) return ` <span style="color:var(--err, #B3261E);font-weight:600;">Expired ${-days} day${days === -1 ? '' : 's'} ago</span>`;
+    if (days <= 30) return ` <span style="color:#8A6D00;font-weight:600;">Expires in ${days} day${days === 1 ? '' : 's'}</span>`;
+    return '';
+  }
   const SCFP_DOC_TYPES =['GST Certificate', 'PAN', 'Business Registration', 'Service Agreement', 'Brand Authorization', 'Address Proof', 'Bank Proof', 'Center Photos', 'Insurance', 'Fire Safety Certificate'];
   function renderScfpDocListBlock(docs) {
     const el = document.getElementById('scfp-doc-list');
     if (!docs.length) { el.innerHTML = `<div style="color:var(--stone);">No documents uploaded yet.</div>`; return; }
     el.innerHTML = docs.slice().reverse().map(doc_ =>
-      `<div>${escapeHtml(doc_.docType || '—')}${doc_.expiryDate ? ' · expires ' + doc_.expiryDate : ''} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
+      `<div>${escapeHtml(doc_.docType || '—')}${doc_.expiryDate ? ' · expires ' + escapeHtml(doc_.expiryDate) + expiryBadge(doc_.expiryDate) : ''} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
     ).join('');
   }
 

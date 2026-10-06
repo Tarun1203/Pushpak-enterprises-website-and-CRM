@@ -2983,10 +2983,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       `<div>${escapeHtml(l.leaveType || '—')} · ${escapeHtml(l.startDate || '')}–${escapeHtml(l.endDate || '')} · <strong>${escapeHtml(l.status || 'PENDING')}</strong></div>`
     ).join('');
   }
+  // Expiry badge for a document date (YYYY-MM-DD): red once expired,
+  // amber within 30 days. Reminders are also sent daily by the server.
+  function expiryBadge(dateStr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return '';
+    const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+    const days = Math.round((Date.parse(dateStr) - Date.parse(today)) / 86400000);
+    if (days < 0) return ` <span style="color:var(--err, #B3261E);font-weight:600;">Expired ${-days} day${days === -1 ? '' : 's'} ago</span>`;
+    if (days <= 30) return ` <span style="color:#8A6D00;font-weight:600;">Expires in ${days} day${days === 1 ? '' : 's'}</span>`;
+    return '';
+  }
   function fpDocListHtml(docs) {
     if (!docs.length) return `<div style="color:var(--stone);">No documents uploaded yet.</div>`;
     return docs.slice().reverse().map(doc_ =>
-      `<div>${escapeHtml(doc_.docType || '—')} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
+      `<div>${escapeHtml(doc_.docType || '—')}${doc_.expiryDate ? ' · expires ' + escapeHtml(doc_.expiryDate) + expiryBadge(doc_.expiryDate) : ''} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
     ).join('');
   }
   // Shared by the feedback views: average/count plus the latest comments.

@@ -8,6 +8,7 @@ Module._load = function (req, ...a) {
   if (req === 'firebase-admin/app') return { initializeApp() {} };
   if (req === 'firebase-admin/firestore') return { getFirestore: () => fake.db, FieldValue: fake.FieldValue, Timestamp: fake.Timestamp };
   if (req === 'firebase-functions/v2/firestore') return new Proxy({}, { get: () => wrap });
+  if (req === 'firebase-functions/v2/scheduler') return { onSchedule: wrap };
   return orig.call(this, req, ...a);
 };
 const F = require('./index.js');
@@ -261,4 +262,34 @@ test('approval queue: changes are applied by the server only after Super Admin a
   ok(get('spareParts/pp').price === 120, 'rejected request changes nothing');
   const n = [...store.values()].filter((d) => d.recipientValue === 'wh1' && /Request (approved|rejected)|could not be applied/.test(d.title || ''));
   ok(n.length >= 3, 'requester notified of outcomes');
+});
+
+test('documents: verification rights, verified files locked, expiry reminders once per stage', async () => {
+  set('users/whV', { role: 'warehouse', email: 'wh@x' });
+  set('users/saV', { role: 'superadmin', email: 'sa@x' });
+  set('users/cV', { role: 'servicecenter', email: 'c@x' });
+  set('serviceCenterProfiles/cV', { displayName: 'Raichur SC', documents: [{ docId: 'D1', docType: 'Agreement', fileUrl: 'u1', expiryDate: '2026-10-20', verified: false, verifiedBy: '', verificationDate: '' }] });
+  // center tries to verify itself -> reverted
+  await updated('guardServiceCenterProfile', 'serviceCenterProfiles/cV', { documents: [{ docId: 'D1', docType: 'Agreement', fileUrl: 'u1', expiryDate: '2026-10-20', verified: true, verifiedBy: 'me', verificationDate: 'x' }] }, 'cV', { uid: 'cV' });
+  ok(get('serviceCenterProfiles/cV').documents[0].verified === false, 'center cannot verify itself');
+  // warehouse verifies -> stamped
+  await updated('guardServiceCenterProfile', 'serviceCenterProfiles/cV', { documents: [{ ...get('serviceCenterProfiles/cV').documents[0], verified: true }] }, 'whV', { uid: 'cV' });
+  ok(get('serviceCenterProfiles/cV').documents[0].verified === true && get('serviceCenterProfiles/cV').documents[0].verifiedByUid === 'whV', 'warehouse verification stamped');
+  // center swaps the verified file -> locked
+  await updated('guardServiceCenterProfile', 'serviceCenterProfiles/cV', { documents: [{ ...get('serviceCenterProfiles/cV').documents[0], fileUrl: 'u2', expiryDate: '2030-01-01' }] }, 'cV', { uid: 'cV' });
+  ok(get('serviceCenterProfiles/cV').documents[0].fileUrl === 'u1' && get('serviceCenterProfiles/cV').documents[0].expiryDate === '2026-10-20', 'verified file and expiry locked');
+  // technician docs: own center verifies
+  set('centerTechnicians/tV', { serviceCenterUid: 'cV', technicianUid: 'tVu', name: 'Ravi', documents: [{ docId: 'T1', docType: 'Driving License', fileUrl: 'f', expiryDate: '2026-10-01', verified: false }] });
+  await updated('guardTechnicianDocs', 'centerTechnicians/tV', { documents: [{ ...get('centerTechnicians/tV').documents[0], verified: true }] }, 'cV', { techId: 'tV' });
+  ok(get('centerTechnicians/tV').documents[0].verifiedByUid === 'cV', 'owning center verifies its technician, stamped');
+  // expiry: agreement in 14 days (30-day stage), licence expired
+  const n0 = [...store.keys()].filter((k) => k.startsWith('notifications/')).length;
+  await F.documentExpiryCheck.handler({ scheduleTime: '2026-10-06T02:30:00Z' });
+  const n1 = [...store.keys()].filter((k) => k.startsWith('notifications/')).length;
+  ok(get('docExpiryAlerts/center_cV_D1').stage === '30' && get('docExpiryAlerts/technician_tV_T1').stage === 'expired', 'reminders recorded per stage');
+  ok(n1 - n0 === 5, 'center doc: Super Admin + center; technician doc: Super Admin + center + technician');
+  await F.documentExpiryCheck.handler({ scheduleTime: '2026-10-07T02:30:00Z' });
+  ok([...store.keys()].filter((k) => k.startsWith('notifications/')).length === n1, 'no repeat reminder at the same stage');
+  await F.documentExpiryCheck.handler({ scheduleTime: '2026-10-15T02:30:00Z' });
+  ok(get('docExpiryAlerts/center_cV_D1').stage === '7', 'reminds again when it moves to the 7-day stage');
 });

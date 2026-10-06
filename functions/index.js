@@ -1,4 +1,5 @@
 const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
@@ -750,18 +751,27 @@ exports.processFeedback = onDocumentCreated(
 exports.guardServiceCenterProfile = onDocumentUpdatedWithAuthContext(
   { document: 'serviceCenterProfiles/{uid}', region: REGION },
   async (event) => {
-    if (!event.data || event.authId !== event.params.uid) return; // only the center's own edits
+    if (!event.data || !event.authId) return; // the functions' own writes
     const before = event.data.before.data();
     const after = event.data.after.data();
-    const guard = ProfileGuard.guardDocuments(before.documents, after.documents);
+    const actor = await db.collection('users').doc(event.authId).get();
+    const role = actor.exists ? actor.get('role') : null;
     const jobs = [];
-    if (guard.changed) {
-      jobs.push(event.data.after.ref.update({
-        documents: guard.documents,
-        documentsRejected: { reason: 'Only Super Admin can verify documents or change a verified one.', at: FieldValue.serverTimestamp() }
-      }));
+    // Super Admin may change anything. Warehouse may verify (stamped with
+    // who and when) but not swap a verified file; the center itself may
+    // do neither.
+    if (role !== 'superadmin') {
+      const guard = ProfileGuard.guardDocuments(before.documents, after.documents, {
+        canVerify: role === 'warehouse', actorUid: event.authId, actorEmail: actor.exists ? actor.get('email') || '' : ''
+      });
+      if (guard.changed) {
+        jobs.push(event.data.after.ref.update({
+          documents: guard.documents,
+          ...(role === 'warehouse' ? {} : { documentsRejected: { reason: 'Only Head Office can verify documents, and a verified document can\'t be replaced.', at: FieldValue.serverTimestamp() } })
+        }));
+      }
     }
-    const changedFields = ProfileGuard.sensitiveChanges(before, after);
+    const changedFields = event.authId === event.params.uid ? ProfileGuard.sensitiveChanges(before, after) : [];
     if (changedFields.length) {
       const name = after.displayName || after.legalBusinessName || after.serviceCenterCode || event.params.uid;
       jobs.push(db.collection('notifications').add({
@@ -1655,3 +1665,73 @@ exports.applyChangeRequest = onDocumentUpdated(
     }
   }
 );
+
+// ---------------------------------------------------------------
+// Technician documents: the owning service center or Head Office may
+// verify (stamped with who and when); the technician can only add
+// unverified ones (firestore.rules). Nobody but Super Admin can swap the
+// file or dates of a verified document.
+// ---------------------------------------------------------------
+exports.guardTechnicianDocs = onDocumentUpdatedWithAuthContext(
+  { document: 'centerTechnicians/{techId}', region: REGION },
+  async (event) => {
+    if (!event.data || !event.authId) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    if (JSON.stringify(before.documents || []) === JSON.stringify(after.documents || [])) return;
+    const actor = await db.collection('users').doc(event.authId).get();
+    const role = actor.exists ? actor.get('role') : null;
+    if (role === 'superadmin') return;
+    const canVerify = role === 'warehouse' || (role === 'servicecenter' && event.authId === after.serviceCenterUid);
+    const guard = ProfileGuard.guardDocuments(before.documents, after.documents, {
+      canVerify, actorUid: event.authId, actorEmail: actor.exists ? actor.get('email') || '' : ''
+    });
+    if (guard.changed) await event.data.after.ref.update({ documents: guard.documents });
+  }
+);
+
+// ---------------------------------------------------------------
+// Daily document expiry check (08:00 IST). Service center and technician
+// documents expiring within 30 days, within 7 days, or expired raise one
+// reminder per stage — to the center (and the technician for their own),
+// and to Super Admin. docExpiryAlerts remembers what was already sent.
+// Expired documents are flagged on screen; work isn't blocked.
+// ---------------------------------------------------------------
+exports.documentExpiryCheck = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'Asia/Kolkata', region: REGION },
+  async (event) => { await runExpiryCheck(event && event.scheduleTime ? new Date(event.scheduleTime) : new Date()); }
+);
+
+async function runExpiryCheck(now) {
+  const today = new Date(now.getTime() + 330 * 60000).toISOString().slice(0, 10);
+  const [centers, techs, alerts] = await Promise.all([
+    db.collection('serviceCenterProfiles').get(), db.collection('centerTechnicians').get(), db.collection('docExpiryAlerts').get()
+  ]);
+  const last = {};
+  alerts.forEach((a) => { last[a.id] = a.get('stage'); });
+  const out = [];
+  const consider = (kind, parentId, owner, d, names) => {
+    if (!d || !d.docId) return;
+    const st = ProfileGuard.expiryStage(d.expiryDate, today);
+    const key = `${kind}_${parentId}_${d.docId}`;
+    if (!st || !ProfileGuard.shouldAlert(st.stage, last[key])) return;
+    out.push({ key, stage: st.stage, days: st.days, kind, parentId, owner, docType: d.docType || 'Document', expiryDate: d.expiryDate, ...names });
+  };
+  centers.forEach((c) => (c.get('documents') || []).forEach((d) => consider('center', c.id, { centerUid: c.id }, d,
+    { who: c.get('displayName') || c.get('legalBusinessName') || c.get('serviceCenterCode') || c.id })));
+  techs.forEach((t) => (t.get('documents') || []).forEach((d) => consider('technician', t.id,
+    { centerUid: t.get('serviceCenterUid') || null, techUid: t.get('technicianUid') || null }, d,
+    { who: t.get('name') || t.get('fullName') || t.get('technicianCode') || t.id })));
+  for (const a of out) {
+    const when = a.stage === 'expired' ? `expired on ${a.expiryDate}` : `expires on ${a.expiryDate} (${a.days} day${a.days === 1 ? '' : 's'})`;
+    const msg = `${a.who}: ${a.docType} ${when}.`;
+    const title = a.stage === 'expired' ? 'Document expired' : 'Document expiring soon';
+    const targets = [{ recipientType: 'role', recipientValue: 'superadmin' }];
+    if (a.owner.centerUid) targets.push({ recipientType: 'uid', recipientValue: a.owner.centerUid });
+    if (a.owner.techUid) targets.push({ recipientType: 'uid', recipientValue: a.owner.techUid });
+    const batch = db.batch();
+    targets.forEach((t) => batch.set(db.collection('notifications').doc(), { ...t, title, message: msg, read: false, createdAt: FieldValue.serverTimestamp() }));
+    batch.set(db.collection('docExpiryAlerts').doc(a.key), { stage: a.stage, expiryDate: a.expiryDate, at: FieldValue.serverTimestamp() });
+    await batch.commit();
+  }
+  return out.length;
+}
