@@ -675,7 +675,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "stock-requests", "label": "Spare Stock Requests", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-due", "label": "Defectives Due", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}, {"id": "rma", "label": "RMA & Replacement", "built": true}, {"id": "brand-returns", "label": "Brand Returns", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "stock-requests", "label": "Spare Stock Requests", "built": true}, {"id": "my-change-requests", "label": "My Change Requests", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-due", "label": "Defectives Due", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}, {"id": "rma", "label": "RMA & Replacement", "built": true}, {"id": "brand-returns", "label": "Brand Returns", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -728,6 +728,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (SPARE_REQUEST_TABS[id]) {
       pageSub.textContent = 'Spare Requests & Dispatch';
       renderSpareRequests(SPARE_REQUEST_TABS[id], label);
+    } else if (id === 'my-change-requests') {
+      pageSub.textContent = 'Price changes and stock reductions you sent to Super Admin';
+      renderMyChangeRequests();
     } else if (id === 'stock-requests') {
       pageSub.textContent = 'Service centers and technicians asking to add stock to themselves';
       renderStockRequests();
@@ -2030,6 +2033,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     whAdjustSubmitBtn.disabled = true;
     whAdjustSubmitBtn.textContent = 'Saving…';
+    if (delta < 0) {
+      // Reductions (write-offs, count shortfalls) wait for Super Admin.
+      try {
+        await fileStockReduction(partId, -delta, reason, 'adjustment');
+        whAdjustSuccess.textContent = 'Sent to Super Admin for approval — stock changes once approved.';
+        whAdjustSuccess.classList.add('show');
+        whAdjustSubmitBtn.textContent = 'Sent';
+        setTimeout(closeWhAdjustModal, 1500);
+      } catch (err) {
+        console.error('Stock reduction request failed:', err);
+        whAdjustError.textContent = 'Could not send the request. Check console for details.';
+        whAdjustError.classList.add('show');
+        whAdjustSubmitBtn.disabled = false;
+        whAdjustSubmitBtn.textContent = 'Save adjustment';
+      }
+      return;
+    }
     try {
       const invRef = doc(db, 'inventory', `warehouse_${partId}`);
       await runTransaction(db, async (transaction) => {
@@ -3294,7 +3314,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             if (whQty < qty) throw new Error(`Only ${whQty} in warehouse stock — cannot dispatch ${qty}.`);
             const destSnap = await t.get(destInvRef);
             const destQty = destSnap.exists() ? (destSnap.data().quantity || 0) : 0;
-            t.update(whInvRef, { quantity: whQty - qty });
+            t.update(whInvRef, { quantity: whQty - qty, lastMoveId: moveRef.id });
             if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
             else t.set(destInvRef, { location: loc.location, [loc.uidField]: loc.uid, partId: part.id, quantity: qty });
             t.set(moveRef, {
@@ -3596,6 +3616,43 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
   }
 
+  // Files a Head Office stock reduction for Super Admin to approve
+  // (applied by the applyChangeRequest function).
+  async function fileStockReduction(partId, qty, reason, mode) {
+    const partsSnap = await getDoc(doc(db, 'spareParts', partId));
+    const name = partsSnap.exists() ? (partsSnap.data().name || partId) : partId;
+    await addDoc(collection(db, 'changeRequests'), {
+      kind: 'stock_reduction', payload: { partId, qty: Math.round(qty), reason, mode },
+      summary: `${mode === 'issue' ? 'Issue out' : 'Write off / correct'} ${Math.round(qty)} × ${name} — ${reason}`,
+      requestedByUid: auth.currentUser.uid, requestedByEmail: auth.currentUser.email || '',
+      status: 'pending', createdAt: serverTimestamp()
+    });
+  }
+
+  async function renderMyChangeRequests() {
+    contentEl.innerHTML = `<div class="panel"><div class="panel-header"><h2>My change requests</h2></div><div class="panel-body" id="mcr-body">Loading…</div></div>`;
+    const body = document.getElementById('mcr-body');
+    try {
+      const snap = await getDocs(query(collection(db, 'changeRequests'), where('requestedByUid', '==', auth.currentUser.uid)));
+      const rows = []; snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      if (!rows.length) { body.innerHTML = '<div class="empty-row">No requests yet.</div>'; return; }
+      const st = (r) => r.status === 'pending' ? 'Waiting for Super Admin' : r.status === 'rejected' ? 'Rejected' + (r.reviewNote ? ' — ' + escapeHtml(r.reviewNote) : '')
+        : r.applyError ? '<span style="color:var(--err);">Approved, not applied — ' + escapeHtml(r.applyError) + '</span>' : r.appliedAt ? 'Approved and applied' : 'Approved — applying…';
+      body.innerHTML = `<table><thead><tr><th>When</th><th>Request</th><th>Status</th><th></th></tr></thead><tbody>
+        ${rows.map((r, i) => `<tr><td style="font-size:12px;">${r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString() : '—'}</td><td>${escapeHtml(r.summary || r.kind)}</td><td>${st(r)}</td>
+          <td>${r.status === 'pending' ? `<button class="btn-secondary mcr-withdraw" data-i="${i}">Withdraw</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+      body.querySelectorAll('.mcr-withdraw').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Withdraw this request?')) return;
+        try { await deleteDoc(doc(db, 'changeRequests', rows[Number(b.dataset.i)].id)); } catch (e) { console.error(e); alert('Could not withdraw — it may have just been decided.'); }
+        renderMyChangeRequests();
+      }));
+    } catch (err) {
+      console.error('Load change requests failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Couldn't load your requests.</div>`;
+    }
+  }
+
   // Request ID format matches the site's ticket convention:
   // PE-SR-{YYYYMMDD}-{Serial}-{Mode}. Serial resets monthly via an
   // atomic Firestore transaction (counters/sparerequest-{YYYYMM}),
@@ -3815,6 +3872,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const { price: _newPrice, ...otherFields } = payload;
         await updateDoc(doc(db, 'spareParts', editingId), otherFields);
         await addDoc(collection(db, 'changeRequests'), {
+          kind: 'spare_price',
           targetCollection: 'spareParts',
           targetId: editingId,
           action: 'update',
@@ -3972,6 +4030,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     adjustSubmitBtn.disabled = true;
     adjustSubmitBtn.textContent = 'Saving…';
+    if (type !== 'add') {
+      // Taking stock out by hand waits for Super Admin's approval.
+      if (reason.length < 3) { adjustError.textContent = 'Give a reason.'; adjustError.classList.add('show'); adjustSubmitBtn.disabled = false; adjustSubmitBtn.textContent = 'Save'; return; }
+      try {
+        await fileStockReduction(partId, qty, reason, 'issue');
+        adjustSuccess.textContent = 'Sent to Super Admin for approval — stock changes once approved.';
+        adjustSuccess.classList.add('show');
+        setTimeout(closeAdjustModal, 1500);
+      } catch (err) {
+        console.error('Stock reduction request failed:', err);
+        adjustError.textContent = 'Could not send the request. Check console for details.';
+        adjustError.classList.add('show');
+      }
+      adjustSubmitBtn.disabled = false;
+      adjustSubmitBtn.textContent = 'Save';
+      return;
+    }
     const invRef = doc(db, 'inventory', `warehouse_${partId}`);
     try {
       await runTransaction(db, async (transaction) => {

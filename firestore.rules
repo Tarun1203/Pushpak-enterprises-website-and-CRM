@@ -759,7 +759,18 @@ service cloud.firestore {
       // together with its stockMovements ledger line.
       allow create, update: if isAdmin()
         && request.resource.data.get('quantity', 0) is int
-        && request.resource.data.get('quantity', 0) >= 0;
+        && request.resource.data.get('quantity', 0) >= 0
+        // Head Office stock only goes down without Super Admin's approval
+        // when it is dispatched against a spare request, with the transfer
+        // ledger line written in the same transaction. Write-offs and count
+        // corrections go through a 'stock_reduction' change request.
+        && (isSuperAdmin() || resource == null || resource.data.location != 'warehouse'
+            || request.resource.data.quantity >= resource.data.get('quantity', 0)
+            || (request.resource.data.get('lastMoveId', '') is string && request.resource.data.get('lastMoveId', '') != ''
+                && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMoveId)).data.type == 'transfer'
+                && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMoveId)).data.get('sourceRequestId', '') != ''
+                && getAfter(/databases/$(database)/documents/stockMovements/$(request.resource.data.lastMoveId)).data.quantity
+                     == resource.data.get('quantity', 0) - request.resource.data.quantity));
       allow delete: if isAdmin();
     }
 
@@ -939,24 +950,10 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.scope == 'default')
         || (isSignedIn() && resource.data.scope == 'center' && resource.data.serviceCenterUid == request.auth.uid);
-      // A center writes only its OWN override rows, whose doc ids start
-      // with center_<its uid>_ (billing looks rates up by doc id, so a
-      // center must never be able to write a default_* row or another
-      // center's row).
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.scope == 'center'
-            && request.resource.data.serviceCenterUid == request.auth.uid
-            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
-      allow update: if isAdmin()
-        || (isSignedIn() && resource.data.scope == 'center'
-            && resource.data.serviceCenterUid == request.auth.uid
-            && request.resource.data.scope == 'center'
-            && request.resource.data.serviceCenterUid == request.auth.uid
-            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
-      allow delete: if isAdmin()
-        || (isSignedIn() && resource.data.scope == 'center'
-            && resource.data.serviceCenterUid == request.auth.uid
-            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
+      // Only Head Office writes rates directly. A center's own rate change
+      // is a changeRequests 'center_rate' request that Super Admin
+      // approves (the payout depends on it); the server then writes it.
+      allow create, update, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------
@@ -1192,24 +1189,37 @@ service cloud.firestore {
     // out of "pending" — that's the approval itself.
     // ---------------------------------------------------------------
 
+    // One approval queue (functions: applyChangeRequest). Filed by the
+    // person who wants the change; decided by Super Admin — never by the
+    // requester; applied by the server from the request's own payload.
     match /changeRequests/{id} {
-      allow read: if isAdmin();
-      // The only change that goes through approval today is a spare part
-      // price edit, so that is the only shape a request may have.
-      allow create: if isAdmin() && request.resource.data.requestedByUid == request.auth.uid
+      allow read: if isAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.requestedByUid == request.auth.uid
         && request.resource.data.status == 'pending'
-        && request.resource.data.targetCollection == 'spareParts'
-        && request.resource.data.action == 'update'
-        && request.resource.data.targetId is string
-        && request.resource.data.payload.keys().hasOnly(['price'])
-        && (request.resource.data.payload.price == null || request.resource.data.payload.price is number);
-      // Super Admin decides once, and never on a request they raised.
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.payload is map
+        && !request.resource.data.keys().hasAny(['appliedAt', 'applyError', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote'])
+        && ((isAdmin() && request.resource.data.kind == 'spare_price'
+              && request.resource.data.targetId is string
+              && request.resource.data.payload.keys().hasOnly(['price'])
+              && (request.resource.data.payload.price == null || request.resource.data.payload.price is number))
+          || (isAdmin() && request.resource.data.kind == 'stock_reduction'
+              && request.resource.data.payload.keys().hasOnly(['partId', 'qty', 'reason', 'mode'])
+              && request.resource.data.payload.qty is int && request.resource.data.payload.qty >= 1)
+          || (callerRole() == 'servicecenter' && request.resource.data.kind == 'center_rate'
+              && request.resource.data.payload.keys().hasOnly(['rates'])
+              && request.resource.data.payload.rates is list
+              && request.resource.data.payload.rates.size() >= 1 && request.resource.data.payload.rates.size() <= 200));
       allow update: if isSuperAdmin()
         && resource.data.status == 'pending'
         && request.resource.data.status in ['approved', 'rejected']
         && resource.data.requestedByUid != request.auth.uid
+        && request.resource.data.reviewedByUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote']);
-      allow delete: if isSuperAdmin();
+      // The requester may withdraw a request nobody has decided yet.
+      allow delete: if isSuperAdmin()
+        || (isSignedIn() && resource.data.requestedByUid == request.auth.uid && resource.data.status == 'pending');
     }
 
     // ---------------------------------------------------------------

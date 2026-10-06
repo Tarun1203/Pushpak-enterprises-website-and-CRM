@@ -16,6 +16,7 @@ const Finance = require('./finance');
 const Stock = require('./stock');
 const Spares = require('./spares');
 const Rma = require('./rma');
+const Approvals = require('./approvals');
 
 initializeApp();
 const db = getFirestore();
@@ -1580,6 +1581,77 @@ exports.processBrandReturn = onDocumentCreated(
     for (const rmaId of br.rmaIds || []) {
       const q = await db.collection('rmaRequests').where('rmaId', '==', rmaId).limit(1).get();
       if (!q.empty && q.docs[0].get('status') === 'defective_received') await q.docs[0].ref.update({ status: 'sent_to_brand', brandReturnId: ref.id });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// One approval queue (approvals.js). Spare part price changes,
+// Warehouse stock reductions (write-offs / count corrections) and a
+// service center's own rate changes are filed as changeRequests and
+// can't be written directly (firestore.rules). When Super Admin approves
+// — never the person who asked — the change is applied here, from the
+// request's own checked payload, in one transaction, and the requester
+// is told the outcome.
+// ---------------------------------------------------------------
+exports.applyChangeRequest = onDocumentUpdated(
+  { document: 'changeRequests/{id}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    if (before.status === after.status || !['approved', 'rejected'].includes(after.status)) return;
+    const ref = event.data.after.ref;
+    let outcome = after.status === 'rejected' ? 'rejected' : null;
+    if (after.status === 'approved' && !after.appliedAt) {
+      const kind = after.kind || (after.targetCollection === 'spareParts' ? 'spare_price' : null);
+      outcome = await db.runTransaction(async (tx) => {
+        const fresh = (await tx.get(ref)).data();
+        if (fresh.appliedAt || fresh.applyError) return null;
+        const fail = (msg) => { tx.update(ref, { applyError: msg, processedAt: FieldValue.serverTimestamp() }); return 'failed: ' + msg; };
+        const bad = Approvals.validatePayload(kind, fresh.payload);
+        if (bad) return fail(bad);
+        const p = fresh.payload;
+        if (kind === 'spare_price') {
+          const partRef = db.collection('spareParts').doc(String(fresh.targetId || '-'));
+          const part = await tx.get(partRef);
+          if (!part.exists) return fail('That spare part no longer exists.');
+          tx.update(partRef, { price: p.price, updatedAt: FieldValue.serverTimestamp(),
+            priceHistory: FieldValue.arrayUnion({ from: part.get('price') ?? null, to: p.price, changeRequestId: ref.id, at: Timestamp.now() }) });
+        } else if (kind === 'stock_reduction') {
+          const invRef = db.collection('inventory').doc(`warehouse_${p.partId}`);
+          const [inv, part] = await Promise.all([tx.get(invRef), tx.get(db.collection('spareParts').doc(p.partId))]);
+          const r = Approvals.applyReduction(inv.exists ? inv.get('quantity') : 0, p.qty);
+          if (r.error) return fail(r.error);
+          tx.set(invRef, { partId: p.partId, location: 'warehouse', quantity: r.next, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          tx.set(db.collection('stockMovements').doc(), {
+            type: p.mode === 'issue' ? 'issue' : 'adjustment', partId: p.partId, partName: part.exists ? part.get('name') || '' : '',
+            location: 'warehouse', quantity: p.mode === 'issue' ? p.qty : -p.qty, reason: p.reason,
+            changeRequestId: ref.id, requestedByUid: fresh.requestedByUid || null, approvedByUid: fresh.reviewedByUid || null,
+            createdAt: FieldValue.serverTimestamp()
+          });
+        } else if (kind === 'center_rate') {
+          const centerUid = fresh.requestedByUid;
+          p.rates.forEach((rt) => {
+            const rateRef = db.collection('serviceChargeRates').doc(Billing.rateCardKey('center', centerUid, rt.category, rt.rateType, rt.bucket || null));
+            if (rt.amount === null) tx.delete(rateRef);
+            else tx.set(rateRef, { scope: 'center', serviceCenterUid: centerUid, category: rt.category, type: rt.rateType, bucket: rt.bucket || null,
+              amount: rt.amount, updatedBy: fresh.requestedByEmail || '', approvedByUid: fresh.reviewedByUid || null, changeRequestId: ref.id,
+              updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          });
+        } else {
+          return fail('Unknown request type.');
+        }
+        tx.update(ref, { appliedAt: FieldValue.serverTimestamp(), applyError: null });
+        return 'applied';
+      });
+    }
+    if (outcome && after.requestedByUid) {
+      await db.collection('notifications').add({
+        recipientType: 'uid', recipientValue: after.requestedByUid,
+        title: outcome === 'applied' ? 'Request approved' : outcome === 'rejected' ? 'Request rejected' : 'Approved but could not be applied',
+        message: `${after.summary || after.kind || 'Change request'}${outcome === 'rejected' && after.reviewNote ? ' — ' + after.reviewNote : ''}${outcome.startsWith('failed') ? ' — ' + outcome.slice(8) : ''}`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
     }
   }
 );

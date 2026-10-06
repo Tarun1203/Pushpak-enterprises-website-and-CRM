@@ -233,3 +233,32 @@ test('RMA: server-checked replacement, warranty carried, defective unit back, br
   await created('processStockReceipt', 'stockReceipts/rb', { receiptId: 'rb' });
   ok(get('brandReturns/b1').replacementsReceived === 1, 'brand replacement unit counted against the shipment');
 });
+
+test('approval queue: changes are applied by the server only after Super Admin approves', async () => {
+  const Billing = require('./billing');
+  set('spareParts/pp', { name: 'Element', price: 100 });
+  set('changeRequests/a1', { kind: 'spare_price', targetId: 'pp', payload: { price: 120 }, requestedByUid: 'wh1', status: 'pending', summary: 'price' });
+  ok(get('spareParts/pp').price === 100, 'nothing changes while pending');
+  await updated('applyChangeRequest', 'changeRequests/a1', { status: 'approved', reviewedByUid: 'sa1' }, 'sa1', { id: 'a1' });
+  ok(get('spareParts/pp').price === 120 && get('changeRequests/a1').appliedAt, 'price applied on approval');
+  set('inventory/warehouse_pp', { partId: 'pp', location: 'warehouse', quantity: 3 });
+  set('changeRequests/a2', { kind: 'stock_reduction', payload: { partId: 'pp', qty: 5, reason: 'count short', mode: 'adjustment' }, requestedByUid: 'wh1', status: 'pending' });
+  await updated('applyChangeRequest', 'changeRequests/a2', { status: 'approved', reviewedByUid: 'sa1' }, 'sa1', { id: 'a2' });
+  ok(/Only 3/.test(get('changeRequests/a2').applyError) && get('inventory/warehouse_pp').quantity === 3, 'reduction beyond stock not applied');
+  set('changeRequests/a3', { kind: 'stock_reduction', payload: { partId: 'pp', qty: 2, reason: 'water damage', mode: 'adjustment' }, requestedByUid: 'wh1', status: 'pending' });
+  await updated('applyChangeRequest', 'changeRequests/a3', { status: 'approved', reviewedByUid: 'sa1' }, 'sa1', { id: 'a3' });
+  const mv = [...store.values()].find((d) => d.changeRequestId === 'a3');
+  ok(get('inventory/warehouse_pp').quantity === 1 && mv && mv.quantity === -2 && mv.approvedByUid === 'sa1', 'write-off applied with its ledger line');
+  const key = Billing.rateCardKey('center', 'cZ', 'Geyser', 'repair', null);
+  set('changeRequests/a4', { kind: 'center_rate', payload: { rates: [{ category: 'Geyser', rateType: 'repair', bucket: null, amount: 500 }] }, requestedByUid: 'cZ', status: 'pending' });
+  await updated('applyChangeRequest', 'changeRequests/a4', { status: 'approved', reviewedByUid: 'sa1' }, 'sa1', { id: 'a4' });
+  ok(get(`serviceChargeRates/${key}`).amount === 500 && get(`serviceChargeRates/${key}`).serviceCenterUid === 'cZ', 'center rate written for that center only');
+  set('changeRequests/a5', { kind: 'center_rate', payload: { rates: [{ category: 'Geyser', rateType: 'repair', bucket: null, amount: null }] }, requestedByUid: 'cZ', status: 'pending' });
+  await updated('applyChangeRequest', 'changeRequests/a5', { status: 'approved', reviewedByUid: 'sa1' }, 'sa1', { id: 'a5' });
+  ok(!get(`serviceChargeRates/${key}`), 'empty rate removes the override');
+  set('changeRequests/a6', { kind: 'spare_price', targetId: 'pp', payload: { price: 1 }, requestedByUid: 'wh1', status: 'pending' });
+  await updated('applyChangeRequest', 'changeRequests/a6', { status: 'rejected', reviewNote: 'too low', reviewedByUid: 'sa1' }, 'sa1', { id: 'a6' });
+  ok(get('spareParts/pp').price === 120, 'rejected request changes nothing');
+  const n = [...store.values()].filter((d) => d.recipientValue === 'wh1' && /Request (approved|rejected)|could not be applied/.test(d.title || ''));
+  ok(n.length >= 3, 'requester notified of outcomes');
+});

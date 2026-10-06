@@ -4205,6 +4205,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'default'))),
         getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'center'), where('serviceCenterUid', '==', currentUser.uid)))
       ]);
+      const okEl0 = document.getElementById('rate-card-success');
       const byKey = {};
       defaultSnap.forEach(d => { byKey[d.id] = d.data(); });
       const overrideByKey = {};
@@ -4216,9 +4217,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           if (defCell) defCell.textContent = def && def.amount != null ? `₹${def.amount}` : 'Not set';
           const ov = overrideByKey[rateCardKey('center', currentUser.uid, row.cat, t.key, row.bucket)];
           const input = tbody.querySelector(`.rate-card-input[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
-          if (ov && input) input.value = ov.amount ?? '';
+          if (ov && input) { input.value = ov.amount ?? ''; input.dataset.current = String(ov.amount ?? ''); }
         });
       });
+      // Show any rate change still waiting for Super Admin.
+      try {
+        const pend = await getDocs(query(collection(db, 'changeRequests'), where('requestedByUid', '==', currentUser.uid)));
+        const waiting = []; pend.forEach(d => { const x = d.data(); if (x.kind === 'center_rate' && x.status === 'pending') waiting.push(x); });
+        if (waiting.length) {
+          okEl0.textContent = `${waiting.length} rate change request(s) waiting for Super Admin — current rates stay until approved.`;
+          okEl0.classList.add('show');
+        }
+      } catch (e) { console.warn('Could not check pending rate requests:', e.message); }
     } catch (err) {
       console.error('Load rate card failed:', err);
       document.getElementById('rate-card-error').textContent = 'Could not load current rates. Check console for details.';
@@ -4233,24 +4243,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       btn.disabled = true;
       btn.textContent = 'Saving…';
       try {
-        const writes = [];
+        // Your rates decide what Head Office pays, so a change is sent to
+        // Super Admin for approval; the server applies it once approved.
+        const rates = [];
         tbody.querySelectorAll('.rate-card-input').forEach(input => {
-          if (input.value.trim() === '') return;
-          const amount = Number(input.value) || 0;
-          const category = input.dataset.category;
-          const bucket = input.dataset.bucket || null;
-          const rateType = input.dataset.type;
-          writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType, bucket)), {
-            scope: 'center', serviceCenterUid: currentUser.uid, category, type: rateType, bucket: bucket || null, amount,
-            updatedBy: currentUser.email, updatedAt: serverTimestamp()
-          }, { merge: true }));
+          const raw = input.value.trim();
+          const before = input.dataset.current || '';
+          if (raw === before) return;
+          rates.push({ category: input.dataset.category, rateType: input.dataset.type, bucket: input.dataset.bucket || null,
+            amount: raw === '' ? null : Math.round(Number(raw) * 100) / 100 });
         });
-        await Promise.all(writes);
-        okEl.textContent = 'Saved.';
+        if (!rates.length) { okEl.textContent = 'No changes.'; okEl.classList.add('show'); btn.disabled = false; btn.textContent = 'Save your overrides'; return; }
+        if (rates.some(r => r.amount !== null && !(r.amount >= 0))) throw Object.assign(new Error('Rates must be 0 or more.'), { userMsg: true });
+        await addDoc(collection(db, 'changeRequests'), {
+          kind: 'center_rate', payload: { rates },
+          summary: `Service charge rate change — ${rates.map(r => `${r.category}${r.bucket ? ' ' + r.bucket : ''} ${r.rateType}: ${r.amount === null ? 'remove' : '₹' + r.amount}`).join('; ')}`.slice(0, 500),
+          requestedByUid: currentUser.uid, requestedByEmail: currentUser.email || '', status: 'pending', createdAt: serverTimestamp()
+        });
+        okEl.textContent = 'Sent to Super Admin for approval — your rates change once approved.';
         okEl.classList.add('show');
       } catch (err) {
         console.error('Save rate card failed:', err);
-        errEl.textContent = 'Could not save. Check console for details.';
+        errEl.textContent = err.userMsg ? err.message : 'Could not send the request. Check console for details.';
         errEl.classList.add('show');
       }
       btn.disabled = false;

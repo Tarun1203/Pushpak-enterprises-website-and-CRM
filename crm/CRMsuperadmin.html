@@ -7652,6 +7652,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function renderApprovalsOverview() {
     contentEl.innerHTML = `
       <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Needs your decision</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Submitted</th><th>Type</th><th>Request</th><th>Requested by</th><th>Action</th></tr></thead>
+          <tbody id="appr-changereq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Waiting elsewhere</h2></div>
+        <div class="panel-body" id="appr-elsewhere">Loading…</div>
+      </div>
+      <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Pending claims</h2></div>
         <div class="panel-body" style="padding:0;">
           <table><thead><tr><th>Claim ID</th><th>Type</th><th>Claimant</th><th>Amount</th><th>Status</th></tr></thead>
@@ -7672,18 +7683,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <tbody id="appr-sr-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody></table>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-header"><h2>Warehouse change requests — needs your approval</h2></div>
-        <div class="panel-body" style="padding:0;">
-          <table><thead><tr><th>Submitted</th><th>What</th><th>Change</th><th>Requested by</th><th>Action</th></tr></thead>
-          <tbody id="appr-changereq-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody></table>
-        </div>
-      </div>
       <div style="margin-top:16px;font-size:12.5px;color:var(--stone);">
-        Claims/Local Purchase/Spare Requests above are a read-only overview — those approve/verify/settle
-        actions happen in the Warehouse portal. Change requests below are the exception: only Super Admin
-        can approve or reject those, so it happens right here.
-      </div>`;
+        "Needs your decision" is the one queue for changes only Super Admin can approve — spare part prices,
+        Head Office stock write-offs, and service centers' own rate changes. Approving applies the change on
+        the server; you can't decide a request you raised yourself. The lists below are for oversight.
+      </div></div>`;
 
     // All three lists sort oldest-first (by createdAt, client-side —
     // avoids needing a Firestore composite index for status + date)
@@ -7746,6 +7750,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     try {
       const crSnap = await getDocs(query(collection(db, 'changeRequests'), where('status', '==', 'pending')));
       const tbody4 = document.getElementById('appr-changereq-tbody');
+      const KIND_LABEL = { spare_price: 'Spare part price', stock_reduction: 'Stock write-off / correction', center_rate: 'Service center rates' };
       if (crSnap.empty) {
         tbody4.innerHTML = `<tr><td colspan="5" class="empty-row">Nothing pending.</td></tr>`;
       } else {
@@ -7755,10 +7760,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody4.innerHTML = '';
         rows.forEach(d => {
           const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
+          const kind = d.kind || (d.targetCollection === 'spareParts' ? 'spare_price' : '');
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-            <td style="font-size:12.5px;">${escapeHtml(d.targetCollection || '—')}</td>
+            <td style="font-size:12.5px;">${escapeHtml(KIND_LABEL[kind] || kind || '—')}</td>
             <td style="font-size:12.5px;">${escapeHtml(d.summary || '—')}</td>
             <td style="font-size:12px;">${escapeHtml(d.requestedByEmail || '—')}</td>
             <td>${auth.currentUser && d.requestedByUid === auth.currentUser.uid
@@ -7773,6 +7779,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           if (rjBtn) rjBtn.addEventListener('click', () => rejectChangeRequest(d));
         });
       }
+      // Everything else that is waiting on someone, with where it's done.
+      const [subClaims, verClaims, ordersD, ordersX, adds, rmas] = await Promise.all([
+        getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted'))),
+        getDocs(query(collection(db, 'claims'), where('status', '==', 'verified'))),
+        getDocs(query(collection(db, 'dealerOrders'), where('status', '==', 'placed'))),
+        getDocs(query(collection(db, 'distributorOrders'), where('status', '==', 'placed'))),
+        getDocs(query(collection(db, 'stockOps'), where('status', '==', 'awaiting_approval'))),
+        getDocs(query(collection(db, 'rmaRequests'), where('status', '==', 'requested')))
+      ].map(p => p.catch(() => ({ size: 0, forEach() {} }))));
+      let hoOrders = ordersX.size;
+      ordersD.forEach(d => { if (!d.data().distributorUid) hoOrders++; });
+      const line = (n, what, where) => `<div style="padding:4px 0;${n ? '' : 'color:var(--stone);'}"><b>${n}</b> ${what} <span style="color:var(--stone);font-size:12px;">— ${where}</span></div>`;
+      document.getElementById('appr-elsewhere').innerHTML =
+        line(verClaims.size, 'verified claim(s) to pay', 'you pay them in Payments')
+        + line(subClaims.size, 'claim(s) to verify', 'Warehouse → Claims Verification')
+        + line(hoOrders, 'dealer / distributor order(s) to approve', 'Trade Orders (Warehouse or you)')
+        + line(adds.size, 'center / technician stock-add request(s)', 'Warehouse → Spare Stock Requests')
+        + line(rmas.size, 'RMA(s) to approve', 'Warehouse → RMA & Replacement');
     } catch (err) { console.error('Load pending change requests failed:', err); }
   }
 
@@ -7782,53 +7806,26 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // approved or rejected. Approving replays the stored payload onto
   // the real target doc, then marks the request itself resolved.
   async function approveChangeRequest(cr) {
-    if (!confirm(`Apply this change now?\n\n${cr.summary || ''}`)) return;
+    if (!confirm(`Approve and apply this change?\n\n${cr.summary || ''}`)) return;
     try {
-      // Only a spare part price change is ever approvable (firestore.rules
-      // refuses any other request shape). Only the price is applied, never
-      // a whole stored form, and the request is re-read inside the same
-      // transaction so it can't be applied twice.
-      const payload = cr.payload || {};
-      if (cr.targetCollection !== 'spareParts' || cr.action !== 'update' || !cr.targetId
-          || Object.keys(payload).some(k => k !== 'price')) {
-        alert('This request is not a spare part price change, so it can\'t be applied. Reject it instead.');
-        return;
-      }
-      const crRef = doc(db, 'changeRequests', cr.id);
-      const partRef = doc(db, 'spareParts', cr.targetId);
-      await runTransaction(db, async (t) => {
-        const crSnap = await t.get(crRef);
-        if (!crSnap.exists() || crSnap.data().status !== 'pending') throw new Error('This request was already decided — refresh the list.');
-        const partSnap = await t.get(partRef);
-        if (!partSnap.exists()) throw new Error('That spare part no longer exists.');
-        t.update(partRef, { price: payload.price ?? null, updatedAt: serverTimestamp() });
-        t.update(crRef, {
-          status: 'approved',
-          reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-          reviewedByUid: auth.currentUser ? auth.currentUser.uid : null,
-          reviewedAt: serverTimestamp()
-        });
+      // The applyChangeRequest function applies it from the request's own
+      // checked payload — nothing is written to the target from here.
+      await updateDoc(doc(db, 'changeRequests', cr.id), {
+        status: 'approved',
+        reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+        reviewedByUid: auth.currentUser ? auth.currentUser.uid : null,
+        reviewedAt: serverTimestamp()
       });
-      try {
-        await addDoc(collection(db, 'auditLogs'), {
-          entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
-          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
-          details: `Approved Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}`,
-          createdAt: serverTimestamp()
-        });
-      } catch (auditErr) {
-        console.warn('Audit log write failed (non-blocking):', auditErr.message);
-      }
-      renderApprovalsOverview();
+      setTimeout(renderApprovalsOverview, 1500);
     } catch (err) {
       console.error('Approve change request failed:', err);
-      alert(err.message && !/permission/i.test(err.message) ? err.message : 'Could not apply this change. Check console for details.');
+      alert('Could not approve this — it may already have been decided, or it is your own request.');
     }
   }
 
   async function rejectChangeRequest(cr) {
-    const note = prompt('Optional note for rejecting this (kept in the audit log only):', '') || '';
+    const note = prompt('Reason for rejecting (shown to the person who asked):', '');
+    if (note === null) return;
     try {
       await updateDoc(doc(db, 'changeRequests', cr.id), {
         status: 'rejected',
@@ -7839,10 +7836,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       });
       try {
         await addDoc(collection(db, 'auditLogs'), {
-          entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
+          entityType: cr.targetCollection || cr.kind || 'changeRequest', entityId: cr.targetId || cr.id, action: 'status_changed',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
           performedByUid: auth.currentUser ? auth.currentUser.uid : '',
-          details: `Rejected Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}${note ? ` — ${note}` : ''}`,
+          details: `Rejected change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}${note ? ` — ${note}` : ''}`,
           createdAt: serverTimestamp()
         });
       } catch (auditErr) {
