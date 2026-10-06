@@ -875,9 +875,19 @@ service cloud.firestore {
     // flows (see the corresponding action in each dashboard).
     // ---------------------------------------------------------------
 
+    // Entries written from the dashboards must name the real caller:
+    // performedByUid / performedBy are pinned to the signed-in account,
+    // and createdAt to the server clock, so one admin cannot log an
+    // action as another or backdate it. Privilege and status changes
+    // are ALSO logged server-side (functions/index.js audit* triggers),
+    // which no client can forge or skip.
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.performedByUid == request.auth.uid
+        && request.resource.data.performedBy == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.get('source', '') != 'server';
       allow update, delete: if false;
     }
 

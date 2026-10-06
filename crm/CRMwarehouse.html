@@ -1212,6 +1212,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               await addDoc(collection(db, 'auditLogs'), {
                 entityType: 'serviceJob', entityId: r.docId, action: 'status_changed',
                 performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
                 details: `${r.coll} status changed to "${payload.status}"`,
                 createdAt: serverTimestamp()
               });
@@ -2465,6 +2466,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: 'user', entityId: newUid, action: 'created',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Bulk-created account for ${email} with role "${role}"`,
           createdAt: serverTimestamp()
         });
@@ -4924,6 +4926,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: 'payment', entityId: sourceId, action: 'settled',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Recorded ₹${document.getElementById('payment-amount').value} payment (${document.getElementById('payment-method').value}) for ${refId}`,
           createdAt: serverTimestamp()
         });

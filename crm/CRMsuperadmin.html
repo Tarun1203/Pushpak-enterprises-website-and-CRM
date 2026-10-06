@@ -2015,6 +2015,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: 'user', entityId: newUid, action: 'created',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Created account for ${email} with role "${role}"`,
           createdAt: serverTimestamp()
         });
@@ -2173,6 +2174,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           entityType: 'user', entityId: editingUid,
           action: roleChanged ? 'role_changed' : 'updated',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: roleChanged
             ? `Changed role for ${editingEmail} from "${editingOriginalRole}" to "${editRoleSelect.value}"`
             : `Updated profile for ${editingEmail}`,
@@ -5456,7 +5458,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             : `Employment status changed to ${newStatus} (by Super Admin)`;
           await addDoc(collection(db, 'technicianTimeline'), {
             technicianDocId: d.id, event: newStatus === 'ACTIVE' ? 'ACCOUNT_ACTIVATED' : newStatus === 'SUSPENDED' ? 'ACCOUNT_SUSPENDED' : 'STATUS_CHANGED',
-            label, performedBy: auth.currentUser ? auth.currentUser.email : 'unknown', createdAt: serverTimestamp()
+            label, performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
           });
         }
         okEl.textContent = 'Saved.';
@@ -5491,7 +5493,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (status === 'APPROVED') {
         await addDoc(collection(db, 'technicianTimeline'), {
           technicianDocId: tfpData.id, event: 'LEAVE_APPROVED', label: `Leave approved — ${records[idx].leaveType || records[idx].leaveId}`,
-          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown', createdAt: serverTimestamp()
+          performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
         });
       }
       tfpData.leaveRecords = records;
@@ -6041,6 +6043,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               await addDoc(collection(db, 'auditLogs'), {
                 entityType: 'serviceJob', entityId: r.docId, action: 'status_changed',
                 performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
                 details: `${r.coll} status changed to "${payload.status}"`,
                 createdAt: serverTimestamp()
               });
@@ -7497,6 +7500,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           await addDoc(collection(db, 'auditLogs'), {
             entityType: 'payment', entityId: rec.id, action: 'settled',
             performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
             details: `Recorded ₹${rec.amount} payment (${method}) for ${rec.refId}`,
             createdAt: serverTimestamp()
           });
@@ -7673,6 +7677,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Approved Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}`,
           createdAt: serverTimestamp()
         });
@@ -7699,6 +7704,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: cr.targetCollection, entityId: cr.targetId || '', action: 'status_changed',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Rejected Warehouse change request from ${cr.requestedByEmail || 'unknown'}: ${cr.summary || ''}${note ? ` — ${note}` : ''}`,
           createdAt: serverTimestamp()
         });
@@ -8451,6 +8457,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               await addDoc(collection(db, 'auditLogs'), {
                 entityType: 'rma', entityId: btn.dataset.id, action: 'status_changed',
                 performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
                 details: `RMA status changed to "${btn.dataset.next}"`,
                 createdAt: serverTimestamp()
               });
@@ -9230,6 +9237,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         await addDoc(collection(db, 'auditLogs'), {
           entityType: 'user', entityId: newUid, action: 'created',
           performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
           details: `Bulk-created account for ${email} with role "${role}"`,
           createdAt: serverTimestamp()
         });
