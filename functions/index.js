@@ -4,6 +4,12 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
 const { buildAuditEntries } = require('./audit');
 const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
+const { findCandidates, pickLeastLoaded } = require('./routing');
+const { rankTechnicians } = require('./technicianMatch');
+const Appointment = require('./appointment');
+const { checkTransition, checkSpareTransition } = require('./lifecycle');
+const Billing = require('./billing');
+const Feedback = require('./feedback');
 
 initializeApp();
 const db = getFirestore();
@@ -136,6 +142,125 @@ for (const coll of REQUEST_COLLECTIONS) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Routing: a website request is sent to a service center as soon as it
+// is created, instead of waiting for an admin to open the Routing
+// screen. pincode -> territory -> center (see routing.js for the
+// rules). Requests it cannot place are marked `routing.status =
+// 'manual'` with a reason, for a person to route. Idempotent: the
+// centerRequests doc id is derived from the request's id, and the
+// transaction re-checks that nothing has routed it already.
+// ---------------------------------------------------------------
+const OPEN_TICKET_STATUSES = ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
+
+async function loadCenters() {
+  const users = await db.collection('users').where('role', '==', 'servicecenter').get();
+  const centers = users.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  if (centers.length) {
+    const profiles = await db.getAll(...centers.map((c) => db.collection('serviceCenterProfiles').doc(c.uid)));
+    profiles.forEach((p, i) => { centers[i].profileStatus = p.exists ? p.get('status') : undefined; });
+  }
+  return centers;
+}
+
+async function openTicketCount(uid) {
+  const snap = await db.collection('centerRequests').where('serviceCenterUid', '==', uid).limit(500).get();
+  return snap.docs.filter((d) => OPEN_TICKET_STATUSES.includes(d.get('status'))).length;
+}
+
+exports.routePublicServiceRequest = onDocumentCreated(
+  { document: 'publicServiceRequests/{docId}', region: REGION },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const ticket = snap.data();
+    if (ticket.status !== 'new' || ticket.routing) return;
+
+    const pincode = String(ticket.pincode || '').trim();
+    const [centers, pinSnap] = await Promise.all([
+      loadCenters(),
+      pincode ? db.collection('pincodes').doc(pincode).get() : Promise.resolve(null)
+    ]);
+    const pin = pinSnap && pinSnap.exists ? pinSnap.data() : null;
+    const today = new Date().toISOString().slice(0, 10);
+    const result = findCandidates(ticket, centers, pin, today);
+
+    let chosen = null;
+    if (result.method && result.candidates.length) {
+      let counts = {};
+      if (result.candidates.length > 1) {
+        const entries = await Promise.all(result.candidates.map(async (c) => [c.uid, await openTicketCount(c.uid)]));
+        counts = Object.fromEntries(entries);
+      }
+      chosen = pickLeastLoaded(result.candidates, counts);
+    }
+
+    const pubRef = snap.ref;
+    if (!chosen) {
+      await pubRef.update({
+        routing: {
+          status: 'manual', reason: result.reason || 'no_match',
+          candidateUids: result.candidates.map((c) => c.uid).slice(0, 10),
+          at: FieldValue.serverTimestamp()
+        }
+      });
+      return;
+    }
+
+    const centerName = chosen.name || chosen.email || '';
+    const productLabel = ticket.product || `${ticket.brand || ''} ${ticket.category || ''}`.trim() || '-';
+    const centerReqRef = db.collection('centerRequests').doc(`route_${pubRef.id}`);
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(pubRef);
+      if (!fresh.exists || fresh.get('status') !== 'new' || fresh.get('routing')) return;
+      const routing = { status: 'routed', method: result.method, candidates: result.candidates.length, at: FieldValue.serverTimestamp() };
+      tx.set(centerReqRef, {
+        requestId: ticket.requestId || pubRef.id,
+        serviceCenterUid: chosen.uid,
+        serviceCenterName: centerName,
+        customerName: ticket.customerName || '',
+        customerPhone: ticket.customerPhone || '',
+        address: ticket.address || '',
+        city: ticket.city || '',
+        pincode: ticket.pincode || '',
+        product: productLabel,
+        brand: ticket.brand || '',
+        category: ticket.category || '',
+        modelNo: ticket.modelNo || '',
+        serialNumber: ticket.serialNumber || '',
+        purchaseDate: ticket.purchaseDate || null,
+        linkedRegistrationId: ticket.linkedRegistrationId || null,
+        type: ticket.requestType === 'installation' ? 'installation' : 'service',
+        issue: ticket.issueDescription || '',
+        status: 'new',
+        sourceRequestId: pubRef.id,
+        routing,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      tx.set(centerReqRef.collection('statusLog').doc(), {
+        status: 'new', note: `Routed to ${centerName} (${result.method} match)`,
+        changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+      });
+      tx.update(pubRef, {
+        serviceCenterUid: chosen.uid, serviceCenterName: centerName,
+        status: 'assigned_to_center', routing, updatedAt: FieldValue.serverTimestamp()
+      });
+      tx.set(pubRef.collection('statusLog').doc(), {
+        status: 'assigned_to_center', note: `Routed to ${centerName} (${result.method} match)`,
+        changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+      });
+      tx.set(db.collection('notifications').doc(), {
+        recipientType: 'uid', recipientValue: chosen.uid,
+        title: 'New service request routed to you',
+        message: `${ticket.customerName || 'A customer'} - ${productLabel}`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    });
+  }
+);
+
 
 // ---------------------------------------------------------------
 // Technician assignment check. A service center picks a technician for
@@ -439,5 +564,41 @@ exports.checkClaim = onDocumentCreated(
       check = { kind: 'manual', status: 'manual', claimed: Number(claim.amount) || 0, verified: null, issues: [] };
     }
     await event.data.ref.update({ claimCheck: { ...check, at: FieldValue.serverTimestamp() } });
+  }
+);
+
+// ---------------------------------------------------------------
+// Customer feedback. The customer submits a rating from the public
+// Track page (firestore.rules lets them create exactly one record per
+// closed ticket, with the phone number matching the ticket). This copies
+// the ticket's service center / technician onto the record, shows the
+// rating on the ticket itself, and alerts the center and Warehouse when
+// the rating is low. Nobody in the CRM can edit or create feedback.
+// ---------------------------------------------------------------
+exports.processFeedback = onDocumentCreated(
+  { document: 'serviceFeedback/{ticketId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const fb = event.data.data();
+    const mirror = await db.collection('publicTicketStatus').doc(event.params.ticketId).get();
+    if (!mirror.exists) return;
+    const m = mirror.data();
+    const ticketRef = db.collection(m.source === 'serviceJobs' ? 'serviceJobs' : 'centerRequests').doc(m.sourceDocId);
+    const ticketSnap = await ticketRef.get();
+    if (!ticketSnap.exists) return;
+    const ticket = ticketSnap.data();
+    const enrich = Feedback.enrichmentFor(ticket, m, ticketRef.parent.id, ticketRef.id);
+    await Promise.all([
+      event.data.ref.update(enrich),
+      ticketRef.update({ customerFeedback: { rating: fb.rating, comment: fb.comment || '', at: FieldValue.serverTimestamp() } })
+    ]);
+    if (Feedback.isLowRating(fb.rating)) {
+      const text = `${fb.rating}/5 on ${enrich.requestId || event.params.ticketId}${fb.comment ? ': ' + String(fb.comment).slice(0, 120) : ''}`;
+      const targets = [{ recipientType: 'role', recipientValue: 'warehouse' }];
+      if (enrich.serviceCenterUid) targets.push({ recipientType: 'uid', recipientValue: enrich.serviceCenterUid });
+      await Promise.all(targets.map((t) => db.collection('notifications').add({
+        ...t, title: 'Low customer rating', message: text, read: false, createdAt: FieldValue.serverTimestamp()
+      })));
+    }
   }
 );

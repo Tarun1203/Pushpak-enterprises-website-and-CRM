@@ -5993,7 +5993,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const dups = Array.isArray(f.possibleDuplicateOf) ? f.possibleDuplicateOf : [];
     const label = !w ? '' : w.status === 'in_warranty' ? `In warranty${w.expiresOn ? ' until ' + w.expiresOn : ''}`
       : w.status === 'out_of_warranty' ? `Out of warranty${w.expiresOn ? ' (expired ' + w.expiresOn + ')' : ''}` : 'Unknown (no purchase date on file)';
-    return (w ? `<div><b>Warranty at intake:</b> ${escapeHtml(label)}${w.source && w.source !== 'none' ? ' <span style="color:var(--stone);font-size:12px;">(' + escapeHtml(w.source) + ')</span>' : ''}</div>` : '')
+    const ROUTE_REASONS = {
+      no_pincode: 'no pincode on the request', pincode_not_in_master: 'pincode is not in Pincode Master',
+      no_center_covers_pincode: 'no active center covers this pincode', no_center_covers_district: 'no active center covers this district',
+      brand_not_authorized: 'covering center(s) are not authorized for this brand',
+      multiple_district_candidates: 'several centers cover this district, pick one', no_match: 'no match'
+    };
+    const rt = f.routing;
+    const routeLine = rt && rt.status === 'manual'
+      ? `<div style="color:var(--err);"><b>Needs manual routing:</b> ${escapeHtml(ROUTE_REASONS[rt.reason] || rt.reason || '')}</div>`
+      : (rt && rt.status === 'routed' ? `<div><b>Auto-routed:</b> by ${escapeHtml(rt.method || '')} match</div>` : '');
+    return routeLine + (w ? `<div><b>Warranty at intake:</b> ${escapeHtml(label)}${w.source && w.source !== 'none' ? ' <span style="color:var(--stone);font-size:12px;">(' + escapeHtml(w.source) + ')</span>' : ''}</div>` : '')
       + (dups.length ? `<div style="color:var(--err);"><b>Possible duplicate of:</b> ${dups.map(escapeHtml).join(', ')}</div>` : '');
   }
 
@@ -8111,7 +8121,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       brand: d.brand || '',
       category: d.category || '',
       modelNo: d.modelNo || '',
-      serialNumber: d.serialNo || '',
+      serialNumber: d.serialNumber || d.serialNo || '',
+      purchaseDate: d.purchaseDate || null,
+      linkedRegistrationId: d.linkedRegistrationId || null,
       type: d.requestType === 'installation' ? 'installation' : 'service',
       issue: d.issueDescription || '',
       status: 'new',
@@ -8148,6 +8160,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     let skippedNoCapability = 0;
     for (const docSnap of publicSnap.docs) {
       const d = { ...docSnap.data(), id: docSnap.id };
+      // The routePublicServiceRequest Cloud Function routes new
+      // requests within seconds and stamps `routing` on them. This
+      // browser-side pass is only a fallback for requests the function
+      // hasn't handled (e.g. functions not deployed): skip anything it
+      // has touched, and give it two minutes before stepping in.
+      if (d.routing) continue;
+      const ageMs = d.createdAt && d.createdAt.toMillis ? Date.now() - d.createdAt.toMillis() : Infinity;
+      if (ageMs < 120000) continue;
       const pincode = (d.pincode || '').trim();
       if (!pincode) continue;
       const requestBrandId = (d.brand || '').toLowerCase();
