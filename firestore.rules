@@ -172,10 +172,16 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
+      // A technician can't write the warranty verdict, charge or billing
+      // fields on their own job — the billOnClose_serviceJobs function does.
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt']));
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid);
+        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
+            && !request.resource.data.keys().hasAny(
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt']));
       allow delete: if isAdmin();
 
       // Append-only status/progress log — every status change any
@@ -208,7 +214,7 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected'])
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt'])
         && (isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
@@ -218,14 +224,13 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
               ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt',
                'beforePhotos', 'afterPhotos', 'serialNumberPhoto',
-               // Automatic warranty/billing fields the closure flow
-               // writes right after marking the job completed — the
-               // technician's own wallet credit and, for an in-warranty
-               // job, flagging the ticket ready for the center to claim.
-               'warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt'])));
+               // Warranty verdict, service charge and billing fields are
+               // NOT here: the billOnClose_* Cloud Function sets them when
+               // a technician completes a ticket.
+               ])));
       allow create: if (isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —
@@ -535,7 +540,16 @@ service cloud.firestore {
 
     match /claims/{claimId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.claimantUid == request.auth.uid);
-      allow create: if isAdmin() || (isSignedIn() && request.resource.data.claimantUid == request.auth.uid);
+      // A submitted claim starts as 'submitted', carries no server fields,
+      // and has a sane amount; the checkClaim function then recomputes it
+      // from the credits / tickets it points at and stores `claimCheck`.
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.claimantUid == request.auth.uid
+            && request.resource.data.get('status', '') == 'submitted'
+            && request.resource.data.amount is number
+            && request.resource.data.amount >= 0
+            && request.resource.data.amount <= 10000000
+            && !request.resource.data.keys().hasAny(['claimCheck', 'approvedAmount', 'paidAt']));
       allow update, delete: if isAdmin();
     }
 
@@ -799,17 +813,9 @@ service cloud.firestore {
 
     match /walletTransactions/{txnId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
-      // A technician's own credit must be 'unclaimed' and point at a real
-      // job assigned to them — they can't credit themselves against
-      // someone else's job or one that doesn't exist. (The amount, and
-      // one-credit-per-job, can't be checked from rules; that needs the
-      // credit moved server-side — see the notes on this review.)
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
-            && request.resource.data.status == 'unclaimed'
-            && request.resource.data.sourceJobCollection in ['serviceJobs', 'centerRequests']
-            && request.resource.data.sourceJobId is string
-            && get(/databases/$(database)/documents/$(request.resource.data.sourceJobCollection)/$(request.resource.data.sourceJobId)).data.technicianUid == request.auth.uid);
+      // Credits are issued by the billOnClose_* Cloud Functions (one per
+      // job, amount from the rate card) — never by a technician's browser.
+      allow create: if isAdmin();
       // The technician may only flip their own still-unclaimed entry to
       // 'claimed' (stamping which claim it went into) — nothing else on
       // the record is theirs to touch.

@@ -4744,7 +4744,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
         <td>${d.claimantName || '—'}</td>
         <td>${d.description || '—'}</td>
-        <td>₹${d.amount ?? '—'}</td>
+        <td>₹${d.amount ?? '—'}${claimCheckBadge(d)}</td>
         <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
         <td>${actionHtml}</td>`;
       tbody.appendChild(tr);
@@ -4759,6 +4759,17 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     tbody.querySelectorAll('.claim-settle-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openPaymentModal('claim', btn.dataset.id, tabId); }));
     tbody.querySelectorAll('.claim-reject-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'rejected', tabId); }));
     tbody.querySelectorAll('.claim-reopen-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); advanceClaim(btn.dataset.id, 'submitted', tabId); }));
+  }
+
+  // Server-computed check of the claimed amount against the credits /
+  // tickets the claim points at (checkClaim Cloud Function). Shown beside
+  // the amount so an approver sees a mismatch before verifying.
+  function claimCheckBadge(d) {
+    const c = d.claimCheck;
+    if (!c) return '';
+    if (c.status === 'ok') return `<div style="font-size:11.5px;color:var(--ok, #2e7d32);">✓ matches records</div>`;
+    if (c.status === 'manual') return `<div style="font-size:11.5px;color:var(--stone);">Manual claim, not checked</div>`;
+    return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ ${escapeHtml((c.issues || ['mismatch'])[0])}</div>`;
   }
 
   async function openClaimDetailModal(claimId) {

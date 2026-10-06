@@ -1,4 +1,4 @@
-const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext } = require('firebase-functions/v2/firestore');
+const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
@@ -328,5 +328,116 @@ exports.checkSparePipeline = onDocumentUpdatedWithAuthContext(
       status: before.status,
       pipelineRejected: { from: before.status, to: after.status, reason, at: FieldValue.serverTimestamp() }
     });
+  }
+);
+
+// ---------------------------------------------------------------
+// Billing at closure. When a TECHNICIAN completes their own ticket, the
+// server (not their browser) decides the warranty verdict, looks the
+// charge up on the rate card, and — for an in-warranty job — credits
+// their wallet exactly once (the credit's id is derived from the job,
+// so a retry cannot double it). Tickets completed by a service center
+// keep the existing billing-page flow. `billingComputedAt` makes the
+// step idempotent; an illegal completion (see checkLifecycle_*) is
+// never billed.
+// ---------------------------------------------------------------
+async function closureContext(ticketRef, ticket) {
+  let reg = null;
+  if (ticket.serialNumber) {
+    const q = await db.collection('productRegistrations').where('serialNumber', '==', ticket.serialNumber).limit(1).get();
+    if (!q.empty) reg = q.docs[0].data();
+  }
+  const partNames = [];
+  const returns = await db.collection('returns').where('sourceJobId', '==', ticketRef.id).get();
+  for (const r of returns.docs) {
+    const partId = r.get('partId');
+    if (!partId) continue;
+    const part = await db.collection('spareParts').doc(partId).get();
+    if (part.exists && part.get('name')) partNames.push(part.get('name'));
+  }
+  let centerUid = ticket.serviceCenterUid || null;
+  if (!centerUid && ticket.technicianUid) {
+    const u = await db.collection('users').doc(ticket.technicianUid).get();
+    centerUid = u.exists ? u.get('linkedServiceCenterUid') || null : null;
+  }
+  const keys = Billing.rateLookupKeys(ticket, centerUid);
+  const rateSnaps = await Promise.all(keys.map((k) => db.collection('serviceChargeRates').doc(k).get()));
+  const amounts = {};
+  rateSnaps.forEach((snap, i) => { if (snap.exists) amounts[keys[i]] = snap.get('amount'); });
+  return { reg, partNames, rate: Billing.pickRate(keys, amounts) };
+}
+
+for (const coll of ['centerRequests', 'serviceJobs']) {
+  exports[`billOnClose_${coll}`] = onDocumentUpdated(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      if (!event.data) return;
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+      if (before.status === 'completed' || after.status !== 'completed') return;
+      if (after.billingComputedAt) return;
+      if (!after.closedByUid || after.closedByUid !== after.technicianUid) return; // center-closed: billing page handles it
+      if (checkTransition(before, after, after.closedByUid)) return; // illegal completion, being reverted
+      const ref = event.data.after.ref;
+      const { reg, partNames, rate } = await closureContext(ref, after);
+      const verdict = Billing.computeClosureWarranty(reg, after, partNames);
+      const label = after.jobId || after.requestId || ref.id;
+
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (!fresh.exists || fresh.get('status') !== 'completed' || fresh.get('billingComputedAt')) return;
+        const update = { billingComputedAt: FieldValue.serverTimestamp() };
+        if (verdict.inWarranty === true) {
+          update.warrantyStatus = 'in_warranty';
+          if (rate > 0) {
+            update.serviceCharge = rate;
+            if (coll === 'centerRequests') {
+              update.billingType = 'claim'; update.billingStatus = 'ready_to_claim'; update.billingTotal = 0;
+              update.billedAt = FieldValue.serverTimestamp();
+            }
+            tx.create(db.collection('walletTransactions').doc(`credit_${coll}_${ref.id}`), {
+              technicianUid: after.technicianUid, amount: rate, type: 'service_charge_credit',
+              sourceJobId: ref.id, sourceJobCollection: coll, sourceJobLabel: label,
+              serialNumber: after.serialNumber || null, status: 'unclaimed',
+              createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+            });
+          }
+        } else if (verdict.inWarranty === false) {
+          update.warrantyStatus = 'out_of_warranty';
+        }
+        tx.update(ref, update);
+        const ticketId = after.requestId || after.jobId;
+        if (update.warrantyStatus && ticketId && after.customerPhone) {
+          tx.set(db.collection('publicTicketStatus').doc(ticketId), { warrantyStatus: update.warrantyStatus }, { merge: true });
+        }
+      });
+    }
+  );
+}
+
+// ---------------------------------------------------------------
+// Claim check. When a claim is submitted, recompute what it should be
+// worth from the records it points at and store the result as
+// `claimCheck` (server-only). Wallet claims are checked against the
+// technician's credits; service center claims against the tickets'
+// stored billing totals. Free-form claims are marked "manual" for the
+// approver to judge. Nothing is blocked — Warehouse sees the flag.
+// ---------------------------------------------------------------
+exports.checkClaim = onDocumentCreated(
+  { document: 'claims/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const claim = event.data.data();
+    let check;
+    if (Array.isArray(claim.walletTxnIds) && claim.walletTxnIds.length) {
+      const snaps = await Promise.all(claim.walletTxnIds.slice(0, 50).map((id) => db.collection('walletTransactions').doc(id).get()));
+      check = Billing.verifyWalletClaim(claim, snaps.filter((x) => x.exists).map((x) => ({ id: x.id, ...x.data() })));
+    } else if (Array.isArray(claim.ticketIds) && claim.ticketIds.length) {
+      const snaps = await Promise.all(claim.ticketIds.slice(0, 50).map((id) => db.collection('centerRequests').doc(id).get()));
+      check = Billing.verifyTicketClaim(claim, snaps.filter((x) => x.exists).map((x) => ({ id: x.id, ...x.data() })));
+    } else {
+      check = { kind: 'manual', status: 'manual', claimed: Number(claim.amount) || 0, verified: null, issues: [] };
+    }
+    await event.data.ref.update({ claimCheck: { ...check, at: FieldValue.serverTimestamp() } });
   }
 );

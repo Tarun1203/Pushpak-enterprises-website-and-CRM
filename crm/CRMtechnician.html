@@ -1301,86 +1301,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   document.getElementById('jd-close-btn').addEventListener('click', closeJobDetailModal);
   jdOverlay.addEventListener('click', (e) => { if (e.target === jdOverlay) closeJobDetailModal(); });
 
-  // Cached lookup of the technician's own service center (the center
-  // that linked this technician account to its roster) — undefined
-  // means "not looked up yet", null means "not linked to any center".
-  let cachedLinkedCenterUid;
-  // Warranty check used by job closure's automatic billing — mirrors
-  // the same logic used on the Service Center side, matching the
-  // specific part(s) just replaced against the product's per-
-  // component warranty terms before falling back to its overall
-  // warranty, then to the ticket's own captured purchase date.
-  function computeWarrantyStatusTech(purchaseDate, warrantyMonths) {
-    if (!purchaseDate) return { inWarranty: null };
-    const purchase = new Date(purchaseDate);
-    const expiry = new Date(purchase);
-    expiry.setMonth(expiry.getMonth() + (warrantyMonths || 12));
-    return { inWarranty: expiry >= new Date() };
-  }
-
-  async function getJobWarrantyInfo(jobData, partNames) {
-    let reg = null;
-    if (jobData.serialNumber) {
-      try {
-        const snap = await getDocs(query(collection(db, 'productRegistrations'), where('serialNumber', '==', jobData.serialNumber)));
-        if (!snap.empty) reg = snap.docs[0].data();
-      } catch (err) {
-        console.warn('Warranty lookup by serial failed:', err.message);
-      }
-    }
-    if (reg && Array.isArray(reg.warrantyComponents) && reg.warrantyComponents.length && partNames && partNames.length) {
-      for (const partName of partNames) {
-        const pn = partName.toLowerCase();
-        const comp = reg.warrantyComponents.find(c => c.componentName &&
-          (c.componentName.toLowerCase().includes(pn) || pn.includes(c.componentName.toLowerCase())));
-        if (comp) return computeWarrantyStatusTech(reg.purchaseDate, (comp.durationYears || 0) * 12);
-      }
-    }
-    if (reg) return computeWarrantyStatusTech(reg.purchaseDate, reg.warrantyMonths);
-    if (jobData.purchaseDate) return computeWarrantyStatusTech(jobData.purchaseDate, 12);
-    return { inWarranty: null };
-  }
-
-  // Looks up the warranty service-charge rate CARD — never a number
-  // this technician sets themselves. Keyed by product category +
-  // service type (installation, or repair for everything else). A
-  // service center's own override for that combo wins; otherwise
-  // falls back to Head Office's default for it; otherwise 0 (no
-  // credit — the rate simply hasn't been set up yet for that combo).
-  function rateCardKey(scope, centerUid, category, rateType, bucket) {
-    const safeCat = (category || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    const safeBucket = (bucket || 'flat').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    return scope === 'center' ? `center_${centerUid}_${safeCat}_${rateType}_${safeBucket}` : `default_${safeCat}_${rateType}_${safeBucket}`;
-  }
-
-  async function resolveServiceChargeRate(jobData, centerUid) {
-    const rateType = jobData.type === 'installation' ? 'installation' : 'repair';
-    const category = jobData.category || 'Other';
-    const bucket = jobData.sizeBucket || null;
-    try {
-      if (centerUid) {
-        const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType, bucket)));
-        if (centerRateSnap.exists()) return Number(centerRateSnap.data().amount) || 0;
-      }
-      const defaultRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, bucket)));
-      if (defaultRateSnap.exists()) return Number(defaultRateSnap.data().amount) || 0;
-      // Fall back to the flat (no-bucket) rate row in case this
-      // ticket predates size/model bundles being set up for its
-      // category, or the category has since had its bundles removed.
-      if (bucket) {
-        if (centerUid) {
-          const centerFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', centerUid, category, rateType, null)));
-          if (centerFlatSnap.exists()) return Number(centerFlatSnap.data().amount) || 0;
-        }
-        const defaultFlatSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, null)));
-        if (defaultFlatSnap.exists()) return Number(defaultFlatSnap.data().amount) || 0;
-      }
-    } catch (err) {
-      console.warn('Could not resolve service charge rate:', err.message);
-    }
-    return 0;
-  }
-
   async function getLinkedServiceCenterUid() {
     if (cachedLinkedCenterUid !== undefined) return cachedLinkedCenterUid;
     try {
@@ -1672,52 +1592,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const closureRejected = await lifecycleRejectionFor(closureJobColl, jobId, 'completed');
       if (closureRejected) throw new Error(closureRejected);
 
-      // Warranty-aware auto billing: check warranty against the exact
-      // part(s) just replaced first (per-component cover can outlast
-      // the appliance's own overall warranty), falling back to the
-      // product's overall warranty. If in-warranty, the rate CARD's
-      // amount for this job's product category + service type is
-      // credited straight to this technician's wallet — never a
-      // number the technician sets themselves. A center-managed
-      // ticket is also flagged ready for the center to claim its own
-      // spare/other-cost portion.
-      try {
-        const warrantyInfo = await getJobWarrantyInfo(jobData, partNamesUsed);
-        if (warrantyInfo.inWarranty === true) {
-          const centerUidForRate = jobData.serviceCenterUid || await getLinkedServiceCenterUid();
-          const rate = await resolveServiceChargeRate(jobData, centerUidForRate);
-          const jobBillingUpdate = { warrantyStatus: 'in_warranty', updatedAt: serverTimestamp() };
-          if (rate > 0) {
-            jobBillingUpdate.serviceCharge = rate;
-            await addDoc(collection(db, 'walletTransactions'), {
-              technicianUid: currentUser.uid,
-              amount: rate,
-              type: 'service_charge_credit',
-              sourceJobId: jobId,
-              sourceJobCollection: closureJobColl,
-              sourceJobLabel: jobRequestId,
-              serialNumber: jobData.serialNumber || null,
-              status: 'unclaimed',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-            if (closureJobColl === 'centerRequests') {
-              jobBillingUpdate.billingType = 'claim';
-              jobBillingUpdate.billingStatus = 'ready_to_claim';
-              jobBillingUpdate.billingTotal = 0;
-              jobBillingUpdate.billedAt = serverTimestamp();
-            }
-          }
-          await updateDoc(doc(db, closureJobColl, jobId), jobBillingUpdate);
-        } else if (warrantyInfo.inWarranty === false) {
-          await updateDoc(doc(db, closureJobColl, jobId), { warrantyStatus: 'out_of_warranty', updatedAt: serverTimestamp() });
-        }
-      } catch (warrantyErr) {
-        console.warn('Automatic warranty billing failed (non-blocking):', warrantyErr.message);
-      }
-      // Re-sync the public mirror now that warrantyStatus is settled —
-      // the earlier logTicketStatus() sync above ran before this block
-      // and would have missed it.
+      // Warranty verdict, service charge and the wallet credit are now
+      // decided server-side (billOnClose_* Cloud Function) from the rate
+      // card — a few seconds after this completes. Nothing to write here.
+      // Mirror the new status for the public Track page (the server adds
+      // the warranty verdict to the mirror when it has worked it out).
       await syncPublicTicketMirror(closureJobColl, jobId, 'completed');
 
       closureSuccess.textContent = 'Completed.';
