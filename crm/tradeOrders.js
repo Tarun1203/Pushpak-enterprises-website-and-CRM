@@ -6,7 +6,7 @@
 //
 // Needs window.TradePricing (tradePricing.js, loaded with <script src>).
 import {
-  collection, doc, getDocs, query, where, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp
+  collection, doc, getDoc, getDocs, query, where, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const TP = () => window.TradePricing;
@@ -226,7 +226,7 @@ export async function renderMyOrders(el, opts) {
     body.innerHTML = orders.map((o) => `
       <div style="border:1px solid var(--hairline, #e3e3e3);border-radius:8px;padding:12px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <div><b>${esc(o.orderId || o.id)}</b> · ${when(o.createdAt)}${o.distributorName ? ' · via ' + esc(o.distributorName) : ''}</div>
+          <div><b>${esc(o.orderId || o.id)}</b> · ${when(o.createdAt)}${o.distributorName ? ' · via ' + esc(o.distributorName) : ''}${o.invoiceNo ? ' · Invoice ' + esc(o.invoiceNo) : ''}</div>
           <div>${statusPill(o.status)} ${o.totals ? '<b style="margin-left:8px;">' + inr(o.totals.total) + '</b>' : ''}</div>
         </div>
         <div style="margin-top:8px;">${linesTableHtml(o)}</div>
@@ -282,10 +282,27 @@ export async function renderOrderQueue(el, opts) {
     orders.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     if (tab === 'closed') orders.reverse();
     if (!orders.length) { body.innerHTML = `<div class="empty-row">Nothing here.</div>`; return; }
+    // Head Office orders are approved only within the buyer's credit limit
+    // and with nothing overdue (firestore.rules enforces the same check).
+    if (mode === 'company' && tab === 'placed' && window.TradeFinance) {
+      const buyerOf = (o) => (o.coll === 'distributorOrders' ? o.distributorUid : o.dealerUid);
+      const uids = [...new Set(orders.filter((o) => Array.isArray(o.lines) && o.totals).map(buyerOf))];
+      const accts = {};
+      await Promise.all(uids.map(async (u) => {
+        try { const a = await getDoc(doc(db, 'tradeAccounts', u)); accts[u] = a.exists() ? a.data() : null; } catch (e) { accts[u] = null; }
+      }));
+      orders.forEach((o) => {
+        if (!(Array.isArray(o.lines) && o.totals)) return;
+        const a = accts[buyerOf(o)];
+        o.credit = window.TradeFinance.creditCheck(a ? { ...a, oldestUnpaidDue: a.oldestUnpaidDue && a.oldestUnpaidDue.toDate ? a.oldestUnpaidDue.toDate() : null } : null, o.totals.total, new Date());
+        if (!a || typeof a.creditLimit !== 'number') o.credit.reasons.unshift('No credit limit set for this account');
+      });
+    }
     body.innerHTML = orders.map((o, i) => {
       const buyer = o.coll === 'distributorOrders' ? `Distributor: ${esc(o.distributorName || o.distributorEmail || o.distributorUid)}` : `Dealer: ${esc(o.dealerName || o.dealerEmail || o.dealerUid)}`;
       const next = TP().SELLER_NEXT[o.status] || [];
       const priced = !Array.isArray(o.lines) || (o.pricing && o.pricing.status === 'ok');
+      const credit = o.credit ? `<div style="font-size:12.5px;margin-top:6px;${o.credit.ok ? '' : 'color:var(--err, #B3261E);'}"><b>Credit:</b> ${o.credit.ok ? 'OK — available ' + inr(o.credit.available) : esc(o.credit.reasons.join('; '))}</div>` : '';
       const btn = (to, label, cls) => `<button type="button" class="${cls} to-act" data-i="${i}" data-to="${to}">${label}</button>`;
       const actions = [
         next.includes('confirmed') ? (priced ? btn('confirmed', 'Approve', 'btn-primary') : `<span style="font-size:12px;color:var(--stone);">Can't approve until every line is priced</span>`) : '',
@@ -297,13 +314,13 @@ export async function renderOrderQueue(el, opts) {
       ].filter(Boolean).join(' ');
       return `<div style="border:1px solid var(--hairline, #e3e3e3);border-radius:8px;padding:12px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <div><b>${esc(o.orderId || o.id)}</b> · ${buyer} · ${when(o.createdAt)}</div>
+          <div><b>${esc(o.orderId || o.id)}</b> · ${buyer} · ${when(o.createdAt)}${o.invoiceNo ? ' · Invoice ' + esc(o.invoiceNo) : ''}</div>
           <div>${statusPill(o.status)} ${o.totals ? '<b style="margin-left:8px;">' + inr(o.totals.total) + '</b>' : ''}</div>
         </div>
         <div style="margin-top:8px;">${linesTableHtml(o)}</div>
         ${o.notes ? `<div style="font-size:12.5px;color:var(--stone);margin-top:6px;">Notes: ${esc(o.notes)}</div>` : ''}
         ${o.statusNote ? `<div style="font-size:12.5px;margin-top:6px;">Note: ${esc(o.statusNote)}</div>` : ''}
-        ${dispatchHtml(o)}${historyHtml(o)}
+        ${credit}${dispatchHtml(o)}${historyHtml(o)}
         ${actions ? `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">${actions}</div>` : ''}
       </div>`;
     }).join('');
@@ -321,8 +338,18 @@ export async function renderOrderQueue(el, opts) {
         const docket = prompt('Docket / LR number (optional):', '') || '';
         update.dispatch = { transporter: transporter.trim().slice(0, 100), docket: docket.trim().slice(0, 60), date: new Date().toISOString().slice(0, 10) };
         update.statusNote = '';
+      } else if (to === 'confirmed' && o.credit && !o.credit.ok) {
+        if (!opts.isSuperAdmin) {
+          alert(`This order can't be approved:\n\n${o.credit.reasons.join('\n')}\n\nRecord a payment, raise the credit limit, or ask Super Admin to approve it with an override.`);
+          return;
+        }
+        const reason = prompt(`Credit check failed:\n${o.credit.reasons.join('\n')}\n\nTo approve anyway, enter the reason for the override (kept on the order and invoice):`, '');
+        if (reason === null) return;
+        if (reason.trim().length < 5) { alert('Please give a reason (at least 5 characters).'); return; }
+        update.creditOverride = true;
+        update.statusNote = reason.trim().slice(0, 300);
       } else {
-        if (!confirm(`${to === 'confirmed' ? 'Approve' : 'Mark as delivered'} ${o.orderId || ''}${o.totals ? ' — ' + inr(o.totals.total) : ''}?`)) return;
+        if (!confirm(`${to === 'confirmed' ? 'Approve' : 'Mark as delivered'} ${o.orderId || ''}${o.totals ? ' — ' + inr(o.totals.total) : ''}?${to === 'confirmed' && mode === 'company' && Array.isArray(o.lines) ? '\n\nA GST invoice will be created.' : ''}`)) return;
         update.statusNote = '';
       }
       b.disabled = true;

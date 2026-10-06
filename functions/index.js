@@ -12,6 +12,7 @@ const Billing = require('./billing');
 const Feedback = require('./feedback');
 const ProfileGuard = require('./profileGuard');
 const TradePricing = require('./tradePricing');
+const Finance = require('./finance');
 
 initializeApp();
 const db = getFirestore();
@@ -671,7 +672,7 @@ async function priceTradeOrder(collectionName, ref, order) {
       if (!m.exists) return;
       const d = m.data();
       const name = [productNames[d.productId], d.modelNumber].filter(Boolean).join(' — ') || m.id;
-      models[m.id] = { label: name, gstRate: typeof d.gstRate === 'number' ? d.gstRate : null, status: d.status || 'active' };
+      models[m.id] = { label: name, gstRate: typeof d.gstRate === 'number' ? d.gstRate : null, status: d.status || 'active', hsn: d.hsnCode || '' };
     });
     const priceRefs = [];
     modelIds.forEach((id) => {
@@ -726,6 +727,13 @@ for (const coll of ['dealerOrders', 'distributorOrders']) {
       if (askedAfter && askedAfter !== askedBefore && after.status === 'placed' && Array.isArray(after.lines)) {
         jobs.push(priceTradeOrder(coll, event.data.after.ref, after));
       }
+      const companySold = TradePricing.partiesFor(coll, after).seller === 'company';
+      if (companySold && before.status === 'placed' && after.status === 'confirmed' && Array.isArray(after.lines) && after.totals) {
+        jobs.push(createInvoice(coll, event.data.after.ref, after, event.authId));
+      }
+      if (companySold && before.status !== 'cancelled' && after.status === 'cancelled' && after.invoiceId) {
+        jobs.push(cancelInvoice(after.invoiceId, after.statusNote || 'Order cancelled'));
+      }
       if (before.status !== after.status) {
         jobs.push(event.data.after.ref.update({
           statusHistory: FieldValue.arrayUnion({
@@ -738,3 +746,146 @@ for (const coll of ['dealerOrders', 'distributorOrders']) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Trade finance (company sales to Direct dealers and distributors).
+// An approved order gets a GST invoice, numbered per financial year
+// (PE/2026-27/00001), due after the account's payment terms. Each
+// invoice, cancellation and payment is a line in the account's ledger,
+// and tradeAccounts/{uid}.outstanding / oldestUnpaidDue are kept in step
+// in the same transaction. firestore.rules reads those two fields to
+// block approving an order over the credit limit or while an invoice is
+// overdue (Super Admin may override with a reason). None of these
+// documents can be written from a browser.
+// ---------------------------------------------------------------
+function oldestUnpaidDue(invoices) {
+  let oldest = null;
+  invoices.forEach((inv) => {
+    if (inv.status === 'cancelled' || !(Finance.toPaise(inv.balance) > 0) || !inv.dueDate) return;
+    const due = inv.dueDate.toDate ? inv.dueDate.toDate() : inv.dueDate;
+    if (!oldest || due < oldest) oldest = due;
+  });
+  return oldest ? Timestamp.fromDate(oldest) : null;
+}
+
+async function createInvoice(coll, orderRef, order, approverUid) {
+  const parties = TradePricing.partiesFor(coll, order);
+  const buyerUid = parties.buyer;
+  const invRef = db.collection('invoices').doc(`inv_${coll}_${orderRef.id}`);
+  const [profileSnap, buyerSnap] = await Promise.all([
+    db.collection('settings').doc('companyProfile').get(),
+    db.collection('users').doc(buyerUid).get()
+  ]);
+  const company = profileSnap.exists ? profileSnap.data() : {};
+  const buyer = buyerSnap.exists ? buyerSnap.data() : {};
+  const sellerState = company.stateCode || Finance.stateCodeFromGstin(company.gstin) || null;
+  await db.runTransaction(async (tx) => {
+    const existing = await tx.get(invRef);
+    if (existing.exists) return;
+    const acctRef = db.collection('tradeAccounts').doc(buyerUid);
+    const acctSnap = await tx.get(acctRef);
+    const acct = acctSnap.exists ? acctSnap.data() : {};
+    const buyerState = Finance.stateCodeFromGstin(buyer.gstin) || acct.stateCode || null;
+    const gst = Finance.splitGst(order.pricedLines, sellerState, buyerState);
+    const now = new Date();
+    const fy = Finance.fiscalYear(now);
+    const counterRef = db.collection('invoiceCounters').doc(fy);
+    const counterSnap = await tx.get(counterRef);
+    const seq = (counterSnap.exists ? counterSnap.get('value') || 0 : 0) + 1;
+    const invoiceNo = Finance.invoiceNumber(company.invoicePrefix || 'PE', fy, seq);
+    const terms = Number.isInteger(acct.paymentTermsDays) ? acct.paymentTermsDays : Finance.DEFAULT_TERMS_DAYS;
+    const dueDate = Finance.addDays(now, terms);
+    const total = gst.totals.total;
+    tx.set(counterRef, { value: seq }, { merge: true });
+    tx.set(invRef, {
+      invoiceNo, fy, seq,
+      invoiceDate: Timestamp.fromDate(now), dueDate: Timestamp.fromDate(dueDate), paymentTermsDays: terms,
+      orderCollection: coll, orderDocId: orderRef.id, orderId: order.orderId || orderRef.id,
+      buyerUid, buyerType: coll === 'distributorOrders' ? 'distributor' : 'dealer',
+      buyer: { name: buyer.name || order.dealerName || order.distributorName || '', email: buyer.email || order.dealerEmail || order.distributorEmail || '',
+               gstin: buyer.gstin || '', address: buyer.address || '', stateCode: buyerState },
+      seller: { legalName: company.legalName || 'Pushpak Enterprises', gstin: company.gstin || '', address: company.address || '',
+                stateCode: sellerState, phone: company.phone || '', email: company.email || '', bankDetails: company.bankDetails || '' },
+      lines: gst.lines, totals: gst.totals, interState: gst.interState, buyerStateKnown: gst.buyerStateKnown,
+      paid: 0, balance: total, status: 'unpaid',
+      creditOverride: order.creditOverride ? { byUid: approverUid || null, reason: order.statusNote || '' } : null,
+      approvedByUid: approverUid || null, createdAt: FieldValue.serverTimestamp()
+    });
+    tx.set(db.collection('ledgerEntries').doc(), {
+      accountUid: buyerUid, type: 'invoice', invoiceId: invRef.id, ref: invoiceNo,
+      debit: total, credit: 0, note: `Order ${order.orderId || orderRef.id}`, at: FieldValue.serverTimestamp()
+    });
+    const currentOldest = acct.oldestUnpaidDue ? acct.oldestUnpaidDue.toDate() : null;
+    tx.set(acctRef, {
+      outstanding: Finance.toRupees(Finance.toPaise(acct.outstanding || 0) + Finance.toPaise(total)),
+      oldestUnpaidDue: Timestamp.fromDate(currentOldest && currentOldest < dueDate ? currentOldest : dueDate),
+      accountType: coll === 'distributorOrders' ? 'distributor' : 'dealer',
+      name: buyer.name || buyer.email || '', lastInvoiceAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    tx.update(orderRef, { invoiceId: invRef.id, invoiceNo });
+  });
+}
+
+async function cancelInvoice(invoiceId, reason) {
+  const invRef = db.collection('invoices').doc(invoiceId);
+  await db.runTransaction(async (tx) => {
+    const invSnap = await tx.get(invRef);
+    if (!invSnap.exists || invSnap.get('status') === 'cancelled') return;
+    const inv = invSnap.data();
+    const acctRef = db.collection('tradeAccounts').doc(inv.buyerUid);
+    const [acctSnap, others] = await Promise.all([
+      tx.get(acctRef), tx.get(db.collection('invoices').where('buyerUid', '==', inv.buyerUid))
+    ]);
+    const acct = acctSnap.exists ? acctSnap.data() : {};
+    const remaining = others.docs.filter((d) => d.id !== invoiceId).map((d) => d.data());
+    tx.update(invRef, { status: 'cancelled', cancelledAt: FieldValue.serverTimestamp(), cancelReason: reason });
+    tx.set(db.collection('ledgerEntries').doc(), {
+      accountUid: inv.buyerUid, type: 'invoice_cancelled', invoiceId, ref: inv.invoiceNo,
+      debit: 0, credit: inv.totals.total, note: reason, at: FieldValue.serverTimestamp()
+    });
+    tx.set(acctRef, {
+      outstanding: Finance.toRupees(Finance.toPaise(acct.outstanding || 0) - Finance.toPaise(inv.totals.total)),
+      oldestUnpaidDue: oldestUnpaidDue(remaining)
+    }, { merge: true });
+  });
+}
+
+exports.applyTradePayment = onDocumentCreated(
+  { document: 'tradePayments/{paymentId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const payRef = event.data.ref;
+    await db.runTransaction(async (tx) => {
+      const paySnap = await tx.get(payRef);
+      const pay = paySnap.data();
+      if (pay.processedAt) return;
+      const acctRef = db.collection('tradeAccounts').doc(pay.accountUid);
+      const [acctSnap, invSnap] = await Promise.all([
+        tx.get(acctRef), tx.get(db.collection('invoices').where('buyerUid', '==', pay.accountUid))
+      ]);
+      const acct = acctSnap.exists ? acctSnap.data() : {};
+      const invoices = invSnap.docs.map((d) => ({ id: d.id, ref: d.ref, ...d.data() }))
+        .filter((i) => i.status !== 'cancelled')
+        .sort((a, b) => a.invoiceDate.toMillis() - b.invoiceDate.toMillis());
+      const result = Finance.allocatePayment(pay.amount, invoices.map((i) => ({ id: i.id, balance: i.balance })));
+      const byId = Object.fromEntries(invoices.map((i) => [i.id, i]));
+      result.allocations.forEach((a) => {
+        const inv = byId[a.invoiceId];
+        const paid = Finance.toRupees(Finance.toPaise(inv.paid || 0) + Finance.toPaise(a.amount));
+        const balance = Finance.toRupees(Finance.toPaise(inv.totals.total) - Finance.toPaise(paid));
+        inv.balance = balance;
+        tx.update(inv.ref, { paid, balance, status: balance <= 0 ? 'paid' : 'partial', lastPaymentAt: FieldValue.serverTimestamp() });
+      });
+      tx.set(db.collection('ledgerEntries').doc(), {
+        accountUid: pay.accountUid, type: 'payment', paymentId: payRef.id, ref: pay.reference || pay.mode || '',
+        debit: 0, credit: pay.amount, note: `${pay.mode || 'Payment'} received ${pay.receivedOn || ''}`.trim(), at: FieldValue.serverTimestamp()
+      });
+      tx.set(acctRef, {
+        outstanding: Finance.toRupees(Finance.toPaise(acct.outstanding || 0) - Finance.toPaise(pay.amount)),
+        oldestUnpaidDue: oldestUnpaidDue(invoices)
+      }, { merge: true });
+      const allocations = result.allocations.map((a) => ({ ...a, invoiceNo: byId[a.invoiceId].invoiceNo || '' }));
+      tx.update(payRef, { allocations, unallocated: result.unallocated, processedAt: FieldValue.serverTimestamp() });
+    });
+  }
+);

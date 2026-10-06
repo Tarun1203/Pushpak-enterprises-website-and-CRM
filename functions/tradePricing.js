@@ -53,7 +53,7 @@
   var toPaise = function (rupees) { return Math.round(Number(rupees) * 100); };
   var toRupees = function (paise) { return Math.round(paise) / 100; };
 
-  // models: { modelId: { label, gstRate, status } }
+  // models: { modelId: { label, gstRate, status, hsn } }
   // prices: { priceDocId: number }  (only the docs that exist)
   function priceOrder(lines, models, prices, parties) {
     var invalid = validateLines(lines);
@@ -62,7 +62,7 @@
     var taxable = 0, gst = 0;
     var pricedLines = lines.map(function (l) {
       var m = models[l.modelId];
-      var line = { modelId: l.modelId, qty: l.qty, label: m ? m.label : l.modelId, unitPrice: null, gstRate: null, taxable: null, gst: null, total: null };
+      var line = { modelId: l.modelId, qty: l.qty, label: m ? m.label : l.modelId, hsn: (m && m.hsn) || '', unitPrice: null, gstRate: null, taxable: null, gst: null, total: null };
       if (!m) { issues.push(line.label + ': product not found'); return line; }
       if (m.status && m.status !== 'active') issues.push(line.label + ': product is inactive');
       var own = prices[priceDocId(parties.seller, parties.buyer, l.modelId)];

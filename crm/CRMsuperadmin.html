@@ -519,6 +519,7 @@
       </div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="product-price" min="0" step="0.01"></div>
       <div class="form-row"><label>GST rate</label><select id="product-gst"><option value="">— not set —</option><option value="0">0%</option><option value="3">3%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div>
+      <div class="form-row"><label>HSN code</label><input type="text" id="product-hsn" maxlength="8" placeholder="e.g. 8516"></div>
       <div class="form-row">
         <label>Product images <span class="hint">(pick multiple at once)</span></label>
         <div id="product-image-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
@@ -849,6 +850,7 @@
       <div class="form-row"><label>SKU</label><input type="text" id="model-sku" placeholder="e.g. MW-TV-43-A"></div>
       <div class="form-row"><label>Price (₹)</label><input type="number" id="model-price" min="0" step="0.01"></div>
       <div class="form-row"><label>GST rate</label><select id="model-gst"><option value="">— not set —</option><option value="0">0%</option><option value="3">3%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></div>
+      <div class="form-row"><label>HSN code</label><input type="text" id="model-hsn" maxlength="8" placeholder="e.g. 8516"></div>
       <div id="model-dynamic-attrs"></div>
       <div class="form-row"><label>Additional notes <span class="hint">(anything not covered by the fields above)</span></label><textarea id="model-specs" placeholder="e.g. 43 inch, 4K, Android TV, 20W speakers"></textarea></div>
       <div class="form-row"><label>Warranty Plan</label>
@@ -1053,6 +1055,7 @@
 
 <script src="appointment.js"></script>
 <script src="tradePricing.js"></script>
+<script src="finance.js"></script>
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
@@ -1062,6 +1065,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
+  import * as Fin from './tradeFinance.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -1174,6 +1178,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'finance', label: 'Finance', built: true },
       { id: 'payments', label: 'Payments', built: true },
       { id: 'rma', label: 'RMA & Replacement', built: true },
+      { id: 'trade-accounts', label: 'Dealer Credit & Accounts', built: true },
+      { id: 'trade-invoices', label: 'Trade Invoices', built: true },
+      { id: 'trade-payments', label: 'Trade Payments', built: true },
+      { id: 'company-profile', label: 'Company GST Profile', built: true },
     ]},
     { group: 'Approvals', items: [
       { id: 'approvals', label: 'Approvals', built: true },
@@ -1241,7 +1249,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       renderDashboard();
     } else if (id === 'trade-orders') {
       pageSub.textContent = 'Direct dealer and distributor orders (Warehouse approves; you can too)';
-      Trade.renderOrderQueue(contentEl, { db, mode: 'company' });
+      Trade.renderOrderQueue(contentEl, { db, mode: 'company', isSuperAdmin: true });
+    } else if (id === 'trade-accounts') {
+      pageSub.textContent = 'Credit limits, payment terms, outstanding and ageing';
+      Fin.renderAccounts(contentEl, { db, user: auth.currentUser, isSuperAdmin: true });
+    } else if (id === 'trade-invoices') {
+      pageSub.textContent = 'GST invoices for approved Head Office orders';
+      Fin.renderInvoices(contentEl, { db });
+    } else if (id === 'trade-payments') {
+      pageSub.textContent = 'Payments received from dealers and distributors';
+      Fin.renderPayments(contentEl, { db, user: auth.currentUser });
+    } else if (id === 'company-profile') {
+      pageSub.textContent = 'Seller details printed on invoices';
+      Fin.renderCompanyProfile(contentEl, { db });
     } else if (id === 'trade-prices') {
       pageSub.textContent = 'Private per-account prices, excluding GST';
       renderTradePrices();
@@ -2714,6 +2734,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       document.getElementById('product-sku').value = existingModel ? (existingModel.sku || '') : '';
       document.getElementById('product-price').value = existingModel && existingModel.price != null ? existingModel.price : '';
       document.getElementById('product-gst').value = existingModel && typeof existingModel.gstRate === 'number' ? String(existingModel.gstRate) : '';
+      document.getElementById('product-hsn').value = existingModel ? (existingModel.hsnCode || '') : '';
       document.getElementById('product-specs').value = existingModel ? (existingModel.specifications || '') : '';
       document.getElementById('product-status').value = existingModel ? (existingModel.status || 'active') : 'active';
       // Legacy single-image products show their one image as the starting grid item.
@@ -2757,6 +2778,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       price: document.getElementById('product-price').value ? Number(document.getElementById('product-price').value) : null,
       // GST % used on dealer/distributor orders (trade prices exclude GST).
       gstRate: document.getElementById('product-gst').value === '' ? null : Number(document.getElementById('product-gst').value),
+      hsnCode: document.getElementById('product-hsn').value.trim(),
       specifications: document.getElementById('product-specs').value.trim(),
       attributeValues: collectAttrValuesFrom('product-dynamic-attrs'),
       warrantyPlanId: productWarrantySelect.value || null,
@@ -2876,6 +2898,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       sku: document.getElementById('model-sku').value.trim(),
       price: document.getElementById('model-price').value ? Number(document.getElementById('model-price').value) : null,
       gstRate: document.getElementById('model-gst').value === '' ? null : Number(document.getElementById('model-gst').value),
+      hsnCode: document.getElementById('model-hsn').value.trim(),
       specifications: document.getElementById('model-specs').value.trim(),
       attributeValues: collectAttrValuesFrom('model-dynamic-attrs'),
       warrantyPlanId: modelWarrantySelect.value || null,

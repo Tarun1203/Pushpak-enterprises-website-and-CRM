@@ -261,11 +261,13 @@
 </div>
 
 <script src="tradePricing.js"></script>
+<script src="finance.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
+  import * as Fin from './tradeFinance.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -335,7 +337,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "dealer-prices", "label": "Dealer Price List", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Business", "items": [{"id": "customers", "label": "My Customers", "built": true}, {"id": "orders", "label": "My Orders", "built": true}, {"id": "my-account", "label": "Account & Invoices", "built": true}, {"id": "sales", "label": "My Sales", "built": true}, {"id": "products", "label": "Products", "built": true}]}, {"group": "Distribution Network", "items": [{"id": "incoming-orders", "label": "Incoming Dealer Orders", "built": true}, {"id": "dealer-prices", "label": "Dealer Price List", "built": true}, {"id": "sla-escalations", "label": "SLA Escalations", "built": true}]}, {"group": "Support", "items": [{"id": "registration", "label": "Product Registration", "built": true}, {"id": "enquiries", "label": "Enquiries", "built": true}]}, {"group": "Operations", "items": [{"id": "performance", "label": "Performance", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -381,6 +383,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     } else if (id === 'orders') {
       pageSub.textContent = 'Orders placed with Pushpak Enterprises';
       renderOrders();
+    } else if (id === 'my-account') {
+      pageSub.textContent = 'Credit, invoices, payments and statement with Pushpak Enterprises';
+      Fin.renderMyAccount(contentEl, { db, uid: currentUser.uid });
     } else if (id === 'sales') {
       pageSub.textContent = 'Sales you\'ve logged';
       renderSales();

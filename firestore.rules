@@ -50,14 +50,33 @@ service cloud.firestore {
         || (from == 'confirmed' && to in ['dispatched', 'cancelled'])
         || (from == 'dispatched' && to == 'delivered');
     }
-    function sellerOrderUpdateOk() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'statusNote', 'dispatch', 'repriceRequestedAt'])
+    // creditBuyer: the account whose credit is checked when Head Office
+    // approves ('' for orders a distributor sells, which have no credit
+    // control here).
+    function sellerOrderUpdateOk(creditBuyer) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'statusNote', 'dispatch', 'repriceRequestedAt', 'creditOverride'])
         && ((request.resource.data.status == resource.data.status
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creditOverride'])
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['repriceRequestedAt']) || resource.data.status == 'placed'))
             || (orderStepOk(resource.data.status, request.resource.data.status)
                 && (request.resource.data.status != 'confirmed'
                     || !('lines' in resource.data)
-                    || resource.data.get('pricing', {}).get('status', '') == 'ok')));
+                    || (resource.data.get('pricing', {}).get('status', '') == 'ok'
+                        && (creditBuyer == '' || approvalCreditOk(creditBuyer))))));
+    }
+    // Approving a priced Head Office order: the buyer must stay within its
+    // credit limit and have no overdue invoice (tradeAccounts is kept up to
+    // date by the invoice/payment functions), unless Super Admin overrides
+    // with a written reason.
+    function approvalCreditOk(buyerUid) {
+      let acctPath = /databases/$(database)/documents/tradeAccounts/$(buyerUid);
+      return (isSuperAdmin() && request.resource.data.get('creditOverride', false) == true
+              && request.resource.data.get('statusNote', '') is string
+              && request.resource.data.get('statusNote', '').size() >= 5)
+        || (request.resource.data.get('creditOverride', false) == false
+            && exists(acctPath)
+            && get(acctPath).data.get('outstanding', 0) + resource.data.totals.total <= get(acctPath).data.get('creditLimit', 0)
+            && (get(acctPath).data.get('oldestUnpaidDue', null) == null || get(acctPath).data.oldestUnpaidDue > request.time));
     }
     function buyerCancelOk() {
       return resource.data.status == 'placed' && request.resource.data.status == 'cancelled'
@@ -343,8 +362,9 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid)
         || (isDistributor() && resource.data.distributorUid == request.auth.uid);
-      allow update: if (isAdmin() && sellerOrderUpdateOk())
-        || (isDistributor() && resource.data.get('distributorUid', '') == request.auth.uid && sellerOrderUpdateOk())
+      allow update: if (isAdmin() && resource.data.get('distributorUid', '') == '' && sellerOrderUpdateOk(resource.data.dealerUid))
+        || (isAdmin() && resource.data.get('distributorUid', '') != '' && sellerOrderUpdateOk(''))
+        || (isDistributor() && resource.data.get('distributorUid', '') == request.auth.uid && sellerOrderUpdateOk(''))
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid && buyerCancelOk());
       // Only a dealer places a dealer order, with products and quantities
       // only, and the distributor it goes to is the one on the dealer's own
@@ -394,7 +414,7 @@ service cloud.firestore {
       allow create: if isDistributor() && request.resource.data.distributorUid == request.auth.uid
             && request.resource.data.keys().hasOnly(['orderId', 'distributorUid', 'distributorEmail', 'distributorName', 'lines', 'notes', 'status', 'createdAt', 'updatedAt'])
             && newOrderLinesOk();
-      allow update: if (isAdmin() && sellerOrderUpdateOk())
+      allow update: if (isAdmin() && sellerOrderUpdateOk(resource.data.distributorUid))
         || (isDistributor() && resource.data.distributorUid == request.auth.uid && buyerCancelOk());
       allow delete: if isSuperAdmin();
     }
@@ -1028,7 +1048,47 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if isStaff();
-      allow write: if isAdmin();
+      // The company GST profile printed on every invoice is Super Admin's.
+      allow write: if isAdmin() && (settingId != 'companyProfile' || isSuperAdmin());
+    }
+
+    // ---------------------------------------------------------------
+    // Trade finance (functions/index.js: createInvoice, cancelInvoice,
+    // applyTradePayment). Invoices, ledger lines and account balances are
+    // written only by those functions. Super Admin sets each account's
+    // credit limit and payment terms; Warehouse / Super Admin record
+    // payments received. A dealer or distributor reads only its own.
+    // ---------------------------------------------------------------
+    match /tradeAccounts/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(['creditLimit', 'paymentTermsDays', 'stateCode', 'notes', 'updatedAt', 'updatedBy'])
+        && accountTermsOk();
+      allow update: if isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'paymentTermsDays', 'stateCode', 'notes', 'updatedAt', 'updatedBy'])
+        && accountTermsOk();
+      function accountTermsOk() {
+        return request.resource.data.get('creditLimit', 0) is number
+        && request.resource.data.get('creditLimit', 0) >= 0 && request.resource.data.get('creditLimit', 0) <= 1000000000
+        && request.resource.data.get('paymentTermsDays', 30) is int
+        && request.resource.data.get('paymentTermsDays', 30) >= 0 && request.resource.data.get('paymentTermsDays', 30) <= 365;
+      }
+    }
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.buyerUid == request.auth.uid);
+    }
+    match /ledgerEntries/{entryId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.accountUid == request.auth.uid);
+    }
+    match /tradePayments/{paymentId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.accountUid == request.auth.uid);
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['accountUid', 'accountName', 'amount', 'mode', 'reference', 'receivedOn', 'notes', 'recordedByUid', 'recordedByEmail', 'createdAt'])
+        && request.resource.data.accountUid is string
+        && request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000000
+        && request.resource.data.recordedByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.accountUid));
     }
 
     // ---------------------------------------------------------------
