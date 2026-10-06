@@ -1,5 +1,7 @@
 const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated, onDocumentCreatedWithAuthContext, onDocumentUpdatedWithAuthContext, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const crypto = require('crypto');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
@@ -18,6 +20,7 @@ const Stock = require('./stock');
 const Spares = require('./spares');
 const Rma = require('./rma');
 const Approvals = require('./approvals');
+const Lookup = require('./lookup');
 
 initializeApp();
 const db = getFirestore();
@@ -1735,3 +1738,103 @@ async function runExpiryCheck(now) {
   }
   return out.length;
 }
+
+// ---------------------------------------------------------------
+// Customers (Phase 4). The website's Warranty Check / Track Service /
+// "find my product" lookups used to read productRegistrations and the
+// ticket mirror straight from the browser, which meant those collections
+// had to be readable by everyone. They now go through publicLookup: one
+// phone (or ticket + phone) per call, minimal fields, rate limited.
+// ---------------------------------------------------------------
+
+async function lookupRateGuard(request, phone, ticket) {
+  const raw = request.rawRequest || {};
+  const ip = String(raw.ip || ((raw.headers || {})['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim();
+  const ipHash = crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
+  const now = Date.now();
+  const keys = Lookup.limitKeys(ipHash, phone, ticket, now);
+  const refs = keys.map((k) => db.collection('lookupLimits').doc(k.id));
+  const ok = await db.runTransaction(async (tx) => {
+    const snaps = await tx.getAll(...refs);
+    const counts = {};
+    keys.forEach((k, i) => { counts[k.id] = snaps[i].exists ? (snaps[i].data().count || 0) : 0; });
+    const verdict = Lookup.checkLimits(keys, counts);
+    if (!verdict.ok) return false;
+    keys.forEach((k, i) => tx.set(refs[i], { count: counts[k.id] + 1, expireAt: Timestamp.fromDate(new Date(now + 2 * 3600000)) }));
+    return true;
+  });
+  if (!ok) throw new HttpsError('resource-exhausted', 'Too many lookups. Please try again in an hour.');
+}
+
+async function lookupRegistrations(phone, fullSerial) {
+  const snap = await db.collection('productRegistrations').where('customerPhone', '==', phone).limit(20).get();
+  const out = [];
+  snap.forEach((d) => out.push(Lookup.shapeRegistration(d.data(), { fullSerial })));
+  return out;
+}
+
+async function lookupTrack(ticket, phone) {
+  const ticketLike = (d, id, mirror) => ({
+    found: true, kind: 'ticket',
+    ...Lookup.shapeTicket(Object.assign({}, d, mirror ? { status: mirror.status, warrantyStatus: mirror.warrantyStatus || d.warrantyStatus } : {}), id),
+    feedbackStatus: mirror ? (mirror.status || null) : null
+  });
+  if (ticket.startsWith('PE-REG-')) {
+    const snap = await db.collection('productRegistrations').where('registrationId', '==', ticket).limit(5).get();
+    let match = null;
+    snap.forEach((d) => { if (d.data().customerPhone === phone) match = d.data(); });
+    if (!match) return { found: false };
+    return { found: true, kind: 'registration', ...Lookup.shapeRegistration(match, {}) };
+  }
+  const mirrorSnap = await db.collection('publicTicketStatus').doc(ticket).get();
+  const mirrorOk = mirrorSnap.exists && mirrorSnap.data().customerPhone === phone ? mirrorSnap.data() : null;
+  if (ticket.startsWith('PE-CR-') || ticket.startsWith('PE-JOB-')) {
+    if (!mirrorOk) return { found: false };
+    return ticketLike(mirrorOk, ticket, mirrorOk);
+  }
+  const reqSnap = await db.collection('publicServiceRequests').doc(ticket).get();
+  if (!reqSnap.exists || reqSnap.data().customerPhone !== phone) return { found: false };
+  return ticketLike(reqSnap.data(), ticket, mirrorOk);
+}
+
+exports.publicLookup = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  const data = request.data || {};
+  const type = data.type;
+  const phone = Lookup.normalizePhone(data.phone);
+  if (!phone) throw new HttpsError('invalid-argument', 'Enter a valid 10-digit mobile number.');
+  if (type === 'warranty' || type === 'registrations') {
+    await lookupRateGuard(request, phone, null);
+    const registrations = await lookupRegistrations(phone, type === 'registrations');
+    if (type === 'registrations') return { registrations };
+    const tsnap = await db.collection('publicTicketStatus').where('customerPhone', '==', phone).limit(30).get();
+    const tickets = [];
+    tsnap.forEach((d) => tickets.push(Lookup.shapeTicket(d.data(), d.id)));
+    return { registrations, tickets };
+  }
+  if (type === 'track') {
+    const ticket = Lookup.cleanTicketId(data.ticket);
+    if (!ticket) throw new HttpsError('invalid-argument', 'Enter your request number.');
+    await lookupRateGuard(request, phone, ticket);
+    return lookupTrack(ticket, phone);
+  }
+  throw new HttpsError('invalid-argument', 'Unknown lookup.');
+});
+
+// Creates (or refreshes) the signed-in customer's profile. The phone comes
+// from the sign-in token, i.e. it is the number the customer proved with an
+// OTP — never something typed into the page. Staff/dealer/distributor
+// accounts can't be turned into customers (or the other way round).
+exports.ensureCustomerProfile = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const uid = request.auth.uid;
+  const ref = db.collection('users').doc(uid);
+  const snap = await ref.get();
+  const existing = snap.exists ? snap.data() : null;
+  const built = Lookup.buildCustomerProfile(request.auth.token, (request.data || {}).name, existing);
+  if (built.error === 'phone-not-verified') throw new HttpsError('failed-precondition', 'phone-not-verified');
+  if (built.error === 'not-a-customer') throw new HttpsError('permission-denied', 'This account is not a customer account.');
+  const profile = Object.assign({}, built.profile, { updatedAt: FieldValue.serverTimestamp() });
+  if (!existing) profile.createdAt = FieldValue.serverTimestamp();
+  await ref.set(profile, { merge: true });
+  return { ok: true, phone10: built.profile.phone10 };
+});

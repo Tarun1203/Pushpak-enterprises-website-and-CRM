@@ -7,8 +7,30 @@ service cloud.firestore {
     // Helper functions
     // ---------------------------------------------------------------
 
-    function isSignedIn() {
+    // Anyone with a Firebase sign-in, customers included. Customers
+    // (the public portal, role 'customer') sign themselves up, so this
+    // must NOT be what grants CRM access — see isSignedIn() below.
+    function hasAuth() {
       return request.auth != null;
+    }
+
+    // A signed-in CRM user: staff, dealer or distributor — everything
+    // except a self-registered customer. Almost every rule in this file
+    // gates on this, so a customer account can never act as staff just
+    // by existing. Customer access is granted explicitly by isCustomer()
+    // on the few collections they may read.
+    function isSignedIn() {
+      return request.auth != null && callerRole() != 'customer';
+    }
+
+    function isCustomer() {
+      return request.auth != null && callerRole() == 'customer';
+    }
+
+    // The customer's verified phone, written onto their profile by the
+    // ensureCustomerProfile function (never by the browser).
+    function myPhone() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.phone10;
     }
 
     // Looks up the caller's role from their own user profile doc.
@@ -182,7 +204,7 @@ service cloud.firestore {
       // Staff only (not dealers/distributors — their pages only ever
       // read their own user doc), so a dealer can't pull every
       // technician's and service center's contact/coverage details.
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin()
+      allow read: if hasAuth() && (request.auth.uid == userId || isAdmin()
         || (isStaff() && (resource.data.role == 'technician' || resource.data.role == 'servicecenter'))
         || (isDistributor() && resource.data.role == 'dealer' && resource.data.get('distributorUid', '') == request.auth.uid));
       // Warehouse is isAdmin() too, but minting or touching a
@@ -206,7 +228,7 @@ service cloud.firestore {
             && request.resource.data.role == resource.data.role
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
                  ['districtsCovered', 'pincodesCovered', 'brandsAuthorized', 'linkedServiceCenterUid', 'createdAt',
-                  'distributionType', 'distributorUid', 'distributorName', 'accountType', 'contractEndDate', 'skills']))
+                  'distributionType', 'distributorUid', 'distributorName', 'accountType', 'contractEndDate', 'skills', 'phone10']))
         // A service center (or technician's own account, via isStaff())
         // claiming/releasing a technician onto/off its own roster —
         // this is the ONLY field a staff member may touch on someone
@@ -461,16 +483,12 @@ service cloud.firestore {
     }
 
     match /productRegistrations/{id} {
-      // Public read: the "Book a Service" search-by-mobile step needs
-      // to QUERY this collection by phone number for anyone, signed
-      // in or not — Firestore rules can't restrict a list/query to
-      // "only if the caller supplied the matching phone," they only
-      // see the resulting document's data, not the query filter used
-      // to find it. So this is genuinely public read, same tradeoff
-      // as Track Service's ticket-ID design (see publicServiceRequests
-      // below) — anyone with direct API access could list every
-      // registration, not just search their own by phone.
-      allow read: if true;
+      // Not public any more: the website's Warranty Check / Track /
+      // Book lookups go through the publicLookup function. CRM users
+      // read them as before; a customer reads only the registrations
+      // made with their own verified phone.
+      allow read: if isSignedIn()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
@@ -497,8 +515,12 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /publicServiceRequests/{requestId} {
-      allow get: if true;
-      allow list: if isAdmin();
+      // Reads: CRM users, and the customer who raised it (by verified
+      // phone). Anonymous lookups go through publicLookup.
+      allow get: if isSignedIn()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
+      allow list: if isAdmin()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
       allow create: if requestId == request.resource.data.requestId
         && request.resource.data.keys().hasAll(['requestId', 'customerName', 'customerPhone', 'status', 'createdAt'])
         && request.resource.data.customerPhone is string
@@ -537,17 +559,14 @@ service cloud.firestore {
     // Only staff (service center/technician/admin) write it, from the
     // app's own ticket-creation and status-change code paths.
     match /publicTicketStatus/{ticketId} {
-      allow get: if true;
-      // Public list: the Warranty Status check needs to QUERY this
-      // collection by customerPhone for anyone, signed in or not —
-      // same tradeoff already accepted for productRegistrations above
-      // (Firestore rules can't restrict a query to "only your own
-      // phone number's results"). Safe here because this collection
-      // was deliberately built to hold only the narrow, already-public
-      // fields (status/type/category/warranty/phone) — never the
-      // customer's name, address, or technician/closure details that
-      // live on the real centerRequests/serviceJobs docs.
-      allow list: if true;
+      allow get: if isSignedIn()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
+      // Not public any more: the website's Warranty Status check goes
+      // through the publicLookup function (narrow fields, rate limited).
+      // CRM users and the customer whose verified phone is on the
+      // ticket may list it.
+      allow list: if isSignedIn()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
       allow create, update: if isAdmin() || isStaff();
       allow delete: if isAdmin();
     }

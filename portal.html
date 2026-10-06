@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — Pushpak Enterprises</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;--blue:#1C6FBA;--blue-deep:#0F4C88;--red:#B3261E;--green:#1E7B3A;--amber:#B26A00;--radius:2px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+a{color:var(--blue);text-decoration:none;}
+header{background:rgba(245,239,224,.92);border-bottom:1px solid var(--hairline);position:sticky;top:0;z-index:20;}
+.bar{max-width:1000px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.brand{font-weight:800;font-size:15px;letter-spacing:-.01em;}
+.brand span{display:block;font-weight:500;font-size:12px;color:var(--stone);}
+.who{font-size:13px;color:var(--stone);text-align:right;}
+.who b{color:var(--ink);}
+main{max-width:1000px;margin:0 auto;padding:24px 20px 60px;}
+.card{background:#fff;border:1px solid var(--hairline);border-radius:var(--radius);padding:22px;}
+.auth{max-width:420px;margin:30px auto;}
+h1{font-size:22px;font-weight:800;margin-bottom:4px;}
+h2{font-size:16px;font-weight:700;margin-bottom:12px;}
+p.sub{font-size:13.5px;color:var(--stone);margin-bottom:16px;}
+.tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--hairline);}
+.tab{background:none;border:none;padding:10px 14px;font:600 14px 'Inter',sans-serif;color:var(--stone);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+label{display:block;font-size:12px;font-weight:600;color:var(--stone);text-transform:uppercase;margin:12px 0 4px;}
+input{width:100%;padding:11px 12px;border:1px solid var(--hairline);border-radius:var(--radius);font:15px 'Inter',sans-serif;background:#fff;}
+input:focus{outline:2px solid var(--blue);outline-offset:-1px;}
+.phone-row{display:flex;gap:8px;}
+.phone-row .cc{padding:11px 12px;border:1px solid var(--hairline);background:var(--paper-deep);font-size:15px;border-radius:var(--radius);}
+button.primary{background:var(--blue);color:#fff;border:none;padding:12px 22px;font:600 14px 'Inter',sans-serif;border-radius:var(--radius);cursor:pointer;margin-top:16px;width:100%;}
+button.primary:disabled{opacity:.55;cursor:default;}
+button.link{background:none;border:none;color:var(--blue);font:600 13px 'Inter',sans-serif;cursor:pointer;padding:6px 0;}
+button.ghost{background:#fff;border:1px solid var(--hairline);padding:8px 14px;font:600 13px 'Inter',sans-serif;border-radius:var(--radius);cursor:pointer;}
+.msg{font-size:13px;margin-top:12px;min-height:18px;}
+.msg.err{color:var(--red);} .msg.ok{color:var(--green);}
+.hidden{display:none !important;}
+.nav{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--hairline);flex-wrap:wrap;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+.stat{background:#fff;border:1px solid var(--hairline);padding:18px;border-radius:var(--radius);}
+.stat .n{font-size:30px;font-weight:800;}
+.stat .l{font-size:12px;color:var(--stone);font-weight:600;text-transform:uppercase;}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;}
+.actions a{background:#fff;border:1px solid var(--blue);color:var(--blue);padding:10px 16px;font-weight:600;font-size:14px;border-radius:var(--radius);}
+.item{background:#fff;border:1px solid var(--hairline);padding:16px 18px;border-radius:var(--radius);margin-bottom:12px;}
+.item h3{font-size:15px;font-weight:700;margin-bottom:6px;}
+.row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;padding:3px 0;}
+.row span:first-child{color:var(--stone);}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--paper-deep);}
+.pill.active{background:#DDF1E3;color:var(--green);} .pill.low{background:#FFF0D5;color:var(--amber);} .pill.expired{background:#FADBD8;color:var(--red);}
+.empty{color:var(--stone);font-size:14px;padding:18px 0;}
+@media(max-width:560px){.bar{flex-direction:column;align-items:flex-start;}.who{text-align:left;}}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand">Pushpak Enterprises <span>My Account</span></div>
+  <div class="who hidden" id="who"><b id="who-name"></b><br><span id="who-phone"></span> · <button class="link" id="signout" type="button">Sign out</button></div>
+  <a href="index.html" id="back-site" style="font-size:13px;font-weight:600;">← Back to website</a>
+</div></header>
+<div id="recaptcha"></div>
+
+<main>
+  <!-- ============ SIGN IN / UP ============ -->
+  <section id="view-auth" class="card auth hidden">
+    <h1>Sign in</h1>
+    <p class="sub">Track your products, warranty and service requests in one place.</p>
+    <div class="tabs">
+      <button class="tab active" data-tab="phone" type="button">Mobile OTP</button>
+      <button class="tab" data-tab="email" type="button">Email &amp; password</button>
+    </div>
+
+    <div id="tab-phone">
+      <div id="phone-step1">
+        <label for="p-name">Your name (first time only)</label>
+        <input id="p-name" type="text" maxlength="100" autocomplete="name">
+        <label for="p-phone">Mobile number</label>
+        <div class="phone-row"><span class="cc">+91</span><input id="p-phone" type="tel" inputmode="numeric" maxlength="16" autocomplete="tel-national"></div>
+        <button class="primary" id="p-send" type="button">Send OTP</button>
+      </div>
+      <div id="phone-step2" class="hidden">
+        <label for="p-code">Enter the 6-digit OTP sent to <span id="p-sent-to"></span></label>
+        <input id="p-code" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+        <button class="primary" id="p-verify" type="button">Verify &amp; continue</button>
+        <button class="link" id="p-change" type="button">Use a different number</button>
+      </div>
+    </div>
+
+    <div id="tab-email" class="hidden">
+      <label for="e-name">Your name (when creating an account)</label>
+      <input id="e-name" type="text" maxlength="100" autocomplete="name">
+      <label for="e-email">Email</label>
+      <input id="e-email" type="email" autocomplete="email">
+      <label for="e-pass">Password</label>
+      <input id="e-pass" type="password" autocomplete="current-password" minlength="6">
+      <button class="primary" id="e-signin" type="button">Sign in</button>
+      <button class="ghost" id="e-signup" type="button" style="width:100%;margin-top:10px;">Create a new account</button>
+      <button class="link" id="e-reset" type="button">Forgot password?</button>
+      <p class="sub" style="margin:10px 0 0;">New email accounts verify their mobile number once with an OTP, so your earlier registrations and service requests can be found.</p>
+    </div>
+    <div class="msg" id="auth-msg" role="alert"></div>
+  </section>
+
+  <!-- ============ VERIFY MOBILE (email accounts) ============ -->
+  <section id="view-verify" class="card auth hidden">
+    <h1>Verify your mobile</h1>
+    <p class="sub">We link your account to your mobile number — the one on your product registration and service requests.</p>
+    <div id="v-step1">
+      <label for="v-phone">Mobile number</label>
+      <div class="phone-row"><span class="cc">+91</span><input id="v-phone" type="tel" inputmode="numeric" maxlength="16"></div>
+      <button class="primary" id="v-send" type="button">Send OTP</button>
+    </div>
+    <div id="v-step2" class="hidden">
+      <label for="v-code">6-digit OTP</label>
+      <input id="v-code" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+      <button class="primary" id="v-verify" type="button">Verify</button>
+    </div>
+    <button class="link" id="v-signout" type="button" style="margin-top:12px;">Sign out</button>
+    <div class="msg" id="verify-msg" role="alert"></div>
+  </section>
+
+  <!-- ============ LOADING ============ -->
+  <section id="view-loading" class="card auth"><p class="sub" style="margin:0;">Loading…</p></section>
+
+  <!-- ============ SIGNED-IN PORTAL ============ -->
+  <section id="view-app" class="hidden">
+    <div class="nav">
+      <button class="tab active" data-view="home" type="button">Home</button>
+      <button class="tab" data-view="products" type="button">My Products</button>
+      <button class="tab" data-view="services" type="button">My Services</button>
+    </div>
+
+    <div id="app-home">
+      <h1 id="hello"></h1>
+      <p class="sub">Everything linked to your mobile number.</p>
+      <div class="grid" style="margin-bottom:22px;">
+        <div class="stat"><div class="n" id="n-products">–</div><div class="l">Registered products</div></div>
+        <div class="stat"><div class="n" id="n-open">–</div><div class="l">Open service requests</div></div>
+        <div class="stat"><div class="n" id="n-total">–</div><div class="l">All service requests</div></div>
+      </div>
+      <h2>What would you like to do?</h2>
+      <div class="actions">
+        <a href="index.html#register-product">Register a product</a>
+        <a href="index.html#warranty-check">Check warranty</a>
+        <a href="index.html#book-service">Book a service</a>
+        <a href="index.html#track-service">Track a service</a>
+        <a href="index.html#support">Get support</a>
+      </div>
+    </div>
+
+    <div id="app-products" class="hidden"><h2>My Products</h2><div id="list-products"></div></div>
+    <div id="app-services" class="hidden"><h2>My Service Requests</h2><div id="list-services"></div></div>
+    <div class="msg err" id="app-msg"></div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
+  authDomain: "makwell-websiteandcrm.firebaseapp.com",
+  projectId: "makwell-websiteandcrm",
+  storageBucket: "makwell-websiteandcrm.firebasestorage.app",
+  messagingSenderId: "673518655103",
+  appId: "1:673518655103:web:1805d10de3c63eca23914a",
+  measurementId: "G-YLM91W3YF1"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const ensureCustomerProfile = httpsCallable(getFunctions(app, 'asia-south1'), 'ensureCustomerProfile');
+
+const $ = (id) => document.getElementById(id);
+function esc(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+function validPhone(p) { return /^[6-9]\d{9}$/.test(p); }
+function cleanPhone(raw) { return String(raw || '').replace(/[\s-]/g, '').replace(/^(\+91|91)(?=\d{10}$)/, ''); }
+function setMsg(id, text, ok) { const el = $(id); el.textContent = text || ''; el.className = 'msg ' + (text ? (ok ? 'ok' : 'err') : ''); }
+
+function showView(name) {
+  for (const v of ['auth', 'verify', 'loading', 'app']) $('view-' + v).classList.toggle('hidden', v !== name);
+  $('who').classList.toggle('hidden', name !== 'app');
+}
+
+const AUTH_ERRORS = {
+  'auth/invalid-phone-number': 'That mobile number is not valid.',
+  'auth/invalid-verification-code': 'That OTP is not correct.',
+  'auth/code-expired': 'That OTP has expired. Please request a new one.',
+  'auth/too-many-requests': 'Too many attempts. Please wait a while and try again.',
+  'auth/invalid-credential': 'Email or password is not correct.',
+  'auth/wrong-password': 'Email or password is not correct.',
+  'auth/user-not-found': 'Email or password is not correct.',
+  'auth/email-already-in-use': 'An account with this email already exists. Sign in instead.',
+  'auth/weak-password': 'Choose a password of at least 6 characters.',
+  'auth/invalid-email': 'Enter a valid email address.',
+  'auth/credential-already-in-use': 'This mobile number already has an account. Sign out and sign in with Mobile OTP instead.',
+  'auth/account-exists-with-different-credential': 'This mobile number already has an account. Sign in with Mobile OTP instead.',
+  'auth/captcha-check-failed': 'Verification check failed. Please try again.',
+  'auth/operation-not-allowed': 'This sign-in method is not switched on yet. Please contact us.',
+  'auth/network-request-failed': 'No connection. Check your internet and try again.'
+};
+function authMessage(err) { return AUTH_ERRORS[err && err.code] || 'Something went wrong. Please try again.'; }
+
+// ---------- reCAPTCHA + OTP ----------
+let recaptcha = null;
+function freshRecaptcha() {
+  try { if (recaptcha) recaptcha.clear(); } catch (e) { /* ignore */ }
+  $('recaptcha').innerHTML = '';
+  recaptcha = new RecaptchaVerifier(auth, 'recaptcha', { size: 'invisible' });
+  return recaptcha;
+}
+let confirmation = null;
+let pendingName = '';
+
+// ---------- tabs ----------
+document.querySelectorAll('#view-auth .tab').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#view-auth .tab').forEach((x) => x.classList.toggle('active', x === b));
+  $('tab-phone').classList.toggle('hidden', b.dataset.tab !== 'phone');
+  $('tab-email').classList.toggle('hidden', b.dataset.tab !== 'email');
+  setMsg('auth-msg', '');
+}));
+
+// ---------- phone sign-in ----------
+$('p-send').addEventListener('click', async () => {
+  const phone = cleanPhone($('p-phone').value);
+  if (!validPhone(phone)) return setMsg('auth-msg', 'Enter a valid 10-digit mobile number.');
+  pendingName = $('p-name').value.trim();
+  $('p-send').disabled = true; setMsg('auth-msg', '');
+  try {
+    confirmation = await signInWithPhoneNumber(auth, '+91' + phone, freshRecaptcha());
+    $('p-sent-to').textContent = '+91 ' + phone;
+    $('phone-step1').classList.add('hidden'); $('phone-step2').classList.remove('hidden');
+    setMsg('auth-msg', 'OTP sent.', true);
+  } catch (err) { console.error(err); setMsg('auth-msg', authMessage(err)); }
+  $('p-send').disabled = false;
+});
+$('p-change').addEventListener('click', () => { $('phone-step2').classList.add('hidden'); $('phone-step1').classList.remove('hidden'); $('p-code').value = ''; setMsg('auth-msg', ''); });
+$('p-verify').addEventListener('click', async () => {
+  const code = $('p-code').value.trim();
+  if (!/^\d{6}$/.test(code)) return setMsg('auth-msg', 'Enter the 6-digit OTP.');
+  $('p-verify').disabled = true;
+  try { await confirmation.confirm(code); /* onAuthStateChanged continues */ }
+  catch (err) { console.error(err); setMsg('auth-msg', authMessage(err)); }
+  $('p-verify').disabled = false;
+});
+
+// ---------- email sign-in / sign-up ----------
+$('e-signin').addEventListener('click', async () => {
+  const email = $('e-email').value.trim(), pass = $('e-pass').value;
+  if (!email || !pass) return setMsg('auth-msg', 'Enter your email and password.');
+  setMsg('auth-msg', '');
+  try { await signInWithEmailAndPassword(auth, email, pass); } catch (err) { console.error(err); setMsg('auth-msg', authMessage(err)); }
+});
+$('e-signup').addEventListener('click', async () => {
+  const email = $('e-email').value.trim(), pass = $('e-pass').value;
+  if (!$('e-name').value.trim()) return setMsg('auth-msg', 'Enter your name to create an account.');
+  if (!email || !pass) return setMsg('auth-msg', 'Enter an email and a password.');
+  pendingName = $('e-name').value.trim();
+  setMsg('auth-msg', '');
+  try { await createUserWithEmailAndPassword(auth, email, pass); } catch (err) { console.error(err); setMsg('auth-msg', authMessage(err)); }
+});
+$('e-reset').addEventListener('click', async () => {
+  const email = $('e-email').value.trim();
+  if (!email) return setMsg('auth-msg', 'Enter your email above first.');
+  try { await sendPasswordResetEmail(auth, email); setMsg('auth-msg', 'If that email has an account, a reset link is on its way.', true); }
+  catch (err) { console.error(err); setMsg('auth-msg', authMessage(err)); }
+});
+
+// ---------- verify mobile for email accounts ----------
+$('v-send').addEventListener('click', async () => {
+  const phone = cleanPhone($('v-phone').value);
+  if (!validPhone(phone)) return setMsg('verify-msg', 'Enter a valid 10-digit mobile number.');
+  $('v-send').disabled = true; setMsg('verify-msg', '');
+  try {
+    confirmation = await linkWithPhoneNumber(auth.currentUser, '+91' + phone, freshRecaptcha());
+    $('v-step1').classList.add('hidden'); $('v-step2').classList.remove('hidden');
+    setMsg('verify-msg', 'OTP sent.', true);
+  } catch (err) { console.error(err); setMsg('verify-msg', authMessage(err)); }
+  $('v-send').disabled = false;
+});
+$('v-verify').addEventListener('click', async () => {
+  const code = $('v-code').value.trim();
+  if (!/^\d{6}$/.test(code)) return setMsg('verify-msg', 'Enter the 6-digit OTP.');
+  $('v-verify').disabled = true;
+  try {
+    await confirmation.confirm(code);
+    await auth.currentUser.getIdToken(true); // pick up the new phone_number claim
+    await finishSignIn(auth.currentUser);
+  } catch (err) { console.error(err); setMsg('verify-msg', authMessage(err)); }
+  $('v-verify').disabled = false;
+});
+$('v-signout').addEventListener('click', () => signOut(auth));
+$('signout').addEventListener('click', () => signOut(auth));
+
+// ---------- session ----------
+let me = null; // { uid, name, phone10 }
+let finishing = false;
+
+async function finishSignIn(user) {
+  if (finishing) return; finishing = true;
+  try {
+    showView('loading');
+    const tok = await user.getIdTokenResult();
+    if (!tok.claims.phone_number) { // email account that hasn't proved a phone yet
+      $('v-step1').classList.remove('hidden'); $('v-step2').classList.add('hidden');
+      showView('verify'); return;
+    }
+    // A staff / dealer / distributor account must use the CRM login.
+    const own = await getDoc(doc(db, 'users', user.uid));
+    if (own.exists() && own.data().role && own.data().role !== 'customer') {
+      await signOut(auth);
+      setMsg('auth-msg', 'That is a staff account — please use the CRM login instead.');
+      showView('auth'); return;
+    }
+    await ensureCustomerProfile({ name: pendingName });
+    const prof = (await getDoc(doc(db, 'users', user.uid))).data();
+    me = { uid: user.uid, name: prof.name || '', phone10: prof.phone10 };
+    $('who-name').textContent = me.name || 'Customer';
+    $('who-phone').textContent = '+91 ' + me.phone10;
+    $('hello').textContent = 'Hello' + (me.name ? ', ' + me.name : '');
+    showView('app');
+    await loadAll();
+  } catch (err) {
+    console.error(err);
+    await signOut(auth).catch(() => {});
+    setMsg('auth-msg', err && err.code === 'functions/permission-denied' ? 'That is a staff account — please use the CRM login instead.' : 'Could not finish signing in. Please try again.');
+    showView('auth');
+  } finally { finishing = false; }
+}
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) { me = null; showView('auth'); return; }
+  finishSignIn(user);
+});
+
+// ---------- data ----------
+function warrantyBadge(purchaseDate, months) {
+  const purchase = new Date(purchaseDate);
+  if (!purchaseDate || isNaN(purchase)) return { cls: '', label: 'Warranty not set' };
+  const expiry = new Date(purchase); expiry.setMonth(expiry.getMonth() + (months || 12));
+  const days = Math.round((expiry - new Date()) / 86400000);
+  if (days < 0) return { cls: 'expired', label: 'Expired' };
+  if (days <= 30) return { cls: 'low', label: 'Expiring in ' + days + 'd' };
+  return { cls: 'active', label: 'Active until ' + expiry.toLocaleDateString() };
+}
+const OPEN_STATES = ['completed', 'closed', 'cancelled', 'rejected'];
+function whenStr(ts) { return ts && ts.toDate ? ts.toDate().toLocaleDateString() : '—'; }
+function statusLabel(s) { return String(s || 'new').replace(/_/g, ' '); }
+function warrantyLabel(w) { return w === 'in_warranty' ? 'In warranty' : w === 'out_of_warranty' ? 'Out of warranty' : 'Not yet determined'; }
+
+async function loadAll() {
+  setMsg('app-msg', '');
+  try {
+    const [regs, reqs, mirrors] = await Promise.all([
+      getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', me.phone10))),
+      getDocs(query(collection(db, 'publicServiceRequests'), where('customerPhone', '==', me.phone10))),
+      getDocs(query(collection(db, 'publicTicketStatus'), where('customerPhone', '==', me.phone10)))
+    ]);
+    const products = regs.docs.map((d) => d.data()).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    const byId = new Map();
+    reqs.forEach((d) => { const x = d.data(); byId.set(d.id, { ticketId: x.requestId || d.id, category: x.category, brand: x.brand, requestType: x.requestType, status: x.status, warrantyStatus: x.warrantyStatus, createdAt: x.createdAt }); });
+    mirrors.forEach((d) => { const x = d.data(); const prev = byId.get(d.id) || {}; byId.set(d.id, Object.assign({}, prev, { ticketId: x.ticketId || d.id, category: x.category || prev.category, requestType: x.requestType || prev.requestType, status: x.status || prev.status, warrantyStatus: x.warrantyStatus || prev.warrantyStatus, createdAt: prev.createdAt || x.createdAt })); });
+    const tickets = [...byId.values()].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+
+    $('n-products').textContent = products.length;
+    $('n-total').textContent = tickets.length;
+    $('n-open').textContent = tickets.filter((t) => !OPEN_STATES.includes(t.status)).length;
+
+    $('list-products').innerHTML = products.length ? products.map((d) => {
+      const comps = Array.isArray(d.warrantyComponents) ? d.warrantyComponents : [];
+      const head = d.product || ((d.brand || '') + ' ' + (d.category || '')).trim() || 'Product';
+      const body = comps.length ? comps.map((c) => { const b = warrantyBadge(d.purchaseDate, (c.durationYears || 0) * 12);
+        return `<div class="row"><span>${esc(c.componentName)}${c.coverage ? ' — ' + esc(c.coverage) : ''}</span><span class="pill ${b.cls}">${esc(b.label)}</span></div>`; }).join('')
+        : (() => { const b = warrantyBadge(d.purchaseDate, d.warrantyMonths); return `<div class="row"><span>Warranty</span><span class="pill ${b.cls}">${esc(b.label)}</span></div>`; })();
+      return `<div class="item"><h3>${esc(head)}</h3>
+        <div class="row"><span>Model</span><span>${esc(d.modelNo) || '—'}</span></div>
+        <div class="row"><span>Serial</span><span>${esc(d.serialNumber) || '—'}</span></div>
+        <div class="row"><span>Purchased</span><span>${esc(d.purchaseDate) || '—'}</span></div>
+        <div class="row"><span>Registration</span><span>${esc(d.registrationId) || '—'}</span></div>${body}</div>`;
+    }).join('') : '<div class="empty">No products are registered with this mobile number yet. Use “Register a product” on the Home tab.</div>';
+
+    $('list-services').innerHTML = tickets.length ? tickets.map((t) => `<div class="item"><h3>${esc(t.category) || 'Service request'} — ${esc(t.ticketId)}</h3>
+      <div class="row"><span>Type</span><span>${t.requestType === 'installation' ? 'Installation / Demo' : 'Service request'}</span></div>
+      <div class="row"><span>Status</span><span class="pill">${esc(statusLabel(t.status))}</span></div>
+      <div class="row"><span>Warranty</span><span>${esc(warrantyLabel(t.warrantyStatus))}</span></div>
+      <div class="row"><span>Raised</span><span>${esc(whenStr(t.createdAt))}</span></div></div>`).join('')
+      : '<div class="empty">No service requests yet.</div>';
+  } catch (err) {
+    console.error(err);
+    setMsg('app-msg', 'Could not load your records right now. Please try again.');
+  }
+}
+
+document.querySelectorAll('#view-app .tab').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('#view-app .tab').forEach((x) => x.classList.toggle('active', x === b));
+  for (const v of ['home', 'products', 'services']) $('app-' + v).classList.toggle('hidden', v !== b.dataset.view);
+}));
+</script>
+</body>
+</html>

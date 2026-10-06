@@ -11,8 +11,11 @@ service firebase.storage {
     // Firestore; accept it, or every role-checked path below denies.)
     // ---------------------------------------------------------------
 
+    // A CRM user (staff, dealer, distributor) — NOT a self-registered
+    // customer (role 'customer'), who must never gain staff access just
+    // by creating an account.
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null && role() != 'customer';
     }
 
     function role() {

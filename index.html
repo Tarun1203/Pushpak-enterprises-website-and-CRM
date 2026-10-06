@@ -275,6 +275,7 @@
       <a href="#services">Customer Services</a>
       <a href="#about">About</a>
       <a href="#contact">Contact</a>
+      <a href="portal.html">My Account</a>
     </nav>
     <a href="#contact" class="nav-cta">Book a Service</a>
   </div>
@@ -632,6 +633,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
   import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -660,6 +662,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  // Warranty Check, Track Service and the Book Service "find my product"
+  // search used to read Firestore directly; those collections are no longer
+  // public, so they ask this rate-limited function instead.
+  const publicLookup = httpsCallable(getFunctions(app, 'asia-south1'), 'publicLookup');
+  function lookupErrorMessage(err, fallback) {
+    if (err && err.code === 'functions/resource-exhausted') return 'Too many lookups from this device. Please try again in an hour.';
+    if (err && err.code === 'functions/invalid-argument' && err.message) return err.message;
+    return fallback;
+  }
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -1088,23 +1099,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     searchBtn.textContent = 'Searching…';
     searchBtn.disabled = true;
     try {
-      const snap = await getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone)));
+      const { data: found } = await publicLookup({ type: 'registrations', phone: normalizedPhone });
+      const regs = found.registrations || [];
       bookSearchResults.innerHTML = '';
-      if (snap.empty) {
+      if (!regs.length) {
         bookSearchResults.innerHTML = '<div style="font-size:13px;color:var(--stone);">No registered products found for this number — you can continue without one.</div>';
       } else {
-        snap.forEach(docSnap => {
-          const d = docSnap.data();
+        regs.forEach(d => {
           const card = document.createElement('div');
           card.className = 'search-result-card';
-          card.innerHTML = `<b>${d.product || (d.brand + ' ' + d.category)}</b><span>Model ${d.modelNo || '—'} · Purchased ${d.purchaseDate || '—'}</span>`;
-          card.addEventListener('click', () => goToBookForm(d));
+          card.innerHTML = `<b>${escapeHtml(d.product || ((d.brand || '') + ' ' + (d.category || '')))}</b><span>Model ${escapeHtml(d.modelNo) || '—'} · Purchased ${escapeHtml(d.purchaseDate) || '—'}</span>`;
+          // The lookup deliberately omits name and address — the customer
+          // types those in themselves.
+          card.addEventListener('click', () => goToBookForm(Object.assign({}, d, { customerPhone: normalizedPhone })));
           bookSearchResults.appendChild(card);
         });
       }
     } catch (err) {
       console.error('Search registrations failed:', err);
-      bookSearchResults.innerHTML = '<div style="font-size:13px;color:#B3261E;">Search failed — please try again.</div>';
+      bookSearchResults.innerHTML = '<div style="font-size:13px;color:#B3261E;">' + escapeHtml(lookupErrorMessage(err, 'Search failed — please try again.')) + '</div>';
     }
     searchBtn.textContent = original;
     searchBtn.disabled = false;
@@ -1302,94 +1315,47 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      // The ticket prefix tells us which kind it is and which
-      // collection to look it up in:
-      //  - PE-REG- — a product registration (query by field, since
-      //    the doc ID is auto-generated)
-      //  - PE-CR-/PE-JOB- — a ticket raised directly in the CRM by a
-      //    Service Center or Technician. These live in centerRequests/
-      //    serviceJobs, which aren't publicly queryable (they carry
-      //    the customer's address, technician identity, etc.), so
-      //    this looks up the narrow public-safe mirror kept in sync
-      //    at publicTicketStatus instead, by the ticket ID itself.
-      //  - anything else (PE-SVC- or unrecognized, for backward
-      //    compatibility) — a website-raised publicServiceRequests
-      //    ticket, whose own doc ID IS the ticket number.
-      if (ticket.startsWith('PE-REG-')) {
-        const regSnap = await getDocs(query(collection(db, 'productRegistrations'), where('registrationId', '==', ticket)));
-        let match = null;
-        regSnap.forEach(d => { if (d.data().customerPhone === normalizedPhone) match = d.data(); });
-        if (!match) {
-          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
-        } else {
-          const dateStr = match.createdAt && match.createdAt.toDate ? match.createdAt.toDate().toLocaleDateString() : '—';
-          trackResult.innerHTML = `
-            <div class="track-status-box">
-              <div class="label">Status</div>
-              <div class="value">Product Registered</div>
-              <div class="label">Request Type</div>
-              <div class="value" style="font-size:13.5px;">Product Registration</div>
-              <div class="label">Product</div>
-              <div class="value" style="font-size:13.5px;">${escapeHtml(match.brand) || ''} ${escapeHtml(match.category) || ''}${match.modelNo ? ' — ' + escapeHtml(match.modelNo) : ''}</div>
-              <div class="label">Submitted</div>
-              <div class="value" style="font-size:13.5px;">${dateStr}</div>
-            </div>`;
-        }
-      } else if (ticket.startsWith('PE-CR-') || ticket.startsWith('PE-JOB-')) {
-        const snap = await getDoc(doc(db, 'publicTicketStatus', ticket));
-        if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
-          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
-        } else {
-          const d = snap.data();
-          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
-          trackResult.innerHTML = `
-            <div class="track-status-box">
-              <div class="label">Status</div>
-              <div class="value">${(d.status || 'new').replace('_', ' ')}</div>
-              <div class="label">Request Type</div>
-              <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
-              <div class="label">Product</div>
-              <div class="value" style="font-size:13.5px;">${escapeHtml(d.category) || '—'}</div>
-              <div class="label">Warranty</div>
-              <div class="value" style="font-size:13.5px;">${warrantyStatusLabel(d.warrantyStatus)}</div>
-              <div class="label">Submitted</div>
-              <div class="value" style="font-size:13.5px;">${dateStr}</div>
-            </div>`;
-          showFeedbackForm(ticket, normalizedPhone, d.status);
-        }
+      // The publicLookup function checks the request number AND mobile
+      // number together and returns only status-level fields (no name,
+      // address or technician details).
+      const { data: res } = await publicLookup({ type: 'track', ticket, phone: normalizedPhone });
+      const notFound = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
+      if (!res.found) {
+        trackResult.innerHTML = notFound;
+      } else if (res.kind === 'registration') {
+        const dateStr = res.createdAt ? new Date(res.createdAt).toLocaleDateString() : '—';
+        trackResult.innerHTML = `
+          <div class="track-status-box">
+            <div class="label">Status</div>
+            <div class="value">Product Registered</div>
+            <div class="label">Request Type</div>
+            <div class="value" style="font-size:13.5px;">Product Registration</div>
+            <div class="label">Product</div>
+            <div class="value" style="font-size:13.5px;">${escapeHtml(res.brand)} ${escapeHtml(res.category)}${res.modelNo ? ' — ' + escapeHtml(res.modelNo) : ''}</div>
+            <div class="label">Submitted</div>
+            <div class="value" style="font-size:13.5px;">${dateStr}</div>
+          </div>`;
       } else {
-        const [snap, mirrorSnap] = await Promise.all([
-          getDoc(doc(db, 'publicServiceRequests', ticket)),
-          getDoc(doc(db, 'publicTicketStatus', ticket)).catch(() => null)
-        ]);
-        // Once a website request is routed, its service center keeps the
-        // public mirror up to date — that status is the current one.
-        const mirror = mirrorSnap && mirrorSnap.exists() && mirrorSnap.data().customerPhone === normalizedPhone ? mirrorSnap.data() : null;
-        if (!snap.exists() || snap.data().customerPhone !== normalizedPhone) {
-          trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No matching request found. Check your request number and mobile number.</div></div>';
-        } else {
-          const d = snap.data();
-          const currentStatus = (mirror && mirror.status) || d.status || 'new';
-          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
-          trackResult.innerHTML = `
-            <div class="track-status-box">
-              <div class="label">Status</div>
-              <div class="value">${currentStatus.replace('_', ' ')}</div>
-              <div class="label">Request Type</div>
-              <div class="value" style="font-size:13.5px;">${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
-              <div class="label">Product</div>
-              <div class="value" style="font-size:13.5px;">${escapeHtml(d.brand) || ''} ${escapeHtml(d.category) || ''}</div>
-              <div class="label">Warranty</div>
-              <div class="value" style="font-size:13.5px;">${warrantyStatusLabel(d.warrantyStatus)}</div>
-              <div class="label">Submitted</div>
-              <div class="value" style="font-size:13.5px;">${dateStr}</div>
-            </div>`;
-          if (mirror) showFeedbackForm(ticket, normalizedPhone, mirror.status);
-        }
+        const dateStr = res.createdAt ? new Date(res.createdAt).toLocaleDateString() : '—';
+        trackResult.innerHTML = `
+          <div class="track-status-box">
+            <div class="label">Status</div>
+            <div class="value">${escapeHtml((res.status || 'new').replace('_', ' '))}</div>
+            <div class="label">Request Type</div>
+            <div class="value" style="font-size:13.5px;">${res.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
+            <div class="label">Product</div>
+            <div class="value" style="font-size:13.5px;">${escapeHtml(res.brand)} ${escapeHtml(res.category) || '—'}</div>
+            <div class="label">Warranty</div>
+            <div class="value" style="font-size:13.5px;">${warrantyStatusLabel(res.warrantyStatus)}</div>
+            <div class="label">Submitted</div>
+            <div class="value" style="font-size:13.5px;">${dateStr}</div>
+          </div>`;
+        // Feedback is offered once the service center's status mirror exists.
+        if (res.feedbackStatus) showFeedbackForm(ticket, normalizedPhone, res.feedbackStatus);
       }
     } catch (err) {
       console.error('Track service failed:', err);
-      trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">Could not check status right now. Please try again.</div></div>';
+      trackResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">' + escapeHtml(lookupErrorMessage(err, 'Could not check status right now. Please try again.')) + '</div></div>';
     }
     btn.textContent = original;
     btn.disabled = false;
@@ -1444,14 +1410,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     btn.textContent = 'Checking…';
     btn.disabled = true;
     try {
-      const [regSnap, ticketSnap] = await Promise.all([
-        getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', normalizedPhone))),
-        getDocs(query(collection(db, 'publicTicketStatus'), where('customerPhone', '==', normalizedPhone)))
-      ]);
-      const matches = [];
-      regSnap.forEach(docSnap => matches.push(docSnap.data()));
-      const ticketMatches = [];
-      ticketSnap.forEach(docSnap => ticketMatches.push(docSnap.data()));
+      const { data: found } = await publicLookup({ type: 'warranty', phone: normalizedPhone });
+      const matches = found.registrations || [];
+      const ticketMatches = found.tickets || [];
       if (matches.length === 0 && ticketMatches.length === 0) {
         warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">No registered products or service tickets found for that mobile number.</div></div>';
       } else {
@@ -1462,7 +1423,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         ticketMatches.forEach(d => {
           const card = document.createElement('div');
           card.className = 'warranty-result-card';
-          const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
+          const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '—';
           card.innerHTML = `
             <h4>${escapeHtml(d.category) || 'Service ticket'} — ${escapeHtml(d.ticketId)}</h4>
             <div class="row"><span>Request Type</span><span>${d.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</span></div>
@@ -1499,7 +1460,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       }
     } catch (err) {
       console.error('Warranty check failed:', err);
-      warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">Could not check warranty right now. Please try again.</div></div>';
+      warrantyResult.innerHTML = '<div class="track-status-box"><div class="value" style="color:#B3261E;">' + escapeHtml(lookupErrorMessage(err, 'Could not check warranty right now. Please try again.')) + '</div></div>';
     }
     btn.textContent = original;
     btn.disabled = false;

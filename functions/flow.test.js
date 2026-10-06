@@ -9,6 +9,7 @@ Module._load = function (req, ...a) {
   if (req === 'firebase-admin/firestore') return { getFirestore: () => fake.db, FieldValue: fake.FieldValue, Timestamp: fake.Timestamp };
   if (req === 'firebase-functions/v2/firestore') return new Proxy({}, { get: () => wrap });
   if (req === 'firebase-functions/v2/scheduler') return { onSchedule: wrap };
+  if (req === 'firebase-functions/v2/https') return { onCall: wrap, HttpsError: class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } } };
   return orig.call(this, req, ...a);
 };
 const F = require('./index.js');
@@ -292,4 +293,49 @@ test('documents: verification rights, verified files locked, expiry reminders on
   ok([...store.keys()].filter((k) => k.startsWith('notifications/')).length === n1, 'no repeat reminder at the same stage');
   await F.documentExpiryCheck.handler({ scheduleTime: '2026-10-15T02:30:00Z' });
   ok(get('docExpiryAlerts/center_cV_D1').stage === '7', 'reminds again when it moves to the 7-day stage');
+});
+
+test('public lookups return minimal fields, check the phone, and are rate limited', async () => {
+  set('productRegistrations/r1', { registrationId: 'PE-REG-1', customerPhone: '9000000001', customerName: 'Asha', address: 'Secret St', product: 'Geyser 15L', brand: 'MakWell', category: 'Geyser', modelNo: 'G15', serialNumber: 'ABCD12345678', purchaseDate: '2026-01-01', warrantyMonths: 24, dealerUid: 'd1', createdAt: Timestamp.now() });
+  set('publicTicketStatus/PE-CR-9', { ticketId: 'PE-CR-9', customerPhone: '9000000001', category: 'Geyser', status: 'in_progress', requestType: 'service', warrantyStatus: 'in_warranty', createdAt: Timestamp.now() });
+  set('publicServiceRequests/PE-SVC-1', { requestId: 'PE-SVC-1', customerPhone: '9000000001', customerName: 'Asha', address: 'Secret St', category: 'Geyser', brand: 'MakWell', status: 'new', requestType: 'service', createdAt: Timestamp.now() });
+  const call = (data, ip = '1.1.1.1') => F.publicLookup.handler({ data, rawRequest: { ip } });
+  const w = await call({ type: 'warranty', phone: '+91 90000 00001' });
+  ok(w.registrations.length === 1 && w.tickets.length === 1, 'warranty finds registration and ticket');
+  ok(w.registrations[0].serialNumber === '••••5678', 'serial masked');
+  ok(!JSON.stringify(w).includes('Secret St') && !JSON.stringify(w).includes('Asha') && !JSON.stringify(w).includes('d1'), 'no name/address/dealer leaked');
+  const b = await call({ type: 'registrations', phone: '9000000001' });
+  ok(b.registrations[0].serialNumber === 'ABCD12345678' && b.registrations[0].registrationId === 'PE-REG-1', 'booking lookup keeps serial + id');
+  const none = await call({ type: 'warranty', phone: '9000000003' });
+  ok(none.registrations.length === 0 && none.tickets.length === 0, 'unknown phone -> empty');
+  let t = await call({ type: 'track', ticket: 'PE-CR-9', phone: '9000000001' });
+  ok(t.found && t.kind === 'ticket' && t.status === 'in_progress' && t.feedbackStatus === 'in_progress', 'CRM ticket tracked');
+  t = await call({ type: 'track', ticket: 'PE-CR-9', phone: '9000000003' });
+  ok(t.found === false, 'wrong phone -> not found');
+  t = await call({ type: 'track', ticket: 'PE-SVC-1', phone: '9000000001' });
+  ok(t.found && t.status === 'new' && t.feedbackStatus === null, 'website ticket tracked, no mirror yet');
+  set('publicTicketStatus/PE-SVC-1', { ticketId: 'PE-SVC-1', customerPhone: '9000000001', status: 'completed', warrantyStatus: 'out_of_warranty' });
+  t = await call({ type: 'track', ticket: 'PE-SVC-1', phone: '9000000001' });
+  ok(t.status === 'completed' && t.warrantyStatus === 'out_of_warranty' && t.feedbackStatus === 'completed', 'mirror status wins');
+  t = await call({ type: 'track', ticket: 'PE-REG-1', phone: '9000000001' });
+  ok(t.found && t.kind === 'registration' && t.serialNumber === '••••5678', 'registration tracked');
+  await assert.rejects(() => call({ type: 'warranty', phone: '123' }), /10-digit/);
+  await assert.rejects(() => call({ type: 'track', ticket: 'x', phone: '9000000001' }), /request number/);
+  // phone bucket (25/hour) trips from a different IP
+  let blocked = false;
+  for (let i = 0; i < 30 && !blocked; i++) { try { await call({ type: 'warranty', phone: '9000000001' }, '2.2.2.' + i); } catch (e) { blocked = e.code === 'resource-exhausted'; } }
+  ok(blocked, 'per-phone hourly limit trips');
+});
+
+test('ensureCustomerProfile only trusts the verified phone and never converts staff', async () => {
+  const call = (auth, data) => F.ensureCustomerProfile.handler({ auth, data });
+  await assert.rejects(() => call(null, {}), /Sign in/);
+  await assert.rejects(() => call({ uid: 'cust1', token: { email: 'a@b.com' } }, { name: 'A' }), /phone-not-verified/);
+  const r = await call({ uid: 'cust1', token: { phone_number: '+919000000001', email: 'a@b.com' } }, { name: '  Asha  ' });
+  ok(r.ok && get('users/cust1').role === 'customer' && get('users/cust1').phone10 === '9000000001' && get('users/cust1').name === 'Asha' && get('users/cust1').createdAt, 'profile created from token phone');
+  await call({ uid: 'cust1', token: { phone_number: '+919000000001' } }, {});
+  ok(get('users/cust1').name === 'Asha', 'name kept when not supplied');
+  set('users/sc9', { role: 'servicecenter', name: 'SC' });
+  await assert.rejects(() => call({ uid: 'sc9', token: { phone_number: '+919000000002' } }, {}), /not a customer/);
+  ok(get('users/sc9').role === 'servicecenter' && !get('users/sc9').phone10, 'staff doc untouched');
 });
