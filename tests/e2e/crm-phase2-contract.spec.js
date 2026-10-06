@@ -25,6 +25,17 @@ test('all CRM role dashboards are reachable and protect anonymous users', async 
     const response = await page.goto(`${CRM_BASE}${file}`, { waitUntil: 'domcontentloaded' });
     expect(response && response.ok(), `${role}: HTTP ${response && response.status()}`).toBeTruthy();
 
+    // Firebase auth state redirects protected dashboards asynchronously. Do not
+    // inspect page.url() immediately after domcontentloaded: that races the
+    // dashboard auth gate and can falsely report a missing #gate after the page
+    // has already redirected to login.html.
+    await expect.poll(async () => {
+      const redirectedToLogin = /login\.html/i.test(page.url());
+      const hasLoginForm = await page.locator('#login-form').count();
+      const hasAuthGate = await page.locator('#gate').count();
+      return redirectedToLogin || hasLoginForm > 0 || hasAuthGate > 0;
+    }, { timeout: 12_000, intervals: [100, 250, 500] }).toBeTruthy();
+
     const redirectedToLogin = /login\.html/i.test(page.url());
     if (redirectedToLogin) {
       await expect(page.locator('#login-form'), `${role}: missing login form after protected redirect`).toBeAttached();
