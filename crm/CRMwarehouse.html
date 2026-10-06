@@ -689,7 +689,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label));
         groupEl.appendChild(el);
       });
@@ -870,7 +870,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <td>${r.part ? escapeHtml(r.part.name || '—') : '(unknown part)'}</td>
               <td><b>${r.qty}</b></td>
               <td>${r.part ? (r.part.reorderLevel ?? 0) : '—'}</td>
-              <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
+              <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
             tbody.appendChild(tr);
           });
         if (kind === 'technician') {
@@ -1442,10 +1442,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const options = sorted.map(c => {
             const level = matchLevel(c);
             const matchFlag = level === 1 ? ' ✓ covers this city' : '';
-            return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${matchFlag}</option>`;
+            return `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${matchFlag}</option>`;
           }).join('');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${d.city ? ' — ' + d.city : ''}${d.pincode ? ' ' + d.pincode : ''}</span></td>
+            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${escapeHtml(d.city ? ' — ' + d.city : '')}${d.pincode ? ' ' + d.pincode : ''}</span></td>
             <td>${escapeHtml(d.customerName || '—')}</td>
             <td>${productLabel}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
@@ -1478,7 +1478,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const options = sortedTechs.map(t => {
             const level = techMatchLevel(t);
             const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
-            return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
+            return `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
           }).join('');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
@@ -1546,9 +1546,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       docs.forEach(d => {
         const tr = document.createElement('tr');
         const eligibleCenters = centers.filter(c => c.uid !== d.serviceCenterUid);
-        const centerOptions = eligibleCenters.map(c => `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}</option>`).join('');
+        const centerOptions = eligibleCenters.map(c => `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}</option>`).join('');
         const eligibleTechs = techs.filter(t => !t.suspended && t.uid !== d.technicianUid);
-        const techOptions = eligibleTechs.map(t => `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}</option>`).join('');
+        const techOptions = eligibleTechs.map(t => `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}</option>`).join('');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
@@ -1708,7 +1708,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const row = byPart[partId];
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${part ? `${part.partCode} — ${part.name}` : partId}</td>
+          <td>${part ? `${part.partCode} — ${escapeHtml(part.name)}` : partId}</td>
           <td>${row.defective || 0}</td>
           <td>${row.disposed || 0}</td>
           <td><b>${row.defective + row.disposed}</b></td>`;
@@ -2059,7 +2059,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function paintMasterDataTabs() {
     contentEl.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${t.label}</button>`).join('')}
+        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
       </div>
       <div id="md-tab-body"></div>`;
     document.querySelectorAll('.md-tab-btn').forEach(btn => {
@@ -2088,7 +2088,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h2>${cfg.title}</h2></div>
+        <div class="panel-header"><h2>${escapeHtml(cfg.title)}</h2></div>
         <div class="panel-body">
           <input type="file" id="md-csv-file" accept=".csv" style="margin-bottom:14px;">
           <div id="md-csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
@@ -2771,8 +2771,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
           <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
           <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${d.action || '—'}</span></td>
-          <td style="font-size:12px;">${d.performedBy || '—'}</td>
-          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+          <td style="font-size:12px;">${escapeHtml(d.performedBy || '—')}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -2867,7 +2867,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="stat-grid">
         ${WH_DASHBOARD_TILES.map(t => `
           <div class="stat-card dash-tile" data-nav="${t.nav}" style="cursor:pointer;">
-            <div class="label">${t.label}</div>
+            <div class="label">${escapeHtml(t.label)}</div>
             <div class="value">${s[t.key] ?? '…'}</div>
             <div class="hint">${t.hint}</div>
           </div>`).join('')}
@@ -2997,7 +2997,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const requesterLabel = profile ? (profile.name || profile.email || d.serviceCenter) : (d.serviceCenter || '—');
         const tr = document.createElement('tr');
         const actions = (STATUS_ACTIONS[status] || []).map(a =>
-          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${d.id}" data-next="${a.next}">${a.label}</button>`
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${d.id}" data-next="${a.next}">${escapeHtml(a.label)}</button>`
         ).join('');
         tr.innerHTML = `
           <td><a href="#" class="sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</a></td>
@@ -3240,6 +3240,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         // un-dispatched after its stock has already left the shelf.
         const reqRef = doc(db, 'spareRequests', d.id);
         const dispatchFields = { status: 'dispatched', dispatchedQty: qty, transport, updatedAt: serverTimestamp() };
+        // This dispatch credits the destination itself, so the old
+        // "Fix inventory location" repair must never apply to it.
+        if (part && loc) dispatchFields.destInventoryFixed = true;
         if (part && loc) {
           const whInvRef = doc(db, 'inventory', `warehouse_${part.id}`);
           const destInvRef = doc(db, 'inventory', `${loc.docId}_${part.id}`);
@@ -3338,7 +3341,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>` : ''}`;
 
     const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
-      `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${a.label}</button>`
+      `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${escapeHtml(a.label)}</button>`
     ).join(' ');
     // A request dispatched before the servicecenter_/technician_ naming
     // fix landed real stock under the old sc_/tech_ convention, so the
@@ -3416,6 +3419,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     const qty = d.dispatchedQty ?? d.quantity ?? 1;
+    // Never credit twice: if a stock movement already shows this request's
+    // stock arriving at that location, the dispatch already did it.
+    try {
+      const moves = await getDocs(query(collection(db, 'stockMovements'), where('sourceRequestId', '==', d.id)));
+      let alreadyCredited = false;
+      moves.forEach(m => { const md = m.data(); if (md.to === loc.docId || md.toLocation === loc.docId) alreadyCredited = true; });
+      if (alreadyCredited) {
+        await updateDoc(doc(db, 'spareRequests', d.id), { destInventoryFixed: true, updatedAt: serverTimestamp() });
+        alert(`Nothing to fix — this dispatch already credited ${loc.label}'s inventory.`);
+        whSrDetailOverlay.classList.remove('show');
+        loadSpareRequests(currentTabStatus);
+        return;
+      }
+    } catch (err) {
+      console.error('Could not check stock movements:', err);
+      alert('Could not check whether this was already credited, so nothing was changed. Try again.');
+      return;
+    }
     if (!confirm(`Credit ${qty} x ${part.name} to ${loc.label}'s own Inventory page? This only fixes where the stock is visible — it does not debit Warehouse stock again.`)) return;
     try {
       const destInvRef = doc(db, 'inventory', `${loc.docId}_${part.id}`);
@@ -3572,8 +3593,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
-          <td>${d.name || '—'}</td>
-          <td>${d.category || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.category || '—')}</td>
           <td>${d.brandCompatibility || 'All'}</td>
           <td>${d.price != null ? '₹' + d.price : '—'}</td>
           <td>${d.reorderLevel ?? '—'}</td>
@@ -3649,18 +3670,22 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const priceChanged = editingId && editingPartOriginal && editingPartOriginal.price !== payload.price;
     try {
       if (priceChanged) {
+        // Everything except the price saves now; the price itself waits
+        // for Super Admin (firestore.rules blocks Warehouse writing it).
+        const { price: _newPrice, ...otherFields } = payload;
+        await updateDoc(doc(db, 'spareParts', editingId), otherFields);
         await addDoc(collection(db, 'changeRequests'), {
           targetCollection: 'spareParts',
           targetId: editingId,
           action: 'update',
-          payload,
+          payload: { price: payload.price },
           summary: `Spare part price change — ${editingPartOriginal.partCode || editingId} (${payload.name}): ₹${editingPartOriginal.price ?? '—'} → ₹${payload.price ?? '—'}`,
           requestedByUid: auth.currentUser ? auth.currentUser.uid : null,
           requestedByEmail: auth.currentUser ? auth.currentUser.email : 'unknown',
           status: 'pending',
           createdAt: serverTimestamp()
         });
-        partSuccess.textContent = 'Price change submitted for Super Admin approval — it will apply once approved.';
+        partSuccess.textContent = 'Saved. The price change was sent to Super Admin for approval and will apply once approved.';
       } else if (editingId) {
         await updateDoc(doc(db, 'spareParts', editingId), payload);
         partSuccess.textContent = 'Saved.';
@@ -3752,11 +3777,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${part.partCode || part.id}</td>
-          <td>${part.name || '—'}</td>
-          <td>${part.category || '—'}</td>
+          <td>${escapeHtml(part.name || '—')}</td>
+          <td>${escapeHtml(part.category || '—')}</td>
           <td><b>${qty}</b></td>
           <td>${part.reorderLevel ?? 0}</td>
-          <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+          <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>
           ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
         tbody.appendChild(tr);
         if (view === 'warehouse') {
@@ -4007,7 +4032,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         }
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
-          <td>${d.item || '—'}</td>
+          <td>${escapeHtml(d.item || '—')}</td>
           <td>${d.quantity ?? '—'}</td>
           <td>${d.requestedBy || '—'}</td>
           <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
@@ -4235,7 +4260,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-body" style="padding:0;">
           <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Categories with size/model bundles (set under Categories) show one row per bundle.</div>
           <table>
-            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} (₹)</th>`).join('')}</tr></thead>
+            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${escapeHtml(t.label)} (₹)</th>`).join('')}</tr></thead>
             <tbody id="rate-card-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
           </table>
         </div>
@@ -4743,7 +4768,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
         <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
         <td>${d.claimantName || '—'}</td>
-        <td>${d.description || '—'}</td>
+        <td>${escapeHtml(d.description || '—')}</td>
         <td>₹${d.amount ?? '—'}${claimCheckBadge(d)}</td>
         <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
         <td>${actionHtml}</td>`;
@@ -5376,7 +5401,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const el = document.createElement('div');
         el.className = 'notif-item' + (n.read ? '' : ' unread');
         const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
-        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
+        el.innerHTML = `<div class="title">${escapeHtml(n.title || 'Notification')}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
         el.addEventListener('click', async () => {
           if (!n.read) {
             try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }

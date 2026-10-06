@@ -1202,7 +1202,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label, !!item.built));
         groupEl.appendChild(el);
       });
@@ -1379,7 +1379,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const el = document.createElement('div');
         el.className = 'notif-item' + (n.read ? '' : ' unread');
         const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
-        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
+        el.innerHTML = `<div class="title">${escapeHtml(n.title || 'Notification')}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
         el.addEventListener('click', async () => {
           if (!n.read) {
             try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }
@@ -1567,7 +1567,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="stat-grid">
         ${DASHBOARD_TILES.map(t => `
           <div class="stat-card dash-tile" data-nav="${t.nav}" style="cursor:pointer;">
-            <div class="label">${t.label}</div>
+            <div class="label">${escapeHtml(t.label)}</div>
             <div class="value">${s[t.key] ?? '…'}</div>
             <div class="hint">${t.hint}</div>
           </div>`).join('')}
@@ -1619,8 +1619,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = docSnap.data();
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.name || '—'}</td>
-          <td>${d.email || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.email || '—')}</td>
           <td><span class="role-pill ${d.role || ''}">${d.role || 'unknown'}</span></td>
           <td style="color:var(--stone);font-size:12px;">${docSnap.id}</td>
           <td><button class="btn-secondary edit-user-btn" data-uid="${docSnap.id}">Edit</button></td>`;
@@ -1747,7 +1747,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         row.className = 'chip';
         row.style.marginRight = '6px';
         row.style.marginBottom = '6px';
-        row.innerHTML = `${v.category} — ${SKILL_LEVEL_LABELS[v.level] || v.level} <button type="button">&times;</button>`;
+        row.innerHTML = `${escapeHtml(v.category)} — ${SKILL_LEVEL_LABELS[v.level] || v.level} <button type="button">&times;</button>`;
         row.querySelector('button').addEventListener('click', () => { values.splice(i, 1); render(); });
         listEl.appendChild(row);
       });
@@ -2281,8 +2281,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.ticketId || docSnap.id}</td>
-          <td>${d.name || '—'}</td>
-          <td>${d.phone || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.phone || '—')}</td>
           <td>${escapeHtml(d.subject || '—')}</td>
           <td style="font-size:12.5px;">${productBits || '—'}</td>
           <td style="font-size:12.5px;">${escapeHtml(d.dealerName || '—')}</td>
@@ -2396,7 +2396,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <td style="font-size:12px;color:var(--stone);">${d.code || BRAND_DEFAULT_CODES[brandId]}</td>
         <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
         <td>${d.tagline || '—'}</td>
-        <td style="max-width:240px;">${d.description || '—'}</td>
+        <td style="max-width:240px;">${escapeHtml(d.description || '—')}</td>
         <td><button class="btn-secondary brand-edit-btn" data-id="${brandId}">Edit</button></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.brand-edit-btn').addEventListener('click', () => openBrandModal(brandId, d));
@@ -2562,7 +2562,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         return;
       }
       productCategorySelect.innerHTML = '<option value="">Select…</option>' +
-        cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
       if (selectedCategoryId) productCategorySelect.value = selectedCategoryId;
     } catch (err) {
       console.error('Load categories for product form failed:', err);
@@ -2969,9 +2969,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td><b>${p.id}</b></td>
           <td>${escapeHtml(p.area || '—')}</td>
-          <td>${p.city || '—'}</td>
+          <td>${escapeHtml(p.city || '—')}</td>
           <td>${p.taluk || '—'}</td>
-          <td>${p.district || '—'}</td>
+          <td>${escapeHtml(p.district || '—')}</td>
           <td>${p.state || '—'}</td>
           <td><span class="status-pill ${p.active === false ? 'out' : 'ok'}">${p.active === false ? 'inactive' : 'active'}</span></td>
           <td><button class="btn-secondary pincode-edit-btn">Edit</button></td>`;
@@ -3298,7 +3298,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       cats.forEach(c => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${c.icon ? c.icon + ' ' : ''}${c.name || '—'}</td>
+          <td>${c.icon ? c.icon + ' ' : ''}${escapeHtml(c.name || '—')}</td>
           <td style="font-size:12px;color:var(--stone);">${c.code || '—'}</td>
           <td>${BRAND_LABELS[c.brandId] || c.brandId || '—'}</td>
           <td>${c.displayOrder ?? 0}</td>
@@ -3334,7 +3334,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td>${d.categoryName || d.categoryId || '—'}</td>
           <td><span class="status-pill ${d.action === 'created' ? 'ok' : 'low'}">${d.action}</span></td>
           <td>${d.changedBy || '—'}</td>
-          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+          <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -3472,7 +3472,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <label>Filter by category</label>
             <select id="attr-filter-category">
               <option value="">All categories</option>
-              ${cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${c.name}</option>`).join('')}
+              ${cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${escapeHtml(c.name)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -3549,7 +3549,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     attrSubmitBtn.disabled = false;
     attrOptionsRow.classList.add('step-hidden');
     const cats = await getAllCategoriesCached(true);
-    attrCategorySelect.innerHTML = cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${c.name}</option>`).join('');
+    attrCategorySelect.innerHTML = cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${escapeHtml(c.name)}</option>`).join('');
     if (existing) {
       attrModalTitle.textContent = 'Edit attribute';
       document.getElementById('attr-editing-id').value = existing.id;
@@ -3726,9 +3726,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12px;color:var(--stone);">${d.registrationId || '—'}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
-          <td>${d.serialNumber || '—'}</td>
+          <td>${escapeHtml(d.serialNumber || '—')}</td>
           <td>${d.purchaseDate || '—'}</td>
-          <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
+          <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -3801,7 +3801,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const componentsSummary = (d.components || []).map(c => `${c.componentName}: ${c.durationYears}y`).join(', ') || '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${d.name || '—'}</b></td>
+          <td><b>${escapeHtml(d.name || '—')}</b></td>
           <td>${BRAND_LABELS[d.brandId] || '—'}</td>
           <td>${d.categoryName || 'Any'}</td>
           <td style="max-width:260px;color:var(--stone);font-size:12.5px;">${componentsSummary}</td>
@@ -3956,8 +3956,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           : 'Direct';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.name || '—'}</td>
-          <td>${d.email || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.email || '—')}</td>
           <td>${distributionLabel}</td>
           <td>${custSnap.size}</td>
           <td>${orderSnap.size}</td>
@@ -4010,8 +4010,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const pincodesList = (d.pincodesCovered || []).join(', ') || '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.name || '—'}</td>
-          <td>${d.email || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.email || '—')}</td>
           <td>${escapeHtml(districtsList)}</td>
           <td>${escapeHtml(pincodesList)}</td>
           <td>${linkedDealerCount} <span class="hint">(auto, by pincode)</span></td>
@@ -5297,13 +5297,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           : `<span class="status-pill ok">Permanent</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.name || '—'}</td>
-          <td>${d.email || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
+          <td>${escapeHtml(d.email || '—')}</td>
           <td>${typeLabel}</td>
           <td style="font-size:12.5px;">${brandsLabel}</td>
           <td style="font-size:12.5px;max-width:220px;">${skillsLabel}</td>
           <td>${jobSnap.size}</td>
-          <td>${availStatus ? `<span class="status-pill ${availMeta.cls}">${availMeta.label}</span>` : '—'}</td>
+          <td>${availStatus ? `<span class="status-pill ${availMeta.cls}">${escapeHtml(availMeta.label)}</span>` : '—'}</td>
           <td>
             <button class="btn-secondary tech-suspend-btn" data-uid="${userDoc.id}" data-suspended="${isSuspended}">${isSuspended ? 'Reinstate' : 'Suspend'}</button>
             <button class="btn-secondary tech-fullprofile-btn" data-uid="${userDoc.id}" data-name="${escapeHtml(d.name || d.email || '')}" style="margin-left:6px;">Full profile</button>
@@ -5631,8 +5631,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           ${dateHtml}
           <td>${r.source}</td>
           <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
-          <td>${r.customer || '—'}</td>
-          <td>${r.assigned || '—'}</td>
+          <td>${escapeHtml(r.customer || '—')}</td>
+          <td>${escapeHtml(r.assigned || '—')}</td>
           <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
           <td><button class="btn-secondary appt-schedule-btn" data-coll="${r.coll}" data-id="${r.docId}">${r.date ? 'Reschedule' : 'Schedule'}</button></td>`;
         tbody.appendChild(tr);
@@ -6158,7 +6158,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
       const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
       const current = isReassign && c.name === d.serviceCenterName ? ' (current)' : '';
-      return `<option value="${c.uid}|${c.name || c.email}">${c.name || c.email}${current}${flags ? ' — ' + flags : ''}</option>`;
+      return `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${current}${flags ? ' — ' + flags : ''}</option>`;
     }).join('');
     svcTicketActions.innerHTML = `
       <div style="margin-bottom:8px;"><b>${isReassign ? `Reassign — currently at ${escapeHtml(d.serviceCenterName) || 'a center'}` : 'Route to service center'}</b></div>
@@ -6214,7 +6214,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const options = sortedTechs.map(t => {
       const level = techMatchLevel(t);
       const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
-      return `<option value="${t.uid}|${t.name || t.email}">${t.name || t.email}${flag}</option>`;
+      return `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
     }).join('');
     const controlsHtml = `
       ${mountEl ? '' : '<div style="margin-bottom:8px;"><b>Assign a technician</b></div>'}
@@ -6284,7 +6284,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
-          <td>${d.name || '—'}</td><td>${d.category || '—'}</td><td>${d.brandCompatibility || 'All'}</td>
+          <td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.category || '—')}</td><td>${d.brandCompatibility || 'All'}</td>
           <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${d.reorderLevel ?? '—'}</td>
           <td><button class="btn-secondary edit-part-btn">Edit</button></td>`;
         tbody.appendChild(tr);
@@ -6409,7 +6409,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = '';
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.name}</td><td><b>${r.warehouse}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td><b>${r.warehouse}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -6830,7 +6830,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
       actions.innerHTML = `
         <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Stock for this request has already been transferred.</div>
-        ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${a.next}">${a.label}</button>`).join(' ')}
+        ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${a.next}">${escapeHtml(a.label)}</button>`).join(' ')}
       `;
       actions.querySelectorAll('.sr-advance-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -7007,7 +7007,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
-          <td>${d.item || '—'}</td><td>${d.requestedBy || '—'}</td>
+          <td>${escapeHtml(d.item || '—')}</td><td>${d.requestedBy || '—'}</td>
           <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
           <td>${d.emergency ? 'Yes' : '—'}</td>
           <td><span class="status-pill ${d.status}">${d.status}</span></td>`;
@@ -7346,7 +7346,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <td style="white-space:nowrap;">${d.paidDate || '—'}</td>
             <td style="text-transform:capitalize;">${d.sourceType === 'claim' ? 'Claim' : 'Local Purchase'}</td>
             <td style="font-size:12px;color:var(--stone);">${d.sourceRef || '—'}</td>
-            <td>${d.description || '—'}</td>
+            <td>${escapeHtml(d.description || '—')}</td>
             <td>₹${amt}</td>
             <td>${d.method || '—'}</td>
             <td style="font-size:12px;color:var(--stone);">${d.referenceNumber || '—'}</td>`;
@@ -7646,7 +7646,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody2.innerHTML = '';
         rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.item || '—'}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${escapeHtml(d.item || '—')}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
           tbody2.appendChild(tr);
         });
       }
@@ -7664,7 +7664,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody3.innerHTML = '';
         rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.serviceCenter || '—'}</td><td>${d.item || '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.serviceCenter || '—'}</td><td>${escapeHtml(d.item || '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
           tbody3.appendChild(tr);
         });
       }
@@ -7688,13 +7688,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <td style="font-size:12.5px;">${escapeHtml(d.targetCollection || '—')}</td>
             <td style="font-size:12.5px;">${escapeHtml(d.summary || '—')}</td>
             <td style="font-size:12px;">${escapeHtml(d.requestedByEmail || '—')}</td>
-            <td>
-              <button type="button" class="btn-secondary cr-approve-btn">Approve</button>
-              <button type="button" class="btn-secondary cr-reject-btn">Reject</button>
+            <td>${auth.currentUser && d.requestedByUid === auth.currentUser.uid
+              ? '<span style="font-size:12px;color:var(--stone);">Your own request — another Super Admin decides it</span>'
+              : `<button type="button" class="btn-secondary cr-approve-btn">Approve</button>
+              <button type="button" class="btn-secondary cr-reject-btn">Reject</button>`}
             </td>`;
           tbody4.appendChild(tr);
-          tr.querySelector('.cr-approve-btn').addEventListener('click', () => approveChangeRequest(d));
-          tr.querySelector('.cr-reject-btn').addEventListener('click', () => rejectChangeRequest(d));
+          const apBtn = tr.querySelector('.cr-approve-btn');
+          const rjBtn = tr.querySelector('.cr-reject-btn');
+          if (apBtn) apBtn.addEventListener('click', () => approveChangeRequest(d));
+          if (rjBtn) rjBtn.addEventListener('click', () => rejectChangeRequest(d));
         });
       }
     } catch (err) { console.error('Load pending change requests failed:', err); }
@@ -7708,17 +7711,30 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function approveChangeRequest(cr) {
     if (!confirm(`Apply this change now?\n\n${cr.summary || ''}`)) return;
     try {
-      if (cr.action === 'update' && cr.targetId) {
-        await updateDoc(doc(db, cr.targetCollection, cr.targetId), cr.payload || {});
-      } else if (cr.action === 'delete' && cr.targetId) {
-        await deleteDoc(doc(db, cr.targetCollection, cr.targetId));
-      } else if (cr.action === 'create') {
-        await addDoc(collection(db, cr.targetCollection), { ...(cr.payload || {}), createdAt: serverTimestamp() });
+      // Only a spare part price change is ever approvable (firestore.rules
+      // refuses any other request shape). Only the price is applied, never
+      // a whole stored form, and the request is re-read inside the same
+      // transaction so it can't be applied twice.
+      const payload = cr.payload || {};
+      if (cr.targetCollection !== 'spareParts' || cr.action !== 'update' || !cr.targetId
+          || Object.keys(payload).some(k => k !== 'price')) {
+        alert('This request is not a spare part price change, so it can\'t be applied. Reject it instead.');
+        return;
       }
-      await updateDoc(doc(db, 'changeRequests', cr.id), {
-        status: 'approved',
-        reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-        reviewedAt: serverTimestamp()
+      const crRef = doc(db, 'changeRequests', cr.id);
+      const partRef = doc(db, 'spareParts', cr.targetId);
+      await runTransaction(db, async (t) => {
+        const crSnap = await t.get(crRef);
+        if (!crSnap.exists() || crSnap.data().status !== 'pending') throw new Error('This request was already decided — refresh the list.');
+        const partSnap = await t.get(partRef);
+        if (!partSnap.exists()) throw new Error('That spare part no longer exists.');
+        t.update(partRef, { price: payload.price ?? null, updatedAt: serverTimestamp() });
+        t.update(crRef, {
+          status: 'approved',
+          reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+          reviewedByUid: auth.currentUser ? auth.currentUser.uid : null,
+          reviewedAt: serverTimestamp()
+        });
       });
       try {
         await addDoc(collection(db, 'auditLogs'), {
@@ -7734,7 +7750,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       renderApprovalsOverview();
     } catch (err) {
       console.error('Approve change request failed:', err);
-      alert('Could not apply this change. Check console for details.');
+      alert(err.message && !/permission/i.test(err.message) ? err.message : 'Could not apply this change. Check console for details.');
     }
   }
 
@@ -7744,6 +7760,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       await updateDoc(doc(db, 'changeRequests', cr.id), {
         status: 'rejected',
         reviewedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
+        reviewedByUid: auth.currentUser ? auth.currentUser.uid : null,
         reviewedAt: serverTimestamp(),
         reviewNote: note
       });
@@ -7821,7 +7838,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = docSnap.data();
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.address || '—')}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.phone || '—')}</td><td>${escapeHtml(d.address || '—')}</td>`;
         tr.addEventListener('click', () => {
           document.getElementById('c360-phone-input').value = d.phone || '';
           loadCustomer360(d.phone || '');
@@ -7950,9 +7967,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tr.innerHTML = `
         <td><a href="#" class="c360-open-link" style="font-size:12px;">${r.registrationId || '—'}</a></td>
         <td>${escapeHtml(r.product || '—')}</td>
-        <td>${r.serialNumber || '—'}</td>
+        <td>${escapeHtml(r.serialNumber || '—')}</td>
         <td>${r.purchaseDate || '—'}</td>
-        <td><span class="status-pill ${status.cls}">${status.label}</span></td>`;
+        <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.c360-open-link').addEventListener('click', (e) => {
         e.preventDefault();
@@ -7964,7 +7981,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           componentsHtml = '<div style="margin-top:12px;"><b>Warranty by component</b><br>' +
             r.warrantyComponents.map(c => {
               const cStatus = warrantyStatus(r.purchaseDate, (c.durationYears || 0) * 12);
-              return `${escapeHtml(c.componentName)}: <span class="status-pill ${cStatus.cls}">${cStatus.label}</span>`;
+              return `${escapeHtml(c.componentName)}: <span class="status-pill ${cStatus.cls}">${escapeHtml(cStatus.label)}</span>`;
             }).join(' &nbsp; ') + '</div>';
         }
         const historyHtml = linkedHistory.length
@@ -8297,7 +8314,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         const matchLabel = r.matchType === 'district' ? `District: ${r.matchValue}` : `Service type: ${r.matchValue}`;
         tr.innerHTML = `
-          <td><b>${r.name}</b></td>
+          <td><b>${escapeHtml(r.name)}</b></td>
           <td>${matchLabel}</td>
           <td>${r.dueSoonHours}h</td>
           <td>${r.breachedHours}h</td>
@@ -8350,7 +8367,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td>${r.source}</td>
           <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
-          <td>${r.customer || '—'}</td>
+          <td>${escapeHtml(r.customer || '—')}</td>
           <td><span class="status-pill ${badge}">${Math.round(r.hoursOpen)}h</span></td>
           <td>${SVC_STATUS_LABELS[r.status] || r.status}</td>
           <td style="font-size:12px;color:var(--stone);">${r.ruleLabel}</td>`;
@@ -8494,14 +8511,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       snap.forEach(docSnap => {
         const d = docSnap.data();
         const actions = (RMA_ACTIONS[d.status] || []).map(a =>
-          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} rma-action-btn" data-id="${docSnap.id}" data-next="${a.next}">${a.label}</button>`
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} rma-action-btn" data-id="${docSnap.id}" data-next="${a.next}">${escapeHtml(a.label)}</button>`
         ).join('');
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.rmaId || docSnap.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.modelNo || d.product || '—')}</td>
-          <td>${d.serialNumber || '—'}</td>
+          <td>${escapeHtml(d.serialNumber || '—')}</td>
           <td><span class="status-pill ${d.status}">${RMA_STATUS_LABELS[d.status] || d.status}</span></td>
           <td><div class="row-actions">${actions || '—'}</div></td>`;
         tbody.appendChild(tr);
@@ -8747,7 +8764,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = { id: docSnap.id, ...docSnap.data() };
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${d.name || '—'}</td>
+          <td>${escapeHtml(d.name || '—')}</td>
           <td>${d.channel || '—'}</td>
           <td style="max-width:320px;color:var(--stone);">${d.body || '—'}</td>
           <td><button class="btn-secondary template-edit-btn" data-id="${d.id}">Edit</button></td>`;
@@ -8861,7 +8878,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function paintMasterDataTabs() {
     contentEl.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${t.label}</button>`).join('')}
+        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
       </div>
       <div id="md-tab-body"></div>`;
     document.querySelectorAll('.md-tab-btn').forEach(btn => {
@@ -8899,7 +8916,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h2>${cfg.title}</h2></div>
+        <div class="panel-header"><h2>${escapeHtml(cfg.title)}</h2></div>
         <div class="panel-body">
           <input type="file" id="md-csv-file" accept=".csv" style="margin-bottom:14px;">
           <div id="md-csv-preview" style="font-size:13px;color:var(--stone);margin-bottom:14px;"></div>
@@ -9482,8 +9499,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
           <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
           <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${AUDIT_ACTION_LABELS[d.action] || d.action}</span></td>
-          <td style="font-size:12px;">${d.performedBy || '—'}</td>
-          <td style="color:var(--stone);font-size:12.5px;">${d.details || '—'}</td>`;
+          <td style="font-size:12px;">${escapeHtml(d.performedBy || '—')}</td>
+          <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {

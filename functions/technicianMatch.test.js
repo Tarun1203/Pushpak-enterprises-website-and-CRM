@@ -60,3 +60,12 @@ test('ticket brand label is matched case-insensitively', () => {
   const r = run([{ id: 'r', name: 'A', technicianUid: 'u' }], { u: user() }, {}, {}, { brand: 'MakWell', category: 'geyser' });
   assert.strictEqual(r[0].eligible, true); assert.strictEqual(r[0].warnings.length, 0);
 });
+
+test('a technician whose skills were saved as plain text is not crashed on', () => {
+  const { rankTechnicians } = require('./technicianMatch');
+  const out = rankTechnicians({
+    ticket: { category: 'Geyser' }, roster: [{ id: 'r1', technicianUid: 't1', employmentStatus: 'ACTIVE' }],
+    users: { t1: { skills: 'Geyser repair' } }, avail: {}, openCounts: {}, today: '2026-10-06'
+  });
+  assert.strictEqual(out.length, 1);
+});

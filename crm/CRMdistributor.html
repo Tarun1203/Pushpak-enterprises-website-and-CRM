@@ -353,7 +353,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label));
         groupEl.appendChild(el);
       });
@@ -509,7 +509,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.innerHTML = '';
       docs.forEach(d => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.phone || '—'}</td><td>${escapeHtml(d.address || '—')}</td><td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.phone || '—')}</td><td>${escapeHtml(d.address || '—')}</td><td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -576,6 +576,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // ---------------------------------------------------------------
 
   const ORDER_STATUS_LABELS = { placed: 'Placed', confirmed: 'Confirmed', dispatched: 'Dispatched', delivered: 'Delivered', cancelled: 'Cancelled' };
+  // One step forward at a time (firestore.rules enforces the same):
+  // cancel is only possible before dispatch.
+  const ORDER_NEXT_STATUSES = { placed: ['confirmed', 'cancelled'], confirmed: ['dispatched', 'cancelled'], dispatched: ['delivered'] };
 
   async function generateOrderId() {
     const next = await nextMonthlySerial(`distributororder-${currentYYYYMM()}`);
@@ -667,14 +670,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       tbody.innerHTML = '';
       docs.forEach(d => {
         const tr = document.createElement('tr');
-        const locked = d.status === 'delivered' || d.status === 'cancelled';
+        const locked = !(ORDER_NEXT_STATUSES[d.status] || []).length;
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.orderId || d.id}</td>
           <td>${escapeHtml(d.dealerName || d.dealerEmail || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
           <td>${d.quantity ?? '—'}</td>
           <td><select class="incoming-order-status" data-id="${d.id}" ${locked ? 'disabled' : ''}>
-            ${Object.keys(ORDER_STATUS_LABELS).map(k => `<option value="${k}" ${k === d.status ? 'selected' : ''}>${ORDER_STATUS_LABELS[k]}</option>`).join('')}
+            ${[d.status, ...(ORDER_NEXT_STATUSES[d.status] || [])].map(k => `<option value="${k}" ${k === d.status ? 'selected' : ''}>${ORDER_STATUS_LABELS[k] || escapeHtml(k)}</option>`).join('')}
           </select></td>
           <td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
@@ -1031,7 +1034,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       snap.forEach(docSnap => {
         const d = docSnap.data();
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${d.name || '—'}</td><td>${d.category || '—'}</td><td>${d.price != null ? '₹' + d.price : '—'}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.category || '—')}</td><td>${d.price != null ? '₹' + d.price : '—'}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -1087,7 +1090,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td style="font-size:12px;color:var(--stone);">${d.registrationId || d.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
-          <td>${d.serialNumber || '—'}</td>
+          <td>${escapeHtml(d.serialNumber || '—')}</td>
           <td>${d.purchaseDate || '—'}</td>
           <td>${d.warrantyMonths ?? '—'} mo</td>`;
         tbody.appendChild(tr);
@@ -1200,7 +1203,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${escapeHtml(d.customerName || '—')}</td>
-          <td>${d.phone || '—'}</td>
+          <td>${escapeHtml(d.phone || '—')}</td>
           <td>${escapeHtml(d.subject || '—')}</td>
           <td><span class="status-pill ${d.status}">${ENQ_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;

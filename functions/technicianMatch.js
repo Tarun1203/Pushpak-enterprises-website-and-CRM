@@ -29,7 +29,7 @@
   function declared(rosterEntry, user) {
     var brands = {}; var categories = {};
     ((user && user.brandsAuthorized) || []).forEach(function (b) { brands[lc(b)] = true; });
-    ((user && user.skills) || []).forEach(function (s) { if (s && s.category) categories[lc(s.category)] = true; });
+    (user && Array.isArray(user.skills) ? user.skills : []).forEach(function (s) { if (s && s.category) categories[lc(s.category)] = true; });
     ((rosterEntry && rosterEntry.productCapabilities) || []).forEach(function (c) {
       if (c && c.brand) brands[lc(c.brand)] = true;
       if (c && c.category) categories[lc(c.category)] = true;

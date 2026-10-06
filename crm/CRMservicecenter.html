@@ -951,7 +951,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label));
         groupEl.appendChild(el);
       });
@@ -1129,7 +1129,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
     if (reassignable.includes(d.status)) {
-      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${d.technicianName ? 'Reassign' : 'Assign'} Technician</button><button class="btn-secondary req-schedule-btn" data-id="${d.id}">${d.scheduledDate ? 'Reschedule' : 'Schedule'}</button></div>`;
+      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${escapeHtml(d.technicianName ? 'Reassign' : 'Assign')} Technician</button><button class="btn-secondary req-schedule-btn" data-id="${d.id}">${d.scheduledDate ? 'Reschedule' : 'Schedule'}</button></div>`;
     }
     return actionHtml;
   }
@@ -1248,7 +1248,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td style="text-transform:capitalize;">${d.type || 'repair'}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.customerPhone || '—')}</td>
-          <td>${d.technicianName || '—'}</td>
+          <td>${escapeHtml(d.technicianName || '—')}</td>
           <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
           <td>${buildRequestActionsHtml(d)}</td>`;
         tbody.appendChild(tr);
@@ -1563,7 +1563,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     document.getElementById('spare-req-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${escapeHtml(jobDoc.customerName || 'customer')} (${escapeHtml(jobDoc.product) || jobDoc.type || 'job'})`;
     const parts = await getSparePartsListCache();
     const select = document.getElementById('spare-req-part');
-    select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${p.name}">${p.partCode ? p.partCode + ' — ' : ''}${p.name}</option>`).join('');
+    select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${escapeHtml(p.name)}">${p.partCode ? p.partCode + ' — ' : ''}${escapeHtml(p.name)}</option>`).join('');
     spareReqOverlay.classList.add('show');
   }
   function closeSpareReqModal() { spareReqOverlay.classList.remove('show'); }
@@ -2220,7 +2220,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const accountLabel = d.technicianUid
           ? '<span class="status-pill ok">Linked</span>'
           : '<span class="status-pill low">Informal</span>';
-        tr.innerHTML = `<td><a href="#" class="tech-detail-link" data-id="${d.id}">${escapeHtml(d.name) || '—'}</a></td><td>${d.phone || '—'}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
+        tr.innerHTML = `<td><a href="#" class="tech-detail-link" data-id="${d.id}">${escapeHtml(d.name) || '—'}</a></td><td>${escapeHtml(d.phone || '—')}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
         tbody.appendChild(tr);
       });
       tbody.querySelectorAll('.tech-detail-link').forEach(a => {
@@ -3578,7 +3578,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td><b>${d.scheduledDate}</b>${d.scheduledStartTime ? `<div style="font-size:12px;color:var(--stone);">${d.scheduledStartTime}${d.scheduledEndTime ? '–' + d.scheduledEndTime : ''}</div>` : ''}</td>
           <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
-          <td>${d.technicianName || '—'}</td>
+          <td>${escapeHtml(d.technicianName || '—')}</td>
           <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
         tbody.appendChild(tr);
       });
@@ -4218,7 +4218,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="panel-body" style="padding:0;">
           <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Head Office's default is used unless you set your own rate for a row. Leave a box blank to use the default. Categories with size/model bundles show one row per bundle.</div>
           <table>
-            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${t.label} — HO Default</th><th>${t.label} — Your Rate</th>`).join('')}</tr></thead>
+            <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${escapeHtml(t.label)} — HO Default</th><th>${escapeHtml(t.label)} — Your Rate</th>`).join('')}</tr></thead>
             <tbody id="rate-card-tbody"></tbody>
           </table>
         </div>
@@ -4474,7 +4474,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         pendingTbody.appendChild(tr);
         getTicketWarrantyInfo(d).then(info => {
           const cell = pendingTbody.querySelector(`.billing-warranty-cell[data-id="${d.id}"]`);
-          if (cell) cell.innerHTML = `<span class="status-pill ${info.cls}">${info.label}</span>`;
+          if (cell) cell.innerHTML = `<span class="status-pill ${info.cls}">${escapeHtml(info.label)}</span>`;
         });
       }
       pendingTbody.querySelectorAll('.billing-bill-btn').forEach(btn => btn.addEventListener('click', () => openBillingModal(btn.dataset.id)));
@@ -4648,7 +4648,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const isOutByDefault = info.inWarranty === false;
     billingBody.innerHTML = `
       <div class="form-row"><label>Ticket</label><div>${escapeHtml(ticket.requestId || ticket.id)} — ${escapeHtml(ticket.customerName) || ''}</div></div>
-      <div class="form-row"><label>Warranty</label><div><span class="status-pill ${info.cls}">${info.label}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${info.source})</span>` : ''}</div></div>
+      <div class="form-row"><label>Warranty</label><div><span class="status-pill ${info.cls}">${escapeHtml(info.label)}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${info.source})</span>` : ''}</div></div>
       ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${ticket.serviceCharge} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
       ${isKnown ? `
         <div class="form-row"><label>Bill as</label><div>${isOutByDefault ? 'Out-of-warranty — collect from customer' : 'In-warranty — claim to Head Office'}</div></div>
@@ -4867,7 +4867,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
-          <td>${d.description || '—'}</td>
+          <td>${escapeHtml(d.description || '—')}</td>
           <td>₹${d.amount ?? '—'}</td>
           <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span></td>`;
         tbody.appendChild(tr);
@@ -4974,7 +4974,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         docs.forEach(d => {
           total += Number(d.amount) || 0;
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${d.description || '—'}</td><td>₹${d.amount ?? '—'}</td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${escapeHtml(d.description || '—')}</td><td>₹${d.amount ?? '—'}</td>`;
           tbody.appendChild(tr);
         });
       }

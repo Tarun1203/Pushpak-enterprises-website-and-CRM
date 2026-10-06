@@ -10,6 +10,7 @@ const Appointment = require('./appointment');
 const { checkTransition, checkSpareTransition } = require('./lifecycle');
 const Billing = require('./billing');
 const Feedback = require('./feedback');
+const ProfileGuard = require('./profileGuard');
 
 initializeApp();
 const db = getFirestore();
@@ -605,5 +606,41 @@ exports.processFeedback = onDocumentCreated(
         ...t, title: 'Low customer rating', message: text, read: false, createdAt: FieldValue.serverTimestamp()
       })));
     }
+  }
+);
+
+// ---------------------------------------------------------------
+// Service center profile guard. A center edits its own profile, but
+// only Super Admin verifies its documents: if the center's own save
+// marks a document verified (or swaps the file/dates of one Super
+// Admin already verified), that part is put back. When a center changes
+// its bank, GST, PAN or legal name, Super Admin is notified, since
+// payouts go to those details.
+// ---------------------------------------------------------------
+exports.guardServiceCenterProfile = onDocumentUpdatedWithAuthContext(
+  { document: 'serviceCenterProfiles/{uid}', region: REGION },
+  async (event) => {
+    if (!event.data || event.authId !== event.params.uid) return; // only the center's own edits
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+    const guard = ProfileGuard.guardDocuments(before.documents, after.documents);
+    const jobs = [];
+    if (guard.changed) {
+      jobs.push(event.data.after.ref.update({
+        documents: guard.documents,
+        documentsRejected: { reason: 'Only Super Admin can verify documents or change a verified one.', at: FieldValue.serverTimestamp() }
+      }));
+    }
+    const changedFields = ProfileGuard.sensitiveChanges(before, after);
+    if (changedFields.length) {
+      const name = after.displayName || after.legalBusinessName || after.serviceCenterCode || event.params.uid;
+      jobs.push(db.collection('notifications').add({
+        recipientType: 'role', recipientValue: 'superadmin',
+        title: 'Service center changed payout/tax details',
+        message: `${name} changed: ${changedFields.join(', ')}. Please re-check before the next payout.`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      }));
+    }
+    await Promise.all(jobs);
   }
 );

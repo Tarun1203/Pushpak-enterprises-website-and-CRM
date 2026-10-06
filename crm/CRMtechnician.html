@@ -544,7 +544,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label));
         groupEl.appendChild(el);
       });
@@ -813,7 +813,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const actions = (d.coll === 'serviceJobs' ? JOB_NEXT_ACTIONS[d.status] : CR_JOB_NEXT_ACTIONS[d.status]) || [];
         let actionHtml = actions.length
-          ? `<div class="row-actions">${actions.map(a => `<button class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'} job-action-btn" data-id="${d.id}" data-coll="${d.coll}" data-next="${a.next}">${a.label}</button>`).join('')}</div>`
+          ? `<div class="row-actions">${actions.map(a => `<button class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'} job-action-btn" data-id="${d.id}" data-coll="${d.coll}" data-next="${a.next}">${escapeHtml(a.label)}</button>`).join('')}</div>`
           : '—';
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
@@ -970,7 +970,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const actions = (jobDoc.coll === 'serviceJobs' ? JOB_NEXT_ACTIONS[jobDoc.status] : CR_JOB_NEXT_ACTIONS[jobDoc.status]) || [];
     const actionsEl = document.getElementById('jd-actions');
     actionsEl.innerHTML = actions.length
-      ? actions.map(a => `<button type="button" class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'}" data-next="${a.next}">${a.label}</button>`).join('')
+      ? actions.map(a => `<button type="button" class="${a.variant === 'danger' ? 'btn-danger' : a.variant === 'secondary' ? 'btn-secondary' : 'btn-primary'}" data-next="${a.next}">${escapeHtml(a.label)}</button>`).join('')
       : '<span style="color:var(--stone);font-size:12.5px;">No further action from here.</span>';
     actionsEl.querySelectorAll('button[data-next]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1935,14 +1935,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       linkedSnap.forEach(ld => linked.push({ id: ld.id, ...ld.data() }));
       if (linked.length > 0) {
         linkedRequestsHtml = `<div style="margin-top:10px;font-size:12.5px;">
-          ${linked.map(l => `<div style="margin-bottom:4px;">${l.item || '—'} × ${l.quantity ?? 1} — <span class="status-pill ${l.status}">${SPARE_REQ_STATUS_LABELS[l.status] || l.status}</span></div>`).join('')}
+          ${linked.map(l => `<div style="margin-bottom:4px;">${escapeHtml(l.item || '—')} × ${l.quantity ?? 1} — <span class="status-pill ${l.status}">${SPARE_REQ_STATUS_LABELS[l.status] || l.status}</span></div>`).join('')}
         </div>`;
       }
     } catch (err) {
       console.warn('Could not load linked spare requests:', err.message);
     }
 
-    const partOptions = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${p.name}">${p.partCode ? p.partCode + ' — ' : ''}${p.name}</option>`).join('');
+    const partOptions = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${escapeHtml(p.name)}">${p.partCode ? p.partCode + ' — ' : ''}${escapeHtml(p.name)}</option>`).join('');
 
     card.innerHTML = `
       <div class="panel-header">
@@ -2361,7 +2361,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         tr.innerHTML = `
           <td><input type="checkbox" class="wallet-select-cb" data-id="${d.id}"></td>
           <td style="font-size:12px;color:var(--stone);">${d.sourceJobLabel || d.sourceJobId || '—'}</td>
-          <td>${d.serialNumber || '—'}</td>
+          <td>${escapeHtml(d.serialNumber || '—')}</td>
           <td>₹${d.amount ?? 0}</td>
           <td>${dateStr}</td>`;
         tbody.appendChild(tr);
@@ -2451,7 +2451,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'assigned';
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
-          <td>${d.description || '—'}</td>
+          <td>${escapeHtml(d.description || '—')}</td>
           <td>₹${d.amount ?? '—'}</td>
           <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_T[d.status] || d.status}</span></td>`;
         tbody.appendChild(tr);
@@ -2576,7 +2576,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
-            <td>${d.description || '—'}</td>
+            <td>${escapeHtml(d.description || '—')}</td>
             <td>₹${d.amount ?? '—'}</td>`;
           tbody.appendChild(tr);
         });
@@ -2644,7 +2644,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div class="form-row"><label>Email</label><input type="text" id="profile-email" disabled style="opacity:0.6;"></div>
           <div class="form-row"><label>Phone</label><input type="text" id="profile-phone"></div>
           <div class="form-row"><label>Address <span style="font-weight:400;color:var(--stone);">(where Warehouse should ship spares to)</span></label><input type="text" id="profile-address"></div>
-          <div class="form-row"><label>Skills</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
+          <div class="form-row"><label>Skills (your notes)</label><input type="text" id="profile-skills" placeholder="e.g. Geyser repair, electrical wiring"></div>
+          <div id="profile-skills-official" style="font-size:12px;color:var(--stone);margin:-4px 0 8px;"></div>
           <div class="form-row"><label>Brand authorization</label><input type="text" id="profile-brands" placeholder="e.g. MakWell, Flyvision"></div>
           <div class="modal-error" id="profile-error"></div>
           <div class="modal-success" id="profile-success"></div>
@@ -2663,7 +2664,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       document.getElementById('profile-email').value = currentUser.email || '';
       document.getElementById('profile-phone').value = d.phone || '';
       document.getElementById('profile-address').value = d.address || '';
-      document.getElementById('profile-skills').value = d.skills || '';
+      // The skills used for job assignment are set by your Service
+      // Center / Super Admin (a list of category + level). Your own
+      // free-text notes are kept separately so saving here can't wipe them.
+      document.getElementById('profile-skills').value = d.skillsNote || (typeof d.skills === 'string' ? d.skills : '');
+      document.getElementById('profile-skills-official').textContent = Array.isArray(d.skills) && d.skills.length
+        ? 'Skills on file for job assignment: ' + d.skills.map(x => x.category + (x.level ? ' (' + x.level + ')' : '')).join(', ')
+        : '';
       document.getElementById('profile-brands').value = d.brandAuthorization || '';
     } catch (err) {
       console.error('Load profile failed:', err);
@@ -2682,7 +2689,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           name: document.getElementById('profile-name').value.trim(),
           phone: document.getElementById('profile-phone').value.trim(),
           address: document.getElementById('profile-address').value.trim(),
-          skills: document.getElementById('profile-skills').value.trim(),
+          skillsNote: document.getElementById('profile-skills').value.trim(),
           brandAuthorization: document.getElementById('profile-brands').value.trim(),
         }, { merge: true });
         okEl.textContent = 'Saved.';
@@ -3118,7 +3125,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const el = document.createElement('div');
         el.className = 'notif-item' + (n.read ? '' : ' unread');
         const dateStr = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().toLocaleString() : '';
-        el.innerHTML = `<div class="title">${n.title || 'Notification'}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
+        el.innerHTML = `<div class="title">${escapeHtml(n.title || 'Notification')}</div><div class="msg">${escapeHtml(n.message || '')}</div><div class="time">${dateStr}</div>`;
         el.addEventListener('click', async () => {
           if (!n.read) {
             try { await updateDoc(doc(db, 'notifications', n.id), { read: true }); n.read = true; loadNotifications(); } catch (err) { console.error('Mark read failed:', err); }

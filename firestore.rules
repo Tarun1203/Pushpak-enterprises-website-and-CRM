@@ -78,9 +78,15 @@ service cloud.firestore {
       // functions/index.js (which bypass these rules) may write them, so
       // no client can bump or reset the Service Center / Technician Code
       // numbering.
-      allow create: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      // The website (no login) only ever uses the enquiry, productreg and
+      // publicservice serials; every other counter needs a signed-in user.
+      allow create: if ((counterId.matches('^(enquiry|productreg|publicservice)-[0-9]{6}$'))
+          || (isSignedIn() && (counterId.matches('^(sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|rma)-[0-9]{6}$') || counterId == 'sparepart-master')))
+        && request.resource.data.keys().hasOnly(['value'])
         && request.resource.data.value == 1;
-      allow update: if (counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
+      allow update: if ((counterId.matches('^(enquiry|productreg|publicservice)-[0-9]{6}$'))
+          || (isSignedIn() && (counterId.matches('^(sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|rma)-[0-9]{6}$') || counterId == 'sparepart-master')))
+        && request.resource.data.keys().hasOnly(['value'])
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -137,7 +143,8 @@ service cloud.firestore {
         || (isSignedIn() && request.auth.uid == userId
             && request.resource.data.role == resource.data.role
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-                 ['districtsCovered', 'pincodesCovered', 'brandsAuthorized', 'linkedServiceCenterUid', 'createdAt']))
+                 ['districtsCovered', 'pincodesCovered', 'brandsAuthorized', 'linkedServiceCenterUid', 'createdAt',
+                  'distributionType', 'distributorUid', 'distributorName', 'accountType', 'contractEndDate', 'skills']))
         // A service center (or technician's own account, via isStaff())
         // claiming/releasing a technician onto/off its own roster —
         // this is the ONLY field a staff member may touch on someone
@@ -309,11 +316,30 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.dealerUid == request.auth.uid)
         || (isDistributor() && resource.data.distributorUid == request.auth.uid);
+      // The distributor may only move the status forward one step
+      // (placed -> confirmed -> dispatched -> delivered, or cancel before
+      // dispatch) and touch nothing else on the order.
       allow update: if isAdmin()
-        || (isDistributor() && resource.data.distributorUid == request.auth.uid);
+        || (isDistributor() && resource.data.distributorUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && ((resource.data.status == 'placed' && request.resource.data.status in ['confirmed', 'cancelled'])
+                || (resource.data.status == 'confirmed' && request.resource.data.status in ['dispatched', 'cancelled'])
+                || (resource.data.status == 'dispatched' && request.resource.data.status == 'delivered')));
+      // Only a dealer places a dealer order, as 'placed', and the
+      // distributor it is routed to must be the one on the dealer's own
+      // account (set by Super Admin/Warehouse), never one they pick.
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid
-            && request.resource.data.status == 'placed');
+        || (isSignedIn() && callerRole() == 'dealer'
+            && request.resource.data.dealerUid == request.auth.uid
+            && request.resource.data.status == 'placed'
+            && request.resource.data.keys().hasOnly(['orderId', 'dealerUid', 'dealerEmail', 'dealerName', 'product', 'quantity', 'notes', 'status', 'distributorUid', 'distributorName', 'createdAt', 'updatedAt'])
+            && request.resource.data.quantity is int && request.resource.data.quantity >= 1 && request.resource.data.quantity <= 100000
+            && request.resource.data.get('product', '') is string && request.resource.data.get('product', '').size() <= 200
+            && request.resource.data.get('notes', '') is string && request.resource.data.get('notes', '').size() <= 1000
+            && ((get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributionType', '') == 'underDistributor'
+                 && request.resource.data.get('distributorUid', '') == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributorUid', ''))
+              || (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('distributionType', '') != 'underDistributor'
+                 && request.resource.data.get('distributorUid', '') == '')));
       allow delete: if isAdmin();
     }
 
@@ -348,7 +374,10 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.distributorUid == request.auth.uid);
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.distributorUid == request.auth.uid);
+        || (isDistributor() && request.resource.data.distributorUid == request.auth.uid
+            && request.resource.data.status == 'placed'
+            && request.resource.data.keys().hasOnly(['orderId', 'distributorUid', 'distributorEmail', 'product', 'quantity', 'notes', 'status', 'createdAt', 'updatedAt'])
+            && request.resource.data.quantity is int && request.resource.data.quantity >= 1 && request.resource.data.quantity <= 100000);
       allow update, delete: if isAdmin();
     }
 
@@ -385,7 +414,9 @@ service cloud.firestore {
       // registration, not just search their own by phone.
       allow read: if true;
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.dealerUid == request.auth.uid);
+        || (isSignedIn() && resource.data.dealerUid == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+                 ['warrantyMonths', 'purchaseDate', 'serialNumber', 'dealerUid', 'registrationId', 'createdAt']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.dealerUid == request.auth.uid)
         || (request.resource.data.source == 'public-site'
@@ -603,7 +634,8 @@ service cloud.firestore {
       // actually against, cross-checked for both the center and the
       // technician on that exact ticket.
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
+        || (validStockDoc(invId) && (
+           (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid)
         // A service center crediting one of ITS OWN roster
         // technicians' Spare Bag for the first time (Dispatch to
@@ -613,9 +645,10 @@ service cloud.firestore {
         || (isSignedIn() && request.resource.data.location == 'technician'
             && request.resource.data.lastSourceJobId is string
             && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.resource.data.technicianUid);
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.resource.data.technicianUid)));
       allow update: if isAdmin()
-        || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
+        || (validStockDoc(invId) && (
+           (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid)
         // A roster technician drawing a spare directly from their OWN
         // service center's shelf (job popup → Request Spare, when the
@@ -644,8 +677,19 @@ service cloud.firestore {
             && request.resource.data.quantity > resource.data.quantity
             && request.resource.data.lastSourceJobId is string
             && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == resource.data.technicianUid);
+            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == resource.data.technicianUid)));
       allow delete: if isAdmin();
+
+      // A stock doc written by a center or technician: whole, non-negative
+      // quantity, only the known fields, and the doc id must match its
+      // owner and part (servicecenter_<uid>_<part> / technician_<uid>_<part>).
+      function validStockDoc(id) {
+        let d = request.resource.data;
+        return d.quantity is int && d.quantity >= 0
+          && d.keys().hasOnly(['partId', 'location', 'technicianUid', 'serviceCenterUid', 'quantity', 'updatedAt', 'lastSourceJobId'])
+          && ((d.location == 'technician' && id == 'technician_' + d.technicianUid + '_' + d.partId)
+              || (d.location == 'servicecenter' && id == 'servicecenter_' + d.serviceCenterUid + '_' + d.partId));
+      }
     }
 
     // ---------------------------------------------------------------
@@ -674,7 +718,11 @@ service cloud.firestore {
 
     match /spareParts/{partId} {
       allow read: if isStaff();
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      // Warehouse edits everything except an existing part's price, which
+      // goes through a change request that only Super Admin can approve.
+      allow update: if isSuperAdmin()
+        || (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['price']));
     }
 
     // Serial number master — the serials Pushpak has actually
@@ -697,9 +745,14 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid)
-        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
-      allow update, delete: if isAdmin();
+        || (isSignedIn()
+            && (request.resource.data.get('technicianUid', '') == request.auth.uid
+                || request.resource.data.get('serviceCenterUid', '') == request.auth.uid)
+            && request.resource.data.quantity is int && request.resource.data.quantity > 0
+            && request.resource.data.type in ['receive', 'issue', 'transfer', 'consume', 'return']
+            && request.resource.data.createdAt == request.time);
+      // The movement ledger is append-only: only Super Admin may correct it.
+      allow update, delete: if isSuperAdmin();
     }
 
     match /spareRequests/{reqId} {
@@ -820,12 +873,24 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.scope == 'default')
         || (isSignedIn() && resource.data.scope == 'center' && resource.data.serviceCenterUid == request.auth.uid);
-      allow create, update: if isAdmin()
+      // A center writes only its OWN override rows, whose doc ids start
+      // with center_<its uid>_ (billing looks rates up by doc id, so a
+      // center must never be able to write a default_* row or another
+      // center's row).
+      allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.scope == 'center'
-            && request.resource.data.serviceCenterUid == request.auth.uid);
+            && request.resource.data.serviceCenterUid == request.auth.uid
+            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.scope == 'center'
+            && resource.data.serviceCenterUid == request.auth.uid
+            && request.resource.data.scope == 'center'
+            && request.resource.data.serviceCenterUid == request.auth.uid
+            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
       allow delete: if isAdmin()
         || (isSignedIn() && resource.data.scope == 'center'
-            && resource.data.serviceCenterUid == request.auth.uid);
+            && resource.data.serviceCenterUid == request.auth.uid
+            && rateId.matches('^center_' + request.auth.uid + '_.+$'));
     }
 
     // ---------------------------------------------------------------
@@ -958,8 +1023,22 @@ service cloud.firestore {
 
     match /changeRequests/{id} {
       allow read: if isAdmin();
-      allow create: if isAdmin() && request.resource.data.requestedByUid == request.auth.uid;
-      allow update, delete: if isSignedIn() && callerRole() == 'superadmin';
+      // The only change that goes through approval today is a spare part
+      // price edit, so that is the only shape a request may have.
+      allow create: if isAdmin() && request.resource.data.requestedByUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.targetCollection == 'spareParts'
+        && request.resource.data.action == 'update'
+        && request.resource.data.targetId is string
+        && request.resource.data.payload.keys().hasOnly(['price'])
+        && (request.resource.data.payload.price == null || request.resource.data.payload.price is number);
+      // Super Admin decides once, and never on a request they raised.
+      allow update: if isSuperAdmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && resource.data.requestedByUid != request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote']);
+      allow delete: if isSuperAdmin();
     }
 
     // ---------------------------------------------------------------
@@ -1020,9 +1099,18 @@ service cloud.firestore {
       // (functions/index.js), never by a client: a profile is created
       // without one, and once the function has set it, no client — the
       // center or an admin — may add, change or remove it.
-      allow create: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
+      allow create: if (isAdmin()
+          || (isSignedIn() && request.auth.uid == uid
+              && !request.resource.data.keys().hasAny(['status', 'brandAuthorizations', 'approval', 'documents'])))
         && !('serviceCenterCode' in request.resource.data);
-      allow update: if (isAdmin() || (isSignedIn() && request.auth.uid == uid))
+      // A center edits its own profile, but not the fields Super Admin
+      // decides: its status (which routing checks), brand authorizations
+      // and the approval record. Document verification is guarded by the
+      // guardServiceCenterProfile function (rules can't compare arrays
+      // element by element).
+      allow update: if (isAdmin()
+          || (isSignedIn() && request.auth.uid == uid
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'brandAuthorizations', 'approval'])))
         && request.resource.data.get('serviceCenterCode', '') == resource.data.get('serviceCenterCode', '');
       allow delete: if isAdmin();
     }
