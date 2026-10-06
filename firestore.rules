@@ -419,7 +419,7 @@ service cloud.firestore {
         && request.resource.data.get('address', '').size() <= 300
         && request.resource.data.get('issueDescription', '').size() <= 1000
         && request.resource.data.get('pincode', '').matches('^([0-9]{6})?$')
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'warrantyStatus', 'routing', 'serviceCenterUid', 'serviceCenterName']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'warrantyStatus']);
       allow update, delete: if isAdmin();
 
       // Status log — admin-only, same as the request itself before
