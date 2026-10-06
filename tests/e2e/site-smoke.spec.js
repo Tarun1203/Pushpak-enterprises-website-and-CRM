@@ -46,7 +46,11 @@ test('same-site links are reachable', async ({ page, request }) => {
 });
 
 test('homepage has usable navigation and no obvious broken assets', async ({ page, request }) => {
-  await page.goto('./', { waitUntil: 'networkidle' });
+  // Do not require networkidle: Firebase, analytics, fonts and other long-lived requests
+  // can legitimately keep a production page from reaching networkidle.
+  await page.goto('./', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('body')).toBeVisible();
+  await page.waitForTimeout(1500);
   const assets = await page.evaluate(() => [
     ...Array.from(document.querySelectorAll('img[src]')).map(x => x.src),
     ...Array.from(document.querySelectorAll('script[src]')).map(x => x.src),
