@@ -1,8 +1,9 @@
-const { onDocumentWritten, onDocumentWrittenWithAuthContext } = require('firebase-functions/v2/firestore');
+const { onDocumentWritten, onDocumentWrittenWithAuthContext, onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
 const { buildAuditEntries } = require('./audit');
+const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
 
 initializeApp();
 const db = getFirestore();
@@ -69,5 +70,69 @@ for (const [name, coll] of [['auditUsers', 'users'], ['auditServiceCenters', 'se
   exports[name] = onDocumentWrittenWithAuthContext(
     { document: `${coll}/{docId}`, region: REGION },
     (event) => writeAudit(coll, event)
+  );
+}
+
+// ---------------------------------------------------------------
+// Request intake: when a service request is created — from the public
+// "Book a Service" page or by a Service Center — the server records a
+// first warranty read (`intakeWarranty`) and flags possible duplicate
+// tickets (`possibleDuplicateOf`). Both fields are server-only
+// (firestore.rules rejects client writes to them), so a customer or
+// staff browser cannot fake an in-warranty result or hide a duplicate.
+// The billing decision at closure still writes `warrantyStatus`, using
+// part-level component cover, and remains the authoritative one.
+// ---------------------------------------------------------------
+const REQUEST_COLLECTIONS = ['publicServiceRequests', 'centerRequests'];
+
+async function findRegistration(ticket) {
+  const regs = db.collection('productRegistrations');
+  if (ticket.linkedRegistrationId) {
+    const q = await regs.where('registrationId', '==', ticket.linkedRegistrationId).limit(1).get();
+    if (!q.empty) return q.docs[0].data();
+  }
+  if (ticket.serialNumber) {
+    const q = await regs.where('serialNumber', '==', ticket.serialNumber).limit(1).get();
+    if (!q.empty) return q.docs[0].data();
+  }
+  return null;
+}
+
+async function findDuplicates(ticket, selfRef) {
+  const found = [];
+  const filter = ticket.serialNumber
+    ? ['serialNumber', ticket.serialNumber]
+    : (ticket.customerPhone ? ['customerPhone', ticket.customerPhone] : null);
+  if (!filter) return found;
+  for (const coll of REQUEST_COLLECTIONS) {
+    const snap = await db.collection(coll).where(filter[0], '==', filter[1]).limit(25).get();
+    snap.forEach((d) => {
+      if (d.ref.path === selfRef.path) return;
+      const data = d.data();
+      const candidate = {
+        id: d.id, status: data.status, serialNumber: data.serialNumber,
+        customerPhone: data.customerPhone, category: data.category,
+        createdAtMs: data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0
+      };
+      if (isPossibleDuplicate(candidate, { ...ticket, id: selfRef.id })) found.push(data.requestId || d.id);
+    });
+  }
+  return found.slice(0, 5);
+}
+
+for (const coll of REQUEST_COLLECTIONS) {
+  exports[`enrich_${coll}`] = onDocumentCreated(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      const snap = event.data;
+      if (!snap) return;
+      const ticket = snap.data();
+      if (ticket.intakeWarranty) return; // already processed (retry)
+      const [reg, duplicates] = await Promise.all([findRegistration(ticket), findDuplicates(ticket, snap.ref)]);
+      await snap.ref.update({
+        intakeWarranty: computeIntakeWarranty(reg, ticket),
+        possibleDuplicateOf: duplicates
+      });
+    }
   );
 }

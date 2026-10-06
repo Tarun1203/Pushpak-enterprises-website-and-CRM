@@ -1158,6 +1158,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       if (d[key]) rows.push([label, d[key]]);
     });
     rows.push(['Status', JOB_STATUS_LABELS[d.status] || d.status]);
+    // Server-computed at intake (Cloud Function); absent for a few
+    // seconds after creation and on older tickets.
+    if (d.intakeWarranty) {
+      const w = d.intakeWarranty;
+      rows.push(['Warranty at intake', w.status === 'in_warranty' ? `In warranty${w.expiresOn ? ' until ' + w.expiresOn : ''}`
+        : w.status === 'out_of_warranty' ? `Out of warranty${w.expiresOn ? ' (expired ' + w.expiresOn + ')' : ''}` : 'Unknown (no purchase date on file)']);
+    }
+    if (Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length) {
+      rows.push(['Possible duplicate of', d.possibleDuplicateOf.join(', ')]);
+    }
     const createdStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : null;
     const closedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleString() : null;
     if (createdStr) rows.push(['Created', createdStr]);

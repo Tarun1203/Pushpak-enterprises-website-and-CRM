@@ -533,15 +533,15 @@
       <div class="modal-sub">Fill in the rest and we'll route your request.</div>
       <form id="book-form">
         <div class="form-grid-2">
-          <div class="form-row"><label>Name</label><input type="text" name="name" required></div>
+          <div class="form-row"><label>Name</label><input type="text" name="name" maxlength="100" required></div>
           <div class="form-row"><label>Mobile No</label><input type="tel" id="book-phone" inputmode="numeric" maxlength="10" required></div>
         </div>
-        <div class="form-row"><label>Address</label><input type="text" name="address" required></div>
+        <div class="form-row"><label>Address</label><input type="text" name="address" maxlength="300" required></div>
         <div class="form-grid-2">
           <div class="form-row"><label>City</label><input type="text" name="city" required></div>
           <div class="form-row"><label>State</label><input type="text" name="state" required></div>
         </div>
-        <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" required></div>
+        <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" title="6-digit pincode" required></div>
         <div class="form-grid-2">
           <div class="form-row"><label>Brand</label>
             <select name="brand" required>
@@ -584,7 +584,7 @@
         </div>
         <div class="form-row step-hidden" id="book-issue-fallback-row">
           <label>Describe the issue</label>
-          <textarea id="book-issue-fallback"></textarea>
+          <textarea id="book-issue-fallback" maxlength="1000"></textarea>
         </div>
 
         <span id="book-phone-error" class="field-error"></span>

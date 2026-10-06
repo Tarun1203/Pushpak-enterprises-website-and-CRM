@@ -5977,6 +5977,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   document.getElementById('close-svc-ticket').addEventListener('click', () => svcTicketOverlay.classList.remove('show'));
   svcTicketOverlay.addEventListener('click', (e) => { if (e.target === svcTicketOverlay) svcTicketOverlay.classList.remove('show'); });
 
+  // Server-computed at intake (Cloud Function; clients can't write
+  // these): a first warranty read and any possibly-duplicate tickets.
+  // Absent for a few seconds after creation and on older tickets.
+  function intakeSummaryHtml(f) {
+    if (!f) return '';
+    const w = f.intakeWarranty;
+    const dups = Array.isArray(f.possibleDuplicateOf) ? f.possibleDuplicateOf : [];
+    const label = !w ? '' : w.status === 'in_warranty' ? `In warranty${w.expiresOn ? ' until ' + w.expiresOn : ''}`
+      : w.status === 'out_of_warranty' ? `Out of warranty${w.expiresOn ? ' (expired ' + w.expiresOn + ')' : ''}` : 'Unknown (no purchase date on file)';
+    return (w ? `<div><b>Warranty at intake:</b> ${escapeHtml(label)}${w.source && w.source !== 'none' ? ' <span style="color:var(--stone);font-size:12px;">(' + escapeHtml(w.source) + ')</span>' : ''}</div>` : '')
+      + (dups.length ? `<div style="color:var(--err);"><b>Possible duplicate of:</b> ${dups.map(escapeHtml).join(', ')}</div>` : '');
+  }
+
   // The single popup every ticket opens into. What's shown in the
   // actions slot depends entirely on the ticket's current state:
   // unassigned → routing controls (what Routing used to be its own
@@ -5993,6 +6006,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
       <div><b>Issue:</b> ${escapeHtml(f.issue || f.issueDescription) || '—'}</div>
       <div><b>Assigned to:</b> ${escapeHtml(r.assigned) || '—'}</div>
+      ${intakeSummaryHtml(f)}
       <div id="svc-spare-slot"></div>
       <div id="svc-photos-slot"></div>
       <div id="svc-timeline-slot" style="margin-top:10px;">Loading status history…</div>`;

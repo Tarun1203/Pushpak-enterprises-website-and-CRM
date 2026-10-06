@@ -208,7 +208,8 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if isAdmin()
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf'])
+        && (isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
         // but only touch the fields their own workflow writes — never
@@ -221,9 +222,10 @@ service cloud.firestore {
                // writes right after marking the job completed — the
                // technician's own wallet credit and, for an in-warranty
                // job, flagging the ticket ready for the center to claim.
-               'warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt']));
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+               'warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt'])));
+      allow create: if (isAdmin()
+        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —
@@ -405,7 +407,19 @@ service cloud.firestore {
       allow create: if requestId == request.resource.data.requestId
         && request.resource.data.keys().hasAll(['requestId', 'customerName', 'customerPhone', 'status', 'createdAt'])
         && request.resource.data.customerPhone is string
-        && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$');
+        && request.resource.data.customerPhone.matches('^[6-9][0-9]{9}$')
+        // A new website request always starts as 'new' from the public
+        // site (it can't open itself as 'closed' or in-warranty), has
+        // bounded text, and can't carry the server-only intake fields.
+        && request.resource.data.status == 'new'
+        && request.resource.data.get('source', '') == 'public-site'
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() > 0
+        && request.resource.data.customerName.size() <= 100
+        && request.resource.data.get('address', '').size() <= 300
+        && request.resource.data.get('issueDescription', '').size() <= 1000
+        && request.resource.data.get('pincode', '').matches('^([0-9]{6})?$')
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'warrantyStatus']);
       allow update, delete: if isAdmin();
 
       // Status log — admin-only, same as the request itself before
