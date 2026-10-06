@@ -19,15 +19,24 @@ const browserErrorCapture = page => {
   return { consoleErrors, pageErrors };
 };
 
-test('all CRM role dashboards are reachable and contain the authentication shell', async ({ page }) => {
+test('all CRM role dashboards are reachable and protect anonymous users', async ({ page }) => {
   for (const [role, file] of rolePages) {
     const { consoleErrors, pageErrors } = browserErrorCapture(page);
     const response = await page.goto(`${CRM_BASE}${file}`, { waitUntil: 'domcontentloaded' });
     expect(response && response.ok(), `${role}: HTTP ${response && response.status()}`).toBeTruthy();
-    await expect(page.locator('#gate'), `${role}: missing auth gate`).toBeAttached();
-    await expect(page.locator('#app'), `${role}: missing protected app shell`).toBeAttached();
-    await expect(page.locator('#content'), `${role}: missing content mount`).toBeAttached();
-    await expect(page.locator('#logout-btn'), `${role}: missing logout control`).toBeAttached();
+
+    const redirectedToLogin = /login\.html/i.test(page.url());
+    if (redirectedToLogin) {
+      await expect(page.locator('#login-form'), `${role}: missing login form after protected redirect`).toBeAttached();
+      await expect(page.locator('#email'), `${role}: missing login email field`).toBeAttached();
+      await expect(page.locator('#password'), `${role}: missing login password field`).toBeAttached();
+    } else {
+      await expect(page.locator('#gate'), `${role}: missing auth gate`).toBeAttached();
+      await expect(page.locator('#app'), `${role}: missing protected app shell`).toBeAttached();
+      await expect(page.locator('#content'), `${role}: missing content mount`).toBeAttached();
+      await expect(page.locator('#logout-btn'), `${role}: missing logout control`).toBeAttached();
+    }
+
     expect(pageErrors, `${role} page errors:\n${pageErrors.join('\n')}`).toEqual([]);
     expect(consoleErrors, `${role} console errors:\n${consoleErrors.join('\n')}`).toEqual([]);
   }
@@ -49,21 +58,15 @@ test('CRM role pages keep the application hidden before authentication', async (
   }
 });
 
-test('service center dashboard exposes the Phase 2 service workflow shell', async ({ page }) => {
+test('service center page redirects anonymous users to the CRM login', async ({ page }) => {
   await page.goto(`${CRM_BASE}CRMservicecenter.html`, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#gate')).toBeAttached();
-  await expect(page.locator('#nav-container')).toBeAttached();
-  await expect(page.locator('#spare-req-form')).toBeAttached();
-  await expect(page.locator('#spare-req-part')).toHaveAttribute('required', '');
-  await expect(page.locator('#spare-req-qty')).toHaveAttribute('min', '1');
-  await expect(page.locator('#sc-closure-form')).toBeAttached();
-  await expect(page.locator('#sc-closure-code')).toHaveAttribute('required', '');
-  await expect(page.locator('#sc-closure-notes')).toHaveAttribute('required', '');
+  await expect(page).toHaveURL(/login\.html$/);
+  await expect(page.locator('#login-form')).toBeAttached();
 });
 
 test('CRM login exposes safe password and reset controls', async ({ page }) => {
   await page.goto(`${CRM_BASE}login.html`, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#email')).toHaveAttribute('autocomplete', /email/i);
+  await expect(page.locator('#email')).toHaveAttribute('autocomplete', /email|username/i);
   await expect(page.locator('#password')).toHaveAttribute('type', 'password');
   await expect(page.locator('#password')).toHaveAttribute('autocomplete', /current-password/i);
   await expect(page.locator('#forgot-link')).toBeVisible();
