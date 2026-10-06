@@ -490,10 +490,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       // the CRM, even though their Auth account and role still
       // exist. On Leave / On Probation / Active may still sign in —
       // those aren't "no longer has access" states.
-      const techSnap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', user.uid)));
+      // If this lookup itself fails (offline, rules not yet updated)
+      // we carry on rather than bounce them to the login page — which
+      // would just route them straight back here in a loop. The role
+      // check above has already passed.
       const blockedStatuses = ['SUSPENDED', 'TERMINATED', 'RESIGNED'];
       let blocked = false;
-      techSnap.forEach(s => { if (blockedStatuses.includes(s.data().employmentStatus)) blocked = true; });
+      try {
+        const techSnap = await getDocs(query(collection(db, 'centerTechnicians'), where('technicianUid', '==', user.uid)));
+        techSnap.forEach(s => { if (blockedStatuses.includes(s.data().employmentStatus)) blocked = true; });
+      } catch (statusErr) {
+        console.warn('Account-status check skipped:', statusErr.message);
+      }
       if (blocked) {
         await signOut(auth);
         window.location.href = 'login.html?deactivated=1';

@@ -415,7 +415,7 @@
     <h3 id="tech-detail-title">Technician details</h3>
     <form id="tech-detail-form">
       <div style="font-weight:600;margin:4px 0 8px;">Identity &amp; Personal Details</div>
-      <div class="form-row"><label>Technician Code</label><input type="text" id="td-code" placeholder="e.g. TC-0001"></div>
+      <div class="form-row"><label>Technician Code</label><input type="text" id="td-code" placeholder="Assigned automatically" readonly style="background:var(--hairline);cursor:default;"></div>
       <div class="form-row"><label>Full Name</label><input type="text" id="td-name" required></div>
       <div class="form-row"><label>Gender</label>
         <select id="td-gender"><option value="">—</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
@@ -872,8 +872,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       // INACTIVE (Full Profile → Status & Approval, section 21)
       // is deactivated and must not be able to use the CRM, even
       // though its Auth account and role assignment still exist.
-      const profileSnap = await getDoc(doc(db, 'serviceCenterProfiles', user.uid));
-      if (profileSnap.exists() && profileSnap.data().status === 'INACTIVE') {
+      // (If the lookup itself fails — offline, rules not yet updated —
+      // carry on rather than loop back through the login page; the
+      // role check above has already passed.)
+      let deactivated = false;
+      try {
+        const profileSnap = await getDoc(doc(db, 'serviceCenterProfiles', user.uid));
+        deactivated = profileSnap.exists() && profileSnap.data().status === 'INACTIVE';
+      } catch (statusErr) {
+        console.warn('Account-status check skipped:', statusErr.message);
+      }
+      if (deactivated) {
         await signOut(auth);
         window.location.href = 'login.html?deactivated=1';
         return;
@@ -3008,6 +3017,40 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return events;
   }
 
+  // Technician Codes (TC-0001 …) come from one shared counter
+  // (counters/technician-master), issued inside the same transaction
+  // that creates — or, for older records, first updates — the roster
+  // document, so two technicians can never be given the same number.
+  // The code is immutable once set (firestore.rules enforces it).
+  async function createCenterTechnicianWithCode(data) {
+    const techRef = doc(collection(db, 'centerTechnicians'));
+    const counterRef = doc(db, 'counters', 'technician-master');
+    await runTransaction(db, async (transaction) => {
+      const counterSnap = await transaction.get(counterRef);
+      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
+      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      transaction.set(techRef, { ...data, technicianCode: 'TC-' + String(n).padStart(4, '0'), createdAt: serverTimestamp() });
+    });
+    return techRef;
+  }
+  async function ensureTechnicianCode(techId) {
+    const techRef = doc(db, 'centerTechnicians', techId);
+    const counterRef = doc(db, 'counters', 'technician-master');
+    return runTransaction(db, async (transaction) => {
+      const techSnap = await transaction.get(techRef);
+      if (!techSnap.exists()) return '';
+      if (techSnap.data().technicianCode) return techSnap.data().technicianCode;
+      const counterSnap = await transaction.get(counterRef);
+      const n = (counterSnap.exists() ? counterSnap.data().value : 0) + 1;
+      if (counterSnap.exists()) transaction.update(counterRef, { value: n });
+      else transaction.set(counterRef, { value: n });
+      const code = 'TC-' + String(n).padStart(4, '0');
+      transaction.update(techRef, { technicianCode: code });
+      return code;
+    });
+  }
+
   function openTechDetailModal(d) {
     techDetailForm.reset();
     techDetailError.classList.remove('show');
@@ -3038,7 +3081,21 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     renderClaimsBlock(d);
     renderTimelineBlock(d);
 
-    document.getElementById('td-code').value = d.technicianCode || '';
+    const tdCodeEl = document.getElementById('td-code');
+    tdCodeEl.value = d.technicianCode || '';
+    if (!d.technicianCode) {
+      // Roster records created before codes were issued get one the
+      // first time they're opened (same shared counter as new ones).
+      tdCodeEl.placeholder = 'Assigning…';
+      ensureTechnicianCode(d.id).then(code => {
+        if (!code) return;
+        d.technicianCode = code;
+        if (techDetailContext && techDetailContext.id === d.id) tdCodeEl.value = code;
+      }).catch(err => {
+        console.warn('Could not assign a technician code (non-blocking):', err.message);
+        tdCodeEl.placeholder = 'Could not assign a code yet';
+      });
+    }
     document.getElementById('td-name').value = d.name || '';
     document.getElementById('td-gender').value = d.gender || '';
     document.getElementById('td-dob').value = d.dob || '';
@@ -3121,7 +3178,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techDetailSubmitBtn.textContent = 'Saving…';
     try {
       const update = {
-        technicianCode: document.getElementById('td-code').value.trim(),
         name: document.getElementById('td-name').value.trim(),
         gender: document.getElementById('td-gender').value,
         dob: document.getElementById('td-dob').value,
@@ -3258,13 +3314,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     techSubmitBtn.textContent = 'Saving…';
     try {
       const linkedUid = techLinkSelect.value || null;
-      const newTechRef = await addDoc(collection(db, 'centerTechnicians'), {
+      const newTechRef = await createCenterTechnicianWithCode({
         serviceCenterUid: currentUser.uid,
         name: document.getElementById('tech-name').value.trim(),
         phone: document.getElementById('tech-phone').value.trim(),
         skills: linkedUid ? '' : document.getElementById('tech-skills').value.trim(),
-        technicianUid: linkedUid,
-        createdAt: serverTimestamp()
+        technicianUid: linkedUid
       });
       // Lock this technician account to this service center so no
       // other center can claim/see them on their own roster.

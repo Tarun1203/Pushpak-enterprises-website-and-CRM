@@ -74,12 +74,13 @@ service cloud.firestore {
     match /counters/{counterId} {
       allow get: if true;
       allow create: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
-        // Service Center Code counter — signed-in only (unlike the
-        // ticket counters above, nothing on the public site needs it).
-        || (counterId == 'servicecenter-master' && isSignedIn()))
+        // Service Center / Technician Code counters — signed-in only
+        // (unlike the ticket counters above, nothing on the public site
+        // needs them).
+        || ((counterId == 'servicecenter-master' || counterId == 'technician-master') && isSignedIn()))
         && request.resource.data.value == 1;
       allow update: if ((counterId.matches('^(enquiry|sparerequest|localpurchase|claim|return|servicejob|centerrequest|dealerorder|dealersale|distributororder|distributorsale|productreg|rma|publicservice)-[0-9]{6}$') || counterId == 'sparepart-master')
-        || (counterId == 'servicecenter-master' && isSignedIn()))
+        || ((counterId == 'servicecenter-master' || counterId == 'technician-master') && isSignedIn()))
         && request.resource.data.value == resource.data.value + 1;
       allow delete: if isAdmin();
     }
@@ -227,10 +228,48 @@ service cloud.firestore {
     }
 
     match /centerTechnicians/{techId} {
-      allow read, update, delete: if isAdmin()
+      // The roster technician can read their own record too (their own
+      // "Full profile" page, and the account-status check at login,
+      // both query it by technicianUid) — previously only the owning
+      // center and admins could, so neither could work for a technician.
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+      allow delete: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid);
+      allow create: if (isAdmin()
+            || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
+        && request.resource.data.technicianCode is string
+        && request.resource.data.technicianCode.matches('^TC-[0-9]{4,}$');
+      allow update:
+        // Admin / owning center: anything, EXCEPT the Technician Code —
+        // issued from counters/technician-master, TC-0001 form, and
+        // never changed once set. (A record that has none yet — every
+        // one created before codes were issued, which may also hold an
+        // empty string — may be given one, in that form.)
+        if ((isAdmin() || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid))
+            && ((resource.data.get('technicianCode', '') != ''
+                  && request.resource.data.technicianCode == resource.data.technicianCode)
+                || (resource.data.get('technicianCode', '') == ''
+                  && (request.resource.data.get('technicianCode', '') == ''
+                      || request.resource.data.technicianCode.matches('^TC-[0-9]{4,}$')))))
+        // The technician themselves: only the personal/address/vehicle
+        // fields their own profile page edits, plus APPENDING one leave
+        // request (must arrive PENDING — approving is the admin's call)
+        // or one document (must arrive unverified).
+        || (isSignedIn() && resource.data.technicianUid == request.auth.uid
+            && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                  ['gender', 'dob', 'altPhone', 'emergencyContactName', 'emergencyContactPhone',
+                   'emergencyContactRelation', 'addressLine1', 'addressLine2', 'pincode', 'area',
+                   'city', 'taluk', 'district', 'state', 'vehicleInfo', 'updatedAt'])
+                || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leaveRecords'])
+                    && request.resource.data.leaveRecords.size() == resource.data.get('leaveRecords', []).size() + 1
+                    && request.resource.data.leaveRecords[0:resource.data.get('leaveRecords', []).size()] == resource.data.get('leaveRecords', [])
+                    && request.resource.data.leaveRecords[resource.data.get('leaveRecords', []).size()].status == 'PENDING')
+                || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['documents'])
+                    && request.resource.data.documents.size() == resource.data.get('documents', []).size() + 1
+                    && request.resource.data.documents[0:resource.data.get('documents', []).size()] == resource.data.get('documents', [])
+                    && request.resource.data.documents[resource.data.get('documents', []).size()].verified == false)));
     }
 
     // ---------------------------------------------------------------
