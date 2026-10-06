@@ -4,106 +4,128 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ---------------------------------------------------------------
-    // Diagnosis photos (before/after repair shots), one folder per
-    // service job. Scoped to signed-in CRM users only — every role
-    // in this app is internal staff of some kind (technician,
-    // service center, warehouse, super admin); there's no public
-    // upload path here. This is the first Storage rule in the
-    // project — previously Storage access was left disabled
-    // entirely for uploads (see the earlier invoice-attachment
-    // field, still disabled on the public site).
+    // Helpers. A user's role lives in Firestore (users/{uid}.role), so
+    // these look it up with a cross-service get() — the same source of
+    // truth firestore.rules uses. (The first time rules using this are
+    // published, Firebase asks to grant Storage permission to read
+    // Firestore; accept it, or every role-checked path below denies.)
     // ---------------------------------------------------------------
 
-    match /serviceJobs/{jobId}/diagnosis/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Super Admin / Warehouse.
+    function isAdmin() {
+      return signedIn() && role() in ['superadmin', 'warehouse'];
+    }
+
+    // Any internal role — NOT dealers or distributors.
+    function isStaff() {
+      return signedIn() && role() in ['superadmin', 'warehouse', 'servicecenter', 'technician'];
+    }
+
+    function okImage() {
+      return request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
 
+    function okImageOrPdf() {
+      return request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+    }
+
     // ---------------------------------------------------------------
-    // Product images — shown on the public brand microsites, so
-    // these need public read (unlike diagnosis photos above, which
-    // are internal-only). Only Super Admin/Warehouse can upload,
-    // matching who can edit the product catalog itself in Firestore.
+    // Diagnosis / before-after / serial photos for a technician's own
+    // service job. Staff can view; only that job's technician (or an
+    // admin) can add to it.
+    // ---------------------------------------------------------------
+
+    match /serviceJobs/{jobId}/diagnosis/{allPaths=**} {
+      allow read: if isStaff();
+      allow write: if (isAdmin()
+          || (signedIn() && firestore.get(/databases/(default)/documents/serviceJobs/$(jobId)).data.technicianUid == request.auth.uid))
+        && okImage();
+    }
+
+    // ---------------------------------------------------------------
+    // Product images — shown on the public brand microsites, so public
+    // read. Only Super Admin / Warehouse can upload (matching who can
+    // edit the product catalog in Firestore); previously ANY signed-in
+    // account, dealers included, could overwrite these.
     // ---------------------------------------------------------------
 
     match /products/{productId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow write: if isAdmin() && okImage();
     }
 
     // ---------------------------------------------------------------
-    // Spare request dispatch proof — a photo of the booking docket,
-    // LR receipt, or delivery challan attached when Super Admin
-    // records transport details for a spare request. Internal-only,
-    // same as diagnosis photos; allows PDF too since a challan is
-    // sometimes scanned as one.
+    // Spare request dispatch proof — a photo of the booking docket, LR
+    // receipt or delivery challan, attached by Super Admin / Warehouse
+    // when they record transport details. Staff can view; PDFs allowed
+    // since a challan is sometimes scanned as one.
     // ---------------------------------------------------------------
 
     match /spareRequests/{requestId}/docket/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if isStaff();
+      allow write: if isAdmin() && okImageOrPdf();
     }
 
     // ---------------------------------------------------------------
-    // Spare part photos — bulk-uploaded from Master Data, matched to
-    // an existing part by its Part Code. Internal-only, same pattern
-    // as diagnosis/docket photos above (not shown on the public site,
-    // unlike Product images).
+    // Spare part photos — bulk-uploaded from Master Data by Super Admin
+    // / Warehouse, matched to a part by its Part Code. Staff can view.
     // ---------------------------------------------------------------
 
     match /spareParts/{partCode}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow read: if isStaff();
+      allow write: if isAdmin() && okImage();
     }
 
     // ---------------------------------------------------------------
-    // Customer product photo + purchase invoice, attached when a
-    // service center logs a new request. Internal-only, same pattern
-    // as diagnosis/docket photos; invoices are usually a scanned PDF,
-    // so those are allowed here alongside images.
+    // Customer product photo + purchase invoice attached when a service
+    // center logs a request, and the before/after photos a technician
+    // adds to a center-assigned job. Any staff role can add or view
+    // (the request document may not exist yet when its first
+    // attachment is uploaded, so ownership can't be checked here).
     // ---------------------------------------------------------------
 
     match /centerRequests/{reqId}/attachments/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if isStaff();
+      allow write: if isStaff() && okImageOrPdf();
     }
 
     // ---------------------------------------------------------------
-    // Service Center Master documents (licenses, agreements, etc.)
-    // and the signed-agreement upload, both filed under the owning
-    // center's own uid. Internal-only, same as diagnosis photos;
-    // allows PDF too since these are usually scanned certificates.
+    // Service Center Master documents (licenses, agreements, ...) —
+    // filed under the center's own uid. Only that center or an admin.
     // ---------------------------------------------------------------
 
     match /serviceCenterProfiles/{centerId}/documents/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == centerId);
+      allow write: if (isAdmin() || (signedIn() && request.auth.uid == centerId))
+        && okImageOrPdf();
     }
 
     // ---------------------------------------------------------------
-    // Technician documents (ID proofs, certificates, etc.) — uploaded
-    // by the technician from their own profile or by their Service
-    // Center, filed under the roster record's id. Internal-only, same
-    // as the other document folders above.
+    // Technician documents (ID proofs, certificates, ...) — filed under
+    // the roster record's id. Only the technician it belongs to, the
+    // service center whose roster it is, or an admin.
     // ---------------------------------------------------------------
 
     match /centerTechnicians/{techDocId}/documents/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.size < 10 * 1024 * 1024
-        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow read: if isAdmin()
+        || (signedIn() && (
+              firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.serviceCenterUid == request.auth.uid
+           || firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.technicianUid == request.auth.uid));
+      allow write: if (isAdmin()
+          || (signedIn() && (
+                firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.serviceCenterUid == request.auth.uid
+             || firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.technicianUid == request.auth.uid)))
+        && okImageOrPdf();
     }
 
     // Deny everything else by default.
