@@ -843,6 +843,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { runStockOp, runStockOpOrThrow } from './stockOps.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -1397,41 +1398,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     scClosureSubmitBtn.disabled = true;
     scClosureSubmitBtn.textContent = 'Saving…';
     try {
+      // Parts used come out of center stock on the server, which also
+      // opens the defective return for each (sent in the monthly batch).
       if (partLines.length) {
-        for (const line of partLines) {
-          const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${line.partId}`);
-          await runTransaction(db, async (transaction) => {
-            const snap = await transaction.get(invRef);
-            const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-            if (current < line.qty) throw new Error(`Only ${current} of that part in your Center Inventory — reduce the quantity or add stock first.`);
-            transaction.set(invRef, {
-              partId: line.partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
-              quantity: current - line.qty, updatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-        }
-        const jobSnap = await getDoc(doc(db, 'centerRequests', jobId));
-        const jobRequestId = jobSnap.exists() ? (jobSnap.data().requestId || jobId) : jobId;
-        for (const line of partLines) {
-          const returnId = await generateReturnId();
-          await addDoc(collection(db, 'returns'), {
-            returnId,
-            partId: line.partId,
-            quantity: line.qty,
-            source: `Service Center - ${currentUser.email}`,
-            serviceCenterUid: currentUser.uid,
-            reason: `Replaced during job closure — ${jobRequestId}`,
-            sourceJobId: jobId,
-            // 'requested', not 'defective' — this only asserts the part
-            // is on its way to Head Office, not that Head Office has
-            // received and inspected it. Only Head Office can set
-            // 'received'/'defective' themselves, once it's actually
-            // arrived there.
-            status: 'requested',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        }
+        await runStockOpOrThrow(db, currentUser, {
+          type: 'consume', lines: partLines.map(l => ({ partId: l.partId, qty: l.qty })),
+          job: { coll: 'centerRequests', id: jobId }
+        });
       }
       await updateDoc(doc(db, 'centerRequests', jobId), {
         status: 'completed',
@@ -1450,7 +1423,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeScClosureModal, 800);
     } catch (err) {
       console.error('Close request failed:', err);
-      scClosureError.textContent = err.message && err.message.includes('Center Inventory')
+      scClosureError.textContent = err.message && (err.stockOp || err.message.includes('Center Inventory'))
         ? err.message
         : 'Could not complete this request. Check the console for details.';
       scClosureError.classList.add('show');
@@ -3683,32 +3656,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     cinvSubmitBtn.disabled = true;
     cinvSubmitBtn.textContent = 'Saving…';
-    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
+    const reason = document.getElementById('cinv-notes').value.trim();
     try {
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(invRef);
-        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-        const delta = type === 'add' ? qty : -qty;
-        const next = Math.max(0, current + delta);
-        transaction.set(invRef, {
-          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
-        }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: type === 'add' ? 'receive' : 'issue', location: 'servicecenter',
-        serviceCenterUid: currentUser.uid, quantity: qty,
-        reason: document.getElementById('cinv-notes').value.trim(),
-        createdAt: serverTimestamp()
-      });
-      cinvSuccess.textContent = 'Stock updated.';
+      if (reason.length < 3) throw Object.assign(new Error('Give a reason (e.g. bought locally, bill no.).'), { stockOp: true });
+      // Removing stock is applied straight away (with your reason);
+      // adding stock waits for Warehouse to approve it.
+      const r = await runStockOp(db, currentUser, { type: type === 'add' ? 'add_request' : 'remove', lines: [{ partId, qty }], reason });
+      if (r.status !== 'done' && r.status !== 'awaiting_approval') throw Object.assign(new Error(r.reason || 'Refused.'), { stockOp: r });
+      cinvSuccess.textContent = r.status === 'awaiting_approval' ? 'Sent to Warehouse for approval — it will show in your stock once approved.' : 'Stock updated.';
       cinvSuccess.classList.add('show');
       cinvSubmitBtn.disabled = false;
       cinvSubmitBtn.textContent = 'Save';
       if (document.getElementById('cinv-tbody')) loadCenterInventory();
-      setTimeout(closeCinvModal, 800);
+      setTimeout(closeCinvModal, 1500);
     } catch (err) {
       console.error('Adjust center stock failed:', err);
-      cinvError.textContent = 'Could not update stock. Check console for details.';
+      cinvError.textContent = err.stockOp ? err.message : 'Could not update stock. Check console for details.';
       cinvError.classList.add('show');
       cinvSubmitBtn.disabled = false;
       cinvSubmitBtn.textContent = 'Save';
@@ -3765,12 +3728,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     cinvAddSubmitBtn.textContent = 'Saving…';
     const partId = cinvAddPartSelect.value;
     try {
-      await setDoc(doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`), {
-        partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
-        quantity: Number(document.getElementById('cinv-add-qty').value) || 0,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      cinvAddSuccess.textContent = 'Added.';
+      const qty = Number(document.getElementById('cinv-add-qty').value) || 0;
+      if (qty > 0) {
+        const r = await runStockOp(db, currentUser, { type: 'add_request', lines: [{ partId, qty }], reason: 'Add part to center inventory' });
+        if (r.status !== 'awaiting_approval' && r.status !== 'done') throw Object.assign(new Error(r.reason || 'Refused.'), { stockOp: r });
+        cinvAddSuccess.textContent = 'Sent to Warehouse for approval — it will show in your stock once approved.';
+      } else {
+        cinvAddSuccess.textContent = 'Nothing to add — enter a quantity.';
+      }
       cinvAddSuccess.classList.add('show');
       cinvAddSubmitBtn.disabled = false;
       cinvAddSubmitBtn.textContent = 'Add part';
@@ -3778,7 +3743,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeCinvAddModal, 800);
     } catch (err) {
       console.error('Add part to inventory failed:', err);
-      cinvAddError.textContent = 'Could not add this part. Check console for details.';
+      cinvAddError.textContent = err.stockOp ? err.message : 'Could not add this part. Check console for details.';
       cinvAddError.classList.add('show');
       cinvAddSubmitBtn.disabled = false;
       cinvAddSubmitBtn.textContent = 'Add part';
@@ -3938,37 +3903,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     dispatchSubmitBtn.disabled = true;
     dispatchSubmitBtn.textContent = 'Dispatching…';
-    const centerInvRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
-    const techInvRef = doc(db, 'inventory', `technician_${ticket.technicianUid}_${partId}`);
     try {
-      await runTransaction(db, async (transaction) => {
-        const centerSnap = await transaction.get(centerInvRef);
-        const techSnap = await transaction.get(techInvRef);
-        const centerCurrent = centerSnap.exists() ? (centerSnap.data().quantity || 0) : 0;
-        if (centerCurrent < qty) throw new Error(`Only ${centerCurrent} of that part in your Center Inventory.`);
-        const techCurrent = techSnap.exists() ? (techSnap.data().quantity || 0) : 0;
-        transaction.set(centerInvRef, {
-          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid,
-          quantity: centerCurrent - qty, updatedAt: serverTimestamp(), lastSourceJobId: ticket.id
-        }, { merge: true });
-        // Previously this only deducted the center's own stock and
-        // never actually credited the technician's Spare Bag — fixed
-        // here so the part really does move, not just disappear.
-        // lastSourceJobId ties this write to the real open ticket, so
-        // security rules can verify it against that ticket's own
-        // serviceCenterUid/technicianUid instead of relying on a
-        // linkedServiceCenterUid stamp that may not exist for
-        // technicians linked before that feature was added.
-        transaction.set(techInvRef, {
-          partId, location: 'technician', technicianUid: ticket.technicianUid,
-          quantity: techCurrent + qty, updatedAt: serverTimestamp(), lastSourceJobId: ticket.id
-        }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'issue', location: 'servicecenter', serviceCenterUid: currentUser.uid,
-        technicianUid: ticket.technicianUid, quantity: qty,
-        reason: `Dispatched to ${ticket.technicianName || 'technician'} — ${ticket.requestId || ticket.id}`,
-        createdAt: serverTimestamp()
+      // Moved on the server (center stock -> technician's Spare Bag, with
+      // the ledger line), checked against this ticket's technician.
+      await runStockOpOrThrow(db, currentUser, {
+        type: 'transfer_to_technician', lines: [{ partId, qty }], techUid: ticket.technicianUid,
+        job: { coll: 'centerRequests', id: ticket.id }
       });
       // Audit trail visible on the ticket itself (technician's job
       // popup reads spareRequests by sourceJobId) — same pattern as a
@@ -4027,17 +3967,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   async function renderSendBack() {
     contentEl.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>Defective parts from your technicians</h2></div>
+        <div class="panel-header"><h2>Defective parts to send to Head Office</h2></div>
         <div class="panel-body">
           <p style="font-size:13.5px;color:var(--stone);margin-bottom:16px;">
-            A part a technician replaces on a job comes back to you first — not straight to Head
-            Office. Forward each one on once it's physically back in your hands.
+            Every spare used on a job — by you or your technicians — opens a defective return here.
+            Send them to Head Office together once a month: parts used in a month are due by the end
+            of the following month.
           </p>
           <div style="padding:0;">
             <table>
-              <thead><tr><th>Date</th><th>Part</th><th>Qty</th><th>From</th><th>Reason</th><th>Actions</th></tr></thead>
-              <tbody id="tech-returns-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+              <thead><tr><th><input type="checkbox" id="defect-all" title="Select all"></th><th>Used on</th><th>Part</th><th>Qty</th><th>From</th><th>Job</th><th>Due by</th></tr></thead>
+              <tbody id="tech-returns-tbody"><tr><td colspan="7" class="empty-row">Loading…</td></tr></tbody>
             </table>
+          </div>
+          <div id="defect-batch" style="margin-top:14px;display:none;">
+            <div class="form-row"><label>Courier / transporter</label><input type="text" id="defect-courier" maxlength="100"></div>
+            <div class="form-row"><label>Docket no.</label><input type="text" id="defect-docket" maxlength="60"></div>
+            <div class="modal-error" id="defect-error"></div>
+            <button class="btn-primary" id="defect-send">Send selected to Head Office</button>
           </div>
         </div>
       </div>
@@ -4055,63 +4002,74 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     loadTechReturns();
   }
 
+  // Pending defectives for this center: its own ('awaiting_return') and
+  // those its technicians handed in ('sent_to_center'). Sent to Head Office
+  // in one monthly batch — each becomes 'requested' with the batch details.
   async function loadTechReturns() {
     const tbody = document.getElementById('tech-returns-tbody');
     if (!currentUser) return;
     try {
-      const snap = await getDocs(query(
-        collection(db, 'returns'),
-        where('serviceCenterUid', '==', currentUser.uid),
-        where('status', '==', 'sent_to_center')
-      ));
-      if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">Nothing waiting from your technicians right now.</td></tr>`;
-        return;
-      }
-      const [docs, partsSnap] = await Promise.all([
-        (async () => { const arr = []; snap.forEach(d => arr.push({ id: d.id, ...d.data() })); return arr; })(),
+      const [snap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('serviceCenterUid', '==', currentUser.uid))),
         getDocs(collection(db, 'spareParts'))
       ]);
       const partMap = {};
       partsSnap.forEach(d => { partMap[d.id] = d.data(); });
-      docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      tbody.innerHTML = '';
-      docs.forEach(d => {
+      const docs = [];
+      snap.forEach(d => { const x = d.data(); if (['awaiting_return', 'sent_to_center'].includes(x.status)) docs.push({ id: d.id, ...x }); });
+      docs.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      const batchEl = document.getElementById('defect-batch');
+      if (!docs.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">No defective parts waiting to be sent.</td></tr>`;
+        batchEl.style.display = 'none';
+        return;
+      }
+      const now = new Date();
+      tbody.innerHTML = docs.map(d => {
         const part = partMap[d.partId];
-        const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
-          <td>${part ? escapeHtml(part.name) : escapeHtml(d.partId)}</td>
+        const due = d.defectiveDueBy && d.defectiveDueBy.toDate ? d.defectiveDueBy.toDate() : null;
+        const overdue = due && due < now;
+        return `<tr>
+          <td><input type="checkbox" class="defect-pick" value="${escapeHtml(d.id)}" checked></td>
+          <td style="font-size:12px;color:var(--stone);">${d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—'}</td>
+          <td>${escapeHtml(part ? part.name : (d.partName || d.partId))}</td>
           <td>${d.quantity ?? '—'}</td>
-          <td style="font-size:12.5px;">${escapeHtml(d.source || '—')}</td>
+          <td style="font-size:12.5px;">${escapeHtml(d.status === 'sent_to_center' ? (d.source || 'Technician') : 'Your center')}</td>
           <td style="font-size:12.5px;color:var(--stone);">${escapeHtml(d.reason || '—')}</td>
-          <td><button class="btn-secondary tech-return-forward-btn" data-id="${d.id}">Forward to Head Office</button></td>`;
-        tbody.appendChild(tr);
-      });
-      tbody.querySelectorAll('.tech-return-forward-btn').forEach(btn => {
-        btn.addEventListener('click', () => forwardTechReturn(btn.dataset.id));
-      });
+          <td style="${overdue ? 'color:var(--err);font-weight:600;' : ''}">${due ? due.toLocaleDateString() : '—'}${overdue ? ' (overdue)' : ''}</td></tr>`;
+      }).join('');
+      batchEl.style.display = 'block';
+      const all = document.getElementById('defect-all');
+      all.checked = true;
+      all.onchange = () => tbody.querySelectorAll('.defect-pick').forEach(c => { c.checked = all.checked; });
+      document.getElementById('defect-send').onclick = sendDefectBatch;
     } catch (err) {
-      console.error('Load technician returns failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load this. Check console for details.</td></tr>`;
+      console.error('Load defective returns failed:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-row" style="color:var(--err);">Couldn't load this. Check console for details.</td></tr>`;
     }
   }
 
-  async function forwardTechReturn(returnId) {
-    if (!confirm('Forward this part to Head Office\'s Returns queue?')) return;
-    try {
-      // Lands as 'requested', not 'defective' — only Head Office can
-      // mark something actually received once it's physically arrived
-      // there (their own "Mark Received" button in Returns). A center
-      // or technician can send/forward a part, but never self-declare
-      // that Head Office has it in hand.
-      await updateDoc(doc(db, 'returns', returnId), { status: 'requested', updatedAt: serverTimestamp() });
-      loadTechReturns();
-    } catch (err) {
-      console.error('Forward return failed:', err);
-      alert('Could not forward this. Check console for details.');
+  async function sendDefectBatch() {
+    const errEl = document.getElementById('defect-error');
+    errEl.classList.remove('show');
+    const ids = [...document.querySelectorAll('.defect-pick:checked')].map(c => c.value);
+    const courier = document.getElementById('defect-courier').value.trim();
+    if (!ids.length || !courier) {
+      errEl.textContent = !ids.length ? 'Select the parts in this shipment.' : 'Enter the courier / transporter.';
+      errEl.classList.add('show');
+      return;
     }
+    if (!confirm(`Send ${ids.length} defective part(s) to Head Office in one shipment?`)) return;
+    const btn = document.getElementById('defect-send');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    const batch = { batchId: `DB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      courier, docket: document.getElementById('defect-docket').value.trim(), sentOn: new Date().toISOString().slice(0, 10) };
+    const results = await Promise.allSettled(ids.map(id => updateDoc(doc(db, 'returns', id), { status: 'requested', batch, updatedAt: serverTimestamp() })));
+    const failed = results.filter(r => r.status === 'rejected').length;
+    btn.disabled = false; btn.textContent = 'Send selected to Head Office';
+    if (failed) { errEl.textContent = `${failed} of ${ids.length} could not be updated — refresh and try again.`; errEl.classList.add('show'); }
+    else alert(`Sent — batch ${batch.batchId}. Head Office will mark each part received when the shipment arrives.`);
+    loadTechReturns();
   }
 
   const sendbackOverlay = document.getElementById('sendback-overlay');
@@ -4152,40 +4110,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     sendbackSubmitBtn.disabled = true;
     sendbackSubmitBtn.textContent = 'Sending…';
-    const invRef = doc(db, 'inventory', `servicecenter_${currentUser.uid}_${partId}`);
     try {
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(invRef);
-        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-        const next = Math.max(0, current - qty);
-        transaction.set(invRef, {
-          partId, location: 'servicecenter', serviceCenterUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
-        }, { merge: true });
+      // Taken out of center stock and the return opened together on the
+      // server — refused if you don't have that many.
+      const r = await runStockOpOrThrow(db, currentUser, {
+        type: 'send_back', lines: [{ partId, qty }], reason: document.getElementById('sendback-reason').value.trim() || 'Sent back to Head Office'
       });
-      const returnId = await generateReturnId();
-      await addDoc(collection(db, 'returns'), {
-        returnId,
-        partId,
-        quantity: qty,
-        source: `Service Center - ${currentUser.email}`,
-        serviceCenterUid: currentUser.uid,
-        reason: document.getElementById('sendback-reason').value.trim(),
-        // 'requested', not 'received' — sending it back isn't the same
-        // as Head Office actually having it. Only Head Office's own
-        // "Mark Received" (in their Returns queue) sets 'received',
-        // once the part has genuinely arrived there.
-        status: 'requested',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      sendbackSuccess.textContent = `Sent — ${returnId}`;
+      sendbackSuccess.textContent = `Sent — ${(r.returnIds || [])[0] || ''}`;
       sendbackSuccess.classList.add('show');
       sendbackSubmitBtn.disabled = false;
       sendbackSubmitBtn.textContent = 'Send back';
       setTimeout(closeSendBackModal, 1000);
     } catch (err) {
       console.error('Send back failed:', err);
-      sendbackError.textContent = 'Could not send this back. Check console for details.';
+      sendbackError.textContent = err.stockOp ? err.message : 'Could not send this back. Check console for details.';
       sendbackError.classList.add('show');
       sendbackSubmitBtn.disabled = false;
       sendbackSubmitBtn.textContent = 'Send back';

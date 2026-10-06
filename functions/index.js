@@ -14,6 +14,7 @@ const ProfileGuard = require('./profileGuard');
 const TradePricing = require('./tradePricing');
 const Finance = require('./finance');
 const Stock = require('./stock');
+const Spares = require('./spares');
 
 initializeApp();
 const db = getFirestore();
@@ -1109,5 +1110,194 @@ exports.checkRegistrationSerial = onDocumentCreated(
       }
       tx.update(event.data.ref, { serialCheck: { ...check, serial, at: FieldValue.serverTimestamp() } });
     });
+  }
+);
+
+// ---------------------------------------------------------------
+// Spare-part stock at service centers and technicians (spares.js).
+// They can't write stock directly any more (firestore.rules); they file a
+// stockOps document and this applies it in one transaction: checks who
+// they are and the job it's for, refuses anything that would take stock
+// below zero, writes the stock and its ledger line together, and for a
+// part used on a job opens the defective return (due back at Head Office
+// by the end of the following month — sent in one monthly batch).
+// Adding stock to yourself waits for Warehouse approval.
+// ---------------------------------------------------------------
+async function applySparesOp(ref) {
+  let notifyApproval = null;
+  await db.runTransaction(async (tx) => {
+    const opSnap = await tx.get(ref);
+    const op = opSnap.data();
+    if (!op || !['pending', 'approved'].includes(op.status)) return;
+    const reject = (reason) => { tx.update(ref, { status: 'rejected', reason, processedAt: FieldValue.serverTimestamp() }); };
+    if (!Spares.OP_TYPES.includes(op.type)) return reject('Unknown operation.');
+    const bad = Spares.validateOpLines(op.lines);
+    if (bad) return reject(bad);
+    const lines = op.lines.map((l) => ({ partId: l.partId, qty: l.qty }));
+
+    // ---- reads ----
+    const actorSnap = await tx.get(db.collection('users').doc(op.byUid));
+    const actorUser = actorSnap.exists ? actorSnap.data() : {};
+    const role = actorUser.role;
+    if (!['servicecenter', 'technician'].includes(role)) return reject('Only service centers and technicians use this.');
+    let job = null;
+    if (op.job && op.job.id) {
+      if (!['centerRequests', 'serviceJobs'].includes(op.job.coll)) return reject('Unknown job.');
+      const jobSnap = await tx.get(db.collection(op.job.coll).doc(op.job.id));
+      if (!jobSnap.exists) return reject('That job no longer exists.');
+      job = jobSnap.data();
+    }
+    const actor = { role, uid: op.byUid };
+    if (op.type === 'consume') {
+      if (!job) return reject('A part can only be used against a job.');
+      if (role === 'technician' && job.technicianUid !== op.byUid) return reject('That job isn\'t assigned to you.');
+      if (role === 'servicecenter' && job.serviceCenterUid !== op.byUid) return reject('That job isn\'t your center\'s.');
+    }
+    if (op.type === 'transfer_to_technician') {
+      if (role !== 'servicecenter') return reject('Only a service center can send parts to a technician.');
+      actor.techUid = op.techUid;
+      const techSnap = await tx.get(db.collection('users').doc(String(op.techUid || '-')));
+      const linked = techSnap.exists && techSnap.get('linkedServiceCenterUid') === op.byUid;
+      const onJob = job && job.serviceCenterUid === op.byUid && job.technicianUid === op.techUid;
+      if (!linked && !onJob) return reject('That technician isn\'t linked to your center.');
+    }
+    if (op.type === 'draw_from_center') {
+      if (role !== 'technician') return reject('Only a technician draws parts from a center.');
+      actor.centerUid = (job && job.technicianUid === op.byUid && job.serviceCenterUid) || actorUser.linkedServiceCenterUid || null;
+      if (!actor.centerUid) return reject('You aren\'t linked to a service center.');
+    }
+    if (['remove', 'add_request'].includes(op.type) && String(op.reason || '').trim().length < 3) return reject('Give a reason.');
+    if (op.type === 'send_back' && role !== 'servicecenter') return reject('Only a service center sends stock back.');
+    if (op.type === 'add_request' && op.status === 'pending') {
+      tx.update(ref, { status: 'awaiting_approval', role });
+      notifyApproval = { role, who: actorUser.name || actorUser.email || op.byUid };
+      return;
+    }
+    const changes = Spares.stockChanges(op.type, lines, actor);
+    const invIds = [...new Set(changes.map((c) => Spares.invDocId(c.loc, c.uid, c.partId)))];
+    const partIds = [...new Set(lines.map((l) => l.partId))];
+    const [invSnaps, partSnaps] = await Promise.all([
+      tx.getAll(...invIds.map((id) => db.collection('inventory').doc(id))),
+      tx.getAll(...partIds.map((id) => db.collection('spareParts').doc(id)))
+    ]);
+    const partNames = {};
+    for (const p of partSnaps) { if (!p.exists) return reject('A part on this request isn\'t in the part master.'); partNames[p.id] = p.get('name') || p.id; }
+    const current = {};
+    invSnaps.forEach((s) => { current[s.id] = s.exists ? (s.get('quantity') || 0) : 0; });
+    const applied = Spares.applyChanges(changes, current, partNames);
+    if (applied.error) return reject(applied.error);
+    const now = new Date();
+    let counterRef = null, seq = 0;
+    if (op.type === 'consume' || op.type === 'send_back') {
+      counterRef = db.collection('counters').doc(`return-${Spares.yyyymmIST(now)}`);
+      const c = await tx.get(counterRef);
+      seq = c.exists ? (c.get('value') || 0) : 0;
+    }
+
+    // ---- writes ----
+    invIds.forEach((id) => {
+      const c = changes.find((x) => Spares.invDocId(x.loc, x.uid, x.partId) === id);
+      tx.set(db.collection('inventory').doc(id), {
+        partId: c.partId, location: c.loc, [c.loc === 'servicecenter' ? 'serviceCenterUid' : 'technicianUid']: c.uid,
+        quantity: applied.next[id], updatedAt: FieldValue.serverTimestamp(), lastOpId: ref.id
+      }, { merge: true });
+    });
+    const MOVE_TYPE = { consume: 'consume', remove: 'writeoff', send_back: 'return', add_request: 'receive', transfer_to_technician: 'issue', draw_from_center: 'transfer' };
+    lines.forEach((l) => {
+      const from = changes.find((c) => c.partId === l.partId && c.delta < 0);
+      const to = changes.find((c) => c.partId === l.partId && c.delta > 0);
+      tx.set(db.collection('stockMovements').doc(), {
+        type: MOVE_TYPE[op.type], partId: l.partId, partName: partNames[l.partId], quantity: l.qty,
+        location: (from || to).loc, from: from ? Spares.invDocId(from.loc, from.uid, '').slice(0, -1) : null, to: to ? Spares.invDocId(to.loc, to.uid, '').slice(0, -1) : null,
+        serviceCenterUid: (from && from.loc === 'servicecenter' ? from.uid : null) || (to && to.loc === 'servicecenter' ? to.uid : null) || (role === 'technician' ? actorUser.linkedServiceCenterUid || null : null),
+        technicianUid: (from && from.loc === 'technician' ? from.uid : null) || (to && to.loc === 'technician' ? to.uid : null),
+        reason: op.reason || (op.job ? `${op.type} — ${(job && (job.requestId || job.jobId)) || op.job.id}` : op.type),
+        opId: ref.id, sourceJobId: op.job ? op.job.id : null, byUid: op.byUid,
+        approvedByUid: op.decidedByUid || null, createdAt: FieldValue.serverTimestamp()
+      });
+    });
+    const returnIds = [];
+    if (op.type === 'consume') {
+      const jobLabel = (job && (job.requestId || job.jobId)) || op.job.id;
+      const centerUid = role === 'servicecenter' ? op.byUid : (job.serviceCenterUid || actorUser.linkedServiceCenterUid || null);
+      const due = Timestamp.fromDate(Spares.defectiveDueDate(now));
+      lines.forEach((l) => {
+        seq += 1;
+        const rid = Spares.returnId(now, seq, role === 'servicecenter' ? 'ServiceCenter' : 'Technician');
+        returnIds.push(rid);
+        tx.set(db.collection('returns').doc(), {
+          returnId: rid, partId: l.partId, partName: partNames[l.partId], quantity: l.qty,
+          source: `${role === 'servicecenter' ? 'Service Center' : 'Technician'} - ${actorUser.email || actorUser.name || op.byUid}`,
+          ...(role === 'technician' ? { technicianUid: op.byUid } : {}),
+          ...(centerUid ? { serviceCenterUid: centerUid } : {}),
+          reason: `Replaced on job ${jobLabel}`, sourceJobId: op.job.id, sourceJobCollection: op.job.coll, opId: ref.id,
+          // The defective part is still out with the center (or handed to
+          // it by the technician); it goes to Head Office in the center's
+          // monthly batch. A technician with no center sends it directly.
+          status: role === 'technician' ? (centerUid ? 'sent_to_center' : 'requested') : 'awaiting_return',
+          defectiveDueBy: due, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        });
+      });
+      if (op.spareRequestId) {
+        tx.set(db.collection('spareRequests').doc(op.spareRequestId), { consumedAt: FieldValue.serverTimestamp(), consumedQty: lines[0].qty, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+    }
+    if (op.type === 'send_back') {
+      lines.forEach((l) => {
+        seq += 1;
+        const rid = Spares.returnId(now, seq, 'ServiceCenter');
+        returnIds.push(rid);
+        tx.set(db.collection('returns').doc(), {
+          returnId: rid, partId: l.partId, partName: partNames[l.partId], quantity: l.qty,
+          source: `Service Center - ${actorUser.email || op.byUid}`, serviceCenterUid: op.byUid,
+          reason: op.reason || 'Sent back to Head Office', opId: ref.id, status: 'requested',
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        });
+      });
+    }
+    if (counterRef) tx.set(counterRef, { value: seq }, { merge: true });
+    tx.update(ref, { status: 'done', returnIds, processedAt: FieldValue.serverTimestamp() });
+  });
+  if (notifyApproval) {
+    await db.collection('notifications').add({
+      recipientType: 'role', recipientValue: 'warehouse', title: 'Stock add request to approve',
+      message: `${notifyApproval.who} (${notifyApproval.role === 'servicecenter' ? 'service center' : 'technician'}) asked to add stock — see Spare Stock Requests.`,
+      read: false, createdAt: FieldValue.serverTimestamp()
+    });
+  }
+}
+
+exports.sparesOpCreated = onDocumentCreated(
+  { document: 'stockOps/{opId}', region: REGION },
+  async (event) => { if (event.data) await applySparesOp(event.data.ref); }
+);
+exports.sparesOpDecided = onDocumentUpdated(
+  { document: 'stockOps/{opId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    if (before.status === 'awaiting_approval' && after.status === 'approved') await applySparesOp(event.data.after.ref);
+  }
+);
+
+// Low-stock alert: when Head Office stock of a spare drops to or below its
+// reorder level (from above it), Warehouse is notified once.
+exports.lowStockAlert = onDocumentWritten(
+  { document: 'inventory/{invId}', region: REGION },
+  async (event) => {
+    const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+    if (!after || after.location !== 'warehouse' || !after.partId) return;
+    const before = event.data.before.exists ? event.data.before.data() : {};
+    const part = await db.collection('spareParts').doc(after.partId).get();
+    const level = part.exists ? Number(part.get('reorderLevel') || 0) : 0;
+    if (!level) return;
+    const was = typeof before.quantity === 'number' ? before.quantity : Infinity;
+    if (after.quantity <= level && was > level) {
+      await db.collection('notifications').add({
+        recipientType: 'role', recipientValue: 'warehouse', title: 'Spare part low on stock',
+        message: `${part.get('name') || after.partId}${part.get('partCode') ? ' (' + part.get('partCode') + ')' : ''}: ${after.quantity} left, reorder level ${level}.`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    }
   }
 );

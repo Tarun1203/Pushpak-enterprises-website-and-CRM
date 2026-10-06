@@ -712,69 +712,15 @@ service cloud.firestore {
       // open centerRequests ticket (lastSourceJobId) the transfer is
       // actually against, cross-checked for both the center and the
       // technician on that exact ticket.
-      allow create: if isAdmin()
-        || (validStockDoc(invId) && (
-           (isSignedIn() && request.resource.data.location == 'technician' && request.resource.data.technicianUid == request.auth.uid)
-        || (isSignedIn() && request.resource.data.location == 'servicecenter' && request.resource.data.serviceCenterUid == request.auth.uid)
-        // A service center crediting one of ITS OWN roster
-        // technicians' Spare Bag for the first time (Dispatch to
-        // Technician, against a real open ticket).
-        || (isSignedIn() && request.resource.data.location == 'technician'
-            && get(/databases/$(database)/documents/users/$(request.resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid)
-        || (isSignedIn() && request.resource.data.location == 'technician'
-            && request.resource.data.lastSourceJobId is string
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.resource.data.technicianUid)));
-      allow update: if isAdmin()
-        || (validStockDoc(invId) && (
-           (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
-        || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid)
-        // A roster technician drawing a spare directly from their OWN
-        // service center's shelf (job popup → Request Spare, when the
-        // center already has stock) — only a quantity decrease, only
-        // the quantity/updatedAt/lastSourceJobId fields.
-        || (isSignedIn() && resource.data.location == 'servicecenter'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
-            && request.resource.data.quantity < resource.data.quantity
-            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedServiceCenterUid == resource.data.serviceCenterUid)
-        || (isSignedIn() && resource.data.location == 'servicecenter'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
-            && request.resource.data.quantity < resource.data.quantity
-            && request.resource.data.lastSourceJobId is string
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == resource.data.serviceCenterUid
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == request.auth.uid)
-        // The mirror case — a service center topping up a linked
-        // technician's Spare Bag (Dispatch to Technician) when that
-        // technician's inventory doc for this part already exists —
-        // only a quantity increase, only quantity/updatedAt/lastSourceJobId.
-        || (isSignedIn() && resource.data.location == 'technician'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
-            && request.resource.data.quantity > resource.data.quantity
-            && get(/databases/$(database)/documents/users/$(resource.data.technicianUid)).data.linkedServiceCenterUid == request.auth.uid)
-        || (isSignedIn() && resource.data.location == 'technician'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity', 'updatedAt', 'lastSourceJobId'])
-            && request.resource.data.quantity > resource.data.quantity
-            && request.resource.data.lastSourceJobId is string
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.serviceCenterUid == request.auth.uid
-            && get(/databases/$(database)/documents/centerRequests/$(request.resource.data.lastSourceJobId)).data.technicianUid == resource.data.technicianUid)));
+      // Only Warehouse / Super Admin write stock directly (and never below
+      // zero). A service center or technician changes its own stock by
+      // filing a stockOps request, applied by the applySparesOp function
+      // together with its stockMovements ledger line.
+      allow create, update: if isAdmin()
+        && request.resource.data.get('quantity', 0) is int
+        && request.resource.data.get('quantity', 0) >= 0;
       allow delete: if isAdmin();
-
-      // A stock doc written by a center or technician: whole, non-negative
-      // quantity, only the known fields, and the doc id must match its
-      // owner and part (servicecenter_<uid>_<part> / technician_<uid>_<part>).
-      function validStockDoc(id) {
-        let d = request.resource.data;
-        return d.quantity is int && d.quantity >= 0
-          && d.keys().hasOnly(['partId', 'location', 'technicianUid', 'serviceCenterUid', 'quantity', 'updatedAt', 'lastSourceJobId'])
-          && ((d.location == 'technician' && id == 'technician_' + d.technicianUid + '_' + d.partId)
-              || (d.location == 'servicecenter' && id == 'servicecenter_' + d.serviceCenterUid + '_' + d.partId));
-      }
     }
-
-    // ---------------------------------------------------------------
-    // Technician availability — a technician sets only their own
-    // status; any staff member can read it (future dispatch use).
-    // ---------------------------------------------------------------
 
     match /technicianAvailability/{uid} {
       allow read: if isStaff();
@@ -823,15 +769,33 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
-      allow create: if isAdmin()
-        || (isSignedIn()
-            && (request.resource.data.get('technicianUid', '') == request.auth.uid
-                || request.resource.data.get('serviceCenterUid', '') == request.auth.uid)
-            && request.resource.data.quantity is int && request.resource.data.quantity > 0
-            && request.resource.data.type in ['receive', 'issue', 'transfer', 'consume', 'return']
-            && request.resource.data.createdAt == request.time);
+      // Centers and technicians no longer write ledger lines themselves —
+      // applySparesOp writes them with the stock change.
+      allow create: if isAdmin() && request.resource.data.createdAt == request.time;
       // The movement ledger is append-only: only Super Admin may correct it.
       allow update, delete: if isSuperAdmin();
+    }
+
+    // A service center's or technician's request to change its own spare
+    // stock (see functions/spares.js). Filed by them, applied or refused by
+    // the applySparesOp function; an 'add stock' request waits for
+    // Warehouse / Super Admin to approve or decline it.
+    match /stockOps/{opId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.byUid == request.auth.uid);
+      allow create: if isSignedIn() && callerRole() in ['servicecenter', 'technician']
+        && request.resource.data.byUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.type in ['consume', 'transfer_to_technician', 'draw_from_center', 'remove', 'send_back', 'add_request']
+        && request.resource.data.keys().hasOnly(['type', 'byUid', 'byEmail', 'lines', 'job', 'techUid', 'reason', 'spareRequestId', 'status', 'createdAt'])
+        && request.resource.data.lines is list
+        && request.resource.data.lines.size() >= 1 && request.resource.data.lines.size() <= 20
+        && request.resource.data.get('reason', '') is string && request.resource.data.get('reason', '').size() <= 300;
+      allow update: if isAdmin()
+        && resource.data.status == 'awaiting_approval'
+        && request.resource.data.status in ['approved', 'declined']
+        && request.resource.data.decidedByUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedByUid', 'decidedByEmail', 'decidedAt', 'decisionNote']);
     }
 
     match /spareRequests/{reqId} {
@@ -900,36 +864,18 @@ service cloud.firestore {
     }
 
     match /returns/{returnId} {
-      // Scoped to the two owner tags already stamped on every doc at
-      // creation. (isStaff() previously let any Service Center or
-      // Technician read every OTHER one's return history company-wide.)
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
-      // A service center or technician can only ever start a return as
-      // 'requested' (headed to Head Office, not yet in their hands) or
-      // 'sent_to_center' (handed to their own center first) — never as
-      // 'received' or 'defective' directly. Only Head Office/Warehouse
-      // (isAdmin()) may create a return already in one of those states,
-      // since only they can attest a part is actually in their
-      // possession and inspected.
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid
-            && request.resource.data.status in ['requested', 'sent_to_center'])
-        || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
-            && request.resource.data.status in ['requested', 'sent_to_center']);
-      // A technician's defective-part return lands tagged
-      // 'sent_to_center' — physically handed back to their own
-      // service center first. The center forwarding it on to Head
-      // Office is the one further transition it's allowed to make
-      // itself — into 'requested', same as their own direct send-backs,
-      // never straight to 'received'/'defective'; only Head Office can
-      // set those, once the part has actually arrived there.
+      // Returns are opened by the server (a part used on a job, or stock
+      // sent back) or by Head Office. A center's only move is to send its
+      // pending defectives to Head Office — its monthly batch.
+      allow create: if isAdmin();
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid
-            && resource.data.status == 'sent_to_center'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && request.resource.data.status == 'requested');
+            && resource.data.status in ['sent_to_center', 'awaiting_return']
+            && request.resource.data.status == 'requested'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'batch']));
       allow delete: if isAdmin();
     }
 

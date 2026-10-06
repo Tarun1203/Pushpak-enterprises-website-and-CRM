@@ -120,3 +120,47 @@ test('orders, invoices, stock, dispatch, delivery, payments and serial checks en
   const bal = ledger.reduce((a, [, d]) => a + d.debit - d.credit, 0);
   ok(Math.round(bal * 100) / 100 === -200, 'ledger sums to account balance (-200)');
 });
+
+test('spare stock ops: transfers, use on jobs, no negatives, approvals, defective returns, low stock', async () => {
+  set('spareParts/p1', { name: 'Thermostat', partCode: 'SP-1', reorderLevel: 5 });
+  set('users/c1', { role: 'servicecenter', email: 'c1@x' });
+  set('users/t1', { role: 'technician', email: 't1@x', linkedServiceCenterUid: 'c1' });
+  set('users/t2', { role: 'technician', email: 't2@x' });
+  set('centerRequests/j1', { requestId: 'PE-CR-1', serviceCenterUid: 'c1', technicianUid: 't1', status: 'in_progress' });
+  set('inventory/servicecenter_c1_p1', { partId: 'p1', location: 'servicecenter', serviceCenterUid: 'c1', quantity: 3 });
+  const op = async (id, data) => { set(`stockOps/${id}`, { status: 'pending', ...data }); await created('sparesOpCreated', `stockOps/${id}`, { opId: id }); return get(`stockOps/${id}`); };
+
+  let r = await op('s1', { type: 'transfer_to_technician', byUid: 'c1', techUid: 't1', lines: [{ partId: 'p1', qty: 2 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'done', 'center sends 2 to its technician');
+  ok(get('inventory/servicecenter_c1_p1').quantity === 1 && get('inventory/technician_t1_p1').quantity === 2, 'center 1, technician 2');
+  r = await op('s2', { type: 'transfer_to_technician', byUid: 'c1', techUid: 't2', lines: [{ partId: 'p1', qty: 1 }] });
+  ok(r.status === 'rejected' && /isn't linked/.test(r.reason), 'cannot send to a technician of another center');
+  r = await op('s3', { type: 'consume', byUid: 't1', lines: [{ partId: 'p1', qty: 3 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'rejected' && /Only 2 of Thermostat/.test(r.reason), 'cannot use more than the bag holds');
+  r = await op('s4', { type: 'consume', byUid: 't1', lines: [{ partId: 'p1', qty: 2 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'done' && get('inventory/technician_t1_p1').quantity === 0, 'technician uses 2 on the job');
+  const returnFor = (id) => [...store.entries()].find(([k, d]) => k.startsWith('returns/') && d.opId === id)?.[1];
+  const techReturn = returnFor('s4');
+  ok(techReturn && techReturn.status === 'sent_to_center' && techReturn.serviceCenterUid === 'c1' && techReturn.defectiveDueBy, 'defective return handed to center with a due date');
+  r = await op('s5', { type: 'consume', byUid: 'c1', lines: [{ partId: 'p1', qty: 1 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'done' && returnFor('s5').status === 'awaiting_return', 'center use opens awaiting_return');
+  r = await op('s6', { type: 'consume', byUid: 't2', lines: [{ partId: 'p1', qty: 1 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'rejected', 'cannot use parts on someone else\'s job');
+  r = await op('s7', { type: 'draw_from_center', byUid: 't1', lines: [{ partId: 'p1', qty: 5 }], job: { coll: 'centerRequests', id: 'j1' } });
+  ok(r.status === 'rejected', 'cannot draw more than the center has');
+  r = await op('s8', { type: 'remove', byUid: 'c1', lines: [{ partId: 'p1', qty: 1 }] });
+  ok(r.status === 'rejected' && /reason/.test(r.reason), 'removing stock needs a reason');
+  r = await op('s9', { type: 'add_request', byUid: 't1', lines: [{ partId: 'p1', qty: 4 }], reason: 'Bought locally, bill 55' });
+  ok(r.status === 'awaiting_approval' && (get('inventory/technician_t1_p1').quantity || 0) === 0, 'add request waits for Warehouse');
+  await updated('sparesOpDecided', 'stockOps/s9', { status: 'approved', decidedByUid: 'wh1' });
+  ok(get('stockOps/s9').status === 'done' && get('inventory/technician_t1_p1').quantity === 4, 'approved request adds the stock');
+  const moves = [...store.entries()].filter(([p, d]) => p.startsWith('stockMovements/') && d.opId);
+  ok(moves.length === 4, 'one ledger line per applied op line (transfer, 2 uses, add)');
+  // low stock alert crosses the reorder level once
+  const before = new Snap(ref('inventory/warehouse_p1'));
+  set('inventory/warehouse_p1', { partId: 'p1', location: 'warehouse', quantity: 4 });
+  const n0 = [...store.keys()].filter((k) => k.startsWith('notifications/')).length;
+  await F.lowStockAlert.handler({ data: { before, after: new Snap(ref('inventory/warehouse_p1')) } });
+  const notes = [...store.entries()].filter(([k]) => k.startsWith('notifications/')).map(([, d]) => d);
+  ok(notes.length === n0 + 1 && /Thermostat/.test(notes.at(-1).message), 'low-stock alert raised');
+});

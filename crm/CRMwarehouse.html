@@ -674,7 +674,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "stock-requests", "label": "Spare Stock Requests", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-due", "label": "Defectives Due", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -727,6 +727,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (SPARE_REQUEST_TABS[id]) {
       pageSub.textContent = 'Spare Requests & Dispatch';
       renderSpareRequests(SPARE_REQUEST_TABS[id], label);
+    } else if (id === 'stock-requests') {
+      pageSub.textContent = 'Service centers and technicians asking to add stock to themselves';
+      renderStockRequests();
+    } else if (id === 'returns-due') {
+      pageSub.textContent = 'Defective parts used on jobs and not yet sent back (monthly batches)';
+      renderDefectivesDue();
     } else if (id === 'spareparts') {
       pageSub.textContent = 'Part master list';
       renderSpareParts();
@@ -2025,9 +2031,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const next = current + delta;
         if (next < 0) throw new Error(`This would take stock negative (currently ${current}).`);
         transaction.set(invRef, { partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp() }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason, createdAt: serverTimestamp()
+        // Ledger line in the same transaction as the stock change.
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason,
+          createdByEmail: auth.currentUser ? auth.currentUser.email : null, createdAt: serverTimestamp()
+        });
       });
       whAdjustSuccess.textContent = 'Saved.';
       whAdjustSuccess.classList.add('show');
@@ -3468,6 +3476,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const destQty = destSnap.exists() ? (destSnap.data().quantity || 0) : 0;
         if (destSnap.exists()) t.update(destInvRef, { quantity: destQty + qty });
         else t.set(destInvRef, { location: loc.location, [loc.uidField]: loc.uid, partId: part.id, quantity: qty });
+        t.set(doc(collection(db, 'stockMovements')), {
+          type: 'transfer', partId: part.id, partName: part.name, from: 'warehouse', to: loc.docId, quantity: qty,
+          sourceRequestId: d.id, reason: 'Fix inventory location (dispatch had not credited it)', createdAt: serverTimestamp()
+        });
       });
       await updateDoc(doc(db, 'spareRequests', d.id), { destInventoryFixed: true, updatedAt: serverTimestamp() });
       alert('Fixed — refresh the center\'s Inventory page to see it.');
@@ -3476,6 +3488,104 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } catch (err) {
       console.error('Fix inventory location failed:', err);
       alert('Could not apply the fix. Check console for details.');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Spare Stock Requests — a service center or technician asking to add
+  // stock to itself (e.g. bought locally). Approving lets the
+  // applySparesOp function add it, with its ledger line.
+  // ---------------------------------------------------------------
+  async function renderStockRequests() {
+    contentEl.innerHTML = `<div class="panel"><div class="panel-header"><h2>Waiting for approval</h2></div><div class="panel-body" id="sreq-body">Loading…</div></div>
+      <div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Recently decided</h2></div><div class="panel-body" id="sreq-hist">Loading…</div></div>`;
+    try {
+      const [pendSnap, allSnap, partsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'stockOps'), where('status', '==', 'awaiting_approval'))),
+        getDocs(query(collection(db, 'stockOps'), where('type', '==', 'add_request'))),
+        getDocs(collection(db, 'spareParts'))
+      ]);
+      const parts = {};
+      partsSnap.forEach(d => { parts[d.id] = d.data(); });
+      const label = (l) => `${escapeHtml((parts[l.partId] || {}).name || l.partId)} × ${l.qty}`;
+      const pend = []; pendSnap.forEach(d => pend.push({ id: d.id, ...d.data() }));
+      pend.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      const body = document.getElementById('sreq-body');
+      body.innerHTML = pend.length ? `<table><thead><tr><th>When</th><th>Who</th><th>Parts</th><th>Reason</th><th></th></tr></thead><tbody>
+        ${pend.map((o, i) => `<tr><td style="font-size:12px;">${o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString() : '—'}</td>
+          <td>${escapeHtml(o.byEmail || o.byUid)}<div style="font-size:11.5px;color:var(--stone);">${o.role === 'servicecenter' ? 'Service center' : 'Technician'}</div></td>
+          <td>${(o.lines || []).map(label).join('<br>')}</td><td style="font-size:12.5px;">${escapeHtml(o.reason || '')}</td>
+          <td style="white-space:nowrap;"><button class="btn-primary sreq-ok" data-i="${i}">Approve</button> <button class="btn-secondary sreq-no" data-i="${i}">Decline</button></td></tr>`).join('')}
+        </tbody></table>` : '<div class="empty-row">Nothing waiting.</div>';
+      const decide = async (o, status) => {
+        const note = status === 'declined' ? prompt('Reason for declining (shown to them):', '') : '';
+        if (note === null) return;
+        try {
+          await updateDoc(doc(db, 'stockOps', o.id), {
+            status, decidedByUid: auth.currentUser.uid, decidedByEmail: auth.currentUser.email || '',
+            decidedAt: serverTimestamp(), decisionNote: (note || '').slice(0, 300)
+          });
+          setTimeout(renderStockRequests, status === 'approved' ? 2500 : 300);
+        } catch (err) {
+          console.error('Decide stock request failed:', err);
+          alert('Could not save the decision — it may already have been decided. Refresh and check.');
+        }
+      };
+      body.querySelectorAll('.sreq-ok').forEach(b => b.addEventListener('click', () => { const o = pend[Number(b.dataset.i)]; if (confirm(`Add ${(o.lines || []).map(l => ((parts[l.partId] || {}).name || l.partId) + ' × ' + l.qty).join(', ')} to ${o.byEmail || 'their'} stock?`)) decide(o, 'approved'); }));
+      body.querySelectorAll('.sreq-no').forEach(b => b.addEventListener('click', () => decide(pend[Number(b.dataset.i)], 'declined')));
+      const hist = []; allSnap.forEach(d => { const x = d.data(); if (!['awaiting_approval', 'pending'].includes(x.status)) hist.push(x); });
+      hist.sort((a, b) => (b.decidedAt?.seconds || b.createdAt?.seconds || 0) - (a.decidedAt?.seconds || a.createdAt?.seconds || 0));
+      const ST = { done: 'Approved — added', declined: 'Declined', rejected: 'Refused', approved: 'Approved — applying' };
+      document.getElementById('sreq-hist').innerHTML = hist.length ? `<table><thead><tr><th>Who</th><th>Parts</th><th>Reason</th><th>Result</th><th>By</th></tr></thead><tbody>
+        ${hist.slice(0, 40).map(o => `<tr><td>${escapeHtml(o.byEmail || o.byUid)}</td><td>${(o.lines || []).map(label).join('<br>')}</td><td style="font-size:12.5px;">${escapeHtml(o.reason || '')}</td>
+          <td>${escapeHtml(ST[o.status] || o.status)}${o.decisionNote ? ' — ' + escapeHtml(o.decisionNote) : ''}${o.status === 'rejected' && o.reason ? '' : ''}</td><td style="font-size:12px;">${escapeHtml(o.decidedByEmail || '')}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-row">None yet.</div>';
+    } catch (err) {
+      console.error('Load stock requests failed:', err);
+      document.getElementById('sreq-body').innerHTML = `<div style="color:var(--err);">Couldn't load requests. Check console for details.</div>`;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Defectives Due — every spare used on a job opens a defective return;
+  // centers send them in a monthly batch, due by the end of the month
+  // after the part was used. Grouped by center, overdue first.
+  // ---------------------------------------------------------------
+  async function renderDefectivesDue() {
+    contentEl.innerHTML = `<div class="panel"><div class="panel-body" id="ddue-body">Loading…</div></div>`;
+    const body = document.getElementById('ddue-body');
+    try {
+      const [snap, partsSnap, centersSnap] = await Promise.all([
+        getDocs(query(collection(db, 'returns'), where('status', 'in', ['awaiting_return', 'sent_to_center']))),
+        getDocs(collection(db, 'spareParts')),
+        getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')))
+      ]);
+      const parts = {}; partsSnap.forEach(d => { parts[d.id] = d.data(); });
+      const centers = {}; centersSnap.forEach(d => { centers[d.id] = d.data().name || d.data().email || d.id; });
+      const now = new Date();
+      const groups = {};
+      snap.forEach(d => {
+        const r = d.data();
+        const key = r.serviceCenterUid || 'none';
+        (groups[key] = groups[key] || []).push(r);
+      });
+      const keys = Object.keys(groups);
+      if (!keys.length) { body.innerHTML = '<div class="empty-row">No defective parts outstanding.</div>'; return; }
+      const overdueCount = (list) => list.filter(r => r.defectiveDueBy && r.defectiveDueBy.toDate && r.defectiveDueBy.toDate() < now).length;
+      keys.sort((a, b) => overdueCount(groups[b]) - overdueCount(groups[a]));
+      body.innerHTML = keys.map(k => {
+        const list = groups[k].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+        const od = overdueCount(list);
+        return `<div style="margin-bottom:18px;"><div style="font-weight:600;">${escapeHtml(k === 'none' ? 'No service center' : (centers[k] || k))} — ${list.length} part(s)${od ? ` <span style="color:var(--err);">· ${od} overdue</span>` : ''}</div>
+          <table style="font-size:13px;"><thead><tr><th>Used on</th><th>Part</th><th>Qty</th><th>Job</th><th>With</th><th>Due by</th></tr></thead><tbody>
+          ${list.map(r => { const due = r.defectiveDueBy && r.defectiveDueBy.toDate ? r.defectiveDueBy.toDate() : null; const late = due && due < now;
+            return `<tr><td>${r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleDateString() : '—'}</td><td>${escapeHtml((parts[r.partId] || {}).name || r.partName || r.partId)}</td><td>${r.quantity ?? '—'}</td>
+              <td style="font-size:12px;">${escapeHtml(r.reason || '')}</td><td style="font-size:12px;">${r.status === 'sent_to_center' ? 'Handed to center' : 'Center'}</td>
+              <td style="${late ? 'color:var(--err);font-weight:600;' : ''}">${due ? due.toLocaleDateString() : '—'}${late ? ' (overdue)' : ''}</td></tr>`; }).join('')}
+          </tbody></table></div>`;
+      }).join('');
+    } catch (err) {
+      console.error('Load defectives due failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Couldn't load this. Check console for details.</div>`;
     }
   }
 
@@ -3861,15 +3971,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const snap = await transaction.get(invRef);
         const current = snap.exists() ? (snap.data().quantity || 0) : 0;
         const delta = type === 'add' ? qty : -qty;
-        const next = Math.max(0, current + delta);
+        if (current + delta < 0) throw Object.assign(new Error(`Only ${current} in Warehouse stock — can't issue ${qty}.`), { userMsg: true });
         transaction.set(invRef, {
-          partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp()
+          partId, location: 'warehouse', quantity: current + delta, updatedAt: serverTimestamp()
         }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: type === 'add' ? 'receive' : 'issue',
-        location: 'warehouse', quantity: qty, reason,
-        createdAt: serverTimestamp()
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: type === 'add' ? 'receive' : 'issue',
+          location: 'warehouse', quantity: qty, reason,
+          createdByEmail: auth.currentUser ? auth.currentUser.email : null, createdAt: serverTimestamp()
+        });
       });
       adjustSuccess.textContent = 'Stock updated.';
       adjustSuccess.classList.add('show');
@@ -3882,7 +3992,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       setTimeout(closeAdjustModal, 800);
     } catch (err) {
       console.error('Adjust stock failed:', err);
-      adjustError.textContent = 'Could not update stock. Check console for details.';
+      adjustError.textContent = err.userMsg ? err.message : 'Could not update stock. Check console for details.';
       adjustError.classList.add('show');
       adjustSubmitBtn.disabled = false;
       adjustSubmitBtn.textContent = 'Save';
@@ -5212,18 +5322,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function restockReturn(returnDocId, partId, qty, tabId) {
     try {
       const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      // Stock, ledger line and the return's status change together, and a
+      // return already put back into stock can't be put back twice.
+      const retRef = doc(db, 'returns', returnDocId);
       await runTransaction(db, async (transaction) => {
+        const ret = await transaction.get(retRef);
+        if (!ret.exists() || ['restocked', 'refurbished', 'disposed'].includes(ret.data().status)) throw new Error('This return was already closed — refresh the list.');
         const snap = await transaction.get(invRef);
         const current = snap.exists() ? (snap.data().quantity || 0) : 0;
         transaction.set(invRef, {
           partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
         }, { merge: true });
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: 'receive', location: 'warehouse', quantity: qty,
+          reason: 'Returned to stock (inspected, found OK)', sourceReturnId: returnDocId, createdAt: serverTimestamp()
+        });
+        transaction.update(retRef, { status: 'restocked', updatedAt: serverTimestamp() });
       });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'receive', location: 'warehouse', quantity: qty,
-        reason: 'Returned to stock (inspected, found OK)', createdAt: serverTimestamp()
-      });
-      await updateDoc(doc(db, 'returns', returnDocId), { status: 'restocked', updatedAt: serverTimestamp() });
       loadReturns(RETURNS_TABS[tabId], tabId);
     } catch (err) {
       console.error('Restock return failed:', err);
@@ -5238,18 +5353,23 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function refurbishReturn(returnDocId, partId, qty, tabId) {
     try {
       const invRef = doc(db, 'inventory', `warehouse_${partId}`);
+      // Stock, ledger line and the return's status change together, and a
+      // return already put back into stock can't be put back twice.
+      const retRef = doc(db, 'returns', returnDocId);
       await runTransaction(db, async (transaction) => {
+        const ret = await transaction.get(retRef);
+        if (!ret.exists() || ['restocked', 'refurbished', 'disposed'].includes(ret.data().status)) throw new Error('This return was already closed — refresh the list.');
         const snap = await transaction.get(invRef);
         const current = snap.exists() ? (snap.data().quantity || 0) : 0;
         transaction.set(invRef, {
           partId, location: 'warehouse', quantity: current + qty, updatedAt: serverTimestamp()
         }, { merge: true });
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: 'receive', location: 'warehouse', quantity: qty,
+          reason: 'Refurbished and returned to stock', sourceReturnId: returnDocId, createdAt: serverTimestamp()
+        });
+        transaction.update(retRef, { status: 'refurbished', updatedAt: serverTimestamp() });
       });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'receive', location: 'warehouse', quantity: qty,
-        reason: 'Refurbished and returned to stock', createdAt: serverTimestamp()
-      });
-      await updateDoc(doc(db, 'returns', returnDocId), { status: 'refurbished', updatedAt: serverTimestamp() });
       loadReturns(RETURNS_TABS[tabId], tabId);
     } catch (err) {
       console.error('Refurbish return failed:', err);

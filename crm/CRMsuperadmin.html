@@ -6609,11 +6609,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const toQty = toSnap.exists() ? (toSnap.data().quantity || 0) : 0;
         transaction.set(fromRef, { partId, location: 'warehouse', quantity: fromQty - qty, updatedAt: serverTimestamp() }, { merge: true });
         transaction.set(toRef, { partId, location: destKind, [ownerField]: destUid, quantity: toQty + qty, updatedAt: serverTimestamp() }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'transfer', location: 'warehouse', quantity: qty,
-        toLocation: `${destKind}_${destUid}`, toLabel: destLabel, reason: reason || 'Stock transfer',
-        createdAt: serverTimestamp()
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: 'transfer', location: 'warehouse', quantity: qty,
+          toLocation: `${destKind}_${destUid}`, toLabel: destLabel, reason: reason || 'Stock transfer',
+          [ownerField]: destUid, createdAt: serverTimestamp()
+        });
       });
       saTransferSuccess.textContent = 'Transferred.';
       saTransferSuccess.classList.add('show');
@@ -6679,9 +6679,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const next = current + delta;
         if (next < 0) throw new Error(`This would take stock negative (currently ${current}).`);
         transaction.set(invRef, { partId, location: 'warehouse', quantity: next, updatedAt: serverTimestamp() }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason, createdAt: serverTimestamp()
+        transaction.set(doc(collection(db, 'stockMovements')), {
+          partId, type: 'adjustment', location: 'warehouse', quantity: delta, reason,
+          createdByEmail: auth.currentUser ? auth.currentUser.email : null, createdAt: serverTimestamp()
+        });
       });
       saAdjustSuccess.textContent = 'Saved.';
       saAdjustSuccess.classList.add('show');

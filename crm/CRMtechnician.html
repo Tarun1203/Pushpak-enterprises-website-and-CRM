@@ -432,6 +432,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { runStockOp, runStockOpOrThrow } from './stockOps.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -1271,26 +1272,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   async function consumeLinkedSpare(l, jobDoc) {
     const qty = Number(l.quantity) || 1;
     if (!confirm(`Consume ${qty} × ${l.item || 'this part'} from your Spare Bag now?`)) return;
-    const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${l.partId}`);
     try {
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(invRef);
-        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-        if (current < qty) throw new Error(`Only ${current} of that part in your Spare Bag.`);
-        transaction.set(invRef, {
-          partId: l.partId, location: 'technician', technicianUid: currentUser.uid,
-          quantity: current - qty, updatedAt: serverTimestamp()
-        }, { merge: true });
-      });
-      await updateDoc(doc(db, 'spareRequests', l.id), {
-        consumedAt: serverTimestamp(), consumedQty: qty, updatedAt: serverTimestamp()
+      await runStockOpOrThrow(db, currentUser, {
+        type: 'consume', lines: [{ partId: l.partId, qty }], job: { coll: jobDoc.coll, id: jobDoc.id }, spareRequestId: l.id
       });
       await renderJdLinkedRequests(jobDoc);
     } catch (err) {
       console.error('Consume spare failed:', err);
-      alert(err.message && err.message.includes('Spare Bag')
-        ? err.message
-        : 'Could not consume this part. Check console for details.');
+      alert(err.stockOp ? err.message : 'Could not consume this part. Check console for details.');
     }
   }
 
@@ -1342,32 +1331,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const centerUid = jdJob.serviceCenterUid || await getLinkedServiceCenterUid();
       let fulfilledLocally = false;
       if (centerUid) {
-        const centerInvRef = doc(db, 'inventory', `servicecenter_${centerUid}_${partId}`);
-        const centerSnap = await getDoc(centerInvRef);
-        const centerQty = centerSnap.exists() ? (centerSnap.data().quantity || 0) : 0;
-        if (centerQty >= qty) {
-          const techInvRef = doc(db, 'inventory', `technician_${currentUser.uid}_${partId}`);
-          await runTransaction(db, async (transaction) => {
-            const centerNow = await transaction.get(centerInvRef);
-            const techNow = await transaction.get(techInvRef);
-            const centerCurrent = centerNow.exists() ? (centerNow.data().quantity || 0) : 0;
-            if (centerCurrent < qty) throw new Error('Stock at the center changed just now — try again.');
-            const techCurrent = techNow.exists() ? (techNow.data().quantity || 0) : 0;
-            transaction.set(centerInvRef, {
-              partId, location: 'servicecenter', serviceCenterUid: centerUid,
-              quantity: centerCurrent - qty, updatedAt: serverTimestamp(), lastSourceJobId: jdJob.id
-            }, { merge: true });
-            transaction.set(techInvRef, {
-              partId, location: 'technician', technicianUid: currentUser.uid,
-              quantity: techCurrent + qty, updatedAt: serverTimestamp(), lastSourceJobId: jdJob.id
-            }, { merge: true });
-          });
-          await addDoc(collection(db, 'stockMovements'), {
-            partId, type: 'transfer', location: 'servicecenter', serviceCenterUid: centerUid,
-            technicianUid: currentUser.uid, quantity: qty,
-            reason: `Issued to ${currentUser.email} — ${jobLabel}`,
-            createdAt: serverTimestamp()
-          });
+        // Try the center's own shelf first; the server moves it to your
+        // Spare Bag only if the center has enough (you can't see its stock).
+        const draw = await runStockOp(db, currentUser, {
+          type: 'draw_from_center', lines: [{ partId, qty }], job: { coll: jdJob.coll, id: jdJob.id }
+        });
+        if (draw.status === 'done') {
           const requestId = await generateSpareRequestId();
           await addDoc(collection(db, 'spareRequests'), {
             requestId,
@@ -1538,47 +1507,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         .map(l => (partsCatalog.find(p => p.id === l.partId) || {}).name)
         .filter(Boolean);
 
+      // Parts used come out of your Spare Bag on the server, which also
+      // opens the defective return for each (handed to your center for its
+      // monthly batch to Head Office).
       if (partLines.length) {
-        for (const line of partLines) {
-          const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${line.partId}`);
-          await runTransaction(db, async (transaction) => {
-            const snap = await transaction.get(invRef);
-            const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-            if (current < line.qty) throw new Error(`Only ${current} of that part in your Spare Bag — reduce the quantity or add stock first.`);
-            transaction.set(invRef, {
-              partId: line.partId, location: 'technician', technicianUid: currentUser.uid,
-              quantity: current - line.qty, updatedAt: serverTimestamp()
-            }, { merge: true });
-          });
-        }
-        // A technician's defective part is handed back to their OWN
-        // service center first, exactly like a center sends its own
-        // returns on to Head Office — it doesn't skip straight to
-        // Warehouse's queue. Only a technician with no center at all
-        // (not linked to one, ticket has no serviceCenterUid) falls
-        // back to going straight to Warehouse, since there's no
-        // center to route it through.
-        const returnCenterUid = jobData.serviceCenterUid || await getLinkedServiceCenterUid();
-        for (const line of partLines) {
-          const returnId = await generateReturnId();
-          await addDoc(collection(db, 'returns'), {
-            returnId,
-            partId: line.partId,
-            quantity: line.qty,
-            source: `Technician - ${currentUser.email}`,
-            technicianUid: currentUser.uid,
-            ...(returnCenterUid ? { serviceCenterUid: returnCenterUid } : {}),
-            reason: `Replaced during job closure — ${jobRequestId}`,
-            sourceJobId: jobId,
-            // With no service center to route through, this goes
-            // straight into Head Office's queue as 'requested' — never
-            // 'defective' directly. Only Head Office can mark a part
-            // actually received/inspected once it's physically there.
-            status: returnCenterUid ? 'sent_to_center' : 'requested',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        }
+        await runStockOpOrThrow(db, currentUser, {
+          type: 'consume', lines: partLines.map(l => ({ partId: l.partId, qty: l.qty })),
+          job: { coll: closureJobColl, id: jobId }
+        });
       }
       await updateDoc(doc(db, closureJobColl, jobId), {
         status: 'completed',
@@ -1607,7 +1543,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       setTimeout(closeClosureModal, 800);
     } catch (err) {
       console.error('Close job failed:', err);
-      closureError.textContent = err.message && (err.message.includes('Spare Bag') || err.message.includes("can't move") || err.message.startsWith('Closing needs') || err.message.includes('own account'))
+      closureError.textContent = err.message && (err.stockOp || err.message.includes('Spare Bag') || err.message.includes("can't move") || err.message.startsWith('Closing needs') || err.message.includes('own account'))
         ? err.message
         : 'Could not complete this job. Check the console for details.';
       closureError.classList.add('show');
@@ -2243,32 +2179,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     bagSubmitBtn.disabled = true;
     bagSubmitBtn.textContent = 'Saving…';
-    const invRef = doc(db, 'inventory', `technician_${currentUser.uid}_${partId}`);
+    const reason = document.getElementById('bag-notes').value.trim();
     try {
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(invRef);
-        const current = snap.exists() ? (snap.data().quantity || 0) : 0;
-        const delta = type === 'add' ? qty : -qty;
-        const next = Math.max(0, current + delta);
-        transaction.set(invRef, {
-          partId, location: 'technician', technicianUid: currentUser.uid, quantity: next, updatedAt: serverTimestamp()
-        }, { merge: true });
-      });
-      await addDoc(collection(db, 'stockMovements'), {
-        partId, type: type === 'add' ? 'receive' : 'issue', location: 'technician',
-        technicianUid: currentUser.uid, quantity: qty,
-        reason: document.getElementById('bag-notes').value.trim(),
-        createdAt: serverTimestamp()
-      });
-      bagSuccess.textContent = 'Spare bag updated.';
+      if (reason.length < 3) throw Object.assign(new Error('Give a reason (e.g. job ID, bill no.).'), { stockOp: true });
+      // Removing is applied straight away (with your reason); adding stock
+      // to your bag waits for Warehouse to approve it.
+      const r = await runStockOp(db, currentUser, { type: type === 'add' ? 'add_request' : 'remove', lines: [{ partId, qty }], reason });
+      if (r.status !== 'done' && r.status !== 'awaiting_approval') throw Object.assign(new Error(r.reason || 'Refused.'), { stockOp: r });
+      bagSuccess.textContent = r.status === 'awaiting_approval' ? 'Sent to Warehouse for approval — it will show in your bag once approved.' : 'Spare bag updated.';
       bagSuccess.classList.add('show');
       bagSubmitBtn.disabled = false;
       bagSubmitBtn.textContent = 'Save';
       if (document.getElementById('bag-tbody')) loadSpareBag();
-      setTimeout(closeBagModal, 800);
+      setTimeout(closeBagModal, 1500);
     } catch (err) {
       console.error('Update spare bag failed:', err);
-      bagError.textContent = 'Could not update spare bag. Check console for details.';
+      bagError.textContent = err.stockOp ? err.message : 'Could not update spare bag. Check console for details.';
       bagError.classList.add('show');
       bagSubmitBtn.disabled = false;
       bagSubmitBtn.textContent = 'Save';
