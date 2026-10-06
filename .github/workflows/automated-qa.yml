@@ -31,6 +31,26 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
+      - name: Check authenticated QA configuration
+        env:
+          QA_EMAIL: ${{ secrets.QA_EMAIL }}
+          QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
+          QA_ROLE: ${{ secrets.QA_ROLE }}
+        run: |
+          if [ -n "$QA_EMAIL" ] && [ -n "$QA_PASSWORD" ] && [ "${QA_ROLE,,}" = "servicecenter" ]; then
+            echo "Authenticated CRM QA configuration: READY"
+            echo "### Authenticated CRM QA" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Status: **READY**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Role: **servicecenter**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Authenticated CRM QA configuration: NOT CONFIGURED"
+            echo "Phase 3, Phase 4 and authenticated Phase 5 browser checks will be skipped until QA_EMAIL, QA_PASSWORD and QA_ROLE=servicecenter are configured as GitHub Actions secrets."
+            echo "### Authenticated CRM QA" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Status: **NOT CONFIGURED**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Phase 3, Phase 4 and authenticated Phase 5 browser checks will be skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required GitHub Actions secrets: QA_EMAIL, QA_PASSWORD, QA_ROLE=servicecenter" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Run backend lifecycle unit QA
         id: backend_qa
         continue-on-error: true
