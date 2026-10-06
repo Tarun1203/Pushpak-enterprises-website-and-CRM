@@ -1,0 +1,14 @@
+{
+  "name": "pushpak-enterprises-website-qa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Automated browser and site QA for Pushpak Enterprises Website and CRM",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:qa": "playwright test --reporter=line,json",
+    "qa:report": "node scripts/publish-qa-results.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
