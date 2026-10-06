@@ -37,7 +37,10 @@ test('Phase 5 Firestore rules enforce role, ownership and protected-field bounda
 
   // No client-side wildcard write escape hatch.
   expect(rules).not.toMatch(/match\s+\/\{[^}]*\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+true/i);
-  expect(rules).toMatch(/match\s+\/\{allPaths=\*\*\}[\s\S]*?allow\s+read,\s*write:\s*if\s+false/i);
+  // Firestore rules currently use {document=**}; accept that canonical
+  // wildcard form (and the older allPaths spelling) while still requiring
+  // the wildcard to be explicitly deny-by-default.
+  expect(rules).toMatch(/match\s+\/\{(?:allPaths|document)=\*\*\}[\s\S]*?allow\s+read,\s*write:\s*if\s+false/i);
 
   // Service jobs must remain technician-owned or admin-readable/writable.
   expect(rules).toMatch(/match\s+\/serviceJobs\/\{jobId\}[\s\S]*?resource\.data\.technicianUid\s*==\s*request\.auth\.uid/);
