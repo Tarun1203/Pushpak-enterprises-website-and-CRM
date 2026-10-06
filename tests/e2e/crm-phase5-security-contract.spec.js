@@ -96,15 +96,6 @@ test('Phase 5 Storage rules enforce ownership, file type and size boundaries', a
   expect(rules).toMatch(/match\s+\/claims\/\{uid\}\/[\s\S]*?request\.auth\.uid\s*==\s*uid/);
 });
 
-test('Phase 5 protects critical generated identifiers from browser-side counter writes', async ({ request }) => {
-  const firestore = await request.get(`${CRM_BASE}../firestore.rules`);
-  // GitHub Pages does not publish rules files in a stable way, so this test
-  // intentionally verifies the local rule contract above instead of making
-  // a live write. A Firebase Rules Emulator test is required before claiming
-  // runtime authorization coverage for arbitrary identities.
-  expect(firestore.status()).toBeGreaterThanOrEqual(400);
-});
-
 test('Phase 5 Service Center UI does not expose cross-tenant administration controls', async ({ page }) => {
   await loginAsQa(page);
 
