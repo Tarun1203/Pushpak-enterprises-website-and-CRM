@@ -4,6 +4,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { assignCodeIfMissing } = require('./codes');
 const { buildAuditEntries } = require('./audit');
 const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
+const { findCandidates, pickLeastLoaded } = require('./routing');
 
 initializeApp();
 const db = getFirestore();
@@ -136,3 +137,121 @@ for (const coll of REQUEST_COLLECTIONS) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Routing: a website request is sent to a service center as soon as it
+// is created, instead of waiting for an admin to open the Routing
+// screen. pincode -> territory -> center (see routing.js for the
+// rules). Requests it cannot place are marked `routing.status =
+// 'manual'` with a reason, for a person to route. Idempotent: the
+// centerRequests doc id is derived from the request's id, and the
+// transaction re-checks that nothing has routed it already.
+// ---------------------------------------------------------------
+const OPEN_TICKET_STATUSES = ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
+
+async function loadCenters() {
+  const users = await db.collection('users').where('role', '==', 'servicecenter').get();
+  const centers = users.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  if (centers.length) {
+    const profiles = await db.getAll(...centers.map((c) => db.collection('serviceCenterProfiles').doc(c.uid)));
+    profiles.forEach((p, i) => { centers[i].profileStatus = p.exists ? p.get('status') : undefined; });
+  }
+  return centers;
+}
+
+async function openTicketCount(uid) {
+  const snap = await db.collection('centerRequests').where('serviceCenterUid', '==', uid).limit(500).get();
+  return snap.docs.filter((d) => OPEN_TICKET_STATUSES.includes(d.get('status'))).length;
+}
+
+exports.routePublicServiceRequest = onDocumentCreated(
+  { document: 'publicServiceRequests/{docId}', region: REGION },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const ticket = snap.data();
+    if (ticket.status !== 'new' || ticket.routing) return;
+
+    const pincode = String(ticket.pincode || '').trim();
+    const [centers, pinSnap] = await Promise.all([
+      loadCenters(),
+      pincode ? db.collection('pincodes').doc(pincode).get() : Promise.resolve(null)
+    ]);
+    const pin = pinSnap && pinSnap.exists ? pinSnap.data() : null;
+    const today = new Date().toISOString().slice(0, 10);
+    const result = findCandidates(ticket, centers, pin, today);
+
+    let chosen = null;
+    if (result.method && result.candidates.length) {
+      let counts = {};
+      if (result.candidates.length > 1) {
+        const entries = await Promise.all(result.candidates.map(async (c) => [c.uid, await openTicketCount(c.uid)]));
+        counts = Object.fromEntries(entries);
+      }
+      chosen = pickLeastLoaded(result.candidates, counts);
+    }
+
+    const pubRef = snap.ref;
+    if (!chosen) {
+      await pubRef.update({
+        routing: {
+          status: 'manual', reason: result.reason || 'no_match',
+          candidateUids: result.candidates.map((c) => c.uid).slice(0, 10),
+          at: FieldValue.serverTimestamp()
+        }
+      });
+      return;
+    }
+
+    const centerName = chosen.name || chosen.email || '';
+    const productLabel = ticket.product || `${ticket.brand || ''} ${ticket.category || ''}`.trim() || '-';
+    const centerReqRef = db.collection('centerRequests').doc(`route_${pubRef.id}`);
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(pubRef);
+      if (!fresh.exists || fresh.get('status') !== 'new' || fresh.get('routing')) return;
+      const routing = { status: 'routed', method: result.method, candidates: result.candidates.length, at: FieldValue.serverTimestamp() };
+      tx.set(centerReqRef, {
+        requestId: ticket.requestId || pubRef.id,
+        serviceCenterUid: chosen.uid,
+        serviceCenterName: centerName,
+        customerName: ticket.customerName || '',
+        customerPhone: ticket.customerPhone || '',
+        address: ticket.address || '',
+        city: ticket.city || '',
+        pincode: ticket.pincode || '',
+        product: productLabel,
+        brand: ticket.brand || '',
+        category: ticket.category || '',
+        modelNo: ticket.modelNo || '',
+        serialNumber: ticket.serialNumber || '',
+        purchaseDate: ticket.purchaseDate || null,
+        linkedRegistrationId: ticket.linkedRegistrationId || null,
+        type: ticket.requestType === 'installation' ? 'installation' : 'service',
+        issue: ticket.issueDescription || '',
+        status: 'new',
+        sourceRequestId: pubRef.id,
+        routing,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      tx.set(centerReqRef.collection('statusLog').doc(), {
+        status: 'new', note: `Routed to ${centerName} (${result.method} match)`,
+        changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+      });
+      tx.update(pubRef, {
+        serviceCenterUid: chosen.uid, serviceCenterName: centerName,
+        status: 'assigned_to_center', routing, updatedAt: FieldValue.serverTimestamp()
+      });
+      tx.set(pubRef.collection('statusLog').doc(), {
+        status: 'assigned_to_center', note: `Routed to ${centerName} (${result.method} match)`,
+        changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+      });
+      tx.set(db.collection('notifications').doc(), {
+        recipientType: 'uid', recipientValue: chosen.uid,
+        title: 'New service request routed to you',
+        message: `${ticket.customerName || 'A customer'} - ${productLabel}`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    });
+  }
+);
