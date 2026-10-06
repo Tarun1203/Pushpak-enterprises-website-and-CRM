@@ -40,8 +40,9 @@ class DocRef {
   async delete() { store.delete(this.path); }
 }
 class Query {
-  constructor(coll, filters = []) { this.coll = coll; this.filters = filters; }
-  where(f, op, v) { return new Query(this.coll, [...this.filters, [f, op, v]]); }
+  constructor(coll, filters = [], max) { this.coll = coll; this.filters = filters; this.max = max; }
+  where(f, op, v) { return new Query(this.coll, [...this.filters, [f, op, v]], this.max); }
+  limit(n) { return new Query(this.coll, this.filters, n); }
   async get() {
     const docs = [];
     for (const [p] of store) {
@@ -50,7 +51,8 @@ class Query {
       const s = new Snap(new DocRef(c, id));
       if (this.filters.every(([f, op, v]) => op === '==' ? s.get(f) === v : op === 'in' ? v.includes(s.get(f)) : false)) docs.push(s);
     }
-    return { docs, empty: !docs.length, forEach: (fn) => docs.forEach(fn) };
+    const out = this.max ? docs.slice(0, this.max) : docs;
+    return { docs: out, empty: !out.length, forEach: (fn) => out.forEach(fn) };
   }
 }
 class CollRef extends Query {

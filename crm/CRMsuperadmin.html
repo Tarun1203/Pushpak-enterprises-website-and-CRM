@@ -1067,6 +1067,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
   import * as PStock from './productStock.js';
+  import * as Rma from './rma.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -1181,6 +1182,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'finance', label: 'Finance', built: true },
       { id: 'payments', label: 'Payments', built: true },
       { id: 'rma', label: 'RMA & Replacement', built: true },
+      { id: 'brand-returns', label: 'Brand Returns', built: true },
       { id: 'trade-accounts', label: 'Dealer Credit & Accounts', built: true },
       { id: 'trade-invoices', label: 'Trade Invoices', built: true },
       { id: 'trade-payments', label: 'Trade Payments', built: true },
@@ -1259,6 +1261,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'fg-serial') {
       pageSub.textContent = 'Where a unit is, who it was sold to, and its history';
       PStock.renderSerialLookup(contentEl, { db });
+    } else if (id === 'brand-returns') {
+      pageSub.textContent = 'Defective units and spares sent back to the brand, with credit notes and replacements';
+      Rma.renderBrandReturns(contentEl, { db, user: auth.currentUser });
     } else if (id === 'trade-accounts') {
       pageSub.textContent = 'Credit limits, payment terms, outstanding and ageing';
       Fin.renderAccounts(contentEl, { db, user: auth.currentUser, isSuperAdmin: true });
@@ -8534,22 +8539,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     inspecting: [{ label: 'Mark Replaced', next: 'replaced' }, { label: 'Reject', next: 'rejected', variant: 'danger' }],
   };
 
+  // RMA list and actions live in rma.js (shared with Warehouse); the
+  // "+ New RMA" ticket-search modal below stays here.
   async function renderRma() {
     contentEl.innerHTML = `
-      <div class="panel">
+      <div class="panel" style="margin-bottom:16px;">
         <div class="panel-header">
           <h2>RMA & Replacement</h2>
           <button class="btn-primary" id="open-rma">+ New RMA</button>
         </div>
-        <div class="panel-body" style="padding:0;">
-          <table>
-            <thead><tr><th>RMA ID</th><th>Customer</th><th>Model No</th><th>Serial</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="rma-tbody"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>`;
+      </div>
+      <div id="rma-module"></div>`;
     document.getElementById('open-rma').addEventListener('click', () => openRmaModal());
-    loadRmaList();
+    Rma.renderRmaList(document.getElementById('rma-module'), { db, user: auth.currentUser, allowRaise: false });
   }
 
   async function generateRmaId() {
@@ -8565,58 +8567,6 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
     const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     return `PE-RMA-${dateStr}-${String(next).padStart(4, '0')}-SuperAdmin`;
-  }
-
-  async function loadRmaList() {
-    const tbody = document.getElementById('rma-tbody');
-    try {
-      const snap = await getDocs(query(collection(db, 'rmaRequests'), orderBy('createdAt', 'desc')));
-      if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">No RMA requests yet.</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = '';
-      snap.forEach(docSnap => {
-        const d = docSnap.data();
-        const actions = (RMA_ACTIONS[d.status] || []).map(a =>
-          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} rma-action-btn" data-id="${docSnap.id}" data-next="${a.next}">${escapeHtml(a.label)}</button>`
-        ).join('');
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.rmaId || docSnap.id}</td>
-          <td>${escapeHtml(d.customerName || '—')}</td>
-          <td>${escapeHtml(d.modelNo || d.product || '—')}</td>
-          <td>${escapeHtml(d.serialNumber || '—')}</td>
-          <td><span class="status-pill ${d.status}">${RMA_STATUS_LABELS[d.status] || d.status}</span></td>
-          <td><div class="row-actions">${actions || '—'}</div></td>`;
-        tbody.appendChild(tr);
-      });
-      tbody.querySelectorAll('.rma-action-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          try {
-            await updateDoc(doc(db, 'rmaRequests', btn.dataset.id), { status: btn.dataset.next, updatedAt: serverTimestamp() });
-            try {
-              await addDoc(collection(db, 'auditLogs'), {
-                entityType: 'rma', entityId: btn.dataset.id, action: 'status_changed',
-                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
-          performedByUid: auth.currentUser ? auth.currentUser.uid : '',
-                details: `RMA status changed to "${btn.dataset.next}"`,
-                createdAt: serverTimestamp()
-              });
-            } catch (auditErr) {
-              console.warn('Audit log write failed (non-blocking):', auditErr.message);
-            }
-            loadRmaList();
-          } catch (err) {
-            console.error('Update RMA failed:', err);
-            alert('Could not update this RMA. Check the console for details.');
-          }
-        });
-      });
-    } catch (err) {
-      console.error('Load RMA list failed:', err);
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-row" style="color:var(--err);">Couldn't load RMA requests. Check console for details.</td></tr>`;
-    }
   }
 
   const rmaOverlay = document.getElementById('rma-overlay');
@@ -8768,6 +8718,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         sourceJobId: rec.docId,
         sourceJobCollection: rec.coll,
         sourceTicketId: rec.ticketId,
+        raisedByUid: auth.currentUser ? auth.currentUser.uid : null,
         status: 'requested',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -8776,7 +8727,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       rmaSuccess.classList.add('show');
       rmaSubmitBtn.disabled = false;
       rmaSubmitBtn.textContent = 'Create RMA';
-      if (document.getElementById('rma-tbody')) loadRmaList();
+      if (document.getElementById('rma-module')) Rma.renderRmaList(document.getElementById('rma-module'), { db, user: auth.currentUser, allowRaise: false });
       setTimeout(closeRmaModal, 1000);
     } catch (err) {
       console.error('Create RMA failed:', err);

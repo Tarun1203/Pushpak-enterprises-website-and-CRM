@@ -40,9 +40,12 @@ export async function renderWarehouseStock(el, opts) {
   const { db, user } = opts;
   el.innerHTML = panel('Finished goods — Head Office warehouse', 'Loading…');
   try {
-    const [catalog, stock, recSnap] = await Promise.all([
-      loadCatalog(db, { includeInactive: true, refresh: true }), stockAt(db, 'warehouse'), getDocs(collection(db, 'stockReceipts'))
+    const [catalog, stock, recSnap, brSnap] = await Promise.all([
+      loadCatalog(db, { includeInactive: true, refresh: true }), stockAt(db, 'warehouse'), getDocs(collection(db, 'stockReceipts')),
+      getDocs(query(collection(db, 'brandReturns'), where('status', '==', 'sent'))).catch(() => null)
     ]);
+    const brOptions = [];
+    if (brSnap) brSnap.forEach((d) => { const b = d.data(); brOptions.push(`<option value="${esc(d.id)}">${esc(b.brand)} — sent ${esc(b.sentOn || '')} (${(b.unitSerials || []).length} units)</option>`); });
     const receipts = [];
     recSnap.forEach((d) => receipts.push({ id: d.id, ...d.data() }));
     receipts.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -54,6 +57,7 @@ export async function renderWarehouseStock(el, opts) {
         <div class="form-row"><label>Supplier</label><input type="text" id="ps-supplier" maxlength="100"></div>
         <div class="form-row"><label>Supplier invoice / ref</label><input type="text" id="ps-ref" maxlength="60"></div>
         <div class="form-row"><label>Received on</label><input type="date" id="ps-date" value="${today}" max="${today}"></div>
+        ${brOptions.length ? `<div class="form-row"><label>Replacements from a brand return? (optional)</label><select id="ps-br"><option value="">No</option>${brOptions.join('')}</select></div>` : ''}
         <div class="form-row"><label>Notes</label><input type="text" id="ps-notes" maxlength="300"></div>
         <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Up to 400 units per receipt. If any serial was already received before, the whole receipt is refused so nothing is double-counted.</div>
         <div class="modal-error" id="ps-err"></div><div id="ps-ok" style="color:#1E7B34;font-weight:600;margin:6px 0;"></div>
@@ -83,6 +87,7 @@ export async function renderWarehouseStock(el, opts) {
           modelId, modelLabel: label, serials,
           supplier: el.querySelector('#ps-supplier').value.trim(), invoiceRef: el.querySelector('#ps-ref').value.trim(),
           receivedOn: el.querySelector('#ps-date').value, notes: el.querySelector('#ps-notes').value.trim(),
+          ...(el.querySelector('#ps-br') && el.querySelector('#ps-br').value ? { brandReturnId: el.querySelector('#ps-br').value } : {}),
           createdByUid: user.uid, createdByEmail: user.email || '', createdAt: serverTimestamp()
         });
         ok.textContent = 'Sent — it will show in stock in a few seconds (waiting orders get it first).';

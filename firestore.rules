@@ -983,11 +983,51 @@ service cloud.firestore {
     }
 
     match /rmaRequests/{rmaId} {
-      // Warehouse/Super Admin only — neither Service Center nor
-      // Technician dashboards read this collection; isStaff() was
-      // unnecessary exposure.
+      // Warehouse / Super Admin raise and approve RMAs. Dispatching the
+      // replacement and receiving the defective unit are done by the
+      // rmaUpdated function (it checks the serial against stock) — a
+      // browser only asks for them.
       allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.status == 'requested'
+        && !request.resource.data.keys().hasAny(['replacementSerial', 'dispatch', 'history', 'rmaRejected', 'dispatchProcessedFor',
+             'defectiveUnitId', 'defectiveReceivedAt', 'replacementRegistrationId', 'warrantyCarried', 'brandReturnId']);
+      allow update: if isAdmin() && (
+        (resource.data.status == 'requested' && request.resource.data.status == 'approved'
+          && request.resource.data.modelId is string && request.resource.data.modelId.size() > 0
+          && request.resource.data.approvedByUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'modelId', 'modelLabel', 'approvedByUid', 'approvedByEmail', 'approvedAt', 'approveNote', 'updatedAt']))
+        || (resource.data.status in ['requested', 'approved'] && request.resource.data.status == 'rejected'
+          && request.resource.data.rejectReason is string && request.resource.data.rejectReason.size() >= 3
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'rejectReason', 'rejectedByUid', 'updatedAt']))
+        || (resource.data.status == 'approved' && request.resource.data.status == 'approved'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dispatchRequest', 'updatedAt'])
+          && request.resource.data.dispatchRequest.byUid == request.auth.uid
+          && request.resource.data.dispatchRequest.requestedAt == request.time)
+        || (resource.data.status == 'replacement_dispatched' && request.resource.data.status == 'replacement_dispatched'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['receiveRequest', 'updatedAt'])
+          && request.resource.data.receiveRequest.byUid == request.auth.uid
+          && request.resource.data.receiveRequest.requestedAt == request.time));
+    }
+
+    // Shipments of defective units / spares back to the brand (functions:
+    // processBrandReturn). Head Office files one as 'pending'; afterwards
+    // it can only add the brand's credit notes and close it.
+    match /brandReturns/{brId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['brand', 'unitSerials', 'spareReturnIds', 'courier', 'docket', 'sentOn', 'notes', 'createdByUid', 'createdByEmail', 'createdAt', 'status'])
+        && request.resource.data.unitSerials is list && request.resource.data.spareReturnIds is list
+        && request.resource.data.unitSerials.size() + request.resource.data.spareReturnIds.size() >= 1
+        && request.resource.data.unitSerials.size() + request.resource.data.spareReturnIds.size() <= 300
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin()
+        && resource.data.status == 'sent'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditNotes', 'status', 'closedNote', 'closedByUid', 'updatedAt'])
+        && request.resource.data.get('creditNotes', []) is list
+        && request.resource.data.status in ['sent', 'closed'];
     }
 
     match /messageTemplates/{templateId} {
@@ -1076,7 +1116,7 @@ service cloud.firestore {
     match /stockReceipts/{receiptId} {
       allow read: if isAdmin();
       allow create: if isAdmin()
-        && request.resource.data.keys().hasOnly(['modelId', 'modelLabel', 'serials', 'supplier', 'invoiceRef', 'receivedOn', 'notes', 'createdByUid', 'createdByEmail', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['modelId', 'modelLabel', 'serials', 'supplier', 'invoiceRef', 'receivedOn', 'notes', 'createdByUid', 'createdByEmail', 'createdAt', 'brandReturnId'])
         && request.resource.data.modelId is string
         && request.resource.data.serials is list
         && request.resource.data.serials.size() >= 1 && request.resource.data.serials.size() <= 400

@@ -15,6 +15,7 @@ const TradePricing = require('./tradePricing');
 const Finance = require('./finance');
 const Stock = require('./stock');
 const Spares = require('./spares');
+const Rma = require('./rma');
 
 initializeApp();
 const db = getFirestore();
@@ -1199,6 +1200,13 @@ exports.processStockReceipt = onDocumentCreated(
         byUid: r.createdByUid || null, at: FieldValue.serverTimestamp()
       });
       tx.update(ref, { status: 'accepted', quantity: serials.length, processedAt: FieldValue.serverTimestamp() });
+      if (r.brandReturnId) {
+        // Replacement units the brand sent back against a brand return.
+        tx.set(db.collection('brandReturns').doc(String(r.brandReturnId)), {
+          replacementsReceived: FieldValue.increment(serials.length),
+          replacementReceiptIds: FieldValue.arrayUnion(ref.id), updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
       accepted = true;
     });
     if (accepted) await allocateWaiting('warehouse');
@@ -1422,6 +1430,156 @@ exports.lowStockAlert = onDocumentWritten(
         message: `${part.get('name') || after.partId}${part.get('partCode') ? ' (' + part.get('partCode') + ')' : ''}: ${after.quantity} left, reorder level ${level}.`,
         read: false, createdAt: FieldValue.serverTimestamp()
       });
+    }
+  }
+);
+
+// ---------------------------------------------------------------
+// RMA: replacing a customer's defective unit (rma.js). Warehouse raises
+// and approves it (choosing the product model); the replacement is
+// dispatched here, not in the browser: the serial must be in Head Office
+// stock, of the RMA's model and not reserved for an order. The new unit
+// gets a warranty registration carrying the original purchase date, so
+// its warranty ends when the original's would have. When the defective
+// unit arrives back it is held as defective stock, ready to go to the
+// brand in a brand return.
+// ---------------------------------------------------------------
+async function processRmaDispatch(ref) {
+  await db.runTransaction(async (tx) => {
+    const rma = (await tx.get(ref)).data();
+    const req = rma && rma.dispatchRequest;
+    if (!rma || !req || !req.requestedAt) return;
+    const key = req.requestedAt.toMillis();
+    if (rma.dispatchProcessedFor === key) return;
+    const fail = (reason) => tx.update(ref, { rmaRejected: { reason, at: FieldValue.serverTimestamp() }, dispatchProcessedFor: key });
+    const serial = Stock.normalizeSerial(req.replacementSerial);
+    const serialRef = db.collection('unitSerials').doc(Stock.SERIAL_RE.test(serial) ? serial : '-');
+    const stockDocRef = stockRef('warehouse', String(rma.modelId || '-'));
+    const original = Stock.normalizeSerial(rma.serialNumber || '');
+    const [serialSnap, stockSnap, regSnap, origSnap] = await Promise.all([
+      tx.get(serialRef), tx.get(stockDocRef),
+      original ? tx.get(db.collection('productRegistrations').where('serialNumber', '==', rma.serialNumber).limit(1)) : Promise.resolve(null),
+      original && Stock.SERIAL_RE.test(original) ? tx.get(db.collection('unitSerials').doc(original)) : Promise.resolve(null)
+    ]);
+    const err = Rma.checkReplacement(rma, serial, serialSnap.exists ? serialSnap.data() : null, stockSnap.exists ? stockSnap.data() : null);
+    if (err) return fail(err);
+    const origReg = regSnap && !regSnap.empty ? regSnap.docs[0] : null;
+    const warranty = Rma.carriedWarranty(origReg ? origReg.data() : null);
+    tx.set(stockDocRef, { onHand: FieldValue.increment(-1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.update(serialRef, {
+      status: 'dispatched', location: 'customer', fromLocation: 'warehouse', soldToType: 'rma', soldToName: rma.customerName || '',
+      rmaId: rma.rmaId || ref.id, replacesSerial: original || null, dispatchedAt: FieldValue.serverTimestamp(),
+      history: FieldValue.arrayUnion({ event: 'rma_replacement', rmaId: rma.rmaId || ref.id, replaces: original || null, at: Timestamp.now() })
+    });
+    if (origSnap && origSnap.exists) {
+      tx.update(origSnap.ref, { status: 'rma_return_pending', replacedBySerial: serial,
+        history: FieldValue.arrayUnion({ event: 'replaced', rmaId: rma.rmaId || ref.id, by: serial, at: Timestamp.now() }) });
+    }
+    let newRegId = null;
+    if (origReg) {
+      const o = origReg.data();
+      const newReg = db.collection('productRegistrations').doc();
+      newRegId = newReg.id;
+      tx.set(newReg, {
+        registrationId: `${o.registrationId || origReg.id}-R`, customerName: o.customerName || rma.customerName || '', customerPhone: o.customerPhone || rma.customerPhone || '',
+        product: o.product || rma.product || '', brand: o.brand || '', category: o.category || '', modelNo: o.modelNo || rma.modelNo || '',
+        serialNumber: serial, purchaseDate: warranty.purchaseDate, warrantyMonths: warranty.warrantyMonths,
+        ...(o.dealerUid ? { dealerUid: o.dealerUid, dealerName: o.dealerName || '' } : {}),
+        source: 'rma', rmaId: rma.rmaId || ref.id, replacesSerial: original, replacesRegistrationId: origReg.id, createdAt: FieldValue.serverTimestamp()
+      });
+      tx.update(origReg.ref, { replacedBySerial: serial, replacedAt: FieldValue.serverTimestamp(), rmaId: rma.rmaId || ref.id });
+    }
+    tx.set(db.collection('productMovements').doc(), {
+      type: 'rma_replacement', location: 'warehouse', lines: [{ modelId: rma.modelId, qty: 1 }], serial, rmaId: rma.rmaId || ref.id,
+      byUid: req.byUid || null, at: FieldValue.serverTimestamp()
+    });
+    tx.update(ref, {
+      status: 'replacement_dispatched', replacementSerial: serial, rmaRejected: null, dispatchProcessedFor: key,
+      dispatch: { transporter: req.transporter || '', docket: req.docket || '', date: new Date().toISOString().slice(0, 10), byUid: req.byUid || null },
+      replacementRegistrationId: newRegId,
+      warrantyCarried: warranty ? { ...warranty } : null
+    });
+  });
+}
+
+async function processRmaReceive(ref) {
+  await db.runTransaction(async (tx) => {
+    const rma = (await tx.get(ref)).data();
+    if (!rma || rma.status !== 'replacement_dispatched' || !rma.receiveRequest) return;
+    const original = Stock.normalizeSerial(rma.serialNumber || '');
+    const unitRef = Stock.SERIAL_RE.test(original) ? db.collection('unitSerials').doc(original) : db.collection('unitSerials').doc(`RMA-${ref.id}`);
+    await tx.get(unitRef);
+    tx.set(unitRef, {
+      serial: Stock.SERIAL_RE.test(original) ? original : (rma.serialNumber || `RMA-${ref.id}`), modelId: rma.modelId,
+      status: 'defective', location: 'warehouse_defective', rmaId: rma.rmaId || ref.id, defectiveSince: FieldValue.serverTimestamp(),
+      history: FieldValue.arrayUnion({ event: 'defective_received', rmaId: rma.rmaId || ref.id, at: Timestamp.now() })
+    }, { merge: true });
+    tx.set(stockRef('warehouse', rma.modelId), { location: 'warehouse', modelId: rma.modelId, defective: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.update(ref, { status: 'defective_received', defectiveUnitId: unitRef.id, defectiveReceivedAt: FieldValue.serverTimestamp() });
+  });
+}
+
+exports.rmaUpdated = onDocumentUpdatedWithAuthContext(
+  { document: 'rmaRequests/{rmaId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const before = event.data.before.data(), after = event.data.after.data();
+    const ref = event.data.after.ref;
+    const ms = (x) => (x && x.requestedAt && x.requestedAt.toMillis ? x.requestedAt.toMillis() : 0);
+    const jobs = [];
+    if (ms(after.dispatchRequest) && ms(after.dispatchRequest) !== ms(before.dispatchRequest)) jobs.push(processRmaDispatch(ref));
+    if (ms(after.receiveRequest) && ms(after.receiveRequest) !== ms(before.receiveRequest)) jobs.push(processRmaReceive(ref));
+    if (before.status !== after.status) {
+      jobs.push(ref.update({ history: FieldValue.arrayUnion({ from: before.status || null, to: after.status,
+        byUid: event.authId || (after.dispatch && after.status === 'replacement_dispatched' ? after.dispatch.byUid : null),
+        note: after.rejectReason || after.approveNote || '', at: Timestamp.now() }) }));
+    }
+    await Promise.all(jobs);
+  }
+);
+
+// ---------------------------------------------------------------
+// Brand returns: a shipment of defective units (from RMAs) and/or
+// defective spare parts back to the brand. Checked and booked here; the
+// brand's credit notes and replacement units are recorded against it
+// afterwards (replacements arrive through a normal stock receipt that
+// names the brand return).
+// ---------------------------------------------------------------
+exports.processBrandReturn = onDocumentCreated(
+  { document: 'brandReturns/{brId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const ref = event.data.ref;
+    await db.runTransaction(async (tx) => {
+      const br = (await tx.get(ref)).data();
+      if (!br || br.status !== 'pending') return;
+      const unitIds = (br.unitSerials || []).map(String).slice(0, Rma.MAX_BRAND_RETURN_ITEMS);
+      const spareIds = (br.spareReturnIds || []).map(String).slice(0, Rma.MAX_BRAND_RETURN_ITEMS);
+      const [unitSnaps, spareSnaps] = await Promise.all([
+        unitIds.length ? tx.getAll(...unitIds.map((id) => db.collection('unitSerials').doc(id))) : [],
+        spareIds.length ? tx.getAll(...spareIds.map((id) => db.collection('returns').doc(id))) : []
+      ]);
+      const units = unitSnaps.map((x) => ({ id: x.id, ref: x.ref, doc: x.exists ? x.data() : null }));
+      const spares = spareSnaps.map((x) => ({ id: x.id, ref: x.ref, doc: x.exists ? x.data() : null }));
+      const err = Rma.checkBrandReturn(units, spares);
+      if (err) { tx.update(ref, { status: 'rejected', reason: err, processedAt: FieldValue.serverTimestamp() }); return; }
+      const rmaIds = new Set();
+      const perModel = {};
+      units.forEach((u) => {
+        tx.update(u.ref, { status: 'sent_to_brand', location: 'brand', brandReturnId: ref.id,
+          history: FieldValue.arrayUnion({ event: 'sent_to_brand', brandReturnId: ref.id, at: Timestamp.now() }) });
+        perModel[u.doc.modelId] = (perModel[u.doc.modelId] || 0) + 1;
+        if (u.doc.rmaId) rmaIds.add(u.doc.rmaId);
+      });
+      Object.entries(perModel).forEach(([m, n]) => tx.set(stockRef('warehouse', m), { defective: FieldValue.increment(-n), updatedAt: FieldValue.serverTimestamp() }, { merge: true }));
+      spares.forEach((s) => tx.update(s.ref, { status: 'supplier_return', brandReturnId: ref.id, updatedAt: FieldValue.serverTimestamp() }));
+      tx.update(ref, { status: 'sent', unitCount: units.length, spareCount: spares.length, rmaIds: [...rmaIds], processedAt: FieldValue.serverTimestamp() });
+    });
+    // Close the RMAs whose defective unit has now gone to the brand.
+    const br = (await ref.get()).data();
+    for (const rmaId of br.rmaIds || []) {
+      const q = await db.collection('rmaRequests').where('rmaId', '==', rmaId).limit(1).get();
+      if (!q.empty && q.docs[0].get('status') === 'defective_received') await q.docs[0].ref.update({ status: 'sent_to_brand', brandReturnId: ref.id });
     }
   }
 );
