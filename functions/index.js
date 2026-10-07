@@ -313,7 +313,10 @@ async function enforceAssignment(event, ticket, before) {
     assignmentRejected: { technicianUid: techUid, reason, at: FieldValue.serverTimestamp() }
   };
   if (!before || !before.technicianUid) revert.status = before ? before.status : 'new';
-  await event.data.ref.update(revert);
+  // On an update the event carries a before/after pair, not the document
+  // itself — take the reference from the 'after' side.
+  const ref = event.data.after ? event.data.after.ref : event.data.ref;
+  await ref.update(revert);
 }
 
 exports.checkAssignmentOnCreate = onDocumentCreatedWithAuthContext(

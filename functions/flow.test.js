@@ -430,3 +430,27 @@ test('support tickets: customer opens, staff replies, only the owner can act', a
   await assert.rejects(() => call('sa1', null, { action: 'delete', ticketNo }), /Unknown action/);
   await assert.rejects(() => call('cs1', '9000000020', { action: 'create', category: 'Warranty', subject: '', message: 'y' }), /subject/);
 });
+
+test('assignment and lifecycle triggers revert what the writer may not do', async () => {
+  set('users/scA', { role: 'servicecenter', name: 'Center A' });
+  set('users/tA', { role: 'technician', name: 'Tech A', linkedServiceCenterUid: 'scA' });
+  set('users/tZ', { role: 'technician', name: 'Not on roster' });
+  set('users/whA', { role: 'warehouse' });
+  set('centerTechnicians/ctA', { serviceCenterUid: 'scA', technicianUid: 'tA', name: 'Tech A' });
+  set('centerRequests/tkA', { requestId: 'PE-CR-A', serviceCenterUid: 'scA', status: 'new', category: 'Geyser' });
+  await updated('checkAssignmentOnUpdate', 'centerRequests/tkA', { technicianUid: 'tZ', technicianName: 'Z', status: 'assigned' }, 'scA', { docId: 'tkA' });
+  let t = get('centerRequests/tkA');
+  ok(!t.technicianUid && t.status === 'new' && /roster/.test(t.assignmentRejected.reason), 'non-roster technician reverted');
+  await updated('checkAssignmentOnUpdate', 'centerRequests/tkA', { technicianUid: 'tA', technicianName: 'Tech A', status: 'assigned' }, 'scA', { docId: 'tkA' });
+  ok(get('centerRequests/tkA').technicianUid === 'tA', 'roster technician kept');
+  await updated('checkAssignmentOnUpdate', 'centerRequests/tkA', { technicianUid: 'tZ' }, 'whA', { docId: 'tkA' });
+  ok(get('centerRequests/tkA').technicianUid === 'tZ', 'Head Office may assign anyone');
+  set('centerRequests/tkA', { ...get('centerRequests/tkA'), technicianUid: 'tA' });
+  await updated('checkLifecycle_centerRequests', 'centerRequests/tkA', { status: 'completed', closedByUid: 'tA' }, 'tA', { docId: 'tkA' });
+  t = get('centerRequests/tkA');
+  ok(t.status === 'assigned' && t.lifecycleRejected && t.lifecycleRejected.to === 'completed', 'illegal jump reverted');
+  await updated('checkLifecycle_centerRequests', 'centerRequests/tkA', { status: 'accepted' }, 'tA', { docId: 'tkA' });
+  ok(get('centerRequests/tkA').status === 'accepted', 'legal step kept');
+  await updated('checkLifecycle_centerRequests', 'centerRequests/tkA', { status: 'closed' }, 'whA', { docId: 'tkA' });
+  ok(get('centerRequests/tkA').status === 'closed', 'Head Office may close');
+});
