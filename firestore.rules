@@ -374,11 +374,15 @@ service cloud.firestore {
                    'city', 'taluk', 'district', 'state', 'vehicleInfo', 'updatedAt'])
                 || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['leaveRecords'])
                     && request.resource.data.leaveRecords.size() == resource.data.get('leaveRecords', []).size() + 1
-                    && request.resource.data.leaveRecords[0:resource.data.get('leaveRecords', []).size()] == resource.data.get('leaveRecords', [])
+                    // (slicing to [0:0] errors in the rules engine, so an empty list is checked separately —
+                    //  otherwise a technician's FIRST leave request was refused)
+                    && (resource.data.get('leaveRecords', []).size() == 0
+                        || request.resource.data.leaveRecords[0:resource.data.get('leaveRecords', []).size()] == resource.data.get('leaveRecords', []))
                     && request.resource.data.leaveRecords[resource.data.get('leaveRecords', []).size()].status == 'PENDING')
                 || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['documents'])
                     && request.resource.data.documents.size() == resource.data.get('documents', []).size() + 1
-                    && request.resource.data.documents[0:resource.data.get('documents', []).size()] == resource.data.get('documents', [])
+                    && (resource.data.get('documents', []).size() == 0
+                        || request.resource.data.documents[0:resource.data.get('documents', []).size()] == resource.data.get('documents', []))
                     && request.resource.data.documents[resource.data.get('documents', []).size()].verified == false)));
     }
 

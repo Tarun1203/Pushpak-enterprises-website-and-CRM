@@ -54,7 +54,7 @@ service firebase.storage {
         || (signedIn() && (firestore.get(/databases/(default)/documents/serviceJobs/$(jobId)).data.get('technicianUid', '') == request.auth.uid
             || firestore.get(/databases/(default)/documents/serviceJobs/$(jobId)).data.get('serviceCenterUid', '') == request.auth.uid));
       // Photos are added, never overwritten.
-      allow create: if (isAdmin()
+      allow create: if resource == null && (isAdmin()
           || (signedIn() && firestore.get(/databases/(default)/documents/serviceJobs/$(jobId)).data.technicianUid == request.auth.uid))
         && okImage();
       allow delete: if isAdmin();
@@ -111,7 +111,7 @@ service firebase.storage {
             || firestore.get(/databases/(default)/documents/centerRequests/$(reqId)).data.get('technicianUid', '') == request.auth.uid));
       // Added, never overwritten. The ticket may not exist yet for its
       // first attachment; once it does, only its own people can add.
-      allow create: if isStaff() && okImageOrPdf()
+      allow create: if resource == null && isStaff() && okImageOrPdf()
         && (isAdmin()
             || !firestore.exists(/databases/(default)/documents/centerRequests/$(reqId))
             || firestore.get(/databases/(default)/documents/centerRequests/$(reqId)).data.get('serviceCenterUid', '') == request.auth.uid
@@ -128,7 +128,7 @@ service firebase.storage {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == centerId);
       // Uploaded files are never overwritten (a new version is a new file),
       // so a verified document's file can't be swapped underneath it.
-      allow create: if (isAdmin() || (signedIn() && request.auth.uid == centerId))
+      allow create: if resource == null && (isAdmin() || (signedIn() && request.auth.uid == centerId))
         && okImageOrPdf();
       allow delete: if isAdmin();
     }
@@ -144,7 +144,7 @@ service firebase.storage {
         || (signedIn() && (
               firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.serviceCenterUid == request.auth.uid
            || firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.technicianUid == request.auth.uid));
-      allow create: if (isAdmin()
+      allow create: if resource == null && (isAdmin()
           || (signedIn() && (
                 firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.serviceCenterUid == request.auth.uid
              || firestore.get(/databases/(default)/documents/centerTechnicians/$(techDocId)).data.technicianUid == request.auth.uid)))
@@ -156,7 +156,7 @@ service firebase.storage {
     // own folder. Head Office reads them when verifying.
     match /claims/{uid}/{allPaths=**} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
-      allow create: if signedIn() && request.auth.uid == uid && okImageOrPdf();
+      allow create: if resource == null && signedIn() && request.auth.uid == uid && okImageOrPdf();
     }
 
     // Deny everything else by default.
