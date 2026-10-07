@@ -12,8 +12,10 @@ test.describe('Phase 7 — Customer 360, product registration and warranty lifec
     expect(response.status()).toBeLessThan(400);
     await expect(page.locator('body')).toBeVisible();
 
+    // These are the labels actually exposed by the public site. Keep this
+    // contract user-facing instead of assuming internal modal/control IDs.
     const bodyText = (await page.locator('body').innerText()).toLowerCase();
-    for (const label of ['register product', 'book service', 'track service', 'warranty']) {
+    for (const label of ['register a product', 'book a service', 'track a service', 'warranty status']) {
       expect(bodyText, `Missing customer-service entry point: ${label}`).toContain(label);
     }
   });
@@ -105,7 +107,7 @@ test.describe('Phase 7 — Customer 360, product registration and warranty lifec
     expect(tracked.data.closureNotes).toBeUndefined();
   });
 
-  test('Firestore rules keep customer access scoped to verified phone and deny tracking writes', () => {
+  test('Firestore rules keep customer access scoped and protect server-controlled tracking and feedback', () => {
     const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
     expect(rules).toContain('function isCustomer()');
     expect(rules).toContain('function myPhone()');
@@ -115,6 +117,10 @@ test.describe('Phase 7 — Customer 360, product registration and warranty lifec
     expect(rules).toContain('match /publicTicketStatus/{ticketId}');
     expect(rules).toContain('match /customerTracking/{ticketId}');
     expect(rules).toContain('allow write: if false;');
-    expect(rules).toContain('match /customerFeedback/{ticketId}');
+
+    // Customer feedback is server-controlled on the service job rather than
+    // exposed as a customer-writable top-level collection. Technicians are
+    // explicitly prevented from modifying this field directly.
+    expect(rules).toContain("['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']");
   });
 });
