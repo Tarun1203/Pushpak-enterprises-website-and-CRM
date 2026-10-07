@@ -12,6 +12,12 @@ on:
     - cron: "15 2 * * *"
   workflow_dispatch:
 
+# One QA run at a time per branch: a second run (e.g. a duplicate push
+# event) waits instead of racing the first one to publish the bug snapshot.
+concurrency:
+  group: automated-qa-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   issues: write
