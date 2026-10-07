@@ -1,5 +1,7 @@
 name: Automated Site QA
 
+# Full-suite QA rerun checkpoint: revalidate every phase before the next phase is started.
+
 on:
   push:
     branches: ["main"]
