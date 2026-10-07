@@ -1,0 +1,14 @@
+{
+  "name": "pushpak-emulator-qa",
+  "private": true,
+  "type": "module",
+  "description": "Firestore/Storage rules, role and workflow tests against the Firebase emulators (run via firebase emulators:exec).",
+  "scripts": {
+    "test:rules": "mkdir -p results && node --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./gh-reporter.mjs --test-reporter-destination=results/rules.txt rules.test.mjs roles.test.mjs storage.test.mjs",
+    "test:workflows": "mkdir -p results && node --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./gh-reporter.mjs --test-reporter-destination=results/workflows.txt workflows.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.0.0"
+  }
+}
