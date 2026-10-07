@@ -6,6 +6,11 @@
    zoom in on focus. */
 .crm-menu-btn, .crm-nav-backdrop { display: none; }
 
+/* At every width: a table wider than its panel scrolls inside the panel
+   instead of pushing the whole page sideways (laptops and tablets with the
+   sidebar open have ~600-800px for content). */
+.main .panel-body { overflow-x: auto; }
+
 @media (max-width: 820px) {
   .layout { display: block; min-height: 100vh; }
   .sidebar {

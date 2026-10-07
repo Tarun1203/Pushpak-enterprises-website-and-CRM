@@ -3,8 +3,8 @@ const { installFirebaseStub } = require('./firebase-stub');
 
 // Page load with Firebase stubbed (signed in as `role`, or signed out) and
 // every other outside request blocked, so results don't depend on the network.
-async function openPage(page, origin, pathname, role) {
-  await installFirebaseStub(page, role ? { role } : {});
+async function openPage(page, origin, pathname, role, data) {
+  await installFirebaseStub(page, role ? { role, uid: 'u1', data } : {});
   await page.route(/^https?:\/\//, (route) => {
     const u = route.request().url();
     if (u.startsWith(origin) || /gstatic\.com\/firebasejs/.test(u)) return route.fallback();
