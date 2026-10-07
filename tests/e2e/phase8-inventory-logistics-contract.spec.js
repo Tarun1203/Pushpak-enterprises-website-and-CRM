@@ -34,11 +34,11 @@ test.describe('Phase 8 — inventory, spare parts and logistics contract', () =>
 
   test('inventory ledger cannot apply an operation that would make stock negative', () => {
     const changes = [{ loc: 'servicecenter', uid: 'SC-001', partId: 'SP-001', delta: -5 }];
-    const blocked = Spares.applyChanges(changes, { servicecenter_SC-001_SP-001: 4 }, { 'SP-001': 'Panel' });
+    const blocked = Spares.applyChanges(changes, { 'servicecenter_SC-001_SP-001': 4 }, { 'SP-001': 'Panel' });
     expect(blocked.error).toMatch(/Only 4 of Panel/);
 
-    const allowed = Spares.applyChanges(changes, { servicecenter_SC-001_SP-001: 5 });
-    expect(allowed.next).toEqual({ servicecenter_SC-001_SP-001: 0 });
+    const allowed = Spares.applyChanges(changes, { 'servicecenter_SC-001_SP-001': 5 });
+    expect(allowed.next).toEqual({ 'servicecenter_SC-001_SP-001': 0 });
   });
 
   test('defective spare returns have deterministic due dates and system IDs', () => {
