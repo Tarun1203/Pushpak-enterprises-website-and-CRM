@@ -53,6 +53,25 @@ button.ghost{background:#fff;border:1px solid var(--hairline);padding:8px 14px;f
 .pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--paper-deep);}
 .pill.active{background:#DDF1E3;color:var(--green);} .pill.low{background:#FFF0D5;color:var(--amber);} .pill.expired{background:#FADBD8;color:var(--red);}
 .empty{color:var(--stone);font-size:14px;padding:18px 0;}
+select,textarea{width:100%;padding:11px 12px;border:1px solid var(--hairline);border-radius:var(--radius);font:15px 'Inter',sans-serif;background:#fff;}
+textarea{min-height:84px;resize:vertical;}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.check{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;}
+.check input{width:auto;}
+.form{max-width:640px;}
+.timeline{list-style:none;margin:12px 0 4px;padding-left:4px;border-left:2px solid var(--hairline);}
+.timeline li{position:relative;padding:0 0 14px 18px;font-size:13.5px;}
+.timeline li::before{content:'';position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--hairline);}
+.timeline li.done::before{background:var(--blue);border-color:var(--blue);}
+.timeline li.now::before{background:var(--green);border-color:var(--green);}
+.timeline li small{display:block;color:var(--stone);}
+.cta{background:var(--blue);color:#fff;border:none;padding:11px 18px;font:600 14px 'Inter',sans-serif;border-radius:var(--radius);cursor:pointer;}
+.cta:disabled{opacity:.55;}
+.notice{background:#fff;border:1px solid var(--hairline);border-left:3px solid var(--blue);padding:12px 14px;font-size:13.5px;margin:12px 0;}
+table.w{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border:1px solid var(--hairline);}
+table.w th,table.w td{padding:10px 12px;border-bottom:1px solid var(--hairline);text-align:left;}
+table.w th{font-size:11.5px;text-transform:uppercase;color:var(--stone);}
+@media(max-width:560px){.two{grid-template-columns:1fr;}}
 @media(max-width:560px){.bar{flex-direction:column;align-items:flex-start;}.who{text-align:left;}}
 </style>
 </head>
@@ -131,6 +150,9 @@ button.ghost{background:#fff;border:1px solid var(--hairline);padding:8px 14px;f
     <div class="nav">
       <button class="tab active" data-view="home" type="button">Home</button>
       <button class="tab" data-view="products" type="button">My Products</button>
+      <button class="tab" data-view="register" type="button">Register a Product</button>
+      <button class="tab" data-view="warranty" type="button">Warranty</button>
+      <button class="tab" data-view="book" type="button">Book a Service</button>
       <button class="tab" data-view="services" type="button">My Services</button>
     </div>
 
@@ -144,12 +166,87 @@ button.ghost{background:#fff;border:1px solid var(--hairline);padding:8px 14px;f
       </div>
       <h2>What would you like to do?</h2>
       <div class="actions">
-        <a href="index.html#register-product">Register a product</a>
-        <a href="index.html#warranty-check">Check warranty</a>
-        <a href="index.html#book-service">Book a service</a>
-        <a href="index.html#track-service">Track a service</a>
+        <button class="cta" data-go="register" type="button">Register a product</button>
+        <button class="cta" data-go="warranty" type="button">Check warranty</button>
+        <button class="cta" data-go="book" type="button">Book a service</button>
+        <button class="cta" data-go="services" type="button">Track a service</button>
         <a href="index.html#support">Get support</a>
       </div>
+    </div>
+
+
+    <div id="app-register" class="hidden form">
+      <h2>Register a Product</h2>
+      <p class="sub">Register within days of buying to start your warranty record. Your mobile number is added automatically.</p>
+      <form id="reg-form" novalidate>
+        <div class="two">
+          <div><label for="r-brand">Brand</label><select id="r-brand"><option value="">Select…</option><option>MakWell</option><option>Flyvision</option><option>Skevia</option></select></div>
+          <div><label for="r-category">Product</label><select id="r-category"><option value="">Select brand first…</option></select></div>
+        </div>
+        <label for="r-model">Model</label><select id="r-model"><option value="">Select brand and product first…</option></select>
+        <input id="r-model-other" class="hidden" type="text" maxlength="60" placeholder="Type your model number" style="margin-top:8px;">
+        <div class="two">
+          <div><label for="r-serial">Serial number</label><input id="r-serial" type="text" maxlength="40" placeholder="Printed on the product"></div>
+          <div><label for="r-date">Purchase date</label><input id="r-date" type="date"></div>
+        </div>
+        <label for="r-dealer">Bought from (shop / dealer)</label><input id="r-dealer" type="text" maxlength="100">
+        <h2 style="margin-top:22px;">Your details</h2>
+        <label for="r-name">Name</label><input id="r-name" type="text" maxlength="100">
+        <label for="r-address">Address</label><input id="r-address" type="text" maxlength="300">
+        <div class="two">
+          <div><label for="r-city">City</label><input id="r-city" type="text" maxlength="60"></div>
+          <div><label for="r-state">State</label><input id="r-state" type="text" maxlength="60"></div>
+        </div>
+        <label for="r-pin">Pincode</label><input id="r-pin" type="text" inputmode="numeric" maxlength="6">
+        <label class="check"><input id="r-install" type="checkbox"> I need installation / demo</label>
+        <button class="primary" id="r-submit" type="submit">Register product</button>
+        <div class="msg" id="r-msg" role="alert"></div>
+      </form>
+    </div>
+
+    <div id="app-warranty" class="hidden">
+      <h2>Warranty</h2>
+      <div id="warranty-table"></div>
+      <h2 style="margin-top:26px;">Check a serial number</h2>
+      <p class="sub">Bought a new unit? Check whether its serial number is already registered before you register it.</p>
+      <div class="form" style="max-width:420px;">
+        <label for="w-serial">Serial number</label><input id="w-serial" type="text" maxlength="40">
+        <button class="primary" id="w-check" type="button">Check</button>
+        <div class="msg" id="w-msg" role="alert"></div>
+        <div id="w-result"></div>
+      </div>
+    </div>
+
+    <div id="app-book" class="hidden form">
+      <h2>Book a Service</h2>
+      <p class="sub">We route your request to the nearest authorised service center. You can follow it under My Services.</p>
+      <form id="bk-form" novalidate>
+        <label for="b-type">What do you need?</label>
+        <select id="b-type"><option value="service">Repair / service</option><option value="installation">Installation / demo</option></select>
+        <label for="b-product">Product</label>
+        <select id="b-product"></select>
+        <div id="b-other" class="hidden">
+          <div class="two">
+            <div><label for="b-brand">Brand</label><select id="b-brand"><option value="">Select…</option><option>MakWell</option><option>Flyvision</option><option>Skevia</option></select></div>
+            <div><label for="b-category">Product (e.g. Geyser)</label><input id="b-category" type="text" maxlength="60"></div>
+          </div>
+          <div class="two">
+            <div><label for="b-model">Model (if known)</label><input id="b-model" type="text" maxlength="60"></div>
+            <div><label for="b-serial">Serial (if known)</label><input id="b-serial" type="text" maxlength="40"></div>
+          </div>
+        </div>
+        <div id="b-issue-wrap"><label for="b-issue">Describe the problem</label><textarea id="b-issue" maxlength="1000"></textarea></div>
+        <h2 style="margin-top:22px;">Where should we visit?</h2>
+        <label for="b-name">Name</label><input id="b-name" type="text" maxlength="100">
+        <label for="b-address">Address</label><input id="b-address" type="text" maxlength="300">
+        <div class="two">
+          <div><label for="b-city">City</label><input id="b-city" type="text" maxlength="60"></div>
+          <div><label for="b-state">State</label><input id="b-state" type="text" maxlength="60"></div>
+        </div>
+        <label for="b-pin">Pincode</label><input id="b-pin" type="text" inputmode="numeric" maxlength="6">
+        <button class="primary" id="b-submit" type="submit">Submit request</button>
+        <div class="msg" id="b-msg" role="alert"></div>
+      </form>
     </div>
 
     <div id="app-products" class="hidden"><h2>My Products</h2><div id="list-products"></div></div>
@@ -177,7 +274,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const ensureCustomerProfile = httpsCallable(getFunctions(app, 'asia-south1'), 'ensureCustomerProfile');
+const fns = getFunctions(app, 'asia-south1');
+const ensureCustomerProfile = httpsCallable(fns, 'ensureCustomerProfile');
+const registerProduct = httpsCallable(fns, 'registerProduct');
+const checkWarranty = httpsCallable(fns, 'checkWarranty');
+const bookService = httpsCallable(fns, 'bookService');
+const state = { products: [], tickets: [], tracks: new Map(), contact: {}, name: '' };
 
 const $ = (id) => document.getElementById(id);
 function esc(v) { return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
@@ -323,6 +425,8 @@ async function finishSignIn(user) {
     await ensureCustomerProfile({ name: pendingName });
     const prof = (await getDoc(doc(db, 'users', user.uid))).data();
     me = { uid: user.uid, name: prof.name || '', phone10: prof.phone10 };
+    state.contact = prof.contact || {}; state.name = prof.name || '';
+    prefillForms();
     $('who-name').textContent = me.name || 'Customer';
     $('who-phone').textContent = '+91 ' + me.phone10;
     $('hello').textContent = 'Hello' + (me.name ? ', ' + me.name : '');
@@ -356,19 +460,46 @@ function whenStr(ts) { return ts && ts.toDate ? ts.toDate().toLocaleDateString()
 function statusLabel(s) { return String(s || 'new').replace(/_/g, ' '); }
 function warrantyLabel(w) { return w === 'in_warranty' ? 'In warranty' : w === 'out_of_warranty' ? 'Out of warranty' : 'Not yet determined'; }
 
+const STATUS_TEXT = {
+  new: 'Request received', assigned_to_center: 'Assigned to a service center', assigned: 'Technician assigned',
+  accepted: 'Technician accepted your request', on_the_way: 'Technician is on the way', at_customer: 'Technician is at your place',
+  in_progress: 'Repair in progress', waiting_spare: 'Waiting for a spare part', reassignment_required: 'Being reassigned to another technician',
+  reopened: 'Reopened', completed: 'Service completed', verification: 'Being verified', closed: 'Closed', cancelled: 'Cancelled', rejected: 'Rejected'
+};
+function statusText(st) { return STATUS_TEXT[st] || statusLabel(st); }
+function tsMs(t) { return t && t.toMillis ? t.toMillis() : 0; }
+function when(t) { return t && t.toDate ? t.toDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''; }
+
+function timelineHtml(t, tr) {
+  if (!tr) return '<div class="notice">Detailed progress will appear here as soon as your request is picked up. Current status: <b>' + esc(statusText(t.status)) + '</b>.</div>';
+  const hist = Array.isArray(tr.history) ? tr.history : [];
+  const items = hist.map((h, i) => `<li class="${i === hist.length - 1 ? 'now' : 'done'}"><b>${esc(statusText(h.status))}</b><small>${esc(when(h.at))}</small></li>`).join('');
+  const bits = [];
+  if (tr.serviceCenterName) bits.push(`<div class="row"><span>Service center</span><span>${esc(tr.serviceCenterName)}</span></div>`);
+  if (tr.technicianName) bits.push(`<div class="row"><span>Technician</span><span>${esc(tr.technicianName)}</span></div>`);
+  if (tr.appointment && tr.appointment.date) bits.push(`<div class="row"><span>Visit scheduled</span><span>${esc(tr.appointment.date)}${tr.appointment.start ? ', ' + esc(tr.appointment.start) + (tr.appointment.end ? '–' + esc(tr.appointment.end) : '') : ''}</span></div>`);
+  return `<ul class="timeline">${items}</ul>${bits.join('')}`;
+}
+
 async function loadAll() {
   setMsg('app-msg', '');
   try {
-    const [regs, reqs, mirrors] = await Promise.all([
+    const [regs, reqs, mirrors, tracks] = await Promise.all([
       getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', me.phone10))),
       getDocs(query(collection(db, 'publicServiceRequests'), where('customerPhone', '==', me.phone10))),
-      getDocs(query(collection(db, 'publicTicketStatus'), where('customerPhone', '==', me.phone10)))
+      getDocs(query(collection(db, 'publicTicketStatus'), where('customerPhone', '==', me.phone10))),
+      getDocs(query(collection(db, 'customerTracking'), where('customerPhone', '==', me.phone10)))
     ]);
-    const products = regs.docs.map((d) => d.data()).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    const products = regs.docs.map((d) => d.data()).sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
     const byId = new Map();
     reqs.forEach((d) => { const x = d.data(); byId.set(d.id, { ticketId: x.requestId || d.id, category: x.category, brand: x.brand, requestType: x.requestType, status: x.status, warrantyStatus: x.warrantyStatus, createdAt: x.createdAt }); });
     mirrors.forEach((d) => { const x = d.data(); const prev = byId.get(d.id) || {}; byId.set(d.id, Object.assign({}, prev, { ticketId: x.ticketId || d.id, category: x.category || prev.category, requestType: x.requestType || prev.requestType, status: x.status || prev.status, warrantyStatus: x.warrantyStatus || prev.warrantyStatus, createdAt: prev.createdAt || x.createdAt })); });
-    const tickets = [...byId.values()].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    const trackMap = new Map();
+    tracks.forEach((d) => trackMap.set(d.id, d.data()));
+    // The tracking record is the most reliable status and carries the start time.
+    trackMap.forEach((tr, id) => { const prev = byId.get(id) || {}; byId.set(id, Object.assign({}, prev, { ticketId: id, category: prev.category || tr.category, requestType: prev.requestType || tr.requestType, status: tr.status || prev.status, warrantyStatus: tr.warrantyStatus || prev.warrantyStatus, createdAt: prev.createdAt || tr.createdAt })); });
+    const tickets = [...byId.values()].sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
+    state.products = products; state.tickets = tickets; state.tracks = trackMap;
 
     $('n-products').textContent = products.length;
     $('n-total').textContent = tickets.length;
@@ -385,24 +516,174 @@ async function loadAll() {
         <div class="row"><span>Serial</span><span>${esc(d.serialNumber) || '—'}</span></div>
         <div class="row"><span>Purchased</span><span>${esc(d.purchaseDate) || '—'}</span></div>
         <div class="row"><span>Registration</span><span>${esc(d.registrationId) || '—'}</span></div>${body}</div>`;
-    }).join('') : '<div class="empty">No products are registered with this mobile number yet. Use “Register a product” on the Home tab.</div>';
+    }).join('') : '<div class="empty">No products are registered with this mobile number yet. Use “Register a Product”.</div>';
+
+    // Warranty overview: soonest-expiring first.
+    const rows = products.map((d) => {
+      const comps = Array.isArray(d.warrantyComponents) && d.warrantyComponents.length ? d.warrantyComponents : null;
+      const months = comps ? Math.max(...comps.map((c) => (c.durationYears || 0) * 12)) : d.warrantyMonths;
+      const b = warrantyBadge(d.purchaseDate, months);
+      const exp = new Date(d.purchaseDate); if (!isNaN(exp)) exp.setMonth(exp.getMonth() + (months || 12));
+      return { d, b, exp: isNaN(exp) ? Infinity : exp.getTime() };
+    }).sort((a, b) => a.exp - b.exp);
+    $('warranty-table').innerHTML = rows.length ? '<table class="w"><thead><tr><th>Product</th><th>Serial</th><th>Purchased</th><th>Warranty</th></tr></thead><tbody>' +
+      rows.map(({ d, b }) => `<tr><td>${esc(d.product || d.category || 'Product')}</td><td>${esc(d.serialNumber) || '—'}</td><td>${esc(d.purchaseDate) || '—'}</td><td><span class="pill ${b.cls}">${esc(b.label)}</span></td></tr>`).join('') + '</tbody></table>'
+      : '<div class="empty">Register a product to see its warranty here.</div>';
+
+    // Book-a-service product picker.
+    const cur = $('b-product').value;
+    $('b-product').innerHTML = products.map((d) => `<option value="${esc(d.registrationId)}">${esc(d.product || d.category || 'Product')}${d.serialNumber ? ' (' + esc(d.serialNumber) + ')' : ''}</option>`).join('') + '<option value="__other__">Another product (not registered)</option>';
+    if (cur && [...$('b-product').options].some((o) => o.value === cur)) $('b-product').value = cur;
+    syncBookProduct();
 
     $('list-services').innerHTML = tickets.length ? tickets.map((t) => `<div class="item"><h3>${esc(t.category) || 'Service request'} — ${esc(t.ticketId)}</h3>
       <div class="row"><span>Type</span><span>${t.requestType === 'installation' ? 'Installation / Demo' : 'Service request'}</span></div>
-      <div class="row"><span>Status</span><span class="pill">${esc(statusLabel(t.status))}</span></div>
+      <div class="row"><span>Status</span><span class="pill">${esc(statusText(t.status))}</span></div>
       <div class="row"><span>Warranty</span><span>${esc(warrantyLabel(t.warrantyStatus))}</span></div>
-      <div class="row"><span>Raised</span><span>${esc(whenStr(t.createdAt))}</span></div></div>`).join('')
+      <div class="row"><span>Raised</span><span>${esc(whenStr(t.createdAt))}</span></div>
+      <button class="ghost" data-track="${esc(t.ticketId)}" type="button" style="margin-top:10px;">View progress</button>
+      <div class="hidden" id="tl-${esc(t.ticketId)}"></div></div>`).join('')
       : '<div class="empty">No service requests yet.</div>';
+    document.querySelectorAll('[data-track]').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.dataset.track; const box = document.getElementById('tl-' + id);
+      if (box.classList.contains('hidden')) { box.innerHTML = timelineHtml(state.tickets.find((x) => x.ticketId === id) || {}, state.tracks.get(id)); box.classList.remove('hidden'); btn.textContent = 'Hide progress'; }
+      else { box.classList.add('hidden'); btn.textContent = 'View progress'; }
+    }));
   } catch (err) {
     console.error(err);
     setMsg('app-msg', 'Could not load your records right now. Please try again.');
   }
 }
 
-document.querySelectorAll('#view-app .tab').forEach((b) => b.addEventListener('click', () => {
-  document.querySelectorAll('#view-app .tab').forEach((x) => x.classList.toggle('active', x === b));
-  for (const v of ['home', 'products', 'services']) $('app-' + v).classList.toggle('hidden', v !== b.dataset.view);
-}));
+// ---------- navigation ----------
+const VIEWS = ['home', 'products', 'register', 'warranty', 'book', 'services'];
+function setView(name) {
+  document.querySelectorAll('#view-app .tab').forEach((x) => x.classList.toggle('active', x.dataset.view === name));
+  for (const v of VIEWS) $('app-' + v).classList.toggle('hidden', v !== name);
+}
+document.querySelectorAll('#view-app .tab').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.go)));
+
+function callMessage(err, fallback) {
+  const c = err && err.code;
+  if (c === 'functions/invalid-argument' || c === 'functions/already-exists' || c === 'functions/resource-exhausted' || c === 'functions/permission-denied') return err.message || fallback;
+  if (c === 'functions/failed-precondition') return 'Please sign out and sign in again to verify your mobile number.';
+  return fallback;
+}
+
+// ---------- prefill from the saved profile ----------
+function prefillForms() {
+  const c = state.contact || {};
+  for (const pre of ['r', 'b']) {
+    if (!$(pre + '-name').value) $(pre + '-name').value = state.name || '';
+    if (!$(pre + '-address').value) $(pre + '-address').value = c.address || '';
+    if (!$(pre + '-city').value) $(pre + '-city').value = c.city || '';
+    if (!$(pre + '-state').value) $(pre + '-state').value = c.state || '';
+    if (!$(pre + '-pin').value) $(pre + '-pin').value = c.pincode || '';
+  }
+}
+
+// ---------- Register a Product ----------
+const BRAND_IDS = { MakWell: 'makwell', Flyvision: 'flyvision', Skevia: 'skevia' };
+$('r-brand').addEventListener('change', async () => {
+  const cat = $('r-category'); const brand = $('r-brand').value;
+  $('r-model').innerHTML = '<option value="">Select brand and product first…</option>'; $('r-model-other').classList.add('hidden');
+  if (!brand) { cat.innerHTML = '<option value="">Select brand first…</option>'; return; }
+  cat.innerHTML = '<option value="">Loading…</option>';
+  try {
+    const snap = await getDocs(query(collection(db, 'productCategories'), where('brandId', '==', BRAND_IDS[brand])));
+    const cats = []; snap.forEach((c) => { const d = c.data(); if (d.status !== 'inactive' && d.name) cats.push({ id: c.id, name: d.name }); });
+    cats.sort((a, b) => a.name.localeCompare(b.name));
+    cat.innerHTML = cats.length ? '<option value="">Select…</option>' + cats.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}">${esc(c.name)}</option>`).join('') : '<option value="">No products listed for this brand yet</option>';
+  } catch (err) { console.error(err); cat.innerHTML = '<option value="">Could not load products</option>'; }
+});
+$('r-category').addEventListener('change', async () => {
+  const model = $('r-model'); const brand = $('r-brand').value; const categoryId = $('r-category').value;
+  $('r-model-other').classList.add('hidden');
+  if (!brand || !categoryId) { model.innerHTML = '<option value="">Select brand and product first…</option>'; return; }
+  model.innerHTML = '<option value="">Loading…</option>';
+  try {
+    const ps = await getDocs(query(collection(db, 'products'), where('brandId', '==', BRAND_IDS[brand]), where('categoryId', '==', categoryId)));
+    const ids = []; ps.forEach((p) => ids.push(p.id));
+    let models = [];
+    if (ids.length) { const ms = await getDocs(query(collection(db, 'productModels'), where('productId', 'in', ids.slice(0, 30)))); ms.forEach((m) => { if (m.data().modelNumber) models.push(m.data().modelNumber); }); }
+    models = [...new Set(models)].sort();
+    model.innerHTML = '<option value="">Select…</option>' + models.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('') + '<option value="__other__">Not listed — type it in</option>';
+    if (!models.length) { model.value = '__other__'; $('r-model-other').classList.remove('hidden'); }
+  } catch (err) { console.error(err); model.innerHTML = '<option value="__other__">Type your model below</option>'; model.value = '__other__'; $('r-model-other').classList.remove('hidden'); }
+});
+$('r-model').addEventListener('change', () => $('r-model-other').classList.toggle('hidden', $('r-model').value !== '__other__'));
+
+$('reg-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const catOpt = $('r-category').options[$('r-category').selectedIndex];
+  const modelNo = $('r-model').value === '__other__' ? $('r-model-other').value.trim() : $('r-model').value;
+  const payload = {
+    brand: $('r-brand').value, categoryId: $('r-category').value, category: (catOpt && catOpt.dataset.name) || '', modelNo,
+    serialNumber: $('r-serial').value, purchaseDate: $('r-date').value, dealerName: $('r-dealer').value.trim(),
+    name: $('r-name').value, address: $('r-address').value, city: $('r-city').value, state: $('r-state').value, pincode: $('r-pin').value,
+    installationRequired: $('r-install').checked
+  };
+  $('r-submit').disabled = true; setMsg('r-msg', '');
+  try {
+    const { data } = await registerProduct(payload);
+    setMsg('r-msg', 'Registered. Your reference number is ' + data.registrationId + '.', true);
+    $('r-serial').value = ''; $('r-date').value = ''; $('r-dealer').value = ''; $('r-install').checked = false;
+    state.contact = { address: payload.address, city: payload.city, state: payload.state, pincode: payload.pincode }; state.name = payload.name;
+    await loadAll();
+  } catch (err) { console.error(err); setMsg('r-msg', callMessage(err, 'Could not register this product. Please try again.')); }
+  $('r-submit').disabled = false;
+});
+
+// ---------- Warranty by serial ----------
+$('w-check').addEventListener('click', async () => {
+  const serial = $('w-serial').value.trim();
+  $('w-result').innerHTML = ''; setMsg('w-msg', '');
+  if (!serial) return setMsg('w-msg', 'Enter the serial number.');
+  $('w-check').disabled = true;
+  try {
+    const { data } = await checkWarranty({ serial });
+    if (data.state === 'yours') {
+      const r = data.registration; const b = warrantyBadge(r.purchaseDate, r.warrantyMonths);
+      $('w-result').innerHTML = `<div class="item"><h3>${esc(r.product || 'Your product')}</h3><div class="row"><span>Purchased</span><span>${esc(r.purchaseDate)}</span></div><div class="row"><span>Warranty</span><span class="pill ${b.cls}">${esc(b.label)}</span></div></div>`;
+    } else if (data.state === 'registered_other') {
+      $('w-result').innerHTML = '<div class="notice">This serial number is already registered to another customer. If you bought this product second-hand, or think this is a mistake, please contact support.</div>';
+    } else if (data.state === 'unregistered') {
+      $('w-result').innerHTML = `<div class="notice">This unit${data.modelNo ? ' (model ' + esc(data.modelNo) + ')' : ''} is genuine and not registered yet. <button class="link" id="w-register" type="button">Register it now</button></div>`;
+      $('w-register').addEventListener('click', () => { $('r-serial').value = serial; setView('register'); });
+    } else {
+      $('w-result').innerHTML = '<div class="notice">We could not find this serial number. Check it against the label on the product — you can still register it and we will verify it.</div>';
+    }
+  } catch (err) { console.error(err); setMsg('w-msg', callMessage(err, 'Could not check right now. Please try again.')); }
+  $('w-check').disabled = false;
+});
+
+// ---------- Book a Service ----------
+function syncBookProduct() {
+  $('b-other').classList.toggle('hidden', $('b-product').value !== '__other__' ? true : false);
+  $('b-issue-wrap').classList.toggle('hidden', $('b-type').value !== 'service');
+}
+$('b-product').addEventListener('change', syncBookProduct);
+$('b-type').addEventListener('change', syncBookProduct);
+$('bk-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pv = $('b-product').value;
+  const payload = {
+    requestType: $('b-type').value, issueDescription: $('b-issue').value,
+    name: $('b-name').value, address: $('b-address').value, city: $('b-city').value, state: $('b-state').value, pincode: $('b-pin').value
+  };
+  if (pv && pv !== '__other__') payload.registrationId = pv;
+  else Object.assign(payload, { brand: $('b-brand').value, category: $('b-category').value, modelNo: $('b-model').value, serialNumber: $('b-serial').value });
+  $('b-submit').disabled = true; setMsg('b-msg', '');
+  try {
+    const { data } = await bookService(payload);
+    setMsg('b-msg', 'Request submitted. Your request number is ' + data.requestId + '.', true);
+    $('b-issue').value = '';
+    state.contact = { address: payload.address, city: payload.city, state: payload.state, pincode: payload.pincode };
+    await loadAll();
+  } catch (err) { console.error(err); setMsg('b-msg', callMessage(err, 'Could not submit this request. Please try again.')); }
+  $('b-submit').disabled = false;
+});
 </script>
 </body>
 </html>

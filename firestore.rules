@@ -571,6 +571,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Customer-facing progress of a ticket (status history, appointment,
+    // technician name). Written ONLY by the trackOnPublicRequest /
+    // trackSync_* Cloud Functions from the real ticket, so a browser can
+    // never edit the history. Staff may read it; a customer reads only the
+    // tickets carrying their own verified phone.
+    match /customerTracking/{ticketId} {
+      allow get, list: if isStaff()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
+      allow write: if false;
+    }
+
     // Customer feedback, one record per ticket (doc ID = ticket ID).
     // Anyone may create it from the public Track page, but only for a
     // finished ticket whose public mirror carries the same phone number,

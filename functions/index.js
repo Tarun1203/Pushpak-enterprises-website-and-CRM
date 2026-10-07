@@ -21,6 +21,7 @@ const Spares = require('./spares');
 const Rma = require('./rma');
 const Approvals = require('./approvals');
 const Lookup = require('./lookup');
+const Customer = require('./customer');
 
 initializeApp();
 const db = getFirestore();
@@ -1747,12 +1748,10 @@ async function runExpiryCheck(now) {
 // phone (or ticket + phone) per call, minimal fields, rate limited.
 // ---------------------------------------------------------------
 
-async function lookupRateGuard(request, phone, ticket) {
-  const raw = request.rawRequest || {};
-  const ip = String(raw.ip || ((raw.headers || {})['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim();
-  const ipHash = crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
+// Counts one use against each limit bucket (all in one transaction); throws
+// resource-exhausted if any bucket is already full.
+async function consumeLimits(keys, message) {
   const now = Date.now();
-  const keys = Lookup.limitKeys(ipHash, phone, ticket, now);
   const refs = keys.map((k) => db.collection('lookupLimits').doc(k.id));
   const ok = await db.runTransaction(async (tx) => {
     const snaps = await tx.getAll(...refs);
@@ -1760,10 +1759,20 @@ async function lookupRateGuard(request, phone, ticket) {
     keys.forEach((k, i) => { counts[k.id] = snaps[i].exists ? (snaps[i].data().count || 0) : 0; });
     const verdict = Lookup.checkLimits(keys, counts);
     if (!verdict.ok) return false;
-    keys.forEach((k, i) => tx.set(refs[i], { count: counts[k.id] + 1, expireAt: Timestamp.fromDate(new Date(now + 2 * 3600000)) }));
+    keys.forEach((k, i) => tx.set(refs[i], { count: counts[k.id] + 1, expireAt: Timestamp.fromDate(new Date(now + 26 * 3600000)) }));
     return true;
   });
-  if (!ok) throw new HttpsError('resource-exhausted', 'Too many lookups. Please try again in an hour.');
+  if (!ok) throw new HttpsError('resource-exhausted', message || 'Too many lookups. Please try again in an hour.');
+}
+
+function callerIpHash(request) {
+  const raw = request.rawRequest || {};
+  const ip = String(raw.ip || ((raw.headers || {})['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim();
+  return crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16);
+}
+
+async function lookupRateGuard(request, phone, ticket) {
+  await consumeLimits(Lookup.limitKeys(callerIpHash(request), phone, ticket, Date.now()));
 }
 
 async function lookupRegistrations(phone, fullSerial) {
@@ -1838,3 +1847,206 @@ exports.ensureCustomerProfile = onCall({ region: REGION, maxInstances: 10 }, asy
   await ref.set(profile, { merge: true });
   return { ok: true, phone10: built.profile.phone10 };
 });
+
+// ---------------------------------------------------------------
+// Customer portal actions. Each one needs a signed-in customer whose
+// phone is verified; the phone, uid and ownership are always taken from the
+// token / the stored records, never from what the browser sends.
+// ---------------------------------------------------------------
+
+async function requireCustomer(request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const phone = Lookup.phoneFromToken(request.auth.token && request.auth.token.phone_number);
+  if (!phone) throw new HttpsError('failed-precondition', 'phone-not-verified');
+  const snap = await db.collection('users').doc(request.auth.uid).get();
+  if (!snap.exists || snap.data().role !== 'customer') throw new HttpsError('failed-precondition', 'no-customer-profile');
+  return { uid: request.auth.uid, phone, profile: snap.data() };
+}
+
+const pad4 = (n) => String(n).padStart(4, '0');
+
+async function matchWarrantyPlan(brandId, categoryId) {
+  try {
+    const snap = await db.collection('warrantyPlans').where('brandId', '==', brandId).where('status', '==', 'active').get();
+    let byCategory = null, generic = null;
+    snap.forEach((p) => {
+      const pd = p.data();
+      if (categoryId && pd.categoryId === categoryId) byCategory = { id: p.id, ...pd };
+      else if (!pd.categoryId) generic = { id: p.id, ...pd };
+    });
+    return byCategory || generic || null;
+  } catch (e) { return null; }
+}
+
+async function findRegistrationBySerial(serial) {
+  const q = await db.collection('productRegistrations').where('serialNumber', '==', serial).limit(1).get();
+  if (!q.empty) return q.docs[0].data();
+  const unit = await db.collection('unitSerials').doc(serial).get();
+  if (unit.exists && unit.data().registrationId) return { registrationId: unit.data().registrationId, customerPhone: null };
+  return null;
+}
+
+function rememberContact(uid, r) {
+  return db.collection('users').doc(uid).set({
+    contact: { address: r.address, city: r.city, state: r.state, pincode: r.pincode },
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true }).catch(() => {});
+}
+
+exports.registerProduct = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  const cust = await requireCustomer(request);
+  const now = Date.now();
+  const v = Customer.validateRegistration(request.data, now);
+  if (v.error) throw new HttpsError('invalid-argument', v.error);
+  const r = v.value;
+  const ist = Customer.istDate(now);
+  await consumeLimits([{ id: `reg_${cust.uid}_${ist.dayBucket}`, max: 10 }], 'You have registered a lot of products today. Please try again tomorrow.');
+  if (r.serialNumber) {
+    const dup = await findRegistrationBySerial(r.serialNumber);
+    if (dup) throw new HttpsError('already-exists', dup.customerPhone === cust.phone
+      ? 'You have already registered this serial number.'
+      : 'This serial number is already registered. If you bought this product second-hand, please contact support.');
+  }
+  const plan = await matchWarrantyPlan(r.brandId, r.categoryId);
+  const counterRef = db.collection('counters').doc(`productreg-${ist.ym}`);
+  const regRef = db.collection('productRegistrations').doc();
+  const registrationId = await db.runTransaction(async (tx) => {
+    const c = await tx.get(counterRef);
+    const next = (c.exists ? (c.data().value || 0) : 0) + 1;
+    tx.set(counterRef, { value: next });
+    const id = `PE-REG-${ist.ymd}-${pad4(next)}-Portal`;
+    tx.create(regRef, {
+      registrationId: id,
+      customerName: r.customerName, customerPhone: cust.phone, customerUid: cust.uid,
+      address: r.address, city: r.city, state: r.state, pincode: r.pincode,
+      brand: r.brand, category: r.category, categoryId: r.categoryId,
+      modelNo: r.modelNo, serialNumber: r.serialNumber,
+      product: `${r.brand} ${r.category} — ${r.modelNo}`,
+      purchaseDate: r.purchaseDate, dealerName: r.dealerName,
+      installationRequired: r.installationRequired,
+      warrantyMonths: 12,
+      warrantyPlanId: plan ? plan.id : null,
+      warrantyComponents: plan ? (plan.components || null) : null,
+      status: 'active', source: 'portal',
+      createdAt: FieldValue.serverTimestamp()
+    });
+    return id;
+  });
+  await rememberContact(cust.uid, r);
+  return { registrationId };
+});
+
+// Warranty by serial number: tells a customer whether a unit is theirs,
+// already taken, or free to register — without ever revealing another
+// customer's details.
+exports.checkWarranty = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  const cust = await requireCustomer(request);
+  const serial = Stock.normalizeSerial((request.data || {}).serial);
+  if (!Stock.SERIAL_RE.test(serial)) throw new HttpsError('invalid-argument', 'Enter the serial number printed on the product.');
+  await consumeLimits([
+    { id: `ws_${cust.uid}_${Lookup.hourBucket(Date.now())}`, max: 20 },
+    { id: `ip_${callerIpHash(request)}_${Lookup.hourBucket(Date.now())}`, max: 60 }
+  ]);
+  const q = await db.collection('productRegistrations').where('serialNumber', '==', serial).limit(1).get();
+  if (!q.empty) {
+    const d = q.docs[0].data();
+    if (d.customerPhone === cust.phone) return { state: 'yours', registration: Lookup.shapeRegistration(d, { fullSerial: true }) };
+    return { state: 'registered_other' };
+  }
+  const unit = await db.collection('unitSerials').doc(serial).get();
+  if (unit.exists) {
+    if (unit.data().registrationId) return { state: 'registered_other' };
+    let modelNo = '';
+    if (unit.data().modelId) {
+      const m = await db.collection('productModels').doc(unit.data().modelId).get();
+      if (m.exists) modelNo = String(m.data().modelNumber || '');
+    }
+    return { state: 'unregistered', modelNo };
+  }
+  return { state: 'unknown' };
+});
+
+exports.bookService = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  const cust = await requireCustomer(request);
+  const now = Date.now();
+  const v = Customer.validateBooking(request.data);
+  if (v.error) throw new HttpsError('invalid-argument', v.error);
+  const b = v.value;
+  const ist = Customer.istDate(now);
+  await consumeLimits([{ id: `bk_${cust.phone}_${ist.dayBucket}`, max: 6 }], 'You have booked several requests today. Please try again tomorrow, or call us for anything urgent.');
+  let product = {};
+  if (b.registrationId) {
+    const q = await db.collection('productRegistrations').where('registrationId', '==', b.registrationId).limit(1).get();
+    const reg = q.empty ? null : q.docs[0].data();
+    if (!reg || reg.customerPhone !== cust.phone) throw new HttpsError('permission-denied', 'That product is not registered to your account.');
+    product = {
+      brand: reg.brand || '', category: reg.category || '', modelNo: reg.modelNo || '', serialNumber: reg.serialNumber || '',
+      purchaseDate: reg.purchaseDate || '', dealerName: reg.dealerName || '',
+      product: reg.product || `${reg.brand || ''} ${reg.category || ''}`.trim(), linkedRegistrationId: reg.registrationId
+    };
+  } else {
+    product = {
+      brand: b.brand, category: b.category, modelNo: b.modelNo || '', serialNumber: b.serialNumber || '',
+      purchaseDate: b.purchaseDate || '', dealerName: '',
+      product: `${b.brand} ${b.category}${b.modelNo ? ' — ' + b.modelNo : ''}`, linkedRegistrationId: null
+    };
+  }
+  const counterRef = db.collection('counters').doc(`publicservice-${ist.ym}`);
+  const requestId = await db.runTransaction(async (tx) => {
+    const c = await tx.get(counterRef);
+    const next = (c.exists ? (c.data().value || 0) : 0) + 1;
+    tx.set(counterRef, { value: next });
+    const id = `PE-SVC-${ist.ymd}-${pad4(next)}-Portal`;
+    tx.create(db.collection('publicServiceRequests').doc(id), {
+      requestId: id,
+      customerName: b.customerName, customerPhone: cust.phone, customerUid: cust.uid,
+      address: b.address, city: b.city, state: b.state, pincode: b.pincode,
+      ...product,
+      requestType: b.requestType, issueDescription: b.issueDescription,
+      status: 'new', source: 'portal',
+      createdAt: FieldValue.serverTimestamp()
+    });
+    return id;
+  });
+  await rememberContact(cust.uid, b);
+  return { requestId };
+});
+
+// ---------------------------------------------------------------
+// Customer-facing tracking record (customerTracking/<ticketId>): written only
+// here, from the real ticket, so the status history can't be edited from a
+// browser. The portal's "My Services" timeline reads it.
+// ---------------------------------------------------------------
+
+async function writeTrack(src, fallbackId) {
+  const probe = Object.assign({}, src, src.requestId || src.jobId ? {} : { requestId: fallbackId });
+  const ref = db.collection('customerTracking').doc(Customer.ticketIdOf(probe) || '_none_');
+  if (!Customer.ticketIdOf(probe)) return;
+  await db.runTransaction(async (tx) => {
+    const prevSnap = await tx.get(ref);
+    const prev = prevSnap.exists ? prevSnap.data() : null;
+    const built = Customer.buildTrack(prev, probe, Timestamp.now());
+    if (!built) return;
+    const data = built.data;
+    if (prev && prev.customerUid && !data.customerUid) data.customerUid = prev.customerUid;
+    data.createdAt = (prev && prev.createdAt) || src.createdAt || FieldValue.serverTimestamp();
+    data.updatedAt = FieldValue.serverTimestamp();
+    tx.set(ref, data);
+  });
+}
+
+exports.trackOnPublicRequest = onDocumentCreated(
+  { document: 'publicServiceRequests/{docId}', region: REGION },
+  async (event) => { if (event.data) await writeTrack(event.data.data(), event.params.docId); }
+);
+
+for (const coll of ['centerRequests', 'serviceJobs']) {
+  exports[`trackSync_${coll}`] = onDocumentWritten(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      const after = event.data && event.data.after;
+      if (!after || !after.exists) return;
+      await writeTrack(after.data(), event.params.docId);
+    }
+  );
+}

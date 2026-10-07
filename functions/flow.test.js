@@ -339,3 +339,69 @@ test('ensureCustomerProfile only trusts the verified phone and never converts st
   await assert.rejects(() => call({ uid: 'sc9', token: { phone_number: '+919000000002' } }, {}), /not a customer/);
   ok(get('users/sc9').role === 'servicecenter' && !get('users/sc9').phone10, 'staff doc untouched');
 });
+
+test('portal: register a product, check warranty by serial, book a service, track it', async () => {
+  const phoneTok = (phone) => ({ uid: 'cu1', token: { phone_number: '+91' + phone } });
+  set('users/cu1', { role: 'customer', phone10: '9000000010', name: 'Meera' });
+  set('warrantyPlans/wp1', { brandId: 'makwell', categoryId: 'geyser', status: 'active', components: [{ componentName: 'Tank', durationYears: 5 }] });
+  const form = { brand: 'MakWell', categoryId: 'geyser', category: 'Geyser', modelNo: 'G15', serialNumber: 'mk-7001', purchaseDate: '2026-09-01', name: 'Meera', address: '5 Park St', city: 'Raichur', state: 'Karnataka', pincode: '584101', dealerName: 'Ravi Traders' };
+  const RP = (auth, data) => F.registerProduct.handler({ auth, data, rawRequest: { ip: '9.9.9.9' } });
+  await assert.rejects(() => RP(null, form), /Sign in/);
+  await assert.rejects(() => RP({ uid: 'cu1', token: {} }, form), /phone-not-verified/);
+  set('users/staff9', { role: 'servicecenter' });
+  await assert.rejects(() => RP({ uid: 'staff9', token: { phone_number: '+919000000011' } }, form), /no-customer-profile/);
+  await assert.rejects(() => RP(phoneTok('9000000010'), Object.assign({}, form, { purchaseDate: '2999-01-01' })), /future/);
+  const r1 = await RP(phoneTok('9000000010'), form);
+  ok(/^PE-REG-\d{8}-0001-Portal$/.test(r1.registrationId), 'registration id ' + r1.registrationId);
+  const regDoc = [...store.entries()].find(([p, d]) => p.startsWith('productRegistrations/') && d.registrationId === r1.registrationId)[1];
+  ok(regDoc.customerPhone === '9000000010' && regDoc.customerUid === 'cu1' && regDoc.serialNumber === 'MK-7001' && regDoc.source === 'portal', 'phone/uid from token, serial normalised');
+  ok(regDoc.warrantyPlanId === 'wp1' && regDoc.warrantyComponents[0].componentName === 'Tank', 'warranty plan linked');
+  ok(get('users/cu1').contact.city === 'Raichur', 'contact remembered for prefill');
+  await assert.rejects(() => RP(phoneTok('9000000010'), form), /already registered this serial/);
+  set('users/cu2', { role: 'customer', phone10: '9000000012' });
+  await assert.rejects(() => RP({ uid: 'cu2', token: { phone_number: '+919000000012' } }, form), /already registered/);
+  const r2 = await RP(phoneTok('9000000010'), Object.assign({}, form, { serialNumber: '' }));
+  ok(r2.registrationId.endsWith('-0002-Portal'), 'counter increments');
+
+  // warranty check
+  const CW = (auth, serial) => F.checkWarranty.handler({ auth, data: { serial }, rawRequest: { ip: '9.9.9.9' } });
+  let w = await CW(phoneTok('9000000010'), 'mk-7001');
+  ok(w.state === 'yours' && w.registration.serialNumber === 'MK-7001', 'own serial -> yours');
+  w = await CW({ uid: 'cu2', token: { phone_number: '+919000000012' } }, 'MK-7001');
+  ok(w.state === 'registered_other' && !JSON.stringify(w).includes('Meera') && !JSON.stringify(w).includes('Park'), 'someone elses serial reveals nothing');
+  set('productModels/mm1', { modelNumber: 'G25' });
+  set('unitSerials/NEW-0001', { status: 'sold', modelId: 'mm1' });
+  w = await CW(phoneTok('9000000010'), 'new-0001');
+  ok(w.state === 'unregistered' && w.modelNo === 'G25', 'sold but unregistered unit');
+  w = await CW(phoneTok('9000000010'), 'NOPE-9999');
+  ok(w.state === 'unknown', 'unknown serial');
+  await assert.rejects(() => CW(phoneTok('9000000010'), 'x'), /serial number/);
+
+  // booking
+  const BS = (auth, data) => F.bookService.handler({ auth, data, rawRequest: { ip: '9.9.9.9' } });
+  const base = { requestType: 'service', issueDescription: 'Not heating', name: 'Meera', address: '5 Park St', city: 'Raichur', state: 'Karnataka', pincode: '584101' };
+  await assert.rejects(() => BS(phoneTok('9000000010'), Object.assign({}, base, { registrationId: 'PE-NOT-MINE' })), /not registered to your account/);
+  const bk = await BS(phoneTok('9000000010'), Object.assign({}, base, { registrationId: r1.registrationId }));
+  ok(/^PE-SVC-\d{8}-0001-Portal$/.test(bk.requestId), 'booking id ' + bk.requestId);
+  const pub = get('publicServiceRequests/' + bk.requestId);
+  ok(pub.status === 'new' && pub.customerPhone === '9000000010' && pub.serialNumber === 'MK-7001' && pub.linkedRegistrationId === r1.registrationId && pub.source === 'portal', 'booking built from the registration + token');
+  await created('trackOnPublicRequest', 'publicServiceRequests/' + bk.requestId, { docId: bk.requestId });
+  let tr = get('customerTracking/' + bk.requestId);
+  ok(tr && tr.history.length === 1 && tr.history[0].status === 'new' && tr.customerPhone === '9000000010' && !('address' in tr), 'tracking seeded without address');
+  // the center ticket for the same request advances
+  set('centerRequests/route_x', { requestId: bk.requestId, customerPhone: '9000000010', status: 'new', type: 'service', category: 'Geyser', serviceCenterName: 'Raichur SC', createdAt: Timestamp.now() });
+  await F.trackSync_centerRequests.handler({ data: { after: new Snap(ref('centerRequests/route_x')) }, params: { docId: 'route_x' } });
+  ok(get('customerTracking/' + bk.requestId).history.length === 1, 'same status -> no duplicate history');
+  set('centerRequests/route_x', { ...get('centerRequests/route_x'), status: 'assigned', technicianName: 'Ravi', scheduledDate: '2026-10-09', scheduledStartTime: '10:00', scheduledEndTime: '12:00' });
+  await F.trackSync_centerRequests.handler({ data: { after: new Snap(ref('centerRequests/route_x')) }, params: { docId: 'route_x' } });
+  tr = get('customerTracking/' + bk.requestId);
+  ok(tr.history.map((h) => h.status).join() === 'new,assigned' && tr.technicianName === 'Ravi' && tr.appointment.date === '2026-10-09' && tr.serviceCenterName === 'Raichur SC', 'tracking follows the ticket');
+  // booking without a registered product
+  const bk2 = await BS(phoneTok('9000000010'), Object.assign({}, base, { brand: 'Flyvision', category: 'LED TV', modelNo: 'F43' }));
+  ok(get('publicServiceRequests/' + bk2.requestId).product === 'Flyvision LED TV — F43' && bk2.requestId.endsWith('-0002-Portal'), 'manual product booking');
+  await assert.rejects(() => BS(phoneTok('9000000010'), Object.assign({}, base, { issueDescription: '' })), /problem/);
+  // daily booking limit (6)
+  let limited = false;
+  for (let i = 0; i < 8 && !limited; i++) { try { await BS(phoneTok('9000000010'), Object.assign({}, base, { brand: 'Skevia', category: 'Geyser' })); } catch (e) { limited = e.code === 'resource-exhausted'; } }
+  ok(limited, 'daily booking limit trips');
+});
