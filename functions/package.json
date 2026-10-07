@@ -2,7 +2,7 @@
   "name": "pushpak-crm-functions",
   "private": true,
   "description": "Server-side code generation for the Pushpak CRM (Service Center and Technician codes).",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "scripts": {
     "test": "node --test"
