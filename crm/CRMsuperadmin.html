@@ -1069,6 +1069,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   import * as PStock from './productStock.js';
   import * as Rma from './rma.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -1098,6 +1099,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  // Customer support replies go through the supportTicket Cloud Function.
+  const supportTicketFn = httpsCallable(getFunctions(app, 'asia-south1'), 'supportTicket');
   const storage = getStorage(app);
 
   const gate = document.getElementById('gate');
@@ -1194,6 +1197,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     ]},
     { group: 'Operations', items: [
       { id: 'communication', label: 'Communication', built: true },
+      { id: 'customer-support', label: 'Customer Support', built: true },
       { id: 'reports', label: 'Reports', built: true },
       { id: 'website', label: 'Website Management', built: true },
       { id: 'masterdata', label: 'Master Data', built: true },
@@ -1262,6 +1266,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'fg-serial') {
       pageSub.textContent = 'Where a unit is, who it was sold to, and its history';
       PStock.renderSerialLookup(contentEl, { db });
+    } else if (id === 'customer-support') {
+      pageSub.textContent = 'Tickets customers open from the portal — reply, close or reopen';
+      renderSupportDesk();
     } else if (id === 'doc-expiry') {
       pageSub.textContent = 'Service center and technician documents expiring within 30 days or already expired';
       renderDocExpiry();
@@ -7666,6 +7673,52 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   // Every service center and technician document with an expiry date in
   // the next 30 days or already past, soonest first.
+  // ---- Customer support desk (portal tickets) ----
+  const SUP_STATUS = { open: 'Needs reply', awaiting_customer: 'Waiting for customer', closed: 'Closed' };
+  async function renderSupportDesk(filter) {
+    const f = filter || 'open';
+    contentEl.innerHTML = `<div class="panel"><div class="panel-header"><h2>Customer support</h2>
+        <select id="sup-filter" style="max-width:220px;"><option value="open">Needs reply</option><option value="awaiting_customer">Waiting for customer</option><option value="closed">Closed</option><option value="all">All</option></select></div>
+      <div class="panel-body" id="sup-body">Loading…</div></div>`;
+    const sel = document.getElementById('sup-filter'); sel.value = f;
+    sel.addEventListener('change', () => renderSupportDesk(sel.value));
+    const body = document.getElementById('sup-body');
+    try {
+      const snap = await getDocs(f === 'all' ? collection(db, 'supportTickets') : query(collection(db, 'supportTickets'), where('status', '==', f)));
+      const rows = snap.docs.map(d => d.data()).sort((a, b) => ((b.updatedAt && b.updatedAt.toMillis()) || 0) - ((a.updatedAt && a.updatedAt.toMillis()) || 0));
+      if (!rows.length) { body.innerHTML = '<div class="empty-row">No tickets here.</div>'; return; }
+      const when = (t) => t && t.toDate ? t.toDate().toLocaleString() : '';
+      body.innerHTML = rows.map(t => `<div style="border:1px solid var(--hairline);padding:14px 16px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;"><b>${escapeHtml(t.subject)}</b><span>${escapeHtml(SUP_STATUS[t.status] || t.status)}</span></div>
+        <div style="font-size:12.5px;color:var(--stone);margin:4px 0 8px;">${escapeHtml(t.ticketNo)} · ${escapeHtml(t.category)} · ${escapeHtml(t.customerName || '—')} · ${escapeHtml(t.customerPhone)}${t.relatedTicketId ? ' · Request ' + escapeHtml(t.relatedTicketId) : ''}</div>
+        ${(t.messages || []).map(m => `<div style="padding:8px 10px;margin-top:6px;font-size:13.5px;background:${m.from === 'staff' ? '#EEF4FB' : m.from === 'system' ? 'transparent' : '#FAF7EF'};${m.from === 'system' ? 'color:var(--stone);font-style:italic;' : ''}">
+          ${m.from === 'system' ? '' : `<b>${m.from === 'staff' ? 'Support' : escapeHtml(t.customerName || 'Customer')}</b> <small style="color:var(--stone);">${escapeHtml(when(m.at))}</small><br>`}${escapeHtml(m.text)}</div>`).join('')}
+        ${t.status === 'closed'
+          ? `<div style="margin-top:10px;"><button class="btn-secondary" data-sup="reopen" data-no="${escapeHtml(t.ticketNo)}">Reopen</button></div>`
+          : `<textarea data-sup-text="${escapeHtml(t.ticketNo)}" maxlength="2000" placeholder="Reply to the customer" style="width:100%;margin-top:10px;min-height:70px;"></textarea>
+             <div style="margin-top:8px;display:flex;gap:8px;"><button class="btn-primary" data-sup="reply" data-no="${escapeHtml(t.ticketNo)}">Send reply</button>
+             <button class="btn-secondary" data-sup="close" data-no="${escapeHtml(t.ticketNo)}">Close ticket</button></div>`}
+        <div class="sup-err" style="color:var(--err);font-size:13px;margin-top:6px;"></div></div>`).join('');
+      body.querySelectorAll('[data-sup]').forEach(btn => btn.addEventListener('click', async () => {
+        const no = btn.dataset.no; const action = btn.dataset.sup;
+        const ta = body.querySelector(`[data-sup-text="${CSS.escape(no)}"]`);
+        const err = btn.closest('div').parentElement.querySelector('.sup-err');
+        btn.disabled = true; if (err) err.textContent = '';
+        try {
+          await supportTicketFn({ action, ticketNo: no, message: ta ? ta.value : '' });
+          renderSupportDesk(f);
+        } catch (e) {
+          console.error('Support action failed:', e);
+          if (err) err.textContent = e.message || 'Could not update this ticket.';
+          btn.disabled = false;
+        }
+      }));
+    } catch (err) {
+      console.error('Load support tickets failed:', err);
+      body.innerHTML = `<div style="color:var(--err);">Couldn't load support tickets.</div>`;
+    }
+  }
+
   async function renderDocExpiry() {
     contentEl.innerHTML = `<div class="panel"><div class="panel-header"><h2>Documents expiring or expired</h2></div><div class="panel-body" id="dx-body">Loading…</div></div>`;
     const body = document.getElementById('dx-body');

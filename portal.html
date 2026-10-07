@@ -154,6 +154,8 @@ table.w th{font-size:11.5px;text-transform:uppercase;color:var(--stone);}
       <button class="tab" data-view="warranty" type="button">Warranty</button>
       <button class="tab" data-view="book" type="button">Book a Service</button>
       <button class="tab" data-view="services" type="button">My Services</button>
+      <button class="tab" data-view="history" type="button">Service History</button>
+      <button class="tab" data-view="support" type="button">Support</button>
     </div>
 
     <div id="app-home">
@@ -170,7 +172,7 @@ table.w th{font-size:11.5px;text-transform:uppercase;color:var(--stone);}
         <button class="cta" data-go="warranty" type="button">Check warranty</button>
         <button class="cta" data-go="book" type="button">Book a service</button>
         <button class="cta" data-go="services" type="button">Track a service</button>
-        <a href="index.html#support">Get support</a>
+        <button class="cta" data-go="support" type="button">Get support</button>
       </div>
     </div>
 
@@ -251,6 +253,29 @@ table.w th{font-size:11.5px;text-transform:uppercase;color:var(--stone);}
 
     <div id="app-products" class="hidden"><h2>My Products</h2><div id="list-products"></div></div>
     <div id="app-services" class="hidden"><h2>My Service Requests</h2><div id="list-services"></div></div>
+
+    <div id="app-history" class="hidden">
+      <h2>Service History</h2>
+      <p class="sub">Every visit for each of your products — what was done, and what you paid. Rate finished visits to help us improve.</p>
+      <div id="history-body"></div>
+    </div>
+
+    <div id="app-support" class="hidden">
+      <h2>Support</h2>
+      <p class="sub">Questions, complaints or anything else — our team replies here, and you can follow the conversation.</p>
+      <div id="support-list"></div>
+      <h2 style="margin-top:26px;">Open a new ticket</h2>
+      <form id="sp-form" class="form" novalidate>
+        <label for="sp-category">What is this about?</label>
+        <select id="sp-category"><option value="">Select…</option><option>Product question</option><option>Service complaint</option><option>Warranty</option><option>Billing</option><option>Other</option></select>
+        <label for="sp-related">Related service request (optional)</label>
+        <select id="sp-related"><option value="">None</option></select>
+        <label for="sp-subject">Subject</label><input id="sp-subject" type="text" maxlength="120">
+        <label for="sp-message">Message</label><textarea id="sp-message" maxlength="2000"></textarea>
+        <button class="primary" id="sp-submit" type="submit">Send</button>
+        <div class="msg" id="sp-msg" role="alert"></div>
+      </form>
+    </div>
     <div class="msg err" id="app-msg"></div>
   </section>
 </main>
@@ -259,7 +284,7 @@ table.w th{font-size:11.5px;text-transform:uppercase;color:var(--stone);}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber, linkWithPhoneNumber,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
 const firebaseConfig = {
@@ -279,6 +304,7 @@ const ensureCustomerProfile = httpsCallable(fns, 'ensureCustomerProfile');
 const registerProduct = httpsCallable(fns, 'registerProduct');
 const checkWarranty = httpsCallable(fns, 'checkWarranty');
 const bookService = httpsCallable(fns, 'bookService');
+const supportTicket = httpsCallable(fns, 'supportTicket');
 const state = { products: [], tickets: [], tracks: new Map(), contact: {}, name: '' };
 
 const $ = (id) => document.getElementById(id);
@@ -500,6 +526,9 @@ async function loadAll() {
     trackMap.forEach((tr, id) => { const prev = byId.get(id) || {}; byId.set(id, Object.assign({}, prev, { ticketId: id, category: prev.category || tr.category, requestType: prev.requestType || tr.requestType, status: tr.status || prev.status, warrantyStatus: tr.warrantyStatus || prev.warrantyStatus, createdAt: prev.createdAt || tr.createdAt })); });
     const tickets = [...byId.values()].sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
     state.products = products; state.tickets = tickets; state.tracks = trackMap;
+    renderHistory();
+    $('sp-related').innerHTML = '<option value="">None</option>' + tickets.map((t) => `<option value="${esc(t.ticketId)}">${esc(t.ticketId)} — ${esc(t.category || 'Service')}</option>`).join('');
+    loadSupport();
 
     $('n-products').textContent = products.length;
     $('n-total').textContent = tickets.length;
@@ -556,7 +585,7 @@ async function loadAll() {
 }
 
 // ---------- navigation ----------
-const VIEWS = ['home', 'products', 'register', 'warranty', 'book', 'services'];
+const VIEWS = ['home', 'products', 'register', 'warranty', 'book', 'services', 'history', 'support'];
 function setView(name) {
   document.querySelectorAll('#view-app .tab').forEach((x) => x.classList.toggle('active', x.dataset.view === name));
   for (const v of VIEWS) $('app-' + v).classList.toggle('hidden', v !== name);
@@ -567,7 +596,8 @@ document.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click'
 function callMessage(err, fallback) {
   const c = err && err.code;
   if (c === 'functions/invalid-argument' || c === 'functions/already-exists' || c === 'functions/resource-exhausted' || c === 'functions/permission-denied') return err.message || fallback;
-  if (c === 'functions/failed-precondition') return 'Please sign out and sign in again to verify your mobile number.';
+  if (c === 'functions/failed-precondition') return /phone-not-verified|no-customer-profile/.test(err.message || '') ? 'Please sign out and sign in again to verify your mobile number.' : (err.message || fallback);
+  if (c === 'functions/not-found') return err.message || fallback;
   return fallback;
 }
 
@@ -683,6 +713,127 @@ $('bk-form').addEventListener('submit', async (e) => {
     await loadAll();
   } catch (err) { console.error(err); setMsg('b-msg', callMessage(err, 'Could not submit this request. Please try again.')); }
   $('b-submit').disabled = false;
+});
+
+// ---------- Service History + feedback ----------
+const FINISHED = ['completed', 'verification', 'closed'];
+function finishedAt(tr) {
+  const h = (tr && Array.isArray(tr.history) ? tr.history : []).filter((x) => FINISHED.includes(x.status));
+  return h.length ? h[0].at : null;
+}
+function visitHtml(t) {
+  const tr = state.tracks.get(t.ticketId) || {};
+  const done = finishedAt(tr);
+  const paid = typeof tr.customerCharge === 'number' ? '₹' + tr.customerCharge.toLocaleString('en-IN') + ' paid' : (t.warrantyStatus === 'in_warranty' ? 'Free — under warranty' : '—');
+  return `<div class="item"><h3>${t.requestType === 'installation' ? 'Installation / demo' : 'Service visit'} — ${esc(t.ticketId)}</h3>
+    <div class="row"><span>Raised</span><span>${esc(whenStr(t.createdAt))}</span></div>
+    <div class="row"><span>Status</span><span class="pill">${esc(statusText(t.status))}</span></div>
+    ${done ? `<div class="row"><span>Completed</span><span>${esc(when(done))}</span></div>` : ''}
+    ${tr.technicianName ? `<div class="row"><span>Technician</span><span>${esc(tr.technicianName)}</span></div>` : ''}
+    ${tr.actionTaken ? `<div class="row"><span>Work done</span><span>${esc(tr.actionTaken)}</span></div>` : ''}
+    <div class="row"><span>Charges</span><span>${esc(paid)}</span></div>
+    ${FINISHED.includes(t.status) ? `<div data-fb="${esc(t.ticketId)}" style="margin-top:10px;"></div>` : ''}</div>`;
+}
+function renderHistory() {
+  const used = new Set();
+  const groups = state.products.map((p) => {
+    const visits = state.tickets.filter((t) => {
+      const tr = state.tracks.get(t.ticketId) || {};
+      const hit = (tr.linkedRegistrationId && tr.linkedRegistrationId === p.registrationId) || (p.serialNumber && tr.serialNumber && tr.serialNumber.toUpperCase() === String(p.serialNumber).toUpperCase());
+      if (hit) used.add(t.ticketId);
+      return hit;
+    });
+    return `<div style="margin-bottom:22px;"><h2 style="font-size:15px;">${esc(p.product || p.category || 'Product')}${p.serialNumber ? ' <span style="font-weight:500;color:var(--stone);">· ' + esc(p.serialNumber) + '</span>' : ''}</h2>
+      ${visits.length ? visits.map(visitHtml).join('') : '<div class="empty" style="padding:6px 0;">No service visits yet.</div>'}</div>`;
+  });
+  const others = state.tickets.filter((t) => !used.has(t.ticketId));
+  if (others.length) groups.push(`<div><h2 style="font-size:15px;">Other service requests</h2>${others.map(visitHtml).join('')}</div>`);
+  $('history-body').innerHTML = groups.length ? groups.join('') : '<div class="empty">No products or service visits yet.</div>';
+  document.querySelectorAll('[data-fb]').forEach(loadFeedbackBox);
+}
+async function loadFeedbackBox(box) {
+  const id = box.dataset.fb;
+  try {
+    const snap = await getDoc(doc(db, 'serviceFeedback', id));
+    if (snap.exists()) {
+      const r = snap.data().rating || 0;
+      box.innerHTML = `<div class="notice">You rated this visit ${'★'.repeat(r)}${'☆'.repeat(5 - r)}. Thank you!</div>`;
+      return;
+    }
+  } catch (err) { console.warn('feedback check', err); }
+  box.innerHTML = `<div class="notice"><b>How was this service?</b>
+    <div style="margin:8px 0;" class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="ghost" data-star="${n}" aria-label="${n} star">${'★'.repeat(n)}</button>`).join(' ')}</div>
+    <textarea maxlength="500" placeholder="Anything to add? (optional)"></textarea>
+    <button type="button" class="cta" style="margin-top:8px;" disabled>Submit rating</button><div class="msg"></div></div>`;
+  let rating = 0;
+  const submit = box.querySelector('.cta'); const msg = box.querySelector('.msg');
+  box.querySelectorAll('[data-star]').forEach((b) => b.addEventListener('click', () => {
+    rating = Number(b.dataset.star); submit.disabled = false;
+    box.querySelectorAll('[data-star]').forEach((x) => { x.style.borderColor = Number(x.dataset.star) === rating ? 'var(--blue)' : ''; });
+  }));
+  submit.addEventListener('click', async () => {
+    submit.disabled = true; msg.textContent = ''; msg.className = 'msg';
+    try {
+      await setDoc(doc(db, 'serviceFeedback', id), { ticketId: id, customerPhone: me.phone10, rating, comment: box.querySelector('textarea').value.trim().slice(0, 500), createdAt: serverTimestamp() });
+      box.innerHTML = `<div class="notice">You rated this visit ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}. Thank you!</div>`;
+    } catch (err) {
+      console.error(err);
+      msg.className = 'msg err';
+      msg.textContent = 'You can rate this once the service center has marked it completed. Please try again later.';
+      submit.disabled = false;
+    }
+  });
+}
+
+// ---------- Support ----------
+const SUPPORT_STATUS = { open: 'Waiting for our team', awaiting_customer: 'We replied — your turn', closed: 'Closed' };
+async function loadSupport() {
+  try {
+    const snap = await getDocs(query(collection(db, 'supportTickets'), where('customerPhone', '==', me.phone10)));
+    const list = snap.docs.map((d) => d.data()).sort((a, b) => tsMs(b.updatedAt) - tsMs(a.updatedAt));
+    $('support-list').innerHTML = list.length ? list.map((t) => `<div class="item"><h3>${esc(t.subject)} <span style="font-weight:500;color:var(--stone);">· ${esc(t.ticketNo)}</span></h3>
+      <div class="row"><span>${esc(t.category)}${t.relatedTicketId ? ' · ' + esc(t.relatedTicketId) : ''}</span><span class="pill ${t.status === 'awaiting_customer' ? 'low' : t.status === 'closed' ? '' : 'active'}">${esc(SUPPORT_STATUS[t.status] || t.status)}</span></div>
+      <button class="ghost" type="button" data-sp-open="${esc(t.ticketNo)}" style="margin-top:8px;">View conversation</button>
+      <div class="hidden" id="sp-${esc(t.ticketNo)}">
+        ${(t.messages || []).map((m) => `<div style="margin-top:10px;padding:10px 12px;border-radius:2px;background:${m.from === 'staff' ? '#EEF4FB' : m.from === 'system' ? 'transparent' : 'var(--paper)'};font-size:13.5px;${m.from === 'system' ? 'color:var(--stone);font-style:italic;' : ''}">
+          ${m.from === 'system' ? '' : `<b>${m.from === 'staff' ? 'Pushpak Support' : 'You'}</b> <small style="color:var(--stone);">${esc(when(m.at))}</small><br>`}${esc(m.text)}</div>`).join('')}
+        <textarea maxlength="2000" placeholder="${t.status === 'closed' ? 'Write to reopen this ticket' : 'Write a reply'}" style="margin-top:10px;"></textarea>
+        <div class="actions" style="margin-top:8px;"><button class="cta" type="button" data-sp-reply="${esc(t.ticketNo)}">Send reply</button>
+          ${t.status === 'closed' ? '' : `<button class="ghost" type="button" data-sp-close="${esc(t.ticketNo)}">Close ticket</button>`}</div>
+        <div class="msg"></div>
+      </div></div>`).join('') : '<div class="empty">No support tickets yet.</div>';
+    document.querySelectorAll('[data-sp-open]').forEach((b) => b.addEventListener('click', () => {
+      const box = document.getElementById('sp-' + b.dataset.spOpen); box.classList.toggle('hidden');
+      b.textContent = box.classList.contains('hidden') ? 'View conversation' : 'Hide conversation';
+    }));
+    const act = async (btn, action) => {
+      const box = document.getElementById('sp-' + (btn.dataset.spReply || btn.dataset.spClose));
+      const msg = box.querySelector('.msg'); const text = box.querySelector('textarea').value;
+      btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
+      try {
+        await supportTicket({ action, ticketNo: btn.dataset.spReply || btn.dataset.spClose, message: text });
+        await loadSupport();
+        const again = document.getElementById('sp-' + (btn.dataset.spReply || btn.dataset.spClose));
+        if (again) { again.classList.remove('hidden'); }
+      } catch (err) { console.error(err); msg.className = 'msg err'; msg.textContent = callMessage(err, 'Could not send. Please try again.'); btn.disabled = false; }
+    };
+    document.querySelectorAll('[data-sp-reply]').forEach((b) => b.addEventListener('click', () => act(b, 'reply')));
+    document.querySelectorAll('[data-sp-close]').forEach((b) => b.addEventListener('click', () => act(b, 'close')));
+  } catch (err) {
+    console.error(err);
+    $('support-list').innerHTML = '<div class="msg err">Could not load your tickets right now.</div>';
+  }
+}
+$('sp-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('sp-submit').disabled = true; setMsg('sp-msg', '');
+  try {
+    const { data } = await supportTicket({ action: 'create', category: $('sp-category').value, subject: $('sp-subject').value, message: $('sp-message').value, relatedTicketId: $('sp-related').value });
+    setMsg('sp-msg', 'Sent. Your ticket number is ' + data.ticketNo + '. We will reply here.', true);
+    $('sp-subject').value = ''; $('sp-message').value = ''; $('sp-category').value = ''; $('sp-related').value = '';
+    await loadSupport();
+  } catch (err) { console.error(err); setMsg('sp-msg', callMessage(err, 'Could not send. Please try again.')); }
+  $('sp-submit').disabled = false;
 });
 </script>
 </body>

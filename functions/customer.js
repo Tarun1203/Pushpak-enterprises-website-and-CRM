@@ -129,10 +129,63 @@ function buildTrack(prev, src, at) {
       start: String(src.scheduledStartTime || '').slice(0, 5),
       end: String(src.scheduledEndTime || '').slice(0, 5)
     } : null,
-    history
+    history,
+    // For the customer's service history: which product this was, what
+    // was done, and what the customer paid (only when they paid — a
+    // warranty job's billingTotal is the company's claim, not their bill).
+    serialNumber: String(src.serialNumber || '').slice(0, 40),
+    linkedRegistrationId: String(src.linkedRegistrationId || '').slice(0, 80),
+    actionTaken: src.actionTaken ? String(src.actionTaken).slice(0, 300) : '',
+    customerCharge: src.billingType === 'customer' && Number.isFinite(Number(src.billingTotal)) ? Number(src.billingTotal) : null
   };
   if (src.customerUid) data.customerUid = String(src.customerUid);
   return { id, data };
 }
 
-module.exports = { BRANDS, istDate, validIsoDate, validateRegistration, validateBooking, buildTrack, ticketIdOf };
+// ---- Support tickets ---------------------------------------------------
+const SUPPORT_CATEGORIES = ['Product question', 'Service complaint', 'Warranty', 'Billing', 'Other'];
+const MAX_MESSAGES = 100;
+
+function validateSupportCreate(input) {
+  const i = input || {};
+  const category = SUPPORT_CATEGORIES.includes(i.category) ? i.category : null;
+  if (!category) return { error: 'Choose what this is about.' };
+  const subject = s(i.subject, 120);
+  if (!subject) return { error: 'Add a short subject.' };
+  const text = s(i.message, 2000);
+  if (!text) return { error: 'Write your message.' };
+  const relatedTicketId = s(i.relatedTicketId, 80);
+  if (relatedTicketId && !/^[A-Za-z0-9][A-Za-z0-9-]{3,79}$/.test(relatedTicketId)) return { error: 'Invalid related request.' };
+  return { value: { category, subject, text, relatedTicketId } };
+}
+
+// actor: 'customer' | 'staff'; action: 'reply' | 'close' | 'reopen'.
+// Returns {error} or {update} (status/messages/lastFrom) for the ticket.
+function applySupportAction(ticket, action, actor, text, name, at) {
+  if (!ticket) return { error: 'Ticket not found.' };
+  const msgs = Array.isArray(ticket.messages) ? ticket.messages.slice() : [];
+  if (action === 'reply') {
+    const body = s(text, 2000);
+    if (!body) return { error: 'Write your message.' };
+    if (msgs.length >= MAX_MESSAGES) return { error: 'This conversation is too long. Please open a new ticket.' };
+    if (ticket.status === 'closed' && actor === 'staff') return { error: 'Reopen the ticket before replying.' };
+    msgs.push({ from: actor, name: s(name, 100), text: body, at });
+    return { update: { messages: msgs, status: actor === 'staff' ? 'awaiting_customer' : 'open', lastFrom: actor } };
+  }
+  if (action === 'close') {
+    if (ticket.status === 'closed') return { error: 'Already closed.' };
+    msgs.push({ from: 'system', name: '', text: actor === 'staff' ? 'Closed by support.' : 'Closed by customer.', at });
+    return { update: { messages: msgs, status: 'closed', lastFrom: actor } };
+  }
+  if (action === 'reopen') {
+    if (ticket.status !== 'closed') return { error: 'This ticket is not closed.' };
+    msgs.push({ from: 'system', name: '', text: 'Reopened.', at });
+    return { update: { messages: msgs, status: 'open', lastFrom: actor } };
+  }
+  return { error: 'Unknown action.' };
+}
+
+module.exports = {
+  BRANDS, istDate, validIsoDate, validateRegistration, validateBooking, buildTrack, ticketIdOf,
+  SUPPORT_CATEGORIES, validateSupportCreate, applySupportAction
+};

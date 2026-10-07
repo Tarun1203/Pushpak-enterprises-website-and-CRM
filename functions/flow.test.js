@@ -405,3 +405,28 @@ test('portal: register a product, check warranty by serial, book a service, trac
   for (let i = 0; i < 8 && !limited; i++) { try { await BS(phoneTok('9000000010'), Object.assign({}, base, { brand: 'Skevia', category: 'Geyser' })); } catch (e) { limited = e.code === 'resource-exhausted'; } }
   ok(limited, 'daily booking limit trips');
 });
+
+test('support tickets: customer opens, staff replies, only the owner can act', async () => {
+  set('users/cs1', { role: 'customer', phone10: '9000000020', name: 'Kiran' });
+  set('users/cs2', { role: 'customer', phone10: '9000000021', name: 'Other' });
+  set('users/sa1', { role: 'superadmin', name: 'Boss' });
+  set('users/dl1', { role: 'dealer', name: 'Dealer' });
+  const call = (uid, phone, data) => F.supportTicket.handler({ auth: { uid, token: phone ? { phone_number: '+91' + phone } : {} }, data, rawRequest: { ip: '1.2.3.4' } });
+  const { ticketNo } = await call('cs1', '9000000020', { action: 'create', category: 'Warranty', subject: 'Geyser leaking', message: 'Water leaking from bottom' });
+  ok(/^PE-SUP-\d{8}-0001$/.test(ticketNo), 'ticket number ' + ticketNo);
+  let t = get('supportTickets/' + ticketNo);
+  ok(t.customerPhone === '9000000020' && t.customerName === 'Kiran' && t.status === 'open' && t.messages.length === 1, 'ticket created from token phone');
+  ok([...store.entries()].some(([p, d]) => p.startsWith('notifications/') && d.title === 'New customer support ticket'), 'super admin notified');
+  await assert.rejects(() => call('cs2', '9000000021', { action: 'reply', ticketNo, message: 'hi' }), /not your ticket/);
+  await assert.rejects(() => call('dl1', null, { action: 'reply', ticketNo, message: 'hi' }), /phone-not-verified/);
+  await assert.rejects(() => call('dl1', null, { action: 'create', category: 'Warranty', subject: 'x', message: 'y' }), /phone-not-verified/);
+  let r = await call('sa1', null, { action: 'reply', ticketNo, message: 'Technician will call you today.' });
+  ok(r.status === 'awaiting_customer' && get('supportTickets/' + ticketNo).messages[1].from === 'staff' && get('supportTickets/' + ticketNo).messages[1].name === 'Pushpak Support', 'staff reply');
+  r = await call('cs1', '9000000020', { action: 'reply', ticketNo, message: 'Thanks' });
+  ok(r.status === 'open', 'customer reply reopens to open');
+  r = await call('cs1', '9000000020', { action: 'close', ticketNo });
+  ok(r.status === 'closed', 'customer closes');
+  await assert.rejects(() => call('sa1', null, { action: 'reply', ticketNo, message: 'x' }), /Reopen/);
+  await assert.rejects(() => call('sa1', null, { action: 'delete', ticketNo }), /Unknown action/);
+  await assert.rejects(() => call('cs1', '9000000020', { action: 'create', category: 'Warranty', subject: '', message: 'y' }), /subject/);
+});

@@ -2050,3 +2050,75 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
     }
   );
 }
+
+// ---------------------------------------------------------------
+// Customer support tickets (supportTickets/<PE-SUP-...>). Customers open
+// and reply from the portal; Super Admin / Warehouse answer from the CRM.
+// Everything goes through this one function so the thread can't be edited
+// from a browser, and a customer only ever touches their own tickets.
+// ---------------------------------------------------------------
+exports.supportTicket = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const data = request.data || {};
+  const userSnap = await db.collection('users').doc(request.auth.uid).get();
+  const role = userSnap.exists ? userSnap.data().role : null;
+  const isStaffAdmin = role === 'superadmin' || role === 'warehouse';
+  const now = Date.now();
+
+  if (data.action === 'create') {
+    const cust = await requireCustomer(request);
+    const v = Customer.validateSupportCreate(data);
+    if (v.error) throw new HttpsError('invalid-argument', v.error);
+    const ist = Customer.istDate(now);
+    await consumeLimits([{ id: `sp_${cust.phone}_${ist.dayBucket}`, max: 5 }], 'You have opened several tickets today. Please reply on an existing ticket instead.');
+    const counterRef = db.collection('counters').doc(`support-${ist.ym}`);
+    const ticketNo = await db.runTransaction(async (tx) => {
+      const c = await tx.get(counterRef);
+      const next = (c.exists ? (c.data().value || 0) : 0) + 1;
+      tx.set(counterRef, { value: next });
+      const id = `PE-SUP-${ist.ymd}-${pad4(next)}`;
+      tx.create(db.collection('supportTickets').doc(id), {
+        ticketNo: id, customerUid: cust.uid, customerPhone: cust.phone, customerName: cust.profile.name || '',
+        category: v.value.category, subject: v.value.subject, relatedTicketId: v.value.relatedTicketId || '',
+        status: 'open', lastFrom: 'customer',
+        messages: [{ from: 'customer', name: cust.profile.name || '', text: v.value.text, at: Timestamp.now() }],
+        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+      });
+      tx.set(db.collection('notifications').doc(), {
+        recipientType: 'role', recipientValue: 'superadmin',
+        title: 'New customer support ticket', message: `${id} — ${v.value.subject}`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+      return id;
+    });
+    return { ticketNo };
+  }
+
+  const ticketNo = Lookup.cleanTicketId(data.ticketNo);
+  if (!ticketNo) throw new HttpsError('invalid-argument', 'Unknown ticket.');
+  let actor, name, custPhone = null;
+  if (isStaffAdmin) { actor = 'staff'; name = 'Pushpak Support'; }
+  else {
+    const cust = await requireCustomer(request);
+    actor = 'customer'; name = cust.profile.name || '';
+    custPhone = cust.phone;
+  }
+  if (!['reply', 'close', 'reopen'].includes(data.action)) throw new HttpsError('invalid-argument', 'Unknown action.');
+  const ref = db.collection('supportTickets').doc(ticketNo);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError('not-found', 'Ticket not found.');
+    const t = snap.data();
+    if (actor === 'customer' && t.customerPhone !== custPhone) throw new HttpsError('permission-denied', 'This is not your ticket.');
+    const res = Customer.applySupportAction(t, data.action, actor, data.message, name, Timestamp.now());
+    if (res.error) throw new HttpsError('failed-precondition', res.error);
+    tx.update(ref, Object.assign({}, res.update, { updatedAt: FieldValue.serverTimestamp() }));
+    if (actor === 'customer' && data.action === 'reply') {
+      tx.set(db.collection('notifications').doc(), {
+        recipientType: 'role', recipientValue: 'superadmin', title: 'Customer replied on a support ticket',
+        message: `${ticketNo} — ${t.subject || ''}`, read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    }
+    return { ok: true, status: res.update.status };
+  });
+});

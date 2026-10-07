@@ -582,6 +582,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Customer support tickets. Created and updated only by the
+    // supportTicket Cloud Function (so the conversation can't be edited
+    // from a browser). Head Office reads all; a customer reads only the
+    // tickets carrying their own verified phone.
+    match /supportTickets/{ticketNo} {
+      allow get, list: if isAdmin()
+        || (isCustomer() && resource.data.customerPhone == myPhone());
+      allow write: if false;
+    }
+
     // Customer feedback, one record per ticket (doc ID = ticket ID).
     // Anyone may create it from the public Track page, but only for a
     // finished ticket whose public mirror carries the same phone number,
@@ -604,6 +614,9 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && (resource.data.get('serviceCenterUid', null) == request.auth.uid
                              || resource.data.get('technicianUid', null) == request.auth.uid));
+      // The portal checks whether a ticket was already rated: a customer may
+      // get their own feedback (or learn that none exists yet).
+      allow get: if isCustomer() && (resource == null || resource.data.customerPhone == myPhone());
       allow update: if false;
       allow delete: if isAdmin();
     }

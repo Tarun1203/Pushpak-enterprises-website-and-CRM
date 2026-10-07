@@ -62,3 +62,40 @@ test('tracking record keeps a history, only customer-safe fields, and no duplica
   assert.strictEqual(C.buildTrack(null, { requestId: 'PE-SVC-1' }, t0), null);
   assert.strictEqual(C.buildTrack(null, { jobId: 'PE-JOB-7', customerPhone: '9', type: 'installation' }, t0).data.requestType, 'installation');
 });
+
+test('tracking carries history fields; charge only when the customer paid', () => {
+  const at = { id: 1 };
+  const base = { requestId: 'PE-CR-1', customerPhone: '9000000001', status: 'closed', serialNumber: 'SN-1', linkedRegistrationId: 'PE-REG-1', actionTaken: 'Replaced thermostat' };
+  const paid = C.buildTrack(null, Object.assign({}, base, { billingType: 'customer', billingTotal: 450 }), at).data;
+  assert.strictEqual(paid.customerCharge, 450);
+  assert.strictEqual(paid.actionTaken, 'Replaced thermostat');
+  assert.strictEqual(paid.linkedRegistrationId, 'PE-REG-1');
+  const claim = C.buildTrack(null, Object.assign({}, base, { billingType: 'claim', billingTotal: 900 }), at).data;
+  assert.strictEqual(claim.customerCharge, null);
+});
+
+test('support tickets: create validation and conversation states', () => {
+  assert.match(C.validateSupportCreate({ category: 'Nope', subject: 'x', message: 'y' }).error, /about/);
+  assert.match(C.validateSupportCreate({ category: 'Warranty', subject: '', message: 'y' }).error, /subject/);
+  assert.match(C.validateSupportCreate({ category: 'Warranty', subject: 'x', message: ' ' }).error, /message/);
+  assert.match(C.validateSupportCreate({ category: 'Warranty', subject: 'x', message: 'y', relatedTicketId: 'a/b' }).error, /related/);
+  assert.ok(C.validateSupportCreate({ category: 'Billing', subject: 'x', message: 'y', relatedTicketId: 'PE-SVC-1' }).value);
+  const at = { t: 1 };
+  let t = { status: 'open', messages: [{ from: 'customer', text: 'hi' }] };
+  let r = C.applySupportAction(t, 'reply', 'staff', 'Hello', 'Support', at);
+  assert.strictEqual(r.update.status, 'awaiting_customer');
+  assert.strictEqual(r.update.messages.length, 2);
+  t = Object.assign({}, t, r.update);
+  r = C.applySupportAction(t, 'reply', 'customer', 'Thanks', 'Asha', at);
+  assert.strictEqual(r.update.status, 'open');
+  t = Object.assign({}, t, r.update);
+  r = C.applySupportAction(t, 'close', 'customer', '', '', at);
+  assert.strictEqual(r.update.status, 'closed');
+  t = Object.assign({}, t, r.update);
+  assert.match(C.applySupportAction(t, 'reply', 'staff', 'x', '', at).error, /Reopen/);
+  assert.strictEqual(C.applySupportAction(t, 'reply', 'customer', 'still broken', '', at).update.status, 'open');
+  assert.match(C.applySupportAction(t, 'close', 'staff', '', '', at).error, /Already/);
+  assert.strictEqual(C.applySupportAction(t, 'reopen', 'staff', '', '', at).update.status, 'open');
+  assert.match(C.applySupportAction({ status: 'open', messages: [] }, 'reply', 'customer', '', '', at).error, /message/);
+  assert.match(C.applySupportAction({ status: 'open', messages: new Array(100).fill({}) }, 'reply', 'customer', 'x', '', at).error, /too long/);
+});
