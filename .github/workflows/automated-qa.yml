@@ -26,7 +26,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # No `cache: npm` — the repo root has no package-lock.json, and
+          # setup-node fails the job when caching without a lockfile.
 
       - name: Verify Node runtime
         run: |
