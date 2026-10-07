@@ -119,7 +119,7 @@ runCases('Rules: prices, accounts, invoices, payments', [
   ['d1', 'update', 'tradeAccounts/d1', { creditLimit: 9999999 }, D],
   ['wh', 'update', 'tradeAccounts/d1', { creditLimit: 1 }, D, 'credit terms are Super Admin\'s'],
   ['sa', 'update', 'tradeAccounts/d1', { creditLimit: 60000, updatedAt: ST }, A],
-  ['sa', 'update', 'tradeAccounts/d1', { outstanding: 0 }, D, 'balances are server-written'],
+  ['sa', 'update', 'tradeAccounts/d1', { outstanding: 5000 }, D, 'balances are server-written'],
   ['sa', 'update', 'tradeAccounts/d1', { paymentTermsDays: 400 }, D, 'terms over a year'],
   ['wh', 'create', 'invoices/in', { buyerUid: 'd1' }, D, 'invoices are server-written'], ['sa', 'update', 'invoices/i1', { status: 'paid' }, D],
   ['sa', 'create', 'ledgerEntries/ln', { accountUid: 'd1' }, D],

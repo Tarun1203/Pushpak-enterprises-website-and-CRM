@@ -68,6 +68,18 @@ test.before(async () => {
 test.after(async () => { if (env) await env.cleanup(); });
 const write = (who, op, target, data) => attempt(dbAs(env, who), op, target, data);
 
+test('the server sees who made a change (auth context reaches the triggers)', async () => {
+  await assertSucceeds(write('wh', 'create', 'users/auditProbe', { role: 'technician', name: 'Probe' }));
+  const logs = await waitFor('audit entry by wh', async () => {
+    const l = await adminQuery(env, 'auditLogs', ['performedByUid', '==', 'wh']);
+    return l.length ? l : null;
+  }, 20000).catch(async (e) => {
+    const all = await adminQuery(env, 'auditLogs');
+    throw new Error(e.message + ' — audit entries seen: ' + JSON.stringify(all.map((x) => ({ by: x.performedByUid, action: x.action }))).slice(0, 500));
+  });
+  assert.ok(logs.length >= 1);
+});
+
 test('website booking is routed to the covering service center and tracked for the customer', async () => {
   await adminSet(env, 'users/scW1', { role: 'servicecenter', name: 'Raichur SC', pincodesCovered: ['584201'], brandsAuthorized: ['makwell'] });
   await adminSet(env, 'serviceCenterProfiles/scW1', { status: 'ACTIVE' });
