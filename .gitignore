@@ -8,3 +8,6 @@ crm/
 
 # Cloud Functions dependencies (installed locally / by the deploy)
 functions/node_modules/
+
+# QA tooling dependencies (root package.json)
+/node_modules/

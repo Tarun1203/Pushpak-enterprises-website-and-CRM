@@ -6,9 +6,11 @@
   "scripts": {
     "test:e2e": "playwright test",
     "test:qa": "playwright test --reporter=line,json",
-    "qa:report": "node scripts/publish-qa-results.mjs"
+    "qa:report": "node scripts/publish-qa-results.mjs",
+    "test:unit": "node --import ./tests/unit/setup.mjs --test \"tests/unit/**/*.test.mjs\""
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "linkedom": "^0.18.13"
   }
 }
