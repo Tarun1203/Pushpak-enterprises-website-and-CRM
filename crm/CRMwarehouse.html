@@ -606,7 +606,8 @@
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp, arrayUnion, getCountFromServer
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
   import * as PStock from './productStock.js';
@@ -2872,21 +2873,27 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   async function loadDashboardStats() {
     try {
-      const isOpenTicket = status => !['completed', 'closed', 'cancelled', 'verification'].includes(status);
+      // Counts come from Firestore count queries (one read per 1,000
+      // matching documents) instead of downloading the documents, so the
+      // dashboard stays fast as history grows. Spare-part master data is
+      // still read in full for the low-stock tile.
+      const count = async (q) => (await getCountFromServer(q)).data().count;
+      const C = (name) => collection(db, name);
+      const CLOSED_TICKET = ['completed', 'closed', 'cancelled', 'verification'];
       const [
-        newSnap, backorderSnap, transitSnap, partsSnap, returnsSnap,
-        lpSnap, claimsSnap, returnsReqSnap, jobsSnap, centerReqSnap
+        newRequests, backorder, inTransit, partsSnap, damaged,
+        pendingLp, pendingClaims, pendingReturns, openJobs, openCenterReqs
       ] = await Promise.all([
-        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'new'))),
-        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'backorder'))),
-        getDocs(query(collection(db, 'spareRequests'), where('status', '==', 'intransit'))),
-        getDocs(collection(db, 'spareParts')),
-        getDocs(query(collection(db, 'returns'), where('status', 'in', ['defective', 'disposed']))),
-        getDocs(query(collection(db, 'localPurchases'), where('status', '==', 'requested'))),
-        getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted'))),
-        getDocs(query(collection(db, 'returns'), where('status', '==', 'requested'))),
-        getDocs(collection(db, 'serviceJobs')),
-        getDocs(collection(db, 'centerRequests')),
+        count(query(C('spareRequests'), where('status', '==', 'new'))),
+        count(query(C('spareRequests'), where('status', '==', 'backorder'))),
+        count(query(C('spareRequests'), where('status', '==', 'intransit'))),
+        getDocs(C('spareParts')),
+        count(query(C('returns'), where('status', 'in', ['defective', 'disposed']))),
+        count(query(C('localPurchases'), where('status', '==', 'requested'))),
+        count(query(C('claims'), where('status', '==', 'submitted'))),
+        count(query(C('returns'), where('status', '==', 'requested'))),
+        count(query(C('serviceJobs'), where('status', 'not-in', CLOSED_TICKET))),
+        count(query(C('centerRequests'), where('status', 'not-in', CLOSED_TICKET))),
       ]);
 
       let lowStock = 0;
@@ -2896,21 +2903,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const reorder = typeof d.reorderLevel === 'number' ? d.reorderLevel : 5;
         if (qty !== null && qty <= reorder) lowStock++;
       });
-
-      let serviceTickets = 0;
-      jobsSnap.forEach(docSnap => { if (isOpenTicket(docSnap.data().status)) serviceTickets++; });
-      centerReqSnap.forEach(docSnap => { if (isOpenTicket(docSnap.data().status)) serviceTickets++; });
+      const serviceTickets = openJobs + openCenterReqs;
 
       whDashboardStatsCache = {
-        newRequests: newSnap.size,
-        backorder: backorderSnap.size,
-        inTransit: transitSnap.size,
-        lowStock,
-        damaged: returnsSnap.size,
-        pendingLp: lpSnap.size,
-        pendingClaims: claimsSnap.size,
-        pendingReturns: returnsReqSnap.size,
-        serviceTickets,
+        newRequests, backorder, inTransit, lowStock, damaged,
+        pendingLp, pendingClaims, pendingReturns, serviceTickets,
       };
     } catch (err) {
       console.error('Dashboard stats failed:', err);

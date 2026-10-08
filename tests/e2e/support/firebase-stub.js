@@ -18,19 +18,21 @@ export const where = (f, op, v) => ({ w: [f, op, v] }); export const orderBy = (
 export const query = (c, ...cs) => ({ ...c, filters: c.filters.concat(cs.filter((x) => x.w).map((x) => x.w)) });
 const conv = (v) => (v && typeof v === 'object' && v.__ms !== undefined ? TS(v.__ms) : v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, conv(x)])) : Array.isArray(v) ? v.map(conv) : v);
 const rows = (coll) => ((S().data || {})[coll] || []).map((r, i) => ({ id: r.id || coll + i, ...r }));
-const match = (d, [f, op, v]) => { const x = d[f]; return op === '==' ? x === v : op === 'in' ? v.includes(x) : op === 'array-contains' ? (x || []).includes(v) : op === '!=' ? x !== v : true; };
+const match = (d, [f, op, v]) => { const x = d[f]; return op === '==' ? x === v : op === 'in' ? v.includes(x) : op === 'array-contains' ? (x || []).includes(v) : op === '!=' ? x !== v : op === 'not-in' ? !v.includes(x) : true; };
 const snapOf = (id, d) => ({ id, ref: { id }, exists: () => !!d, data: () => (d ? conv(d) : undefined), get: (f) => (d ? conv(d[f]) : undefined) });
 export async function getDoc(r) {
+  (window.__reads = window.__reads || []).push({ kind: 'doc', path: r.path });
   const [coll, id] = r.path.split('/');
   if (coll === 'users' && id === (S().uid || 'u1') && !(S().data || {}).users) return snapOf(id, S().profile || { role: S().role, name: 'Test ' + S().role, email: 'test@pe.test' });
   const d = rows(coll).find((x) => x.id === id);
   return snapOf(id, d);
 }
 export async function getDocs(q) {
+  (window.__reads = window.__reads || []).push({ kind: 'query', path: q.path, filtered: q.filters.length > 0 });
   const docs = rows(q.path.split('/')[0]).filter((d) => q.filters.every((f) => match(d, f))).map((d) => snapOf(d.id, d));
   return { docs, size: docs.length, empty: !docs.length, forEach: (fn) => docs.forEach(fn) };
 }
-export async function getCountFromServer(q) { const s = await getDocs(q); return { data: () => ({ count: s.size }) }; }
+export async function getCountFromServer(q) { (window.__reads = window.__reads || []).push({ kind: 'count', path: q.path }); const docs = rows(q.path.split('/')[0]).filter((d) => q.filters.every((f) => match(d, f))); return { data: () => ({ count: docs.length }) }; }
 const rec = (op, p, d) => { (window.__stubWrites = window.__stubWrites || []).push([op, p, d]); };
 export async function setDoc(r, d) { rec('set', r.path, d); } export async function updateDoc(r, d) { rec('update', r.path, d); }
 export async function addDoc(c, d) { rec('add', c.path, d); return { id: 'new' + Date.now() }; } export async function deleteDoc(r) { rec('delete', r.path); }

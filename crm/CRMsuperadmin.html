@@ -1064,7 +1064,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
@@ -1503,71 +1503,47 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // you'd actually see if you clicked into that screen.
   async function initDashboardStats() {
     try {
+      // Counts come from Firestore's count queries (one read per 1,000
+      // matching documents) instead of downloading whole collections, so
+      // the dashboard stays fast and cheap as tickets, claims and orders
+      // pile up over the years. Only OPEN tickets are fetched (the SLA
+      // tile needs their age and pincode).
+      const count = async (q) => (await getCountFromServer(q)).data().count;
+      const C = (name) => collection(db, name);
+      const CLOSED_TICKET = ['completed', 'closed', 'cancelled', 'verification'];
       const [
-        enquiriesSnap, brandsSnap, usersSnap,
-        claimsSnap, lpSnap, srSnap, rmaSnap, dealerOrdersSnap,
-        jobsSnap, requestsSnap, pincodeMaster, slaRules, changeReqSnap,
+        enquiries, brands, users,
+        pendingClaims, approvalsClaims, pendingLp, approvalsLp, pendingSr, approvalsSr,
+        pendingRma, pendingDealerOrders,
+        jobsSnap, requestsSnap, pincodeMaster, slaRules, approvalsChangeRequests,
       ] = await Promise.all([
-        getDocs(collection(db, 'contactEnquiries')),
-        getDocs(collection(db, 'brands')),
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'claims')),
-        getDocs(collection(db, 'localPurchases')),
-        getDocs(collection(db, 'spareRequests')),
-        getDocs(collection(db, 'rmaRequests')),
-        getDocs(collection(db, 'dealerOrders')),
-        getDocs(collection(db, 'serviceJobs')),
-        getDocs(collection(db, 'centerRequests')),
+        count(C('contactEnquiries')),
+        count(C('brands')),
+        count(C('users')),
+        // Claims: "not settled, not rejected" (Payments), "submitted" (Approvals).
+        count(query(C('claims'), where('status', 'not-in', ['settled', 'rejected']))),
+        count(query(C('claims'), where('status', '==', 'submitted'))),
+        // Local purchase: not reimbursed / waiting for a decision.
+        count(query(C('localPurchases'), where('status', '!=', 'reimbursed'))),
+        count(query(C('localPurchases'), where('status', 'in', ['requested', 'invoice_submitted']))),
+        // Spare requests: not received yet / new.
+        count(query(C('spareRequests'), where('status', '!=', 'received'))),
+        count(query(C('spareRequests'), where('status', '==', 'new'))),
+        count(query(C('rmaRequests'), where('status', 'not-in', ['replaced', 'rejected']))),
+        count(query(C('dealerOrders'), where('status', 'not-in', ['delivered', 'cancelled']))),
+        getDocs(query(C('serviceJobs'), where('status', 'not-in', CLOSED_TICKET))),
+        getDocs(query(C('centerRequests'), where('status', 'not-in', CLOSED_TICKET))),
         getPincodesCache(false),
         getSlaRulesCache(false),
-        getDocs(query(collection(db, 'changeRequests'), where('status', '==', 'pending'))),
+        count(query(C('changeRequests'), where('status', '==', 'pending'))),
       ]);
-      const approvalsChangeRequests = changeReqSnap.size;
-
-      // Claims — same "not settled, not rejected" as the Payments
-      // pending-item picker; "submitted" alone is what Approvals counts.
-      let approvalsClaims = 0, pendingClaims = 0;
-      claimsSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.status !== 'settled' && d.status !== 'rejected') pendingClaims++;
-        if (d.status === 'submitted') approvalsClaims++;
-      });
-
-      // Local purchase — same split as above.
-      let approvalsLp = 0, pendingLp = 0;
-      lpSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.status !== 'reimbursed') pendingLp++;
-        if (d.status === 'requested' || d.status === 'invoice_submitted') approvalsLp++;
-      });
-
-      // Spare requests — "not received yet" for the logistics tile;
-      // "new" alone is what Approvals counts.
-      let approvalsSr = 0, pendingSr = 0;
-      srSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.status !== 'received') pendingSr++;
-        if (d.status === 'new') approvalsSr++;
-      });
-
-      let pendingRma = 0;
-      rmaSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.status !== 'replaced' && d.status !== 'rejected') pendingRma++;
-      });
-
-      let pendingDealerOrders = 0;
-      dealerOrdersSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        if (d.status !== 'delivered' && d.status !== 'cancelled') pendingDealerOrders++;
-      });
 
       // Service tickets / Installation-Demo / SLA — same three status
       // sets as Appointments and the SLA screen: "still open" excludes
       // completed/closed/cancelled/verification, while the narrower
       // SLA-clock set (matching loadSlaView) is what the due-soon/
       // breached hours are measured against.
-      const isOpenTicket = status => !['completed', 'closed', 'cancelled', 'verification'].includes(status);
+      const isOpenTicket = status => !CLOSED_TICKET.includes(status);
       const slaClockStatuses = ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
       let serviceTickets = 0, installationDemo = 0, slaAlerts = 0;
       const now = Date.now();
@@ -1587,9 +1563,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       requestsSnap.forEach(docSnap => tally(docSnap.data()));
 
       dashboardStatsCache = {
-        enquiries: enquiriesSnap.size,
-        brands: brandsSnap.size,
-        users: usersSnap.size,
+        enquiries,
+        brands,
+        users,
         approvals: approvalsClaims + approvalsLp + approvalsSr + approvalsChangeRequests,
         rma: pendingRma,
         payments: pendingClaims + pendingLp,
