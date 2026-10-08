@@ -12,6 +12,10 @@ npm run test:unit
   stock requests, RMA) rendered into a DOM (linkedom) against an in-memory
   Firestore (`stubs/firebase-firestore.mjs`). They check what is shown,
   what is written, and that customer/dealer text is never rendered as HTML.
+- `links.test.mjs` — every local link, image, script, stylesheet and page
+  reference exists with the exact file-name case (GitHub Pages is
+  case-sensitive), and every #anchor exists. Outside addresses are checked
+  in `tests/e2e/external-links.spec.js`.
 - `pages.test.mjs` — every HTML page: inline scripts parse, Firebase imports
   are real SDK exports from one SDK version, local module imports exist,
   and the helper files shared with Cloud Functions are identical.
