@@ -37,9 +37,6 @@ test('Phase 5 Firestore rules enforce role, ownership and protected-field bounda
 
   // No client-side wildcard write escape hatch.
   expect(rules).not.toMatch(/match\s+\/\{[^}]*\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+true/i);
-  // Firestore rules currently use {document=**}; accept that canonical
-  // wildcard form (and the older allPaths spelling) while still requiring
-  // the wildcard to be explicitly deny-by-default.
   expect(rules).toMatch(/match\s+\/\{(?:allPaths|document)=\*\*\}[\s\S]*?allow\s+read,\s*write:\s*if\s+false/i);
 
   // Service jobs must remain technician-owned or admin-readable/writable.
@@ -126,4 +123,88 @@ test('Phase 5 Service Center cannot use privileged role values through visible f
 
   const privilegedRoleInputs = page.locator('select option[value="superadmin"], select option[value="warehouse"], input[value="superadmin"], input[value="warehouse"]');
   expect(await privilegedRoleInputs.count()).toBe(0);
+});
+
+// Expanded Phase 5 contract: these checks cover the security/integrity areas
+// that must remain true across later feature work, without writing production data.
+test('Phase 5 identity model keeps CRM roles separated from customer accounts', async () => {
+  const rules = readRuleFile('firestore.rules');
+  expect(rules).toContain("function isCustomer()");
+  expect(rules).toContain("function callerRole()");
+  expect(rules).toContain("callerRole() != 'customer'");
+  expect(rules).toContain("callerRole() == 'customer'");
+  expect(rules).toContain("function isDistributor()");
+});
+
+test('Phase 5 counter security covers public serials and privileged operational IDs', async () => {
+  const rules = readRuleFile('firestore.rules');
+  expect(rules).toContain("match /counters/{counterId}");
+  expect(rules).toMatch(/counterId\.matches\('\^\(enquiry\|productreg\|publicservice\)-\[0-9\]\{6\}\$'\)/);
+  expect(rules).toMatch(/counterId\.matches\('\^\(sparerequest\|localpurchase\|claim\|return\|servicejob\|centerrequest\|dealerorder\|dealersale\|distributororder\|distributorsale\|rma\)-\[0-9\]\{6\}\$'\)/);
+  expect(rules).toContain("counterId == 'sparepart-master'");
+  expect(rules).toContain("request.resource.data.keys().hasOnly(['value'])");
+});
+
+test('Phase 5 service-job integrity protects server-computed billing and feedback fields', async () => {
+  const rules = readRuleFile('firestore.rules');
+  const protectedFields = ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback'];
+  for (const field of protectedFields) {
+    expect(rules, `service-job protected field missing: ${field}`).toContain(`'${field}'`);
+  }
+  expect(rules).toContain('match /serviceJobs/{jobId}/statusLog/{logId}');
+  expect(rules).toContain('allow update, delete: if isAdmin()');
+});
+
+test('Phase 5 trade-order integrity protects pricing, approval and status transitions', async () => {
+  const rules = readRuleFile('firestore.rules');
+  expect(rules).toContain('function orderStepOk');
+  expect(rules).toContain('function sellerOrderUpdateOk');
+  expect(rules).toContain('function approvalCreditOk');
+  expect(rules).toContain("request.resource.data.status == 'placed'");
+  expect(rules).toContain("request.resource.data.get('pricing', {}).get('status', '') == 'ok'");
+  expect(rules).toContain('creditOverride');
+  expect(rules).toContain('statusNote');
+});
+
+test('Phase 5 public-write surface remains narrowly validated', async () => {
+  const rules = readRuleFile('firestore.rules');
+  expect(rules).toContain('match /contactEnquiries/{enquiryId}');
+  expect(rules).toContain("request.resource.data.ticketId.matches('^PE-[A-Z]+-[0-9]{8}-[0-9]{4}-[A-Za-z]+$')");
+  expect(rules).toContain("request.resource.data.phone.matches('^[6-9][0-9]{9}$')");
+  expect(rules).toContain('request.resource.data.message.size() <= 2000');
+  expect(rules).toContain('allow read, update, delete: if isAdmin()');
+});
+
+test('Phase 5 account escalation boundaries remain explicit', async () => {
+  const rules = readRuleFile('firestore.rules');
+  expect(rules).toContain("request.resource.data.role != 'superadmin' || isSuperAdmin()");
+  expect(rules).toContain("resource.data.role != 'superadmin' || isSuperAdmin()");
+  expect(rules).toContain("'districtsCovered'");
+  expect(rules).toContain("'pincodesCovered'");
+  expect(rules).toContain("'brandsAuthorized'");
+  expect(rules).toContain("'linkedServiceCenterUid'");
+  expect(rules).toContain("'contractEndDate'");
+});
+
+test('Phase 5 source files contain no obvious hardcoded credential assignments', async () => {
+  const candidates = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', '.git', 'qa-results'].includes(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(js|mjs|html|json)$/i.test(entry.name)) candidates.push(full);
+    }
+  };
+  walk(ROOT);
+
+  const suspicious = [];
+  const secretAssignment = /(password|passwd|secret|private[_-]?key|api[_-]?secret)\s*[:=]\s*['"][^'"]{8,}['"]/i;
+  for (const file of candidates) {
+    const text = fs.readFileSync(file, 'utf8');
+    if (secretAssignment.test(text) && !/node_modules|package-lock\.json/i.test(file)) {
+      suspicious.push(path.relative(ROOT, file));
+    }
+  }
+  expect(suspicious, 'Possible hardcoded credential assignments').toEqual([]);
 });
