@@ -99,3 +99,18 @@ test('support tickets: create validation and conversation states', () => {
   assert.match(C.applySupportAction({ status: 'open', messages: [] }, 'reply', 'customer', '', '', at).error, /message/);
   assert.match(C.applySupportAction({ status: 'open', messages: new Array(100).fill({}) }, 'reply', 'customer', 'x', '', at).error, /too long/);
 });
+
+test('overall warranty comes from the plan\'s whole-product line, else 12 months', () => {
+  const { overallWarrantyMonths } = require('./customer');
+  const plan = (components) => ({ components });
+  assert.strictEqual(overallWarrantyMonths(null), 12);
+  assert.strictEqual(overallWarrantyMonths(plan([])), 12);
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Full Product', durationYears: 2 }, { componentName: 'Motor', durationYears: 5 }])), 24);
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Motor', durationYears: 5 }, { componentName: 'Whole unit', durationYears: 3 }])), 36);
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Product', durationYears: 1.5 }])), 18);
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Motor', durationYears: 5 }])), 12, 'part-only plan');
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Full Product', durationYears: 0 }])), 12, 'zero years is not a cover');
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Full Product', durationYears: 'abc' }])), 12);
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Full Product', durationYears: 99 }])), 120, 'capped at 10 years');
+  assert.strictEqual(overallWarrantyMonths(plan([{ componentName: 'Heating Element', durationYears: 5 }, { componentName: 'Full Product', durationYears: 2 }])), 24, 'order does not matter');
+});

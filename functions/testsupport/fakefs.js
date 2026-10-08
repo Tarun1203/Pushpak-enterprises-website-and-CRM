@@ -38,6 +38,7 @@ class DocRef {
   async set(d, o) { applyWrite(this.path, d, o && o.merge ? 'merge' : 'set'); }
   async update(d) { applyWrite(this.path, d, 'update'); }
   async delete() { store.delete(this.path); }
+  collection(name) { return new CollRef(this.path + '/' + name); }
 }
 class Query {
   constructor(coll, filters = [], max) { this.coll = coll; this.filters = filters; this.max = max; }
@@ -46,7 +47,8 @@ class Query {
   async get() {
     const docs = [];
     for (const [p] of store) {
-      const [c, id] = p.split('/');
+      const cut = p.lastIndexOf('/');
+      const c = p.slice(0, cut), id = p.slice(cut + 1);
       if (c !== this.coll) continue;
       const s = new Snap(new DocRef(c, id));
       if (this.filters.every(([f, op, v]) => op === '==' ? s.get(f) === v : op === 'in' ? v.includes(s.get(f)) : false)) docs.push(s);

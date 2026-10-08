@@ -262,3 +262,63 @@ test('security: portal functions refuse signed-out and non-customer callers, and
   await assert.rejects(() => call('publicLookup', { type: 'warranty', phone: '12' }), /10-digit/);
   await assert.rejects(() => call('publicLookup', { type: 'dump-all', phone: '9000000192' }), /Unknown lookup/);
 });
+
+// Phase 9 items 1-5 — one customer, start to routed ticket, through the real
+// rules and functions: registration (warranty from the plan, serial locked),
+// a dealer's lower-case duplicate of a serial, booking from the registration,
+// automatic routing to the covering center, intake warranty read, and the
+// records the Customer 360 screen reads all pointing at each other.
+test('phase 9: register -> warranty -> book -> route, one serial one registration, records link up', async () => {
+  await adminSet(env, 'users/scP9', { role: 'servicecenter', name: 'Phase9 SC', pincodesCovered: ['584209'], brandsAuthorized: ['makwell'] });
+  await adminSet(env, 'serviceCenterProfiles/scP9', { status: 'ACTIVE' });
+  await adminSet(env, 'warrantyPlans/wpP9', { brandId: 'makwell', categoryId: 'geyser', status: 'active',
+    components: [{ componentName: 'Full Product', durationYears: 2 }, { componentName: 'Heating Element', durationYears: 5 }] });
+  const cust = await phoneSignIn('9000000211');
+  await call('ensureCustomerProfile', { name: 'Nandini' }, cust.idToken);
+  const other = await phoneSignIn('9000000212');
+  await call('ensureCustomerProfile', { name: 'Other' }, other.idToken);
+
+  const contact = { name: 'Nandini', address: '9 Lake Rd', city: 'Raichur', state: 'Karnataka', pincode: '584209' };
+  const bought = new Date(); bought.setMonth(bought.getMonth() - 18);
+  const form = { brand: 'MakWell', categoryId: 'geyser', category: 'Geyser', modelNo: 'G15', serialNumber: ' p9-emu-1 ', purchaseDate: bought.toISOString().slice(0, 10), ...contact };
+  const reg = await call('registerProduct', form, cust.idToken);
+  const regDoc = (await adminQuery(env, 'productRegistrations', ['registrationId', '==', reg.registrationId]))[0];
+  assert.strictEqual(regDoc.serialNumber, 'P9-EMU-1');
+  assert.strictEqual(regDoc.warrantyMonths, 24, 'whole-product cover comes from the plan');
+  assert.strictEqual(regDoc.customerPhone, '9000000211');
+  assert.strictEqual((await adminGet(env, 'registrationSerials/P9-EMU-1')).registrationId, reg.registrationId);
+
+  // Same serial from another customer, and from the same customer in a different spelling: refused.
+  await assert.rejects(() => call('registerProduct', { ...form, serialNumber: 'P9-emu-1' }, other.idToken), /already registered/);
+  await assert.rejects(() => call('registerProduct', { ...form, serialNumber: 'p9-EMU-1' }, cust.idToken), /already registered this serial/);
+
+  // A dealer enters a serial in lower case; the server stores it in the standard form and locks it.
+  const dealerRegId = `PE-REG-${ymd()}-9001`;
+  await assertSucceeds(write('d1', 'create', 'productRegistrations/p9dealer', {
+    registrationId: dealerRegId, dealerUid: 'd1', customerName: 'Walk-in', customerPhone: '9000000299', product: 'MakWell Geyser', serialNumber: ' p9-dealer-77 ',
+    purchaseDate: new Date().toISOString().slice(0, 10), warrantyMonths: 12, status: 'active', createdAt: '__ST__'
+  }));
+  const dealerDoc = await waitFor('dealer serial standardised', async () => { const d = await adminGet(env, 'productRegistrations/p9dealer'); return d.serialNumber === 'P9-DEALER-77' && d; });
+  assert.ok(dealerDoc.serialCheck, 'serial checked');
+  await waitFor('dealer serial locked', () => adminGet(env, 'registrationSerials/P9-DEALER-77'));
+  await assert.rejects(() => call('registerProduct', { ...form, serialNumber: 'p9-dealer-77' }, cust.idToken), /already registered/);
+
+  // Booking from the registration: product details come from it; routed by pincode; warranty read at intake.
+  const bk = await call('bookService', { registrationId: reg.registrationId, requestType: 'service', issueDescription: 'No hot water', ...contact, pincode: '584209' }, cust.idToken);
+  const routed = await waitFor('routed to the covering center', () => adminGet(env, `centerRequests/route_${bk.requestId}`));
+  assert.strictEqual(routed.serviceCenterUid, 'scP9');
+  assert.strictEqual(routed.linkedRegistrationId, reg.registrationId);
+  assert.strictEqual(routed.serialNumber, 'P9-EMU-1');
+  const pub = await waitFor('intake warranty read', async () => { const d = await adminGet(env, `publicServiceRequests/${bk.requestId}`); return d.intakeWarranty && d.status === 'assigned_to_center' && d; });
+  assert.strictEqual(pub.intakeWarranty.status, 'in_warranty', '18 months into a 2-year cover');
+  assert.strictEqual(pub.routing.method, 'pincode');
+  await waitFor('customer tracking', () => adminGet(env, `customerTracking/${bk.requestId}`));
+
+  // Customer 360: every record for this phone, linked to the same registration and ticket.
+  const byPhone = async (coll, field = 'customerPhone') => adminQuery(env, coll, [field, '==', '9000000211']);
+  const [regs, pubs, centers, tracks] = await Promise.all([byPhone('productRegistrations'), byPhone('publicServiceRequests'), byPhone('centerRequests'), byPhone('customerTracking')]);
+  assert.deepStrictEqual([regs.length, pubs.length, centers.length, tracks.length], [1, 1, 1, 1]);
+  assert.strictEqual(pubs[0].linkedRegistrationId, regs[0].registrationId);
+  assert.strictEqual(centers[0].requestId, tracks[0].ticketId);
+  assert.strictEqual(centers[0].sourceRequestId, pubs[0].requestId);
+});

@@ -7947,7 +7947,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-body">
           <div class="form-row" style="max-width:320px;">
             <label>Phone number</label>
-            <input type="tel" id="c360-phone-input" placeholder="e.g. 9980000515" inputmode="numeric" maxlength="10">
+            <input type="tel" id="c360-phone-input" placeholder="e.g. 9980000515" inputmode="numeric" maxlength="20" autocomplete="off">
           </div>
           <button class="btn-primary" id="c360-search-btn">Search</button>
           <div class="modal-error" id="c360-error" style="margin-top:10px;"></div>
@@ -8034,7 +8034,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (totalTouchpoints === 0 && dealerLinks.length === 0) {
         profileEl.innerHTML = `
           <div class="panel"><div class="panel-body" style="text-align:center;color:var(--stone);">
-            No records found for ${phone} across registrations, service activity, or enquiries.
+            No records found for ${escapeHtml(phone)} across registrations, service activity, or enquiries.
           </div></div>`;
         return;
       }
@@ -8042,7 +8042,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       let html = `
         <div class="panel" style="margin-bottom:1px;">
           <div class="panel-header">
-            <h2>${bestName} <span style="color:var(--stone);font-weight:500;font-size:13px;">— ${phone}</span></h2>
+            <h2>${escapeHtml(bestName)} <span style="color:var(--stone);font-weight:500;font-size:13px;">— ${escapeHtml(phone)}</span></h2>
           </div>
           <div class="panel-body" style="font-size:13px;color:var(--stone);">
             ${escapeHtml(registrations.length)} registration(s) · ${jobs.length + centerReqs.length + publicSvc.length} service record(s) · ${escapeHtml(enquiries.length)} enquiry(ies)${dealerLinks.length ? ' · known to a dealer' : ''}
@@ -8062,6 +8062,38 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       if (allServiceRecords.length) {
         html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Service Activity</h2></div>
           <div class="panel-body" style="padding:0;"><table><thead><tr><th>Source</th><th>ID</th><th>Detail</th><th>Status</th></tr></thead><tbody id="c360-service-tbody"></tbody></table></div></div>`;
+      }
+
+      // Appointments, billing and feedback live on the same service records;
+      // shown here so one screen answers "what happened to this customer's
+      // product". All values are escaped; numbers are coerced.
+      const money = (n) => (Number.isFinite(Number(n)) ? '₹' + Number(n).toLocaleString('en-IN') : '—');
+      const stars = (n) => { const k = Math.max(0, Math.min(5, Math.round(Number(n) || 0))); return k ? '★'.repeat(k) + '☆'.repeat(5 - k) + ' (' + k + '/5)' : '—'; };
+      const appts = allServiceRecords.filter(s => s.full.scheduledDate);
+      if (appts.length) {
+        html += `<div class="panel" id="c360-appts" style="margin-top:16px;"><div class="panel-header"><h2>Appointments</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Service ID</th><th>Date</th><th>Time</th><th>Technician</th><th>Status</th></tr></thead><tbody>` +
+          appts.map(s => `<tr><td style="font-size:12px;">${escapeHtml(s.id || '—')}</td><td>${escapeHtml(s.full.scheduledDate)}</td><td>${escapeHtml(s.full.scheduledStartTime || '')}${s.full.scheduledEndTime ? '–' + escapeHtml(s.full.scheduledEndTime) : ''}</td><td>${escapeHtml(s.full.technicianName || s.full.technicianEmail || '—')}</td><td>${escapeHtml(SVC_STATUS_LABELS[s.status] || s.status || '—')}</td></tr>`).join('') +
+          `</tbody></table></div></div>`;
+      }
+      const billed = allServiceRecords.filter(s => s.full.warrantyStatus || s.full.billingType || s.full.billingStatus);
+      if (billed.length) {
+        html += `<div class="panel" id="c360-billing" style="margin-top:16px;"><div class="panel-header"><h2>Warranty &amp; Billing</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Service ID</th><th>Warranty</th><th>Billed as</th><th>Amount</th><th>Claim</th></tr></thead><tbody>` +
+          billed.map(s => { const f = s.full;
+            const w = f.warrantyStatus === 'in_warranty' ? 'In warranty' : f.warrantyStatus === 'out_of_warranty' ? 'Out of warranty' : '—';
+            const as = f.billingType === 'customer' ? 'Paid by customer' : f.billingType === 'claim' ? 'Warranty claim' : '—';
+            const amt = f.billingType === 'customer' ? money(f.billingTotal) : f.billingType === 'claim' ? 'No charge to customer' : '—';
+            const claim = f.claimId ? escapeHtml(f.claimId) + ' (' + escapeHtml(f.billingStatus || 'claimed') + ')' : escapeHtml(f.billingStatus || '—');
+            return `<tr><td style="font-size:12px;">${escapeHtml(s.id || '—')}</td><td>${escapeHtml(w)}</td><td>${escapeHtml(as)}</td><td>${escapeHtml(amt)}</td><td>${claim}</td></tr>`; }).join('') +
+          `</tbody></table></div></div>`;
+      }
+      const rated = allServiceRecords.filter(s => s.full.customerFeedback && s.full.customerFeedback.rating);
+      if (rated.length) {
+        html += `<div class="panel" id="c360-feedback" style="margin-top:16px;"><div class="panel-header"><h2>Feedback</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>Service ID</th><th>Rating</th><th>Comment</th></tr></thead><tbody>` +
+          rated.map(s => `<tr><td style="font-size:12px;">${escapeHtml(s.id || '—')}</td><td>${escapeHtml(stars(s.full.customerFeedback.rating))}</td><td style="max-width:320px;">${escapeHtml(s.full.customerFeedback.comment || '—')}</td></tr>`).join('') +
+          `</tbody></table></div></div>`;
       }
 
       if (enquiries.length) {

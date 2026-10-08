@@ -41,6 +41,23 @@ function contactFields(input, out) {
   return null;
 }
 
+// ---- Warranty from a plan ---------------------------------------------
+// A warranty plan lists components (e.g. Full Product 2y, Heating Element
+// 5y). The registration's overall cover (`warrantyMonths`, used for the
+// intake read and for the closure decision when no part matches) is the
+// plan's whole-product line. Without a plan, or a whole-product line, it is
+// the standard 12 months. Part cover is kept separately, per component.
+const DEFAULT_WARRANTY_MONTHS = 12;
+const WHOLE_PRODUCT_RE = /^(full|whole|complete|entire|total)?\s*(product|unit|appliance|machine)$|^(full|whole|complete|entire|total)\b/i;
+
+function overallWarrantyMonths(plan) {
+  const comps = plan && Array.isArray(plan.components) ? plan.components : [];
+  const whole = comps.find((c) => c && typeof c.componentName === 'string' && WHOLE_PRODUCT_RE.test(c.componentName.trim()));
+  const years = whole ? Number(whole.durationYears) : NaN;
+  if (!Number.isFinite(years) || years <= 0) return DEFAULT_WARRANTY_MONTHS;
+  return Math.max(1, Math.min(120, Math.round(years * 12)));
+}
+
 // ---- Register Product ------------------------------------------------
 function validateRegistration(input, nowMs) {
   const i = input || {};
@@ -186,6 +203,6 @@ function applySupportAction(ticket, action, actor, text, name, at) {
 }
 
 module.exports = {
-  BRANDS, istDate, validIsoDate, validateRegistration, validateBooking, buildTrack, ticketIdOf,
+  BRANDS, DEFAULT_WARRANTY_MONTHS, overallWarrantyMonths, istDate, validIsoDate, validateRegistration, validateBooking, buildTrack, ticketIdOf,
   SUPPORT_CATEGORIES, validateSupportCreate, applySupportAction
 };

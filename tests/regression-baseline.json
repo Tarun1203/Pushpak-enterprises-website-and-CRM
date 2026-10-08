@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 134
+      "minTests": 141
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",
@@ -15,7 +15,7 @@
     },
     "workflow_qa": {
       "label": "Workflows (emulator, rules + functions)",
-      "minTests": 6
+      "minTests": 7
     },
     "public_qa": {
       "label": "Public site (live)",
@@ -72,6 +72,10 @@
     "fit_qa": {
       "label": "Auto-fit (all screens, every page)",
       "minTests": 160
+    },
+    "phase9_qa": {
+      "label": "Phase 9 Customer 360 (screen)",
+      "minTests": 3
     }
   }
 }

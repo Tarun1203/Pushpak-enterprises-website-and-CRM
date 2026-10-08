@@ -112,6 +112,11 @@ async function findRegistration(ticket) {
   if (ticket.serialNumber) {
     const q = await regs.where('serialNumber', '==', ticket.serialNumber).limit(1).get();
     if (!q.empty) return q.docs[0].data();
+    const norm = Stock.normalizeSerial(ticket.serialNumber);
+    if (norm && norm !== ticket.serialNumber) {
+      const q2 = await regs.where('serialNumber', '==', norm).limit(1).get();
+      if (!q2.empty) return q2.docs[0].data();
+    }
   }
   return null;
 }
@@ -482,11 +487,10 @@ exports.checkSparePipeline = onDocumentUpdatedWithAuthContext(
 // never billed.
 // ---------------------------------------------------------------
 async function closureContext(ticketRef, ticket) {
-  let reg = null;
-  if (ticket.serialNumber) {
-    const q = await db.collection('productRegistrations').where('serialNumber', '==', ticket.serialNumber).limit(1).get();
-    if (!q.empty) reg = q.docs[0].data();
-  }
+  // Same lookup as at intake: the registration the booking was linked to
+  // first (a product registered without a serial has no other key), then
+  // the serial number.
+  const reg = await findRegistration(ticket);
   const partNames = [];
   const returns = await db.collection('returns').where('sourceJobId', '==', ticketRef.id).get();
   for (const r of returns.docs) {
@@ -1243,10 +1247,19 @@ exports.checkRegistrationSerial = onDocumentCreated(
     const serial = Stock.normalizeSerial(reg.serialNumber || reg.serialNo || '');
     if (!serial) return;
     const unitRef = db.collection('unitSerials').doc(serial);
+    const lockRef = db.collection('registrationSerials').doc(serial);
     await db.runTransaction(async (tx) => {
       const unitSnap = await tx.get(unitRef);
+      const lockSnap = await tx.get(lockRef);
+      // One registration per serial number, whichever way it was made
+      // (portal, dealer, website). The first to arrive owns the serial; a
+      // later one is flagged for Head Office instead of silently doubling up.
+      const lockedBy = lockSnap.exists ? lockSnap.get('registrationId') : null;
+      const duplicate = !!lockedBy && lockedBy !== reg.registrationId;
+      if (!lockSnap.exists) tx.create(lockRef, { registrationId: reg.registrationId || event.params.regId, docId: event.params.regId, at: FieldValue.serverTimestamp() });
       let check;
-      if (!unitSnap.exists) check = { status: 'not_found', note: 'This serial was never received into Head Office stock.' };
+      if (duplicate) check = { status: 'duplicate_serial', note: `This serial number is already registered (${lockedBy}).` };
+      else if (!unitSnap.exists) check = { status: 'not_found', note: 'This serial was never received into Head Office stock.' };
       else {
         const u = unitSnap.data();
         if (u.registrationId && u.registrationId !== event.params.regId) check = { status: 'already_registered', note: `Already registered (${u.registrationId}).` };
@@ -1258,7 +1271,9 @@ exports.checkRegistrationSerial = onDocumentCreated(
             history: FieldValue.arrayUnion({ event: 'registered', registrationId: event.params.regId, at: Timestamp.now() }) });
         }
       }
-      tx.update(event.data.ref, { serialCheck: { ...check, serial, at: FieldValue.serverTimestamp() } });
+      const regUpdate = { serialCheck: { ...check, serial, at: FieldValue.serverTimestamp() } };
+      if (reg.serialNumber !== serial) regUpdate.serialNumber = serial; // stored in one form, so every lookup matches
+      tx.update(event.data.ref, regUpdate);
     });
   }
 );
@@ -1884,6 +1899,8 @@ async function matchWarrantyPlan(brandId, categoryId) {
 async function findRegistrationBySerial(serial) {
   const q = await db.collection('productRegistrations').where('serialNumber', '==', serial).limit(1).get();
   if (!q.empty) return q.docs[0].data();
+  const lock = await db.collection('registrationSerials').doc(serial).get();
+  if (lock.exists) return { registrationId: lock.get('registrationId'), customerPhone: null };
   const unit = await db.collection('unitSerials').doc(serial).get();
   if (unit.exists && unit.data().registrationId) return { registrationId: unit.data().registrationId, customerPhone: null };
   return null;
@@ -1913,11 +1930,17 @@ exports.registerProduct = onCall({ region: REGION, maxInstances: 10 }, async (re
   const plan = await matchWarrantyPlan(r.brandId, r.categoryId);
   const counterRef = db.collection('counters').doc(`productreg-${ist.ym}`);
   const regRef = db.collection('productRegistrations').doc();
+  const lockRef = r.serialNumber ? db.collection('registrationSerials').doc(r.serialNumber) : null;
   const registrationId = await db.runTransaction(async (tx) => {
     const c = await tx.get(counterRef);
+    const lock = lockRef ? await tx.get(lockRef) : null;
+    // Two people registering the same serial at the same moment both pass
+    // the check above; only one can take the serial's lock.
+    if (lock && lock.exists) throw new HttpsError('already-exists', 'This serial number is already registered. If you bought this product second-hand, please contact support.');
     const next = (c.exists ? (c.data().value || 0) : 0) + 1;
     tx.set(counterRef, { value: next });
     const id = `PE-REG-${ist.ymd}-${pad4(next)}-Portal`;
+    if (lockRef) tx.create(lockRef, { registrationId: id, docId: regRef.id, at: FieldValue.serverTimestamp() });
     tx.create(regRef, {
       registrationId: id,
       customerName: r.customerName, customerPhone: cust.phone, customerUid: cust.uid,
@@ -1927,7 +1950,7 @@ exports.registerProduct = onCall({ region: REGION, maxInstances: 10 }, async (re
       product: `${r.brand} ${r.category} — ${r.modelNo}`,
       purchaseDate: r.purchaseDate, dealerName: r.dealerName,
       installationRequired: r.installationRequired,
-      warrantyMonths: 12,
+      warrantyMonths: Customer.overallWarrantyMonths(plan),
       warrantyPlanId: plan ? plan.id : null,
       warrantyComponents: plan ? (plan.components || null) : null,
       status: 'active', source: 'portal',
