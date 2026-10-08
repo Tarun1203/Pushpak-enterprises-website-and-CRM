@@ -7,7 +7,8 @@
     "test:e2e": "playwright test",
     "test:qa": "playwright test --reporter=line,json",
     "qa:report": "node scripts/publish-qa-results.mjs",
-    "test:unit": "node --import ./tests/unit/setup.mjs --test \"tests/unit/**/*.test.mjs\""
+    "test:unit": "node --import ./tests/unit/setup.mjs --test \"tests/unit/**/*.test.mjs\"",
+    "test:unit:ci": "mkdir -p qa-results/json && node --import ./tests/unit/setup.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/qa/node-json-reporter.mjs --test-reporter-destination=qa-results/json/frontend_qa.json \"tests/unit/**/*.test.mjs\""
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

@@ -1,0 +1,22 @@
+{
+  "about": "Minimum number of tests each QA suite must run. The regression gate (scripts/qa/regression-summary.mjs) fails if a suite reports fewer — i.e. tests were deleted or stopped being found. After ADDING tests, raise these numbers (node scripts/qa/regression-summary.mjs --update, or edit by hand).",
+  "suites": {
+    "backend_qa": { "label": "Backend (Cloud Functions logic)", "minTests": 134 },
+    "frontend_qa": { "label": "Frontend unit, links, secrets, indexes", "minTests": 23 },
+    "rules_qa": { "label": "Firestore/Storage rules & roles (emulator)", "minTests": 409 },
+    "workflow_qa": { "label": "Workflows (emulator, rules + functions)", "minTests": 6 },
+    "public_qa": { "label": "Public site (live)", "minTests": 5 },
+    "crm_qa": { "label": "CRM Phase 2 (live)", "minTests": 9 },
+    "phase3_qa": { "label": "CRM Phase 3 (live)", "minTests": 8 },
+    "phase4_qa": { "label": "CRM Phase 4 (live)", "minTests": 4 },
+    "phase5_qa": { "label": "CRM Phase 5 security contract (live)", "minTests": 4 },
+    "phase6_qa": { "label": "Phase 6 production readiness (live)", "minTests": 4 },
+    "phase7_qa": { "label": "Phase 7 customer lifecycle", "minTests": 6 },
+    "phase8_qa": { "label": "Phase 8 inventory & logistics", "minTests": 6 },
+    "mobile_qa": { "label": "Mobile", "minTests": 57 },
+    "responsive_qa": { "label": "Responsive", "minTests": 56 },
+    "links_qa": { "label": "Outside links", "minTests": 1 },
+    "security_qa": { "label": "Security: XSS sweep", "minTests": 15 },
+    "perf_qa": { "label": "Performance", "minTests": 22 }
+  }
+}

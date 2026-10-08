@@ -73,14 +73,14 @@ jobs:
         run: |
           cd functions
           npm install
-          npm test
+          node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=../scripts/qa/node-json-reporter.mjs --test-reporter-destination=../qa-results/json/backend_qa.json
 
       - name: Run frontend unit QA
         id: frontend_qa
         continue-on-error: true
         # crm/*.js screens against an in-memory Firestore, plus static
         # checks on every page (scripts parse, Firebase/module imports exist).
-        run: npm run test:unit
+        run: npm run test:unit:ci
 
       # Rules, role and workflow tests need the Firebase emulators (Java).
       - name: Set up Java for the Firebase emulators
@@ -107,7 +107,11 @@ jobs:
 
       - name: Report emulator QA failures
         if: always()
-        run: cat tests/emulator/results/*.txt 2>/dev/null || true
+        run: |
+          cat tests/emulator/results/*.txt 2>/dev/null || true
+          mkdir -p qa-results/json
+          cp tests/emulator/results/rules.json qa-results/json/rules_qa.json 2>/dev/null || true
+          cp tests/emulator/results/workflows.json qa-results/json/workflow_qa.json 2>/dev/null || true
 
       - name: Run public-site QA
         id: public_qa
@@ -115,7 +119,7 @@ jobs:
         env:
           BASE_URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/
           QA_MAX_PAGES: 150
-        run: npx playwright test tests/e2e/site-smoke.spec.js tests/e2e/site-crawler.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/public_qa.json npx playwright test tests/e2e/site-smoke.spec.js tests/e2e/site-crawler.spec.js --reporter=list,json
 
       - name: Run CRM Phase 2 QA
         id: crm_qa
@@ -125,7 +129,7 @@ jobs:
           QA_EMAIL: ${{ secrets.QA_EMAIL }}
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_ROLE: ${{ secrets.QA_ROLE }}
-        run: npx playwright test tests/e2e/crm-auth.spec.js tests/e2e/crm-phase2-contract.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/crm_qa.json npx playwright test tests/e2e/crm-auth.spec.js tests/e2e/crm-phase2-contract.spec.js --reporter=list,json
 
       - name: Run CRM Phase 3 service workflow QA
         id: phase3_qa
@@ -135,7 +139,7 @@ jobs:
           QA_EMAIL: ${{ secrets.QA_EMAIL }}
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_ROLE: ${{ secrets.QA_ROLE }}
-        run: npx playwright test tests/e2e/crm-phase3-service-workflow.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase3_qa.json npx playwright test tests/e2e/crm-phase3-service-workflow.spec.js --reporter=list,json
 
       - name: Run CRM Phase 4 full lifecycle QA
         id: phase4_qa
@@ -145,7 +149,7 @@ jobs:
           QA_EMAIL: ${{ secrets.QA_EMAIL }}
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_ROLE: ${{ secrets.QA_ROLE }}
-        run: npx playwright test tests/e2e/crm-phase4-lifecycle-contract.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase4_qa.json npx playwright test tests/e2e/crm-phase4-lifecycle-contract.spec.js --reporter=list,json
 
       - name: Run CRM Phase 5 security and data-integrity QA
         id: phase5_qa
@@ -155,48 +159,48 @@ jobs:
           QA_EMAIL: ${{ secrets.QA_EMAIL }}
           QA_PASSWORD: ${{ secrets.QA_PASSWORD }}
           QA_ROLE: ${{ secrets.QA_ROLE }}
-        run: npx playwright test tests/e2e/crm-phase5-security-contract.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase5_qa.json npx playwright test tests/e2e/crm-phase5-security-contract.spec.js --reporter=list,json
 
       - name: Run Phase 6 production readiness QA
         id: phase6_qa
         continue-on-error: true
         env:
           BASE_URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/
-        run: npx playwright test tests/e2e/phase6-production-readiness.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase6_qa.json npx playwright test tests/e2e/phase6-production-readiness.spec.js --reporter=list,json
 
       - name: Run Phase 7 customer lifecycle QA
         id: phase7_qa
         continue-on-error: true
         env:
           BASE_URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/
-        run: npx playwright test tests/e2e/phase7-customer-lifecycle-contract.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase7_qa.json npx playwright test tests/e2e/phase7-customer-lifecycle-contract.spec.js --reporter=list,json
 
       - name: Run Phase 8 inventory and logistics QA
         id: phase8_qa
         continue-on-error: true
         env:
           BASE_URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/
-        run: npx playwright test tests/e2e/phase8-inventory-logistics-contract.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase8_qa.json npx playwright test tests/e2e/phase8-inventory-logistics-contract.spec.js --reporter=list,json
 
       - name: Run mobile QA (phones, this commit's files)
         id: mobile_qa
         continue-on-error: true
-        run: npx playwright test tests/e2e/mobile.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/mobile_qa.json npx playwright test tests/e2e/mobile.spec.js --reporter=list,json
 
       - name: Run responsive QA (320px-1920px, every CRM section; screenshots in the QA report)
         id: responsive_qa
         continue-on-error: true
-        run: npx playwright test tests/e2e/responsive.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/responsive_qa.json npx playwright test tests/e2e/responsive.spec.js --reporter=list,json
 
       - name: Run outside-link QA (Firebase SDK, fonts, external links)
         id: links_qa
         continue-on-error: true
-        run: npx playwright test tests/e2e/external-links.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/links_qa.json npx playwright test tests/e2e/external-links.spec.js --reporter=list,json
 
       - name: Run browser security QA (stored-XSS sweep of every CRM screen)
         id: security_qa
         continue-on-error: true
-        run: npx playwright test tests/e2e/security.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/security_qa.json npx playwright test tests/e2e/security.spec.js --reporter=list,json
 
       - name: Check Cloud Functions dependencies for known vulnerabilities
         id: audit_qa
@@ -206,7 +210,16 @@ jobs:
       - name: Run performance QA (page weight, slow-4G speed, CRM render time and data use)
         id: perf_qa
         continue-on-error: true
-        run: npx playwright test tests/e2e/performance.spec.js
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/perf_qa.json npx playwright test tests/e2e/performance.spec.js --reporter=list,json
+
+      # One pass/fail verdict over every suite above, compared with
+      # tests/regression-baseline.json (fails if any test failed, a suite
+      # produced no results, or a suite has fewer tests than before).
+      - name: Regression gate (all suites)
+        id: regression_qa
+        if: always()
+        continue-on-error: true
+        run: node scripts/qa/regression-summary.mjs
 
       - name: Publish QA phase summary
         if: always()
@@ -245,13 +258,13 @@ jobs:
           retention-days: 14
 
       - name: Create or update QA bug
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ISSUE_TITLE="Automated QA: Site/CRM Test Failures"
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site/CRM Test Failures in:title" --json number --jq '.[0].number')
-          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
+          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Regression gate: ${{ steps.regression_qa.outcome }} (see qa-results/regression.md)\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
@@ -277,5 +290,5 @@ jobs:
           fi
 
       - name: Fail workflow when QA fails
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
         run: exit 1
