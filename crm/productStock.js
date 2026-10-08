@@ -29,7 +29,7 @@ function stockTable(catalog, stock, { showZero }) {
   if (!rows.length) return '<div class="empty-row">No stock yet.</div>';
   return `<table style="width:100%;font-size:13px;"><thead><tr><th>Product — Model</th><th style="text-align:right;">On hand</th><th style="text-align:right;">Reserved for orders</th><th style="text-align:right;">Available</th></tr></thead><tbody>
     ${rows.map(({ c, s }) => `<tr><td>${esc(c.label)}${c.status !== 'active' ? ' <span style="color:var(--stone);font-size:11.5px;">(inactive)</span>' : ''}</td>
-      <td style="text-align:right;">${s.onHand}</td><td style="text-align:right;">${s.reserved}</td>
+      <td style="text-align:right;">${esc(s.onHand)}</td><td style="text-align:right;">${esc(s.reserved)}</td>
       <td style="text-align:right;${s.onHand - s.reserved <= 0 ? 'color:var(--err);font-weight:600;' : ''}">${s.onHand - s.reserved}</td></tr>`).join('')}</tbody></table>`;
 }
 
@@ -45,7 +45,7 @@ export async function renderWarehouseStock(el, opts) {
       getDocs(query(collection(db, 'brandReturns'), where('status', '==', 'sent'))).catch(() => null)
     ]);
     const brOptions = [];
-    if (brSnap) brSnap.forEach((d) => { const b = d.data(); brOptions.push(`<option value="${esc(d.id)}">${esc(b.brand)} — sent ${esc(b.sentOn || '')} (${(b.unitSerials || []).length} units)</option>`); });
+    if (brSnap) brSnap.forEach((d) => { const b = d.data(); brOptions.push(`<option value="${esc(d.id)}">${esc(b.brand)} — sent ${esc(b.sentOn || '')} (${esc((b.unitSerials || []).length)} units)</option>`); });
     const receipts = [];
     recSnap.forEach((d) => receipts.push({ id: d.id, ...d.data() }));
     receipts.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -64,7 +64,7 @@ export async function renderWarehouseStock(el, opts) {
         <button type="button" class="btn-primary" id="ps-save">Receive</button>`)
       + panel('Stock', stockTable(catalog, stock, { showZero: false }))
       + panel('Recent receipts', receipts.length ? `<table style="width:100%;font-size:13px;"><thead><tr><th>When</th><th>Model</th><th style="text-align:right;">Units</th><th>Supplier / ref</th><th>Result</th></tr></thead><tbody>
-          ${receipts.slice(0, 40).map((r) => `<tr><td>${esc(r.receivedOn || when(r.createdAt))}</td><td>${esc(r.modelLabel || r.modelId)}</td><td style="text-align:right;">${(r.serials || []).length}</td>
+          ${receipts.slice(0, 40).map((r) => `<tr><td>${esc(r.receivedOn || when(r.createdAt))}</td><td>${esc(r.modelLabel || r.modelId)}</td><td style="text-align:right;">${esc((r.serials || []).length)}</td>
             <td>${esc(r.supplier)} ${esc(r.invoiceRef)}</td>
             <td>${r.status === 'accepted' ? '<span style="color:#1E7B34;font-weight:600;">Added to stock</span>' : r.status === 'rejected' ? `<span style="color:var(--err);">Refused: ${esc(r.reason)}</span>` : 'Processing…'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-row">No receipts yet.</div>');
     const ta = el.querySelector('#ps-serials');
@@ -158,7 +158,7 @@ export async function renderDistributorStock(el, { db, uid }) {
     el.innerHTML = panel('My stock', `<div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Units delivered to you by Head Office are added here automatically; dispatching to your dealers (with serials) takes them out. Approved dealer orders reserve stock until dispatched.</div>
         ${stockTable(catalog, stock, { showZero: false })}`)
       + panel('Serial numbers in stock', Object.keys(byModel).length
-        ? Object.entries(byModel).map(([m, list]) => `<details style="margin-bottom:6px;"><summary>${esc(label(m))} — ${list.length}</summary><div style="font-size:12px;">${list.sort().map(esc).join(', ')}</div></details>`).join('')
+        ? Object.entries(byModel).map(([m, list]) => `<details style="margin-bottom:6px;"><summary>${esc(label(m))} — ${esc(list.length)}</summary><div style="font-size:12px;">${list.sort().map(esc).join(', ')}</div></details>`).join('')
         : '<div class="empty-row">No units in stock.</div>');
   } catch (err) {
     console.error('Load my stock failed:', err);

@@ -626,10 +626,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.orderId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.orderId || d.id)}</td>
           <td>${escapeHtml(d.product || '—')}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td><span class="status-pill ${d.status}">${ORDER_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(ORDER_STATUS_LABELS[d.status] || d.status)}</span></td>
           <td style="color:var(--stone);">${d.distributorUid ? escapeHtml(d.distributorName || 'Distributor') : 'Pushpak Warehouse'}</td>
           <td style="color:var(--stone);">${escapeHtml(d.notes || '—')}</td>`;
         tbody.appendChild(tr);
@@ -746,12 +746,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.saleId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.saleId || d.id)}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td>₹${d.amount ?? '—'}</td>
-          <td>${d.saleDate || '—'}</td>`;
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td>₹${escapeHtml(d.amount ?? '—')}</td>
+          <td>${escapeHtml(d.saleDate || '—')}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -894,12 +894,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.registrationId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.registrationId || d.id)}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
           <td>${escapeHtml(d.serialNumber || '—')}</td>
-          <td>${d.purchaseDate || '—'}</td>
-          <td>${d.warrantyMonths ?? '—'} mo</td>`;
+          <td>${escapeHtml(d.purchaseDate || '—')}</td>
+          <td>${escapeHtml(d.warrantyMonths ?? '—')} mo</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -1005,14 +1005,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         let actionHtml = '—';
         if (ENQ_NEXT[d.status]) {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary denq-advance-btn" data-id="${d.id}" data-next="${ENQ_NEXT[d.status]}">Mark ${ENQ_LABELS[ENQ_NEXT[d.status]]}</button><button class="btn-danger denq-close-btn" data-id="${d.id}">Close</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary denq-advance-btn" data-id="${escapeHtml(d.id)}" data-next="${escapeHtml(ENQ_NEXT[d.status])}">Mark ${ENQ_LABELS[ENQ_NEXT[d.status]]}</button><button class="btn-danger denq-close-btn" data-id="${escapeHtml(d.id)}">Close</button></div>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.phone || '—')}</td>
           <td>${escapeHtml(d.subject || '—')}</td>
-          <td><span class="status-pill ${d.status}">${ENQ_LABELS[d.status] || d.status}</span></td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(ENQ_LABELS[d.status] || d.status)}</span></td>
           <td>${actionHtml}</td>`;
         tbody.appendChild(tr);
       });

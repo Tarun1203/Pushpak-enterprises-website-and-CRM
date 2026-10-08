@@ -1153,17 +1153,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   function buildRequestActionsHtml(d) {
     let actionHtml = '—';
     if (d.status === 'new') {
-      actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${d.id}">Mark Assigned</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button><button class="btn-danger req-cancel-btn" data-id="${d.id}">Cancel</button></div>`;
+      actionHtml = `<div class="row-actions"><button class="btn-secondary req-assign-btn" data-id="${escapeHtml(d.id)}">Mark Assigned</button><button class="btn-secondary req-spare-btn" data-id="${escapeHtml(d.id)}">Request Spare</button><button class="btn-danger req-cancel-btn" data-id="${escapeHtml(d.id)}">Cancel</button></div>`;
     } else if (d.status === 'assigned') {
-      actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${d.id}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
+      actionHtml = `<div class="row-actions"><button class="btn-secondary req-progress-btn" data-id="${escapeHtml(d.id)}">Start Progress</button><button class="btn-secondary req-spare-btn" data-id="${escapeHtml(d.id)}">Request Spare</button></div>`;
     } else if (d.status === 'in_progress') {
-      actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${d.id}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${d.id}">Request Spare</button></div>`;
+      actionHtml = `<div class="row-actions"><button class="btn-primary req-complete-btn" data-id="${escapeHtml(d.id)}">Mark Complete</button><button class="btn-secondary req-spare-btn" data-id="${escapeHtml(d.id)}">Request Spare</button></div>`;
     } else if (d.status === 'waiting_spare') {
-      actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${d.id}">Resume Work</button>`;
+      actionHtml = `<button class="btn-secondary req-resume-btn" data-id="${escapeHtml(d.id)}">Resume Work</button>`;
     }
     const reassignable = ['new', 'assigned', 'in_progress', 'waiting_spare'];
     if (reassignable.includes(d.status)) {
-      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${d.id}">${escapeHtml(d.technicianName ? 'Reassign' : 'Assign')} Technician</button><button class="btn-secondary req-schedule-btn" data-id="${d.id}">${d.scheduledDate ? 'Reschedule' : 'Schedule'}</button></div>`;
+      actionHtml = `<div class="row-actions">${actionHtml === '—' ? '' : actionHtml}<button class="btn-secondary req-reassign-tech-btn" data-id="${escapeHtml(d.id)}">${escapeHtml(d.technicianName ? 'Reassign' : 'Assign')} Technician</button><button class="btn-secondary req-schedule-btn" data-id="${escapeHtml(d.id)}">${d.scheduledDate ? 'Reschedule' : 'Schedule'}</button></div>`;
     }
     return actionHtml;
   }
@@ -1278,12 +1278,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);"><a href="#" class="req-detail-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
-          <td style="text-transform:capitalize;">${d.type || 'repair'}</td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="req-detail-link" data-id="${escapeHtml(d.id)}">${escapeHtml(d.requestId || d.id)}</a></td>
+          <td style="text-transform:capitalize;">${escapeHtml(d.type || 'repair')}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.customerPhone || '—')}</td>
           <td>${escapeHtml(d.technicianName || '—')}</td>
-          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(JOB_STATUS_LABELS[d.status] || d.status)}</span></td>
           <td>${buildRequestActionsHtml(d)}</td>`;
         tbody.appendChild(tr);
       });
@@ -1569,7 +1569,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     document.getElementById('spare-req-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${escapeHtml(jobDoc.customerName || 'customer')} (${escapeHtml(jobDoc.product) || jobDoc.type || 'job'})`;
     const parts = await getSparePartsListCache();
     const select = document.getElementById('spare-req-part');
-    select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${p.id}" data-name="${escapeHtml(p.name)}">${p.partCode ? p.partCode + ' — ' : ''}${escapeHtml(p.name)}</option>`).join('');
+    select.innerHTML = '<option value="">Select part…</option>' + parts.map(p => `<option value="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">${p.partCode ? p.partCode + ' — ' : ''}${escapeHtml(p.name)}</option>`).join('');
     spareReqOverlay.classList.add('show');
   }
   function closeSpareReqModal() { spareReqOverlay.classList.remove('show'); }
@@ -1675,19 +1675,19 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         const t = d.transport;
         const dispatchInfo = t
-          ? `${escapeHtml(t.transporter) || '—'} · Docket: ${escapeHtml(t.docket) || '—'}${t.vehicle ? ' · Veh: ' + escapeHtml(t.vehicle) : ''}${t.dispatchDate ? ' · ' + escapeHtml(t.dispatchDate) : ''}${t.photoUrl ? ` · <a href="${t.photoUrl}" target="_blank" rel="noopener">Docket photo</a>` : ''}`
+          ? `${escapeHtml(t.transporter) || '—'} · Docket: ${escapeHtml(t.docket) || '—'}${t.vehicle ? ' · Veh: ' + escapeHtml(t.vehicle) : ''}${t.dispatchDate ? ' · ' + escapeHtml(t.dispatchDate) : ''}${t.photoUrl ? ` · <a href="${escapeHtml(t.photoUrl)}" target="_blank" rel="noopener">Docket photo</a>` : ''}`
           : (d.status === 'new' || d.status === 'approved' || d.status === 'picking' || d.status === 'packing' || d.status === 'backorder' ? 'Not dispatched yet' : '—');
         let actions = '';
         if (d.status === 'dispatched' || d.status === 'intransit') {
-          actions = `<button class="btn-primary my-sr-receive-btn" data-id="${d.id}">Mark Received</button>`;
+          actions = `<button class="btn-primary my-sr-receive-btn" data-id="${escapeHtml(d.id)}">Mark Received</button>`;
         } else if (d.status === 'received') {
           actions = `<span style="font-size:12px;color:var(--stone);">Received</span>`;
         }
         tr.innerHTML = `
           <td style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</td>
           <td>${escapeHtml(d.item) || '—'}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td><span class="status-pill ${d.status}">${SR_STATUS_LABELS_SC[d.status] || d.status}</span></td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(SR_STATUS_LABELS_SC[d.status] || d.status)}</span></td>
           <td style="font-size:12.5px;color:var(--stone);">${dispatchInfo}</td>
           <td><div class="row-actions">${actions}</div></td>`;
         tbody.appendChild(tr);
@@ -1891,7 +1891,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const free = Appointment.suggestSlots(date, 60, others, Date.now(), 5);
       const who = reqScheduleJob.technicianName ? `${escapeHtml(reqScheduleJob.technicianName)} is free` : 'Free';
       el.innerHTML = free.length
-        ? `${who} (1 h): ` + free.map(f => `<button type="button" class="btn-secondary sched-suggest" data-s="${f.start}" data-e="${f.end}" style="padding:2px 8px;margin:2px;">${f.start}</button>`).join('')
+        ? `${who} (1 h): ` + free.map(f => `<button type="button" class="btn-secondary sched-suggest" data-s="${escapeHtml(f.start)}" data-e="${escapeHtml(f.end)}" style="padding:2px 8px;margin:2px;">${escapeHtml(f.start)}</button>`).join('')
         : '<span style="color:var(--stone);">No free 1-hour slot that day.</span>';
       el.querySelectorAll('.sched-suggest').forEach(b => b.addEventListener('click', () => {
         document.getElementById('req-schedule-start').value = b.dataset.s;
@@ -2226,7 +2226,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const accountLabel = d.technicianUid
           ? '<span class="status-pill ok">Linked</span>'
           : '<span class="status-pill low">Informal</span>';
-        tr.innerHTML = `<td><a href="#" class="tech-detail-link" data-id="${d.id}">${escapeHtml(d.name) || '—'}</a></td><td>${escapeHtml(d.phone || '—')}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
+        tr.innerHTML = `<td><a href="#" class="tech-detail-link" data-id="${escapeHtml(d.id)}">${escapeHtml(d.name) || '—'}</a></td><td>${escapeHtml(d.phone || '—')}</td><td>${escapeHtml(d.skills || '—')}</td><td>${accountLabel}</td>`;
         tbody.appendChild(tr);
       });
       tbody.querySelectorAll('.tech-detail-link').forEach(a => {
@@ -2267,13 +2267,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     try {
       const snap = await getDoc(doc(db, 'users', d.technicianUid));
       if (!snap.exists()) {
-        el.innerHTML = `<div style="color:var(--err);">Linked account (UID: ${d.technicianUid}) could not be found — it may have been removed.</div>`;
+        el.innerHTML = `<div style="color:var(--err);">Linked account (UID: ${escapeHtml(d.technicianUid)}) could not be found — it may have been removed.</div>`;
         return;
       }
       const u = snap.data();
       const createdLabel = u.createdAt ? (typeof u.createdAt === 'string' ? new Date(u.createdAt).toLocaleString() : (u.createdAt.toDate ? u.createdAt.toDate().toLocaleString() : '—')) : '—';
       let rows = `
-        <div><strong>User ID:</strong> ${d.technicianUid}</div>
+        <div><strong>User ID:</strong> ${escapeHtml(d.technicianUid)}</div>
         <div><strong>Login Email:</strong> ${escapeHtml(u.email || '—')}</div>
         <div><strong>Account Type:</strong> ${escapeHtml(u.accountType || 'permanent')}</div>`;
       if (u.accountType === 'temporary' && u.contractEndDate) {
@@ -2338,8 +2338,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             </select>
           </div>
           <div class="form-row"><label>Certification Number</label><input type="text" class="td-brand-certnum" data-brand="${val}" value="${escapeHtml(b.certNumber || '')}"></div>
-          <div class="form-row"><label>Certification Date</label><input type="date" class="td-brand-certdate" data-brand="${val}" value="${b.certDate || ''}"></div>
-          <div class="form-row"><label>Expiry Date</label><input type="date" class="td-brand-expiry" data-brand="${val}" value="${b.expiryDate || ''}"></div>
+          <div class="form-row"><label>Certification Date</label><input type="date" class="td-brand-certdate" data-brand="${val}" value="${escapeHtml(b.certDate || '')}"></div>
+          <div class="form-row"><label>Expiry Date</label><input type="date" class="td-brand-expiry" data-brand="${val}" value="${escapeHtml(b.expiryDate || '')}"></div>
           <div class="form-row"><label>Approved By</label><input type="text" class="td-brand-approvedby" data-brand="${val}" value="${escapeHtml(b.approvedBy || '')}"></div>
           <div class="form-row"><label>Notes</label><input type="text" class="td-brand-notes" data-brand="${val}" value="${escapeHtml(b.notes || '')}"></div>
         </div>`;
@@ -2407,8 +2407,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           </select>
         </div>
         <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Certified</label><input type="checkbox" class="td-cap-certified" ${row.certified ? 'checked' : ''}></div>
-        <div class="form-row"><label>Certification Date</label><input type="date" class="td-cap-certdate" value="${row.certDate || ''}"></div>
-        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-cap-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Certification Date</label><input type="date" class="td-cap-certdate" value="${escapeHtml(row.certDate || '')}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-cap-expiry" value="${escapeHtml(row.expiryDate || '')}"></div>
         <div class="form-row"><label>Notes</label><input type="text" class="td-cap-notes" value="${escapeHtml(row.notes || '')}"></div>
       </div>`;
   }
@@ -2421,18 +2421,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
     function fillCategories(brandId, selectedCategoryId) {
       const cats = tdCatalogCache.categories.filter(c => c.brandId === brandId);
-      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${c.id}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
+      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
       fillProducts(brandId, selectedCategoryId, null);
     }
     function fillProducts(brandId, categoryId, selectedProductId) {
       const prods = tdCatalogCache.products.filter(p => p.brandId === brandId && (!categoryId || p.categoryId === categoryId));
-      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${p.id}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
+      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
       fillModels(prodSelect.value, null);
     }
     function fillModels(productId, selectedModelId) {
       productId = productId || prodSelect.value;
       const mods = productId ? tdCatalogCache.models.filter(m => m.productId === productId) : [];
-      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
+      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
     }
 
     brandSelect.addEventListener('change', () => fillCategories(brandSelect.value, null));
@@ -2508,12 +2508,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             <option value="EXPERT" ${row.level === 'EXPERT' ? 'selected' : ''}>Expert</option>
           </select>
         </div>
-        <div class="form-row"><label>Years of Experience</label><input type="number" min="0" step="0.5" class="td-skill-years" value="${row.yearsExperience ?? ''}"></div>
+        <div class="form-row"><label>Years of Experience</label><input type="number" min="0" step="0.5" class="td-skill-years" value="${escapeHtml(row.yearsExperience ?? '')}"></div>
         <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Certified</label><input type="checkbox" class="td-skill-certified" ${row.certified ? 'checked' : ''}></div>
         <div class="form-row"><label>Certification Number</label><input type="text" class="td-skill-certnum" value="${escapeHtml(row.certNumber || '')}"></div>
-        <div class="form-row"><label>Certification Date</label><input type="date" class="td-skill-certdate" value="${row.certDate || ''}"></div>
-        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-skill-expiry" value="${row.expiryDate || ''}"></div>
-        <div class="form-row"><label>Assessment Date</label><input type="date" class="td-skill-assessdate" value="${row.assessmentDate || ''}"></div>
+        <div class="form-row"><label>Certification Date</label><input type="date" class="td-skill-certdate" value="${escapeHtml(row.certDate || '')}"></div>
+        <div class="form-row"><label>Expiry Date</label><input type="date" class="td-skill-expiry" value="${escapeHtml(row.expiryDate || '')}"></div>
+        <div class="form-row"><label>Assessment Date</label><input type="date" class="td-skill-assessdate" value="${escapeHtml(row.assessmentDate || '')}"></div>
         <div class="form-row"><label>Assessed By</label><input type="text" class="td-skill-assessedby" value="${escapeHtml(row.assessedBy || '')}"></div>
         <div class="form-row"><label>Status</label>
           <select class="td-skill-status">
@@ -2582,11 +2582,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <tr data-day="${key}">
           <td style="padding:4px 6px;">${label}</td>
           <td style="padding:4px 6px;"><input type="checkbox" class="td-wh-working" ${working ? 'checked' : ''}></td>
-          <td style="padding:4px 6px;"><input type="time" class="td-wh-start" value="${day.start || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="td-wh-end" value="${day.end || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-start" value="${day.breakStart || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-end" value="${day.breakEnd || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="number" min="0" step="0.5" class="td-wh-max-hours" value="${day.maxHours ?? ''}" style="width:70px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-start" value="${escapeHtml(day.start || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-end" value="${escapeHtml(day.end || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-start" value="${escapeHtml(day.breakStart || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="td-wh-break-end" value="${escapeHtml(day.breakEnd || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="number" min="0" step="0.5" class="td-wh-max-hours" value="${escapeHtml(day.maxHours ?? '')}" style="width:70px;"></td>
         </tr>`;
     }).join('');
 
@@ -2662,14 +2662,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
             <option value="OTHER" ${row.leaveType === 'OTHER' ? 'selected' : ''}>Other</option>
           </select>
         </div>
-        <div class="form-row"><label>Start Date</label><input type="date" class="td-leave-start-date" value="${row.startDate || ''}"></div>
-        <div class="form-row"><label>End Date</label><input type="date" class="td-leave-end-date" value="${row.endDate || ''}"></div>
-        <div class="form-row"><label>Start Time <span style="font-weight:400;color:var(--stone);">(for a partial-day leave)</span></label><input type="time" class="td-leave-start-time" value="${row.startTime || ''}"></div>
-        <div class="form-row"><label>End Time</label><input type="time" class="td-leave-end-time" value="${row.endTime || ''}"></div>
+        <div class="form-row"><label>Start Date</label><input type="date" class="td-leave-start-date" value="${escapeHtml(row.startDate || '')}"></div>
+        <div class="form-row"><label>End Date</label><input type="date" class="td-leave-end-date" value="${escapeHtml(row.endDate || '')}"></div>
+        <div class="form-row"><label>Start Time <span style="font-weight:400;color:var(--stone);">(for a partial-day leave)</span></label><input type="time" class="td-leave-start-time" value="${escapeHtml(row.startTime || '')}"></div>
+        <div class="form-row"><label>End Time</label><input type="time" class="td-leave-end-time" value="${escapeHtml(row.endTime || '')}"></div>
         <div class="form-row"><label>Reason</label><input type="text" class="td-leave-reason" value="${escapeHtml(row.reason || '')}"></div>
-        <div class="form-row"><label>Requested Date</label><input type="date" class="td-leave-requested-date" value="${row.requestedDate || ''}"></div>
+        <div class="form-row"><label>Requested Date</label><input type="date" class="td-leave-requested-date" value="${escapeHtml(row.requestedDate || '')}"></div>
         <div class="form-row"><label>Approved By</label><input type="text" class="td-leave-approved-by" value="${escapeHtml(row.approvedBy || '')}"></div>
-        <div class="form-row"><label>Approval Date</label><input type="date" class="td-leave-approval-date" value="${row.approvalDate || ''}"></div>
+        <div class="form-row"><label>Approval Date</label><input type="date" class="td-leave-approval-date" value="${escapeHtml(row.approvalDate || '')}"></div>
         <div class="form-row"><label>Status</label>
           <select class="td-leave-status">
             <option value="PENDING" ${(!row.status || row.status === 'PENDING') ? 'selected' : ''}>Pending</option>
@@ -2756,11 +2756,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="form-row"><label>Tool Name</label><input type="text" class="td-tool-name" list="td-tool-suggestions" value="${escapeHtml(row.toolName || '')}"></div>
         <div class="form-row"><label>Tool Category</label><input type="text" class="td-tool-category" value="${escapeHtml(row.toolCategory || '')}" placeholder="e.g. Diagnostic, Installation"></div>
         <div class="form-row"><label>Serial Number</label><input type="text" class="td-tool-serial" value="${escapeHtml(row.serialNumber || '')}"></div>
-        <div class="form-row"><label>Assigned Date</label><input type="date" class="td-tool-assigned-date" value="${row.assignedDate || ''}"></div>
+        <div class="form-row"><label>Assigned Date</label><input type="date" class="td-tool-assigned-date" value="${escapeHtml(row.assignedDate || '')}"></div>
         <div class="form-row"><label>Condition</label><input type="text" class="td-tool-condition" value="${escapeHtml(row.condition || '')}" placeholder="e.g. Good, Worn"></div>
-        <div class="form-row"><label>Last Inspection</label><input type="date" class="td-tool-last-inspection" value="${row.lastInspection || ''}"></div>
-        <div class="form-row"><label>Next Inspection</label><input type="date" class="td-tool-next-inspection" value="${row.nextInspection || ''}"></div>
-        <div class="form-row"><label>Return Date</label><input type="date" class="td-tool-return-date" value="${row.returnDate || ''}"></div>
+        <div class="form-row"><label>Last Inspection</label><input type="date" class="td-tool-last-inspection" value="${escapeHtml(row.lastInspection || '')}"></div>
+        <div class="form-row"><label>Next Inspection</label><input type="date" class="td-tool-next-inspection" value="${escapeHtml(row.nextInspection || '')}"></div>
+        <div class="form-row"><label>Return Date</label><input type="date" class="td-tool-return-date" value="${escapeHtml(row.returnDate || '')}"></div>
         <div class="form-row"><label>Status</label>
           <select class="td-tool-status">
             <option value="ASSIGNED" ${(!row.status || row.status === 'ASSIGNED') ? 'selected' : ''}>Assigned</option>
@@ -2841,7 +2841,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead><tr style="text-align:left;"><th style="padding:4px 6px;">Part</th><th style="padding:4px 6px;">Quantity</th></tr></thead>
           <tbody>
-            ${withStock.map(r => `<tr><td style="padding:4px 6px;">${escapeHtml(partName(r.partId))}</td><td style="padding:4px 6px;">${r.quantity}</td></tr>`).join('')}
+            ${withStock.map(r => `<tr><td style="padding:4px 6px;">${escapeHtml(partName(r.partId))}</td><td style="padding:4px 6px;">${escapeHtml(r.quantity)}</td></tr>`).join('')}
           </tbody>
         </table>`;
     } catch (err) {
@@ -2994,7 +2994,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     rated.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     const avg = Math.round(rated.reduce((s, f) => s + f.rating, 0) / rated.length * 10) / 10;
     const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
-    return `<div><strong>${avg} / 5</strong> average from ${rated.length} rating${rated.length > 1 ? 's' : ''}</div>`
+    return `<div><strong>${avg} / 5</strong> average from ${escapeHtml(rated.length)} rating${rated.length > 1 ? 's' : ''}</div>`
       + rated.slice(0, 10).map(f => `<div style="margin-top:6px;"><span style="color:#E8A317;">${stars(f.rating)}</span> · ${escapeHtml(f.requestId || f.ticketId || '')}${f.createdAt?.toDate ? ' · ' + f.createdAt.toDate().toLocaleDateString() : ''}${f.comment ? `<div style="color:var(--ink, inherit);">“${escapeHtml(f.comment)}”</div>` : ''}</div>`).join('');
   }
   // Customer feedback for one technician. Ratings come only from the
@@ -3040,16 +3040,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           </select>
         </div>
         <div class="form-row"><label>File</label>
-          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${row.fileUrl}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
+          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${escapeHtml(row.fileUrl)}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
           <input type="file" class="td-doc-file">
         </div>
-        <div class="form-row"><label>Issue Date</label><input type="date" class="td-doc-issue-date" value="${row.issueDate || ''}"></div>
-        <div class="form-row"><label>Expiry Date${expiryBadge(row.expiryDate)}</label><input type="date" class="td-doc-expiry" value="${row.expiryDate || ''}" ${row.verified ? 'disabled title="Locked once verified"' : ''}></div>
+        <div class="form-row"><label>Issue Date</label><input type="date" class="td-doc-issue-date" value="${escapeHtml(row.issueDate || '')}"></div>
+        <div class="form-row"><label>Expiry Date${expiryBadge(row.expiryDate)}</label><input type="date" class="td-doc-expiry" value="${escapeHtml(row.expiryDate || '')}" ${row.verified ? 'disabled title="Locked once verified"' : ''}></div>
         <div class="form-row"><label>Uploaded By</label><input type="text" class="td-doc-uploaded-by" value="${escapeHtml(row.uploadedBy || '')}" disabled style="opacity:0.6;"></div>
-        <div class="form-row"><label>Uploaded Date</label><input type="text" class="td-doc-uploaded-date" value="${row.uploadedDate || ''}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Uploaded Date</label><input type="text" class="td-doc-uploaded-date" value="${escapeHtml(row.uploadedDate || '')}" disabled style="opacity:0.6;"></div>
         <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Verified</label><input type="checkbox" class="td-doc-verified" ${row.verified ? 'checked' : ''}></div>
         <div class="form-row"><label>Verified By</label><input type="text" class="td-doc-verified-by" value="${escapeHtml(row.verifiedBy || '')}"></div>
-        <div class="form-row"><label>Verification Date</label><input type="date" class="td-doc-verification-date" value="${row.verificationDate || ''}"></div>
+        <div class="form-row"><label>Verification Date</label><input type="date" class="td-doc-verification-date" value="${escapeHtml(row.verificationDate || '')}"></div>
       </div>`;
   }
 
@@ -3581,11 +3581,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       docs.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${d.scheduledDate}</b>${d.scheduledStartTime ? `<div style="font-size:12px;color:var(--stone);">${d.scheduledStartTime}${d.scheduledEndTime ? '–' + d.scheduledEndTime : ''}</div>` : ''}</td>
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td><b>${escapeHtml(d.scheduledDate)}</b>${d.scheduledStartTime ? `<div style="font-size:12px;color:var(--stone);">${escapeHtml(d.scheduledStartTime)}${d.scheduledEndTime ? '–' + d.scheduledEndTime : ''}</div>` : ''}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.technicianName || '—')}</td>
-          <td><span class="status-pill ${d.status}">${JOB_STATUS_LABELS[d.status] || d.status}</span></td>`;
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(JOB_STATUS_LABELS[d.status] || d.status)}</span></td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -3638,10 +3638,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const part = partMap[r.partId];
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${part ? part.partCode : r.partId}</td>
-          <td>${part ? part.name : '—'}</td>
-          <td><b>${r.quantity ?? 0}</b></td>
-          <td><button class="btn-secondary cinv-adjust-btn" data-partid="${r.partId}" data-name="${part ? part.name.replace(/"/g,'&quot;') : ''}" data-code="${part ? part.partCode : ''}">Adjust</button></td>`;
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td>
+          <td>${escapeHtml(part ? part.name : '—')}</td>
+          <td><b>${escapeHtml(r.quantity ?? 0)}</b></td>
+          <td><button class="btn-secondary cinv-adjust-btn" data-partid="${escapeHtml(r.partId)}" data-name="${escapeHtml(part ? part.name : '')}" data-code="${escapeHtml(part ? part.partCode : '')}">Adjust</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.cinv-adjust-btn').addEventListener('click', (e) => {
           openCinvAdjustModal(e.target.dataset.partid, e.target.dataset.name, e.target.dataset.code);
@@ -3840,8 +3840,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
-          <td>${part ? part.name : d.partId}</td>
-          <td>${d.quantity ?? '—'}</td>
+          <td>${escapeHtml(part ? part.name : d.partId)}</td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
           <td>${escapeHtml(d.reason || '—')}</td>`;
         tbody.appendChild(tr);
       });
@@ -4066,7 +4066,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <td><input type="checkbox" class="defect-pick" value="${escapeHtml(d.id)}" checked></td>
           <td style="font-size:12px;color:var(--stone);">${d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleDateString() : '—'}</td>
           <td>${escapeHtml(part ? part.name : (d.partName || d.partId))}</td>
-          <td>${d.quantity ?? '—'}</td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
           <td style="font-size:12.5px;">${escapeHtml(d.status === 'sent_to_center' ? (d.source || 'Technician') : 'Your center')}</td>
           <td style="font-size:12.5px;color:var(--stone);">${escapeHtml(d.reason || '—')}</td>
           <td style="${overdue ? 'color:var(--err);font-weight:600;' : ''}">${due ? due.toLocaleDateString() : '—'}${overdue ? ' (overdue)' : ''}</td></tr>`;
@@ -4220,8 +4220,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           const applies = t.key === 'repair' ? row.needsService : row.needsInstallation;
           if (!applies) return `<td style="color:var(--stone);">N/A</td><td style="color:var(--stone);">N/A</td>`;
           return `
-          <td class="rate-card-default" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" style="color:var(--stone);">—</td>
-          <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
+          <td class="rate-card-default" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" style="color:var(--stone);">—</td>
+          <td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" placeholder="use default" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
         }).join('')}
       </tr>`).join('');
     if (!currentUser) return;
@@ -4238,10 +4238,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       rows.forEach(row => {
         RATE_CARD_TYPES.forEach(t => {
           const def = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
-          const defCell = tbody.querySelector(`.rate-card-default[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
+          const defCell = tbody.querySelector(`.rate-card-default[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
           if (defCell) defCell.textContent = def && def.amount != null ? `₹${def.amount}` : 'Not set';
           const ov = overrideByKey[rateCardKey('center', currentUser.uid, row.cat, t.key, row.bucket)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
+          const input = tbody.querySelector(`.rate-card-input[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
           if (ov && input) { input.value = ov.amount ?? ''; input.dataset.current = String(ov.amount ?? ''); }
         });
       });
@@ -4450,16 +4450,16 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const completedStr = d.closedAt && d.closedAt.toDate ? d.closedAt.toDate().toLocaleDateString() : (d.updatedAt && d.updatedAt.toDate ? d.updatedAt.toDate().toLocaleDateString() : '—');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${escapeHtml(d.id)}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td>${escapeHtml(d.serialNumber) || '—'}</td>
           <td>${completedStr}</td>
-          <td class="billing-warranty-cell" data-id="${d.id}">Checking…</td>
-          <td><button class="btn-secondary billing-bill-btn" data-id="${d.id}">Bill this ticket</button></td>`;
+          <td class="billing-warranty-cell" data-id="${escapeHtml(d.id)}">Checking…</td>
+          <td><button class="btn-secondary billing-bill-btn" data-id="${escapeHtml(d.id)}">Bill this ticket</button></td>`;
         pendingTbody.appendChild(tr);
         getTicketWarrantyInfo(d).then(info => {
-          const cell = pendingTbody.querySelector(`.billing-warranty-cell[data-id="${d.id}"]`);
-          if (cell) cell.innerHTML = `<span class="status-pill ${info.cls}">${escapeHtml(info.label)}</span>`;
+          const cell = pendingTbody.querySelector(`.billing-warranty-cell[data-id="${escapeHtml(d.id)}"]`);
+          if (cell) cell.innerHTML = `<span class="status-pill ${escapeHtml(info.cls)}">${escapeHtml(info.label)}</span>`;
         });
       }
       pendingTbody.querySelectorAll('.billing-bill-btn').forEach(btn => btn.addEventListener('click', () => openBillingModal(btn.dataset.id)));
@@ -4469,13 +4469,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const billedStr = d.billedAt && d.billedAt.toDate ? d.billedAt.toDate().toLocaleDateString() : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><input type="checkbox" class="claim-select-cb" data-id="${d.id}"></td>
-          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
+          <td><input type="checkbox" class="claim-select-cb" data-id="${escapeHtml(d.id)}"></td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${escapeHtml(d.id)}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td>${escapeHtml(d.serialNumber) || '—'}</td>
-          <td>₹${d.billingTotal ?? 0}</td>
+          <td>₹${escapeHtml(d.billingTotal ?? 0)}</td>
           <td>${billedStr}</td>
-          <td><button class="btn-secondary billing-bill-btn" data-id="${d.id}">Edit</button></td>`;
+          <td><button class="btn-secondary billing-bill-btn" data-id="${escapeHtml(d.id)}">Edit</button></td>`;
         readyTbody.appendChild(tr);
       });
       readyTbody.querySelectorAll('.claim-select-cb').forEach(cb => cb.addEventListener('change', updateBulkClaimBtn));
@@ -4491,10 +4491,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const label = d.billingStatus === 'claimed' ? `Claimed${d.claimId ? ' — ' + escapeHtml(d.claimId) : ''}` : 'Collected from customer';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${d.id}">${escapeHtml(d.requestId || d.id)}</a></td>
+          <td style="font-size:12px;color:var(--stone);"><a href="#" class="billing-ticket-link" data-id="${escapeHtml(d.id)}">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${escapeHtml(d.customerName) || '—'}</td>
           <td style="text-transform:capitalize;">${d.billingType === 'customer' ? 'Customer paid' : 'Warranty claim'}</td>
-          <td>₹${d.billingTotal ?? '—'}</td>
+          <td>₹${escapeHtml(d.billingTotal ?? '—')}</td>
           <td><span class="status-pill ${pillClass}">${label}</span></td>`;
         historyTbody.appendChild(tr);
       });
@@ -4633,8 +4633,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const isOutByDefault = info.inWarranty === false;
     billingBody.innerHTML = `
       <div class="form-row"><label>Ticket</label><div>${escapeHtml(ticket.requestId || ticket.id)} — ${escapeHtml(ticket.customerName) || ''}</div></div>
-      <div class="form-row"><label>Warranty</label><div><span class="status-pill ${info.cls}">${escapeHtml(info.label)}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${info.source})</span>` : ''}</div></div>
-      ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${ticket.serviceCharge} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
+      <div class="form-row"><label>Warranty</label><div><span class="status-pill ${escapeHtml(info.cls)}">${escapeHtml(info.label)}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${escapeHtml(info.source)})</span>` : ''}</div></div>
+      ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${escapeHtml(ticket.serviceCharge)} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
       ${isKnown ? `
         <div class="form-row"><label>Bill as</label><div>${isOutByDefault ? 'Out-of-warranty — collect from customer' : 'In-warranty — claim to Head Office'}</div></div>
         <input type="hidden" id="billing-warranty-override" value="${isOutByDefault ? 'out' : 'in'}">
@@ -4653,9 +4653,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <div class="form-row" style="font-size:12px;color:var(--stone);">Spare parts used on an in-warranty job aren't billed to Head Office per ticket — they come out of your Center Inventory, which you restock through Spare Requests. Only the service charge above is claimable.</div>
       </div>
       <div id="billing-customer-fields" style="display:${isOutByDefault ? 'block' : 'none'};">
-        <div class="form-row"><label>Spare parts cost (₹)</label><input type="number" id="billing-spare-cost" min="0" step="0.01" value="${ticket.sparePartsCost ?? 0}"></div>
-        <div class="form-row"><label>Other charges (₹)</label><input type="number" id="billing-other-charges" min="0" step="0.01" value="${ticket.otherCharges ?? 0}"></div>
-        <div class="form-row"><label>Service charge to collect (₹)</label><input type="number" id="billing-service-charge" min="0" step="0.01" value="${ticket.serviceCharge ?? 0}"></div>
+        <div class="form-row"><label>Spare parts cost (₹)</label><input type="number" id="billing-spare-cost" min="0" step="0.01" value="${escapeHtml(ticket.sparePartsCost ?? 0)}"></div>
+        <div class="form-row"><label>Other charges (₹)</label><input type="number" id="billing-other-charges" min="0" step="0.01" value="${escapeHtml(ticket.otherCharges ?? 0)}"></div>
+        <div class="form-row"><label>Service charge to collect (₹)</label><input type="number" id="billing-service-charge" min="0" step="0.01" value="${escapeHtml(ticket.serviceCharge ?? 0)}"></div>
         <div class="form-row"><label>Payment method</label>
           <select id="billing-payment-method">
             <option value="cash">Cash</option>
@@ -4847,10 +4847,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const pillClass = d.status === 'settled' ? 'completed' : d.status === 'verified' ? 'in_progress' : d.status === 'rejected' ? 'cancelled' : 'new';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.claimId || d.id)}</td>
           <td>${escapeHtml(d.description || '—')}</td>
-          <td>₹${d.amount ?? '—'}</td>
-          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span>${d.status === 'rejected' && d.rejectReason ? `<div style="font-size:11.5px;color:var(--err);">${escapeHtml(d.rejectReason)}</div>` : ''}${d.approvedAmount != null && d.status !== 'rejected' ? `<div style="font-size:11.5px;color:var(--stone);">Approved ₹${d.approvedAmount}</div>` : ''}</td>`;
+          <td>₹${escapeHtml(d.amount ?? '—')}</td>
+          <td><span class="status-pill ${pillClass}">${CLAIM_STATUS_LABELS_C[d.status] || d.status}</span>${d.status === 'rejected' && d.rejectReason ? `<div style="font-size:11.5px;color:var(--err);">${escapeHtml(d.rejectReason)}</div>` : ''}${d.approvedAmount != null && d.status !== 'rejected' ? `<div style="font-size:11.5px;color:var(--stone);">Approved ₹${escapeHtml(d.approvedAmount)}</div>` : ''}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -4959,7 +4959,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         docs.forEach(d => {
           total += Number(d.amount) || 0;
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${escapeHtml(d.description || '—')}</td><td>₹${d.amount ?? '—'}</td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${escapeHtml(d.claimId || d.id)}</td><td>${escapeHtml(d.description || '—')}</td><td>₹${escapeHtml(d.amount ?? '—')}</td>`;
           tbody.appendChild(tr);
         });
       }
@@ -5018,9 +5018,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       reqSnap.forEach(d => { if (d.data().status === 'completed') completed++; });
       claimsSnap.forEach(d => { if (d.data().status === 'settled') settledTotal += Number(d.data().amount) || 0; });
       document.getElementById('reports-body').innerHTML = `
-        <b style="color:var(--ink)">${reqSnap.size}</b> total requests logged, <b style="color:var(--ink)">${completed}</b> completed.<br>
-        <b style="color:var(--ink)">${techSnap.size}</b> technicians on your roster.<br>
-        <b style="color:var(--ink)">${claimsSnap.size}</b> claims submitted, <b style="color:var(--ink)">₹${settledTotal}</b> settled to date.`;
+        <b style="color:var(--ink)">${escapeHtml(reqSnap.size)}</b> total requests logged, <b style="color:var(--ink)">${completed}</b> completed.<br>
+        <b style="color:var(--ink)">${escapeHtml(techSnap.size)}</b> technicians on your roster.<br>
+        <b style="color:var(--ink)">${escapeHtml(claimsSnap.size)}</b> claims submitted, <b style="color:var(--ink)">₹${settledTotal}</b> settled to date.`;
     } catch (err) {
       console.error('Load reports failed:', err);
       document.getElementById('reports-body').innerHTML = 'Couldn\'t load the summary. Check console for details.';
@@ -5140,10 +5140,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         <tr data-day="${key}">
           <td style="padding:4px 6px;">${label}</td>
           <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="scfp-wh-working" ${day.working ? 'checked' : ''}></td>
-          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-start" value="${day.start || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-end" value="${day.end || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-break-start" value="${day.breakStart || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-break-end" value="${day.breakEnd || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-start" value="${escapeHtml(day.start || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-end" value="${escapeHtml(day.end || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-break-start" value="${escapeHtml(day.breakStart || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="scfp-wh-break-end" value="${escapeHtml(day.breakEnd || '')}" style="width:110px;"></td>
           <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="scfp-wh-special" ${day.specialWorkingDay ? 'checked' : ''}></td>
         </tr>`;
     }).join('');
@@ -5169,8 +5169,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return `
       <div class="scfp-holiday-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
         <button type="button" class="scfp-holiday-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
-        <div class="form-row"><label>Holiday Date</label><input type="date" class="scfp-holiday-date" value="${row.date || ''}"></div>
-        <div class="form-row"><label>End Date <span style="font-weight:400;color:var(--stone);">(optional, for multi-day closures)</span></label><input type="date" class="scfp-holiday-end-date" value="${row.endDate || ''}"></div>
+        <div class="form-row"><label>Holiday Date</label><input type="date" class="scfp-holiday-date" value="${escapeHtml(row.date || '')}"></div>
+        <div class="form-row"><label>End Date <span style="font-weight:400;color:var(--stone);">(optional, for multi-day closures)</span></label><input type="date" class="scfp-holiday-end-date" value="${escapeHtml(row.endDate || '')}"></div>
         <div class="form-row"><label>Closure Type</label>
           <select class="scfp-holiday-type">
             <option value="HOLIDAY" ${row.closureType === 'HOLIDAY' ? 'selected' : ''}>Holiday</option>
@@ -5287,7 +5287,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const availability = onLeave ? 'On Leave' : (t.employmentStatus && t.employmentStatus !== 'ACTIVE' ? '—' : 'Available');
         const skillsLabel = (t.technicalSkills || []).map(s => s.skill).filter(Boolean).slice(0, 2).join(', ') || t.skills || '—';
         const nameHtml = t.technicianUid
-          ? `<a href="#" class="scfp-tech-link" data-id="${t.id}">${escapeHtml(t.name) || '—'}</a>`
+          ? `<a href="#" class="scfp-tech-link" data-id="${escapeHtml(t.id)}">${escapeHtml(t.name) || '—'}</a>`
           : `${escapeHtml(t.name) || '—'} <span style="color:var(--stone);font-size:11px;">(informal)</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `<td style="padding:4px 6px;">${nameHtml}</td><td style="padding:4px 6px;">${escapeHtml(t.employmentStatus || '—')}</td><td style="padding:4px 6px;">${escapeHtml(skillsLabel)}</td><td style="padding:4px 6px;text-align:center;">${todayJobs}</td><td style="padding:4px 6px;">${availability}</td>`;
@@ -5456,7 +5456,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const rules = []; snap.forEach(r => rules.push({ id: r.id, ...r.data() }));
       const rule = scfpResolveSla(rules, district);
       if (rule) {
-        el.innerHTML = `<strong>${escapeHtml(rule.name)}</strong> — due in ${rule.dueSoonHours}h, breached after ${rule.breachedHours}h (matched on district: ${escapeHtml(district)})`;
+        el.innerHTML = `<strong>${escapeHtml(rule.name)}</strong> — due in ${escapeHtml(rule.dueSoonHours)}h, breached after ${escapeHtml(rule.breachedHours)}h (matched on district: ${escapeHtml(district)})`;
       } else {
         el.innerHTML = `Default — due in ${SCFP_SLA_DEFAULT.dueSoonHours}h, breached after ${SCFP_SLA_DEFAULT.breachedHours}h (no district-specific rule for "${escapeHtml(district || '—')}")`;
       }
@@ -5481,7 +5481,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const el = document.getElementById('scfp-doc-list');
     if (!docs.length) { el.innerHTML = `<div style="color:var(--stone);">No documents uploaded yet.</div>`; return; }
     el.innerHTML = docs.slice().reverse().map(doc_ =>
-      `<div>${escapeHtml(doc_.docType || '—')}${doc_.expiryDate ? ' · expires ' + escapeHtml(doc_.expiryDate) + expiryBadge(doc_.expiryDate) : ''} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
+      `<div>${escapeHtml(doc_.docType || '—')}${doc_.expiryDate ? ' · expires ' + escapeHtml(doc_.expiryDate) + expiryBadge(doc_.expiryDate) : ''} — ${doc_.fileUrl ? `<a href="${escapeHtml(doc_.fileUrl)}" target="_blank" rel="noopener">View</a>` : 'no file'} ${doc_.verified ? '<span style="color:var(--ok, green);">(Verified)</span>' : '<span style="color:var(--stone);">(Pending verification)</span>'}</div>`
     ).join('');
   }
 
@@ -5502,14 +5502,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       partsSnap.forEach(p => { partMap[p.id] = p.data(); });
       const rows = []; invSnap.forEach(r => rows.push(r.data()));
       const totalQty = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
-      summaryEl.innerHTML = `<strong>${rows.length}</strong> part(s) on hand &nbsp; · &nbsp; <strong>${totalQty}</strong> total units`;
+      summaryEl.innerHTML = `<strong>${escapeHtml(rows.length)}</strong> part(s) on hand &nbsp; · &nbsp; <strong>${totalQty}</strong> total units`;
       if (rows.length === 0) {
         tbodyEl.innerHTML = `<tr><td colspan="3" class="empty-row">No parts in inventory yet.</td></tr>`;
       } else {
         rows.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
         tbodyEl.innerHTML = rows.map(r => {
           const part = partMap[r.partId];
-          return `<tr><td style="padding:4px 6px;font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td><td style="padding:4px 6px;">${escapeHtml(part ? part.name : '—')}</td><td style="padding:4px 6px;text-align:center;"><b>${r.quantity ?? 0}</b></td></tr>`;
+          return `<tr><td style="padding:4px 6px;font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td><td style="padding:4px 6px;">${escapeHtml(part ? part.name : '—')}</td><td style="padding:4px 6px;text-align:center;"><b>${escapeHtml(r.quantity ?? 0)}</b></td></tr>`;
         }).join('');
       }
       const moves = []; movSnap.forEach(m => moves.push(m.data()));
@@ -5518,7 +5518,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       movementsEl.innerHTML = recent.length === 0 ? `<div style="color:var(--stone);font-size:13px;">No stock movements recorded yet.</div>` : recent.map(m => {
         const part = partMap[m.partId];
         const when = m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString() : '—';
-        return `<div style="font-size:13px;">${when} — ${m.type === 'receive' ? 'Received' : 'Issued'} ${m.quantity ?? 0} × ${escapeHtml(part ? part.name : m.partId)}${m.reason ? ' (' + escapeHtml(m.reason) + ')' : ''}</div>`;
+        return `<div style="font-size:13px;">${when} — ${m.type === 'receive' ? 'Received' : 'Issued'} ${escapeHtml(m.quantity ?? 0)} × ${escapeHtml(part ? part.name : m.partId)}${m.reason ? ' (' + escapeHtml(m.reason) + ')' : ''}</div>`;
       }).join('');
     } catch (err) {
       console.error('Load inventory summary failed:', err);
@@ -5560,7 +5560,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           <div style="font-weight:600;margin-bottom:4px;">${label}</div>
           <div>Status: ${SCFP_BRAND_STATUS_LABELS[b.status] || '—'}</div>
           <div>Type: ${SCFP_BRAND_TYPE_LABELS[b.authType] || '—'} · Level: ${SCFP_BRAND_LEVEL_LABELS[b.level] || '—'}</div>
-          <div>Effective: ${b.effectiveFrom || '—'} to ${b.effectiveTo || '—'}</div>
+          <div>Effective: ${escapeHtml(b.effectiveFrom || '—')} to ${escapeHtml(b.effectiveTo || '—')}</div>
           <div>Approved By: ${escapeHtml(b.approvedBy || '—')}</div>
         </div>`;
     }).join('');
@@ -5615,18 +5615,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
     function fillCategories(brandId, selectedCategoryId) {
       const cats = tdCatalogCache.categories.filter(c => c.brandId === brandId);
-      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${c.id}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
+      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
       fillProducts(brandId, selectedCategoryId, null);
     }
     function fillProducts(brandId, categoryId, selectedProductId) {
       const prods = tdCatalogCache.products.filter(p => p.brandId === brandId && (!categoryId || p.categoryId === categoryId));
-      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${p.id}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
+      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
       fillModels(prodSelect.value, null);
     }
     function fillModels(productId, selectedModelId) {
       productId = productId || prodSelect.value;
       const mods = productId ? tdCatalogCache.models.filter(m => m.productId === productId) : [];
-      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
+      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
     }
 
     brandSelect.addEventListener('change', () => fillCategories(brandSelect.value, null));
@@ -5831,8 +5831,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
       <div style="font-weight:600;margin:16px 0 8px;">Coverage</div>
       <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Set by Super Admin, view only here — this is the same Covered Districts/Pincodes used for routing and for Super Admin's Coverage Analysis (conflicts &amp; gaps) page, not a separate list. Territory follows the Pincode Master hierarchy in Address &amp; Location above; per-pincode Coverage Type, Priority and Effective Dates aren't tracked as separate fields — a pincode is simply covered or not.</div>
-      <div><strong>Covered Districts (${(d.districtsCovered || []).length}):</strong> ${(d.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
-      <div><strong>Covered Pincodes (${(d.pincodesCovered || []).length}):</strong> ${(d.pincodesCovered || []).length ? (d.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
+      <div><strong>Covered Districts (${escapeHtml((d.districtsCovered || []).length)}):</strong> ${(d.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
+      <div><strong>Covered Pincodes (${escapeHtml((d.pincodesCovered || []).length)}):</strong> ${(d.pincodesCovered || []).length ? (d.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
 
       <div style="font-weight:600;margin:16px 0 8px;">Working Hours</div>
       <div style="overflow-x:auto;">
@@ -5996,7 +5996,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     document.getElementById('scfp-pan').value = d.pan || '';
     document.getElementById('scfp-reg-number').value = d.registrationNumber || '';
     document.getElementById('scfp-agreement-validity').value = d.agreementValidity || '';
-    document.getElementById('scfp-agreement-link').innerHTML = d.agreementUrl ? `<a href="${d.agreementUrl}" target="_blank" rel="noopener">View current agreement</a>` : `<span style="color:var(--stone);font-size:12px;">No agreement uploaded yet.</span>`;
+    document.getElementById('scfp-agreement-link').innerHTML = d.agreementUrl ? `<a href="${escapeHtml(d.agreementUrl)}" target="_blank" rel="noopener">View current agreement</a>` : `<span style="color:var(--stone);font-size:12px;">No agreement uploaded yet.</span>`;
     renderScfpBrandAuthBlock(d);
     await renderScfpCapabilityBlock(d);
     document.getElementById('scfp-add-capability').addEventListener('click', () => addScfpCapabilityRow(null));

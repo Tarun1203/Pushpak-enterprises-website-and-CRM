@@ -234,3 +234,31 @@ test('customer portal: verified-phone account, register, warranty check, book, t
   const t = await adminGet(env, `supportTickets/${sup.ticketNo}`);
   assert.deepStrictEqual(t.messages.map((m) => m.from), ['customer', 'staff']);
 });
+
+test('security: portal functions refuse signed-out and non-customer callers, and lookups are rate limited', async () => {
+  const contact = { name: 'X', address: '1 Rd', city: 'Raichur', state: 'Karnataka', pincode: '584101' };
+  // Signed out.
+  for (const [name, data] of [['ensureCustomerProfile', {}], ['registerProduct', { brand: 'MakWell', ...contact }],
+    ['bookService', { requestType: 'installation', ...contact }], ['checkWarranty', { serial: 'ABCD-1234' }], ['supportTicket', { action: 'create' }]]) {
+    await assert.rejects(() => call(name, data), /Sign in|unauthenticated|UNAUTHENTICATED/i, name + ' without sign-in');
+  }
+  // A staff account (email, no verified phone) cannot act as a customer.
+  const staff = await emailSignUp('tech-sec@pe.test');
+  await adminSet(env, `users/${staff.uid}`, { role: 'technician', name: 'Tech' });
+  await assert.rejects(() => call('registerProduct', { brand: 'MakWell', categoryId: 'g', category: 'Geyser', modelNo: 'X', purchaseDate: '2026-01-01', ...contact }, staff.idToken), /phone-not-verified/);
+  // A forged role in the request body changes nothing.
+  const cust = await phoneSignIn('9000000190');
+  await call('ensureCustomerProfile', { name: 'Sec', role: 'superadmin' }, cust.idToken);
+  assert.strictEqual((await adminGet(env, `users/${cust.uid}`)).role, 'customer');
+  // Staff replies need a Head Office account, not just any signed-in user.
+  const sup = await call('supportTicket', { action: 'create', category: 'Other', subject: 'Sec', message: 'test' }, cust.idToken);
+  await assert.rejects(() => call('supportTicket', { action: 'reply', ticketNo: sup.ticketNo, message: 'I am staff' }, staff.idToken), /phone-not-verified/);
+  // Anonymous lookups: 25 per phone per hour, then refused.
+  let refused = false;
+  for (let i = 0; i < 30 && !refused; i++) {
+    try { await call('publicLookup', { type: 'warranty', phone: '9000000191' }); } catch (e) { refused = /Too many/.test(e.message); }
+  }
+  assert.ok(refused, 'phone lookups are rate limited');
+  await assert.rejects(() => call('publicLookup', { type: 'warranty', phone: '12' }), /10-digit/);
+  await assert.rejects(() => call('publicLookup', { type: 'dump-all', phone: '9000000192' }), /Unknown lookup/);
+});

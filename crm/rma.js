@@ -63,7 +63,7 @@ export async function renderRmaList(el, opts) {
       <div class="modal-error" id="rma-raise-err"></div><div id="rma-raise-ok" style="color:#1E7B34;font-weight:600;margin:6px 0;"></div>
       <button type="button" class="btn-primary" id="rma-raise">Raise RMA</button>`) : '')
     + panel('RMA & Replacement', `<div id="rma-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">${TABS.map((t) =>
-        `<button type="button" class="btn-secondary" data-tab="${t.key}" style="${t.key === tab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${t.label}</button>`).join('')}</div>
+        `<button type="button" class="btn-secondary" data-tab="${esc(t.key)}" style="${t.key === tab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${esc(t.label)}</button>`).join('')}</div>
       <div id="rma-body">Loading…</div>`);
   el.querySelectorAll('#rma-tabs button').forEach((b) => b.addEventListener('click', () => renderRmaList(el, { ...opts, tab: b.dataset.tab })));
   if (opts.allowRaise) {
@@ -240,7 +240,7 @@ export async function renderBrandReturns(el, opts) {
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><b>${esc(b.brand)}</b> · sent ${esc(b.sentOn || when(b.createdAt))} · ${esc(b.courier || '')} ${esc(b.docket || '')}</div>
           <div><b>${b.status === 'sent' ? 'With brand' : b.status === 'closed' ? 'Closed' : b.status === 'rejected' ? 'Refused' : 'Processing…'}</b></div></div>
         ${b.status === 'rejected' ? `<div style="color:var(--err);font-size:12.5px;">${esc(b.reason)}</div>` : ''}
-        <div style="font-size:13px;margin-top:6px;">${b.unitCount ?? (b.unitSerials || []).length} unit(s), ${b.spareCount ?? (b.spareReturnIds || []).length} spare return(s) · Replacement units received: <b>${b.replacementsReceived || 0}</b> · Credit notes: <b>${inr(cnTotal)}</b></div>
+        <div style="font-size:13px;margin-top:6px;">${esc(b.unitCount ?? (b.unitSerials || []).length)} unit(s), ${esc(b.spareCount ?? (b.spareReturnIds || []).length)} spare return(s) · Replacement units received: <b>${esc(b.replacementsReceived || 0)}</b> · Credit notes: <b>${inr(cnTotal)}</b></div>
         ${cns.length ? `<div style="font-size:12.5px;color:var(--stone);margin-top:4px;">${cns.map((c) => `${esc(c.number)} — ${inr(c.amount)} (${esc(c.date)})`).join('<br>')}</div>` : ''}
         ${b.status === 'sent' ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
           <input type="text" class="cn-no" placeholder="Credit note no." maxlength="40" style="width:140px;">

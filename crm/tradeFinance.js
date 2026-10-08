@@ -114,9 +114,9 @@ export async function renderAccounts(el, opts) {
       const out = a.outstanding || 0;
       const due = toDate(a.oldestUnpaidDue);
       const overdue = due && due <= now;
-      return `<tr><td>${esc(a.name)}<div style="font-size:11.5px;color:var(--stone);">${a.type}${a.gstin ? ' · ' + esc(a.gstin) : ''}</div></td>
+      return `<tr><td>${esc(a.name)}<div style="font-size:11.5px;color:var(--stone);">${esc(a.type)}${a.gstin ? ' · ' + esc(a.gstin) : ''}</div></td>
         <td style="text-align:right;">${limit === null ? '<span style="color:var(--err);">not set</span>' : inr(limit)}</td>
-        <td>${Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS} days</td>
+        <td>${esc(Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS)} days</td>
         <td style="text-align:right;">${inr(out)}</td>
         <td style="text-align:right;">${limit === null ? '—' : inr(limit - out)}</td>
         <td>${overdue ? `<span style="color:var(--err);font-weight:600;">since ${due.toLocaleDateString('en-IN')}</span>` : '—'}</td>
@@ -140,8 +140,8 @@ export async function renderAccounts(el, opts) {
     el.querySelectorAll('.tf-edit').forEach((b) => b.addEventListener('click', () => {
       const a = accounts[Number(b.dataset.i)];
       detail.innerHTML = panel(`Credit terms — ${esc(a.name)}`, `
-        <div class="form-row"><label>Credit limit (₹)</label><input type="number" id="tf-limit" min="0" step="1" value="${typeof a.creditLimit === 'number' ? a.creditLimit : ''}"></div>
-        <div class="form-row"><label>Payment terms (days)</label><input type="number" id="tf-terms" min="0" max="365" step="1" value="${Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS}"></div>
+        <div class="form-row"><label>Credit limit (₹)</label><input type="number" id="tf-limit" min="0" step="1" value="${esc(typeof a.creditLimit === 'number' ? a.creditLimit : '')}"></div>
+        <div class="form-row"><label>Payment terms (days)</label><input type="number" id="tf-terms" min="0" max="365" step="1" value="${esc(Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS)}"></div>
         <div class="form-row"><label>State code (if no GSTIN)</label><input type="text" id="tf-state" maxlength="2" placeholder="e.g. 29 for Karnataka" value="${esc(a.stateCode || '')}"></div>
         <div class="form-row"><label>Notes</label><input type="text" id="tf-notes" maxlength="300" value="${esc(a.notes || '')}"></div>
         <div class="modal-error" id="tf-err"></div>
@@ -233,7 +233,7 @@ export async function renderPayments(el, opts) {
     pays.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     const today = new Date().toISOString().slice(0, 10);
     el.innerHTML = panel('Record a payment received', `
-        <div class="form-row"><label>From</label><select id="tf-pay-acct"><option value="">Select account…</option>${accounts.map((a) => `<option value="${esc(a.uid)}">${esc(a.name)} (${a.type}) — owes ${inr(a.outstanding || 0)}</option>`).join('')}</select></div>
+        <div class="form-row"><label>From</label><select id="tf-pay-acct"><option value="">Select account…</option>${accounts.map((a) => `<option value="${esc(a.uid)}">${esc(a.name)} (${esc(a.type)}) — owes ${inr(a.outstanding || 0)}</option>`).join('')}</select></div>
         <div class="form-row"><label>Amount (₹)</label><input type="number" id="tf-pay-amt" min="0.01" step="0.01"></div>
         <div class="form-row"><label>Mode</label><select id="tf-pay-mode"><option>NEFT/RTGS</option><option>UPI</option><option>Cheque</option><option>Cash</option><option>Other</option></select></div>
         <div class="form-row"><label>Reference (UTR / cheque no.)</label><input type="text" id="tf-pay-ref" maxlength="80"></div>
@@ -300,7 +300,7 @@ export async function renderMyAccount(el, { db, uid }) {
     const overdue = due && due <= new Date();
     el.innerHTML = panel('My account with Pushpak Enterprises', `<div style="display:flex;gap:22px;flex-wrap:wrap;font-size:14px;">
         <div>Credit limit<br><b>${inr(limit)}</b></div><div>Outstanding<br><b>${inr(out)}</b></div>
-        <div>Available<br><b>${inr(limit - out)}</b></div><div>Payment terms<br><b>${Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS} days</b></div></div>
+        <div>Available<br><b>${inr(limit - out)}</b></div><div>Payment terms<br><b>${esc(Number.isInteger(a.paymentTermsDays) ? a.paymentTermsDays : F().DEFAULT_TERMS_DAYS)} days</b></div></div>
         ${overdue ? `<div style="color:var(--err);font-weight:600;margin-top:10px;">You have an overdue invoice (due ${due.toLocaleDateString('en-IN')}). New orders can't be approved until it is paid.</div>` : ''}`)
       + panel('Invoices', invoiceTable(invoices, { showBuyer: false }))
       + panel('Payments received', pays.length ? `<table style="width:100%;font-size:13px;"><thead><tr><th>Received</th><th style="text-align:right;">Amount</th><th>Mode / ref</th></tr></thead><tbody>

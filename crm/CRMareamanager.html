@@ -130,6 +130,10 @@
     measurementId: "G-YLM91W3YF1"
   };
 
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -188,7 +192,7 @@
         const el = document.createElement('div');
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${item.label}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
         el.addEventListener('click', () => selectSection(item.id, item.label));
         groupEl.appendChild(el);
       });

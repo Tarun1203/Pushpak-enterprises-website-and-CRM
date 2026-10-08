@@ -53,4 +53,21 @@ function sampleFor(role) {
   data.users[0] = { id: 'u1', role, name: 'Test ' + role, email: 'test@pe.test' };
   return data;
 }
-module.exports = { sampleFor };
+// The same data with an HTML/script payload appended to every free-text
+// field (names, addresses, notes...). A screen that shows it as text is
+// safe; one that renders it as HTML runs the payload, which sets
+// window.__xss — the security suite checks for that.
+const XSS = '<img src=x onerror="window.__xss=(window.__xss||0)+1"><svg onload="window.__xss=(window.__xss||0)+1"></svg>';
+const TEXT_KEY = /name|address|issue|product|title|message|description|label|notes|note|modelNumber|modelNo|city|reason|email|subject/i;
+function poison(v, key) {
+  if (Array.isArray(v)) return v.map((x) => poison(x, key));
+  if (v && typeof v === 'object' && v.__ms === undefined) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, poison(x, k)]));
+  if (typeof v === 'string' && key && TEXT_KEY.test(key)) return v + XSS;
+  return v;
+}
+function hostileSampleFor(role) {
+  const data = poison(sampleFor(role));
+  data.users[0] = { id: 'u1', role, name: 'Test ' + role, email: 'test@pe.test' };
+  return data;
+}
+module.exports = { sampleFor, hostileSampleFor, XSS };

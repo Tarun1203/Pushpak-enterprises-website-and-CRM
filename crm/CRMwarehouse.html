@@ -905,13 +905,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td>${kind === 'technician'
-                ? `<a href="#" class="wh-tech-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`
-                : `<a href="#" class="wh-center-profile-link" data-uid="${r.uid}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`}</td>
-              <td style="font-size:12px;color:var(--stone);">${r.part ? (r.part.partCode || r.part.id) : '—'}</td>
+                ? `<a href="#" class="wh-tech-profile-link" data-uid="${escapeHtml(r.uid)}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`
+                : `<a href="#" class="wh-center-profile-link" data-uid="${escapeHtml(r.uid)}" data-name="${escapeHtml(r.locationName)}">${escapeHtml(r.locationName)}</a>`}</td>
+              <td style="font-size:12px;color:var(--stone);">${escapeHtml(r.part ? (r.part.partCode || r.part.id) : '—')}</td>
               <td>${r.part ? escapeHtml(r.part.name || '—') : '(unknown part)'}</td>
-              <td><b>${r.qty}</b></td>
-              <td>${r.part ? (r.part.reorderLevel ?? 0) : '—'}</td>
-              <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
+              <td><b>${escapeHtml(r.qty)}</b></td>
+              <td>${escapeHtml(r.part ? (r.part.reorderLevel ?? 0) : '—')}</td>
+              <td><span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span></td>`;
             tbody.appendChild(tr);
           });
         if (kind === 'technician') {
@@ -959,7 +959,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
       const d = { id: snap.docs[0].id, ...snap.docs[0].data() };
       const brandsHtml = (d.brandAuthorizations || []).filter(b => b.status || b.level).map(b =>
-        `<div><strong>${WH_TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${b.status || '—'}${b.level ? ' · ' + b.level : ''}</div>`
+        `<div><strong>${WH_TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${escapeHtml(b.status || '—')}${b.level ? ' · ' + b.level : ''}</div>`
       ).join('') || `<div style="color:var(--stone);">None on file.</div>`;
       const skillsHtml = (d.technicalSkills || []).filter(s => s.skill).map(s => `<div>${escapeHtml(s.skill)}${s.level ? ' — ' + s.level : ''}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
       const cap = d.capacity || {};
@@ -974,7 +974,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div style="font-weight:600;margin:14px 0 6px;">Technical Skills</div>
         ${skillsHtml}
         <div style="font-weight:600;margin:14px 0 6px;">Capacity</div>
-        <div><strong>Max Jobs/Day:</strong> ${cap.maxJobsPerDay ?? '—'} &nbsp; <strong>Max Service Hours/Day:</strong> ${cap.maxServiceHoursPerDay ?? '—'} &nbsp; <strong>Max Travel Hours/Day:</strong> ${cap.maxTravelHoursPerDay ?? '—'}</div>
+        <div><strong>Max Jobs/Day:</strong> ${escapeHtml(cap.maxJobsPerDay ?? '—')} &nbsp; <strong>Max Service Hours/Day:</strong> ${escapeHtml(cap.maxServiceHoursPerDay ?? '—')} &nbsp; <strong>Max Travel Hours/Day:</strong> ${escapeHtml(cap.maxTravelHoursPerDay ?? '—')}</div>
         <div style="font-weight:600;margin:14px 0 6px;">Vehicle / Travel</div>
         <div>${v.vehicleType ? escapeHtml(v.vehicleType) : '—'}${v.vehicleNumber ? ' · ' + escapeHtml(v.vehicleNumber) : ''}${v.maxServiceRadius ? ' · service radius ' + v.maxServiceRadius + 'km' : ''}</div>
         <div style="font-size:12px;color:var(--stone);margin-top:10px;">Spare stock is shown on this Technician Stock page already. Claims and service history are managed in their own modules.</div>`;
@@ -1021,7 +1021,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div><strong>Status:</strong> ${escapeHtml(d.status || 'PENDING_APPROVAL')}</div>
         <div style="font-weight:600;margin:12px 0 6px;">Address &amp; Location</div>
         <div>${[d.address, d.landmark, d.area, d.city, d.district, d.state, d.pincode].filter(Boolean).map(escapeHtml).join(', ') || '—'}</div>
-        ${d.mapLink ? `<div><a href="${d.mapLink}" target="_blank" rel="noopener">View on map</a></div>` : ''}
+        ${d.mapLink ? `<div><a href="${escapeHtml(d.mapLink)}" target="_blank" rel="noopener">View on map</a></div>` : ''}
         <div style="font-weight:600;margin:12px 0 6px;">Contact Details</div>
         <div><strong>Official Mobile:</strong> ${escapeHtml(d.officialMobile || '—')}</div>
         <div><strong>Alternate Mobile:</strong> ${escapeHtml(d.alternateMobile || '—')}</div>
@@ -1036,12 +1036,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           `<div>${escapeHtml(WH_TFP_BRAND_LABELS[b.brand] || b.brand)}: ${escapeHtml(b.status)}${b.authType ? ' · ' + escapeHtml(b.authType) : ''}</div>`
         ).join('') || `<div style="color:var(--stone);">None on file.</div>`}
         <div style="font-weight:600;margin:12px 0 6px;">Coverage</div>
-        <div><strong>Districts (${(userData.districtsCovered || []).length}):</strong> ${(userData.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
-        <div><strong>Pincodes (${(userData.pincodesCovered || []).length}):</strong> ${(userData.pincodesCovered || []).length ? (userData.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
+        <div><strong>Districts (${escapeHtml((userData.districtsCovered || []).length)}):</strong> ${(userData.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
+        <div><strong>Pincodes (${escapeHtml((userData.pincodesCovered || []).length)}):</strong> ${(userData.pincodesCovered || []).length ? (userData.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
         <div style="font-weight:600;margin:12px 0 6px;">Service Capability</div>
         <div>${Object.entries(d.serviceCapabilities || {}).filter(([, v]) => v).map(([k]) => escapeHtml(WH_SERVICE_CAP_LABELS[k] || k)).join(', ') || '—'}</div>
         <div style="font-weight:600;margin:12px 0 6px;">Capacity</div>
-        <div><strong>Max Jobs/Day:</strong> ${(d.capacity || {}).maxJobsPerDay ?? '—'} &nbsp; <strong>RMA Capacity:</strong> ${(d.capacity || {}).rmaCapacity ?? '—'}</div>`;
+        <div><strong>Max Jobs/Day:</strong> ${escapeHtml((d.capacity || {}).maxJobsPerDay ?? '—')} &nbsp; <strong>RMA Capacity:</strong> ${escapeHtml((d.capacity || {}).rmaCapacity ?? '—')}</div>`;
     } catch (err) {
       console.error('Load service center profile failed:', err);
       body.innerHTML = `<div style="color:var(--err);">Could not load. Check console for details.</div>`;
@@ -1138,11 +1138,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       dedupedRows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${r.source}</td>
-          <td><a href="#" class="svc-open-link" style="font-size:12px;">${r.id || '—'}</a></td>
+          <td>${escapeHtml(r.source)}</td>
+          <td><a href="#" class="svc-open-link" style="font-size:12px;">${escapeHtml(r.id || '—')}</a></td>
           <td>${escapeHtml(r.customer) || '—'}</td>
           <td>${escapeHtml(r.assigned) || '—'}</td>
-          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></td>`;
+          <td><span class="status-pill ${escapeHtml(WH_SVC_STATUS_PILL_CLASS[r.status] || '')}">${escapeHtml(WH_SVC_STATUS_LABELS[r.status] || r.status)}</span></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.svc-open-link').addEventListener('click', (e) => {
           e.preventDefault();
@@ -1192,7 +1192,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     whSvcTicketTitle.textContent = r.id || 'Service ticket';
     whSvcTicketActions.innerHTML = '';
     whSvcTicketBody.innerHTML = `
-      <div><b>Source:</b> ${r.source} &nbsp; <b>Status:</b> <span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[r.status] || ''}">${WH_SVC_STATUS_LABELS[r.status] || r.status}</span></div>
+      <div><b>Source:</b> ${escapeHtml(r.source)} &nbsp; <b>Status:</b> <span class="status-pill ${escapeHtml(WH_SVC_STATUS_PILL_CLASS[r.status] || '')}">${escapeHtml(WH_SVC_STATUS_LABELS[r.status] || r.status)}</span></div>
       <div><b>Customer:</b> ${escapeHtml(r.customer) || '—'} &nbsp; <b>Phone:</b> ${escapeHtml(f.customerPhone) || '—'}</div>
       <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
       <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
@@ -1293,7 +1293,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       slot.innerHTML = `<div><b>Status history:</b></div>` + entries.map(e => {
         const when = e.createdAt && e.createdAt.toDate ? e.createdAt.toDate().toLocaleString() : '—';
         return `<div style="font-size:12.5px;color:var(--stone);padding:4px 0;border-bottom:1px solid var(--hairline);">
-          <span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[e.status] || ''}">${WH_SVC_STATUS_LABELS[e.status] || e.status}</span>
+          <span class="status-pill ${escapeHtml(WH_SVC_STATUS_PILL_CLASS[e.status] || '')}">${escapeHtml(WH_SVC_STATUS_LABELS[e.status] || e.status)}</span>
           &nbsp; ${when} &nbsp; <span>by ${escapeHtml(e.changedByEmail) || 'unknown'}</span>
           ${e.note ? `<br>${escapeHtml(e.note)}` : ''}
         </div>`;
@@ -1321,7 +1321,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const items = [];
       snap.forEach(d => {
         const s = d.data();
-        items.push(`${escapeHtml(s.item) || 'Part'} — <span class="status-pill ${s.status}">${STATUS_LABELS[s.status] || s.status}</span> (${escapeHtml(s.requestId || d.id)})`);
+        items.push(`${escapeHtml(s.item) || 'Part'} — <span class="status-pill ${escapeHtml(s.status)}">${escapeHtml(STATUS_LABELS[s.status] || s.status)}</span> (${escapeHtml(s.requestId || d.id)})`);
       });
       slot.innerHTML = `<div style="margin-top:10px;"><b>Linked spare request${items.length > 1 ? 's' : ''}:</b><br>${items.join('<br>')}</div>`;
     } catch (err) {
@@ -1483,12 +1483,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const options = sorted.map(c => {
             const level = matchLevel(c);
             const matchFlag = level === 1 ? ' ✓ covers this city' : '';
-            return `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${matchFlag}</option>`;
+            return `<option value="${escapeHtml(c.uid)}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${matchFlag}</option>`;
           }).join('');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Website${escapeHtml(d.city ? ' — ' + d.city : '')}${d.pincode ? ' ' + d.pincode : ''}</span></td>
+            <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}<br><span>Website${escapeHtml(d.city ? ' — ' + d.city : '')}${d.pincode ? ' ' + d.pincode : ''}</span></td>
             <td>${escapeHtml(d.customerName || '—')}</td>
-            <td>${productLabel}</td>
+            <td>${escapeHtml(productLabel)}</td>
             <td><select class="routing-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select service center…</option>${options}</select></td>
             <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
           tbody.appendChild(tr);
@@ -1519,12 +1519,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const options = sortedTechs.map(t => {
             const level = techMatchLevel(t);
             const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
-            return `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
+            return `<option value="${escapeHtml(t.uid)}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
           }).join('');
           tr.innerHTML = `
-            <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}<br><span>Service Center</span></td>
+            <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}<br><span>Service Center</span></td>
             <td>${escapeHtml(d.customerName || '—')}</td>
-            <td>${productLabel}</td>
+            <td>${escapeHtml(productLabel)}</td>
             <td><select class="routing-tech-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;"><option value="">Select technician…</option>${options}</select></td>
             <td><button class="btn-secondary routing-assign-btn">Assign</button></td>`;
           tbody.appendChild(tr);
@@ -1587,13 +1587,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       docs.forEach(d => {
         const tr = document.createElement('tr');
         const eligibleCenters = centers.filter(c => c.uid !== d.serviceCenterUid);
-        const centerOptions = eligibleCenters.map(c => `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}</option>`).join('');
+        const centerOptions = eligibleCenters.map(c => `<option value="${escapeHtml(c.uid)}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}</option>`).join('');
         const eligibleTechs = techs.filter(t => !t.suspended && t.uid !== d.technicianUid);
-        const techOptions = eligibleTechs.map(t => `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}</option>`).join('');
+        const techOptions = eligibleTechs.map(t => `<option value="${escapeHtml(t.uid)}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}</option>`).join('');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
-          <td><span class="status-pill ${WH_SVC_STATUS_PILL_CLASS[d.status] || ''}">${WH_SVC_STATUS_LABELS[d.status] || d.status}</span></td>
+          <td><span class="status-pill ${escapeHtml(WH_SVC_STATUS_PILL_CLASS[d.status] || '')}">${escapeHtml(WH_SVC_STATUS_LABELS[d.status] || d.status)}</span></td>
           <td style="font-size:12.5px;color:var(--stone);">${escapeHtml(d.serviceCenterName || '—')}${d.technicianName ? `<br>Tech: ${escapeHtml(d.technicianName)}` : ''}</td>
           <td>
             <select class="reroute-center-select" style="border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;font-size:12.5px;"><option value="">Select service center…</option>${centerOptions}</select>
@@ -1750,8 +1750,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${part ? `${part.partCode} — ${escapeHtml(part.name)}` : partId}</td>
-          <td>${row.defective || 0}</td>
-          <td>${row.disposed || 0}</td>
+          <td>${escapeHtml(row.defective || 0)}</td>
+          <td>${escapeHtml(row.disposed || 0)}</td>
           <td><b>${row.defective + row.disposed}</b></td>`;
         tbody.appendChild(tr);
       });
@@ -1982,8 +1982,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);">${dateStr}</td>
-          <td>${part ? part.name : d.partId}</td>
-          <td><span class="status-pill ${d.quantity < 0 ? 'backorder' : 'ok'}">${d.quantity > 0 ? '+' : ''}${d.quantity}</span></td>
+          <td>${escapeHtml(part ? part.name : d.partId)}</td>
+          <td><span class="status-pill ${d.quantity < 0 ? 'backorder' : 'ok'}">${d.quantity > 0 ? '+' : ''}${escapeHtml(d.quantity)}</span></td>
           <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
         tbody.appendChild(tr);
       });
@@ -2119,7 +2119,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function paintMasterDataTabs() {
     contentEl.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
+        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${escapeHtml(t.key)}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
       </div>
       <div id="md-tab-body"></div>`;
     document.querySelectorAll('.md-tab-btn').forEach(btn => {
@@ -2143,7 +2143,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Download sample file</h2></div>
         <div class="panel-body">
-          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">${cfg.hint}</p>
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">${escapeHtml(cfg.hint)}</p>
           <button class="btn-secondary" id="md-download-sample">Download sample CSV</button>
         </div>
       </div>
@@ -2550,7 +2550,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (ok.length) {
       const csvLines = ['name,email,role,temporary_password', ...ok.map(r => `${r.name},${r.email},${r.role},${r.tempPassword}`)];
       html += `<div style="margin-bottom:10px;">
-        <b>${ok.length} account(s) created.</b>
+        <b>${escapeHtml(ok.length)} account(s) created.</b>
         <button type="button" class="btn-secondary" id="md-download-creds" style="margin-left:10px;">Download credentials CSV</button>
         <div style="font-size:11.5px;color:var(--err);margin-top:6px;">These temporary passwords are shown here once — download them now and share securely. Ask each person to change their password after first login.</div>
       </div>`;
@@ -2566,7 +2566,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       });
     }
     if (failed.length) {
-      el.innerHTML += `<div style="color:var(--err);font-size:12.5px;"><b>${failed.length} failed:</b><br>` +
+      el.innerHTML += `<div style="color:var(--err);font-size:12.5px;"><b>${escapeHtml(failed.length)} failed:</b><br>` +
         failed.map(r => `${escapeHtml(r.email)} — ${escapeHtml(r.error || 'unknown error')}`).join('<br>') + `</div>`;
     }
   }
@@ -2787,7 +2787,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         if (ts >= thirtyDaysAgo) movementsLast30++;
       });
       document.getElementById('wh-reports-body').innerHTML = `
-        <div>Parts in catalog: <b>${partsSnap.size}</b></div>
+        <div>Parts in catalog: <b>${escapeHtml(partsSnap.size)}</b></div>
         <div>Total stock units at Warehouse: <b>${totalStockUnits}</b></div>
         <div>Open spare requests: <b>${openRequests}</b></div>
         <div>Pending local purchases: <b>${pendingLp}</b></div>
@@ -2829,8 +2829,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-          <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
-          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${d.action || '—'}</span></td>
+          <td style="text-transform:capitalize;">${escapeHtml(d.entityType || '—')}</td>
+          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${escapeHtml(d.action || '—')}</span></td>
           <td style="font-size:12px;">${escapeHtml(d.performedBy || '—')}</td>
           <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
@@ -2926,15 +2926,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     contentEl.innerHTML = `
       <div class="stat-grid">
         ${WH_DASHBOARD_TILES.map(t => `
-          <div class="stat-card dash-tile" data-nav="${t.nav}" style="cursor:pointer;">
+          <div class="stat-card dash-tile" data-nav="${escapeHtml(t.nav)}" style="cursor:pointer;">
             <div class="label">${escapeHtml(t.label)}</div>
-            <div class="value">${s[t.key] ?? '…'}</div>
-            <div class="hint">${t.hint}</div>
+            <div class="value">${escapeHtml(s[t.key] ?? '…')}</div>
+            <div class="hint">${escapeHtml(t.hint)}</div>
           </div>`).join('')}
       </div>`;
     contentEl.querySelectorAll('.dash-tile').forEach(el => {
       el.addEventListener('click', () => {
-        const navEl = document.querySelector(`.nav-item[data-id="${el.dataset.nav}"]`);
+        const navEl = document.querySelector(`.nav-item[data-id="${escapeHtml(el.dataset.nav)}"]`);
         if (navEl) navEl.click();
       });
     });
@@ -3057,15 +3057,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const requesterLabel = profile ? (profile.name || profile.email || d.serviceCenter) : (d.serviceCenter || '—');
         const tr = document.createElement('tr');
         const actions = (STATUS_ACTIONS[status] || []).map(a =>
-          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${d.id}" data-next="${a.next}">${escapeHtml(a.label)}</button>`
+          `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'} action-btn" data-uid="${escapeHtml(d.id)}" data-next="${escapeHtml(a.next)}">${escapeHtml(a.label)}</button>`
         ).join('');
         tr.innerHTML = `
           <td><a href="#" class="sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</a></td>
           <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || requesterLabel || d.sourceJobId)}` : escapeHtml(requesterLabel || '—')}</td>
           <td>${escapeHtml(d.item) || '—'}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td><span class="priority-tag ${d.priority || 'normal'}">${(d.priority || 'normal').toUpperCase()}</span></td>
-          <td><span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td><span class="priority-tag ${escapeHtml(d.priority || 'normal')}">${(d.priority || 'normal').toUpperCase()}</span></td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(STATUS_LABELS[d.status] || d.status)}</span></td>
           <td><div class="row-actions">${actions}</div></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.sr-open-link').addEventListener('click', (e) => {
@@ -3247,7 +3247,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     whSrDetailBody.innerHTML = `
       <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
-      <div><strong>Requested qty:</strong> ${d.quantity ?? '—'}</div>
+      <div><strong>Requested qty:</strong> ${escapeHtml(d.quantity ?? '—')}</div>
       ${stockLine}
       ${shipToLine}
       ${!part ? `<div style="font-size:13px;color:var(--warn);">Couldn't match this item to a Spare Parts master record — stock won't be auto-adjusted. Use Stock Movement → Transfer manually afterwards if needed.</div>` : ''}
@@ -3383,25 +3383,25 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       ${state ? `<div><strong>State:</strong> ${escapeHtml(state)}</div>` : ''}
       ${contactParts.length ? `<div><strong>Contact:</strong> ${escapeHtml(contactParts.join(' · '))}</div>` : ''}
       <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
-      <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
+      <div><strong>Quantity:</strong> ${escapeHtml(d.quantity ?? '—')}</div>
       <div><strong>Priority:</strong> ${(d.priority || 'normal').toUpperCase()}</div>
-      <div><strong>Status:</strong> <span class="status-pill ${d.status}">${STATUS_LABELS[d.status] || d.status}</span></div>
+      <div><strong>Status:</strong> <span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(STATUS_LABELS[d.status] || d.status)}</span></div>
       ${d.sourceJobLabel || d.sourceJobId ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel || d.sourceJobId)}</div>` : ''}
       ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
       ${d.pipelineRejected ? `<div style="color:var(--err);"><strong>Last change rejected:</strong> ${escapeHtml(d.pipelineRejected.reason)}</div>` : ''}
       ${d.transport ? `
         <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px;">
           <div style="font-weight:600;margin-bottom:4px;">Transport / dispatch details</div>
-          <div>Dispatched qty: ${d.dispatchedQty ?? d.quantity ?? '—'}</div>
+          <div>Dispatched qty: ${escapeHtml(d.dispatchedQty ?? d.quantity ?? '—')}</div>
           <div>Transporter: ${escapeHtml(d.transport.transporter) || '—'}</div>
           <div>Docket/LR/AWB: ${escapeHtml(d.transport.docket) || '—'}</div>
           ${d.transport.vehicle ? `<div>Vehicle No.: ${escapeHtml(d.transport.vehicle)}</div>` : ''}
           <div>Dispatch date: ${escapeHtml(d.transport.dispatchDate) || '—'}</div>
-          ${d.transport.photoUrl ? `<div><a href="${d.transport.photoUrl}" target="_blank" rel="noopener">View docket photo</a></div>` : ''}
+          ${d.transport.photoUrl ? `<div><a href="${escapeHtml(d.transport.photoUrl)}" target="_blank" rel="noopener">View docket photo</a></div>` : ''}
         </div>` : ''}`;
 
     const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
-      `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${a.next}">${escapeHtml(a.label)}</button>`
+      `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${escapeHtml(a.next)}">${escapeHtml(a.label)}</button>`
     ).join(' ');
     // A request dispatched before the servicecenter_/technician_ naming
     // fix landed real stock under the old sc_/tech_ convention, so the
@@ -3604,10 +3604,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       body.innerHTML = keys.map(k => {
         const list = groups[k].sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
         const od = overdueCount(list);
-        return `<div style="margin-bottom:18px;"><div style="font-weight:600;">${escapeHtml(k === 'none' ? 'No service center' : (centers[k] || k))} — ${list.length} part(s)${od ? ` <span style="color:var(--err);">· ${od} overdue</span>` : ''}</div>
+        return `<div style="margin-bottom:18px;"><div style="font-weight:600;">${escapeHtml(k === 'none' ? 'No service center' : (centers[k] || k))} — ${escapeHtml(list.length)} part(s)${od ? ` <span style="color:var(--err);">· ${od} overdue</span>` : ''}</div>
           <table style="font-size:13px;"><thead><tr><th>Used on</th><th>Part</th><th>Qty</th><th>Job</th><th>With</th><th>Due by</th></tr></thead><tbody>
           ${list.map(r => { const due = r.defectiveDueBy && r.defectiveDueBy.toDate ? r.defectiveDueBy.toDate() : null; const late = due && due < now;
-            return `<tr><td>${r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleDateString() : '—'}</td><td>${escapeHtml((parts[r.partId] || {}).name || r.partName || r.partId)}</td><td>${r.quantity ?? '—'}</td>
+            return `<tr><td>${r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleDateString() : '—'}</td><td>${escapeHtml((parts[r.partId] || {}).name || r.partName || r.partId)}</td><td>${escapeHtml(r.quantity ?? '—')}</td>
               <td style="font-size:12px;">${escapeHtml(r.reason || '')}</td><td style="font-size:12px;">${r.status === 'sent_to_center' ? 'Handed to center' : 'Center'}</td>
               <td style="${late ? 'color:var(--err);font-weight:600;' : ''}">${due ? due.toLocaleDateString() : '—'}${late ? ' (overdue)' : ''}</td></tr>`; }).join('')}
           </tbody></table></div>`;
@@ -3791,13 +3791,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         sparePartsCache.push(d);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.partCode || d.id)}</td>
           <td>${escapeHtml(d.name || '—')}</td>
           <td>${escapeHtml(d.category || '—')}</td>
-          <td>${d.brandCompatibility || 'All'}</td>
+          <td>${escapeHtml(d.brandCompatibility || 'All')}</td>
           <td>${d.price != null ? '₹' + d.price : '—'}</td>
-          <td>${d.reorderLevel ?? '—'}</td>
-          <td><button class="btn-secondary edit-part-btn" data-id="${d.id}">Edit</button></td>`;
+          <td>${escapeHtml(d.reorderLevel ?? '—')}</td>
+          <td><button class="btn-secondary edit-part-btn" data-id="${escapeHtml(d.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
       });
@@ -3937,7 +3937,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     };
     contentEl.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>${titles[view]}</h2></div>
+        <div class="panel-header"><h2>${escapeHtml(titles[view])}</h2></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead>
@@ -3976,13 +3976,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const status = stockStatus(qty, part.reorderLevel || 0);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${part.partCode || part.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(part.partCode || part.id)}</td>
           <td>${escapeHtml(part.name || '—')}</td>
           <td>${escapeHtml(part.category || '—')}</td>
           <td><b>${qty}</b></td>
-          <td>${part.reorderLevel ?? 0}</td>
-          <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>
-          ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${part.id}" data-name="${(part.name || '').replace(/"/g, '&quot;')}" data-code="${part.partCode || ''}">Adjust</button></td>` : ''}`;
+          <td>${escapeHtml(part.reorderLevel ?? 0)}</td>
+          <td><span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span></td>
+          ${view === 'warehouse' ? `<td><button class="btn-secondary adjust-btn" data-id="${escapeHtml(part.id)}" data-name="${escapeHtml(part.name || '')}" data-code="${escapeHtml(part.partCode || '')}">Adjust</button></td>` : ''}`;
         tbody.appendChild(tr);
         if (view === 'warehouse') {
           tr.querySelector('.adjust-btn').addEventListener('click', (e) => {
@@ -4145,10 +4145,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${MOVEMENT_TYPE_LABELS[d.type] || d.type}</span></td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${escapeHtml(MOVEMENT_TYPE_LABELS[d.type] || d.type)}</span></td>
           <td>${part ? (part.partCode + ' — ' + part.name) : (d.partId || '—')}</td>
-          <td><b>${d.quantity ?? '—'}</b></td>
-          <td style="text-transform:capitalize;">${d.location || '—'}</td>
+          <td><b>${escapeHtml(d.quantity ?? '—')}</b></td>
+          <td style="text-transform:capitalize;">${escapeHtml(d.location || '—')}</td>
           <td style="color:var(--stone);">${escapeHtml(d.reason || '—')}</td>`;
         tbody.appendChild(tr);
       });
@@ -4238,20 +4238,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         let actionHtml = '—';
         if (showActions) {
           if (d.status === 'requested') {
-            actionHtml = `<button class="btn-secondary lp-invoice-btn" data-id="${d.id}" data-item="${(d.item || '').replace(/"/g, '&quot;')}" data-requestid="${d.requestId || ''}">Submit Invoice</button>`;
+            actionHtml = `<button class="btn-secondary lp-invoice-btn" data-id="${escapeHtml(d.id)}" data-item="${escapeHtml(d.item || '')}" data-requestid="${escapeHtml(d.requestId || '')}">Submit Invoice</button>`;
           } else if (d.status === 'invoice_submitted') {
-            actionHtml = `<button class="btn-secondary lp-verify-btn" data-id="${d.id}">Verify Invoice</button>`;
+            actionHtml = `<button class="btn-secondary lp-verify-btn" data-id="${escapeHtml(d.id)}">Verify Invoice</button>`;
           } else if (d.status === 'verified') {
-            actionHtml = `<button class="btn-primary lp-reimburse-btn" data-id="${d.id}">Mark Reimbursed</button>`;
+            actionHtml = `<button class="btn-primary lp-reimburse-btn" data-id="${escapeHtml(d.id)}">Mark Reimbursed</button>`;
           } else {
             actionHtml = '—';
           }
         }
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td>
           <td>${escapeHtml(d.item || '—')}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td>${d.requestedBy || '—'}</td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td>${escapeHtml(d.requestedBy || '—')}</td>
           <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
           <td>${d.emergency ? '<span class="priority-tag urgent">URGENT</span>' : '—'}</td>
           <td><span class="status-pill ${LP_STATUS_PILL_CLASS[d.status] || ''}">${LP_STATUS_LABELS[d.status] || d.status}</span></td>
@@ -4505,7 +4505,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ${RATE_CARD_TYPES.map(t => {
           const applies = t.key === 'repair' ? row.needsService : row.needsInstallation;
           if (!applies) return `<td style="color:var(--stone);">N/A</td>`;
-          return `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${row.cat}" data-bucket="${row.bucket || ''}" data-type="${t.key}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
+          return `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
         }).join('')}
       </tr>`).join('');
     try {
@@ -4515,7 +4515,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       rows.forEach(row => {
         RATE_CARD_TYPES.forEach(t => {
           const rec = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${row.cat}"][data-bucket="${row.bucket || ''}"][data-type="${t.key}"]`);
+          const input = tbody.querySelector(`.rate-card-input[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
           if (rec && input) input.value = rec.amount ?? '';
         });
       });
@@ -4626,8 +4626,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const rows = await Promise.all(Array.from(byCenterUid.entries()).map(async ([uid, entry]) => ({ uid, name: await resolveName(uid), ...entry })));
         rows.sort((a, b) => b.amount - a.amount);
         centerTbody.innerHTML = rows.map(r => `
-          <tr class="unclaimed-row" data-type="servicecenter" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
-            <td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td>
+          <tr class="unclaimed-row" data-type="servicecenter" data-uid="${escapeHtml(r.uid)}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
+            <td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.count)}</td><td>₹${escapeHtml(r.amount)}</td>
           </tr>`).join('');
       }
       if (byTechUid.size === 0) {
@@ -4636,8 +4636,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const rows = await Promise.all(Array.from(byTechUid.entries()).map(async ([uid, entry]) => ({ uid, name: await resolveName(uid), ...entry })));
         rows.sort((a, b) => b.amount - a.amount);
         techTbody.innerHTML = rows.map(r => `
-          <tr class="unclaimed-row" data-type="technician" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
-            <td>${escapeHtml(r.name)}</td><td>${r.count}</td><td>₹${r.amount}</td>
+          <tr class="unclaimed-row" data-type="technician" data-uid="${escapeHtml(r.uid)}" data-name="${escapeHtml(r.name)}" style="cursor:pointer;">
+            <td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.count)}</td><td>₹${escapeHtml(r.amount)}</td>
           </tr>`).join('');
       }
       document.querySelectorAll('.unclaimed-row').forEach(tr => {
@@ -4756,13 +4756,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     tbody.innerHTML = items.map(it => `
-      <tr class="unclaimed-item-row" data-id="${it.id}" style="cursor:pointer;">
-        <td><input type="checkbox" class="unclaimed-item-cb" data-id="${it.id}" checked></td>
+      <tr class="unclaimed-item-row" data-id="${escapeHtml(it.id)}" style="cursor:pointer;">
+        <td><input type="checkbox" class="unclaimed-item-cb" data-id="${escapeHtml(it.id)}" checked></td>
         <td>${escapeHtml(it.label)}</td>
         <td>${escapeHtml(it.customer)}</td>
-        <td>₹${it.amount}</td>
+        <td>₹${escapeHtml(it.amount)}</td>
       </tr>
-      <tr class="unclaimed-item-detail" data-detail-for="${it.id}" style="display:none;">
+      <tr class="unclaimed-item-detail" data-detail-for="${escapeHtml(it.id)}" style="display:none;">
         <td colspan="4" style="background:var(--linen,#faf7f0);"><div class="unclaimed-detail-content">Loading details…</div></td>
       </tr>`).join('');
     tbody.querySelectorAll('.unclaimed-item-cb').forEach(cb => {
@@ -4969,20 +4969,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tr.dataset.id = d.id;
       let actionHtml = '—';
       if (d.status === 'submitted') {
-        actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${d.id}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        actionHtml = `<div class="row-actions"><button class="btn-secondary claim-verify-btn" data-id="${escapeHtml(d.id)}">Verify</button><button class="btn-danger claim-reject-btn" data-id="${escapeHtml(d.id)}">Reject</button></div>`;
       } else if (d.status === 'verified') {
         // Only Super Admin pays a verified claim (never the person who
         // verified it) — Warehouse can still reject it before payment.
-        actionHtml = `<div class="row-actions"><span style="font-size:12px;color:var(--stone);">Approved ₹${d.approvedAmount ?? '—'} — awaiting Super Admin payment</span><button class="btn-danger claim-reject-btn" data-id="${d.id}">Reject</button></div>`;
+        actionHtml = `<div class="row-actions"><span style="font-size:12px;color:var(--stone);">Approved ₹${escapeHtml(d.approvedAmount ?? '—')} — awaiting Super Admin payment</span><button class="btn-danger claim-reject-btn" data-id="${escapeHtml(d.id)}">Reject</button></div>`;
       } else if (d.status === 'rejected' && d.rejectReason) {
         actionHtml = `<span style="font-size:12px;color:var(--stone);">${escapeHtml(d.rejectReason)}</span>`;
       }
       tr.innerHTML = `
-        <td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td>
+        <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.claimId || d.id)}</td>
         <td style="text-transform:capitalize;">${d.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'}</td>
-        <td>${d.claimantName || '—'}</td>
+        <td>${escapeHtml(d.claimantName || '—')}</td>
         <td>${escapeHtml(d.description || '—')}</td>
-        <td>₹${d.amount ?? '—'}${claimCheckBadge(d)}${d.attachmentUrl ? `<div><a href="${escapeHtml(d.attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11.5px;">View bill</a>${d.claimType ? ' · ' + escapeHtml(d.claimType.replace('_', ' ')) : ''}</div>` : ''}</td>
+        <td>₹${escapeHtml(d.amount ?? '—')}${claimCheckBadge(d)}${d.attachmentUrl ? `<div><a href="${escapeHtml(d.attachmentUrl)}" target="_blank" rel="noopener" style="font-size:11.5px;">View bill</a>${d.claimType ? ' · ' + escapeHtml(d.claimType.replace('_', ' ')) : ''}</div>` : ''}</td>
         <td><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[d.status] || ''}">${CLAIM_STATUS_LABELS[d.status] || d.status}</span></td>
         <td>${actionHtml}</td>`;
       tbody.appendChild(tr);
@@ -5005,7 +5005,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (!c) return '';
     if (c.status === 'ok') return `<div style="font-size:11.5px;color:var(--ok, #2e7d32);">✓ matches records</div>`;
     if (c.status === 'manual') return `<div style="font-size:11.5px;color:var(--stone);">Free-form claim — check the bill</div>`;
-    if (d.lock && d.lock.status === 'locked' && c.status !== 'ok') return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ items add up to ₹${c.verified} — approve at most that</div>`;
+    if (d.lock && d.lock.status === 'locked' && c.status !== 'ok') return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ items add up to ₹${escapeHtml(c.verified)} — approve at most that</div>`;
     return `<div style="font-size:11.5px;color:var(--err);" title="${escapeHtml((c.issues || []).join('; '))}">⚠ ${escapeHtml((c.issues || ['mismatch'])[0])}</div>`;
   }
 
@@ -5034,10 +5034,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <tr class="claim-lineitem-row" data-idx="${idx}" style="cursor:pointer;">
                 <td>${escapeHtml(li.sourceJobLabel || li.sourceJobId || '—')}</td>
                 <td>${escapeHtml(li.customerName || '—')}</td>
-                <td>₹${li.sparePartsCost || 0}</td>
-                <td>₹${li.serviceCharge || 0}</td>
-                <td>₹${li.otherCharges || 0}</td>
-                <td>₹${li.total || 0}</td>
+                <td>₹${escapeHtml(li.sparePartsCost || 0)}</td>
+                <td>₹${escapeHtml(li.serviceCharge || 0)}</td>
+                <td>₹${escapeHtml(li.otherCharges || 0)}</td>
+                <td>₹${escapeHtml(li.total || 0)}</td>
               </tr>
               <tr class="claim-lineitem-detail" data-detail-idx="${idx}" style="display:none;">
                 <td colspan="6" style="background:var(--linen,#faf7f0);"><div class="claim-lineitem-content">Loading full ticket details…</div></td>
@@ -5047,7 +5047,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       const paymentHtml = payments.length ? payments.map(p => `
         <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12.5px;padding:8px 4px;border:1px solid var(--line,#e8e1d4);border-radius:8px;margin-top:6px;">
-          <div style="color:var(--stone);">Amount</div><div>₹${p.amount ?? '—'}</div>
+          <div style="color:var(--stone);">Amount</div><div>₹${escapeHtml(p.amount ?? '—')}</div>
           <div style="color:var(--stone);">Method</div><div style="text-transform:capitalize;">${escapeHtml(p.method) || '—'}</div>
           <div style="color:var(--stone);">Reference No.</div><div>${escapeHtml(p.referenceNumber) || '—'}</div>
           <div style="color:var(--stone);">Paid Date</div><div>${escapeHtml(p.paidDate) || '—'}</div>
@@ -5057,7 +5057,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div style="display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:12.5px;">
           <div style="color:var(--stone);">Claimant</div><div>${escapeHtml(c.claimantName) || '—'} (${c.claimantType === 'servicecenter' ? 'Service Center' : 'Technician'})</div>
           <div style="color:var(--stone);">Description</div><div>${escapeHtml(c.description) || '—'}</div>
-          <div style="color:var(--stone);">Amount</div><div>₹${c.amount ?? '—'}</div>
+          <div style="color:var(--stone);">Amount</div><div>₹${escapeHtml(c.amount ?? '—')}</div>
           <div style="color:var(--stone);">Status</div><div><span class="status-pill ${CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${CLAIM_STATUS_LABELS[c.status] || c.status}</span></div>
         </div>
         <h4 style="margin:14px 0 4px;">Ticket / job breakdown</h4>
@@ -5376,18 +5376,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const partLabel = part ? `${part.partCode} — ${part.name}` : (d.partId || '—');
         let actionHtml = '—';
         if (d.status === 'requested') {
-          actionHtml = `<button class="btn-secondary return-received-btn" data-id="${d.id}">Mark Received</button>`;
+          actionHtml = `<button class="btn-secondary return-received-btn" data-id="${escapeHtml(d.id)}">Mark Received</button>`;
         } else if (d.status === 'received') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${d.id}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${d.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Return to Stock</button><button class="btn-danger return-reject-btn" data-id="${d.id}">Reject</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-defective-btn" data-id="${escapeHtml(d.id)}">Mark Defective</button><button class="btn-secondary return-restock-btn" data-id="${escapeHtml(d.id)}" data-partid="${escapeHtml(d.partId)}" data-qty="${escapeHtml(d.quantity)}">Return to Stock</button><button class="btn-danger return-reject-btn" data-id="${escapeHtml(d.id)}">Reject</button></div>`;
         } else if (d.status === 'defective') {
-          actionHtml = `<div class="row-actions"><button class="btn-secondary return-refurbish-btn" data-id="${d.id}" data-partid="${d.partId}" data-qty="${d.quantity}">Refurbish</button><button class="btn-secondary return-supplier-btn" data-id="${d.id}">Send to Supplier</button><button class="btn-secondary return-claim-btn" data-id="${d.id}" data-partid="${d.partId}">File Claim</button><button class="btn-danger return-dispose-btn" data-id="${d.id}">Dispose</button></div>`;
+          actionHtml = `<div class="row-actions"><button class="btn-secondary return-refurbish-btn" data-id="${escapeHtml(d.id)}" data-partid="${escapeHtml(d.partId)}" data-qty="${escapeHtml(d.quantity)}">Refurbish</button><button class="btn-secondary return-supplier-btn" data-id="${escapeHtml(d.id)}">Send to Supplier</button><button class="btn-secondary return-claim-btn" data-id="${escapeHtml(d.id)}" data-partid="${escapeHtml(d.partId)}">File Claim</button><button class="btn-danger return-dispose-btn" data-id="${escapeHtml(d.id)}">Dispose</button></div>`;
         }
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.returnId || d.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.returnId || d.id)}</td>
           <td>${partLabel}</td>
-          <td>${d.quantity ?? '—'}</td>
-          <td>${d.source || '—'}</td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td>${escapeHtml(d.source || '—')}</td>
           <td>${escapeHtml(d.reason || '—')}</td>
           <td><span class="status-pill ${RETURN_STATUS_PILL_CLASS[d.status] || ''}">${RETURN_STATUS_LABELS[d.status] || d.status}</span></td>
           <td>${actionHtml}</td>`;

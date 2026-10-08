@@ -1636,15 +1636,15 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     contentEl.innerHTML = `
       <div class="stat-grid">
         ${DASHBOARD_TILES.map(t => `
-          <div class="stat-card dash-tile" data-nav="${t.nav}" style="cursor:pointer;">
+          <div class="stat-card dash-tile" data-nav="${escapeHtml(t.nav)}" style="cursor:pointer;">
             <div class="label">${escapeHtml(t.label)}</div>
-            <div class="value">${s[t.key] ?? '…'}</div>
-            <div class="hint">${t.hint}</div>
+            <div class="value">${escapeHtml(s[t.key] ?? '…')}</div>
+            <div class="hint">${escapeHtml(t.hint)}</div>
           </div>`).join('')}
       </div>`;
     contentEl.querySelectorAll('.dash-tile').forEach(el => {
       el.addEventListener('click', () => {
-        const navEl = document.querySelector(`.nav-item[data-id="${el.dataset.nav}"]`);
+        const navEl = document.querySelector(`.nav-item[data-id="${escapeHtml(el.dataset.nav)}"]`);
         if (navEl) navEl.click();
       });
     });
@@ -1691,9 +1691,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td>${escapeHtml(d.name || '—')}</td>
           <td>${escapeHtml(d.email || '—')}</td>
-          <td><span class="role-pill ${d.role || ''}">${d.role || 'unknown'}</span></td>
-          <td style="color:var(--stone);font-size:12px;">${docSnap.id}</td>
-          <td><button class="btn-secondary edit-user-btn" data-uid="${docSnap.id}">Edit</button></td>`;
+          <td><span class="role-pill ${escapeHtml(d.role || '')}">${escapeHtml(d.role || 'unknown')}</span></td>
+          <td style="color:var(--stone);font-size:12px;">${escapeHtml(docSnap.id)}</td>
+          <td><button class="btn-secondary edit-user-btn" data-uid="${escapeHtml(docSnap.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.edit-user-btn').addEventListener('click', () => {
           openEditUserModal(docSnap.id, d);
@@ -1817,7 +1817,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         row.className = 'chip';
         row.style.marginRight = '6px';
         row.style.marginBottom = '6px';
-        row.innerHTML = `${escapeHtml(v.category)} — ${SKILL_LEVEL_LABELS[v.level] || v.level} <button type="button">&times;</button>`;
+        row.innerHTML = `${escapeHtml(v.category)} — ${escapeHtml(SKILL_LEVEL_LABELS[v.level] || v.level)} <button type="button">&times;</button>`;
         row.querySelector('button').addEventListener('click', () => { values.splice(i, 1); render(); });
         listEl.appendChild(row);
       });
@@ -1870,7 +1870,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rows = [];
       snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
       rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      const optionsHtml = '<option value="">Select a distributor…</option>' + rows.map(r => `<option value="${r.uid}">${escapeHtml(r.name || r.email || r.uid)}</option>`).join('');
+      const optionsHtml = '<option value="">Select a distributor…</option>' + rows.map(r => `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.name || r.email || r.uid)}</option>`).join('');
       document.getElementById('new-user-distributor').innerHTML = optionsHtml;
       document.getElementById('edit-user-distributor').innerHTML = optionsHtml;
     } catch (err) {
@@ -2350,7 +2350,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const locationBits = [d.address, d.city, d.pincode].filter(Boolean).join(', ');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.ticketId || docSnap.id}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.ticketId || docSnap.id)}</td>
           <td>${escapeHtml(d.name || '—')}</td>
           <td>${escapeHtml(d.phone || '—')}</td>
           <td>${escapeHtml(d.subject || '—')}</td>
@@ -2463,9 +2463,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><b>${BRAND_LABELS[brandId]}</b></td>
-        <td style="font-size:12px;color:var(--stone);">${d.code || BRAND_DEFAULT_CODES[brandId]}</td>
-        <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
-        <td>${d.tagline || '—'}</td>
+        <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.code || BRAND_DEFAULT_CODES[brandId])}</td>
+        <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${escapeHtml(d.status || 'active')}</span></td>
+        <td>${escapeHtml(d.tagline || '—')}</td>
         <td style="max-width:240px;">${escapeHtml(d.description || '—')}</td>
         <td><button class="btn-secondary brand-edit-btn" data-id="${brandId}">Edit</button></td>`;
       tbody.appendChild(tr);
@@ -2585,12 +2585,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             : '';
           tr.innerHTML = `
             <td>${imgCell}</td>
-            <td>${idx === 0 ? (p.name || '—') : ''}</td>
+            <td>${escapeHtml(idx === 0 ? (p.name || '—') : '')}</td>
             <td>${m ? (m.modelNumber || '—') : '<span style="color:var(--stone);font-size:12px;">No variant yet</span>'}</td>
-            <td>${idx === 0 ? (p.categoryName || '—') : ''}</td>
+            <td>${escapeHtml(idx === 0 ? (p.categoryName || '—') : '')}</td>
             <td>${idx === 0 ? (BRAND_LABELS[p.brandId] || '—') : ''}</td>
             <td>${m && m.price != null ? '₹' + m.price : '—'}</td>
-            <td>${m ? `<span class="status-pill ${(m.status || 'active') === 'active' ? 'ok' : 'out'}">${m.status || 'active'}</span>` : '—'}</td>
+            <td>${m ? `<span class="status-pill ${(m.status || 'active') === 'active' ? 'ok' : 'out'}">${escapeHtml(m.status || 'active')}</span>` : '—'}</td>
             <td>
               <button class="btn-secondary product-edit-btn">Edit</button>
               <button class="btn-secondary product-variant-btn" style="margin-left:6px;">+ Variant</button>
@@ -2632,7 +2632,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         return;
       }
       productCategorySelect.innerHTML = '<option value="">Select…</option>' +
-        cats.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+        cats.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
       if (selectedCategoryId) productCategorySelect.value = selectedCategoryId;
     } catch (err) {
       console.error('Load categories for product form failed:', err);
@@ -3044,12 +3044,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       list.forEach(p => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${p.id}</b></td>
+          <td><b>${escapeHtml(p.id)}</b></td>
           <td>${escapeHtml(p.area || '—')}</td>
           <td>${escapeHtml(p.city || '—')}</td>
-          <td>${p.taluk || '—'}</td>
+          <td>${escapeHtml(p.taluk || '—')}</td>
           <td>${escapeHtml(p.district || '—')}</td>
-          <td>${p.state || '—'}</td>
+          <td>${escapeHtml(p.state || '—')}</td>
           <td><span class="status-pill ${p.active === false ? 'out' : 'ok'}">${p.active === false ? 'inactive' : 'active'}</span></td>
           <td><button class="btn-secondary pincode-edit-btn">Edit</button></td>`;
         tbody.appendChild(tr);
@@ -3261,7 +3261,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           tr.innerHTML = `
             <td><b>${pin}</b></td>
             <td>${location}</td>
-            <td><span class="status-pill low">⚠ ${pinToCenters[pin].join(' + ')}</span></td>`;
+            <td><span class="status-pill low">⚠ ${escapeHtml(pinToCenters[pin].join(' + '))}</span></td>`;
           conflictsTbody.appendChild(tr);
         });
       }
@@ -3290,9 +3290,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${district}</b></td>
-          <td>${pins.length}</td>
+          <td>${escapeHtml(pins.length)}</td>
           <td>${coveredCount}</td>
-          <td>${uncovered.length > 0 ? `<span class="status-pill low">${uncovered.length}</span>` : `<span class="status-pill ok">0</span>`}</td>
+          <td>${uncovered.length > 0 ? `<span class="status-pill low">${escapeHtml(uncovered.length)}</span>` : `<span class="status-pill ok">0</span>`}</td>
           <td>${uncovered.length > 0 ? `<button class="btn-secondary gap-expand-btn">View</button>` : ''}</td>`;
         gapsTbody.appendChild(tr);
         if (uncovered.length > 0) {
@@ -3376,11 +3376,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${c.icon ? c.icon + ' ' : ''}${escapeHtml(c.name || '—')}</td>
-          <td style="font-size:12px;color:var(--stone);">${c.code || '—'}</td>
-          <td>${BRAND_LABELS[c.brandId] || c.brandId || '—'}</td>
-          <td>${c.displayOrder ?? 0}</td>
-          <td><span class="status-pill ${(c.status || 'active') === 'active' ? 'ok' : 'out'}">${c.status || 'active'}</span></td>
-          <td><button class="btn-secondary category-edit-btn" data-id="${c.id}">Edit</button></td>`;
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(c.code || '—')}</td>
+          <td>${escapeHtml(BRAND_LABELS[c.brandId] || c.brandId || '—')}</td>
+          <td>${escapeHtml(c.displayOrder ?? 0)}</td>
+          <td><span class="status-pill ${(c.status || 'active') === 'active' ? 'ok' : 'out'}">${escapeHtml(c.status || 'active')}</span></td>
+          <td><button class="btn-secondary category-edit-btn" data-id="${escapeHtml(c.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.category-edit-btn').addEventListener('click', () => openCategoryModal(c));
       });
@@ -3408,9 +3408,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-          <td>${d.categoryName || d.categoryId || '—'}</td>
-          <td><span class="status-pill ${d.action === 'created' ? 'ok' : 'low'}">${d.action}</span></td>
-          <td>${d.changedBy || '—'}</td>
+          <td>${escapeHtml(d.categoryName || d.categoryId || '—')}</td>
+          <td><span class="status-pill ${d.action === 'created' ? 'ok' : 'low'}">${escapeHtml(d.action)}</span></td>
+          <td>${escapeHtml(d.changedBy || '—')}</td>
           <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
       });
@@ -3549,7 +3549,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <label>Filter by category</label>
             <select id="attr-filter-category">
               <option value="">All categories</option>
-              ${cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${escapeHtml(c.name)}</option>`).join('')}
+              ${cats.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(BRAND_LABELS[c.brandId] || c.brandId)} — ${escapeHtml(c.name)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -3589,13 +3589,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const cat = catMap[a.categoryId];
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${cat ? cat.name : '—'}</td>
-          <td><b>${a.attributeName || '—'}</b></td>
-          <td>${DATATYPE_LABELS[a.dataType] || a.dataType}</td>
-          <td style="color:var(--stone);">${a.unit || '—'}</td>
+          <td>${escapeHtml(cat ? cat.name : '—')}</td>
+          <td><b>${escapeHtml(a.attributeName || '—')}</b></td>
+          <td>${escapeHtml(DATATYPE_LABELS[a.dataType] || a.dataType)}</td>
+          <td style="color:var(--stone);">${escapeHtml(a.unit || '—')}</td>
           <td>${a.required ? 'Yes' : 'No'}</td>
-          <td>${a.displayOrder ?? 0}</td>
-          <td><button class="btn-secondary attr-edit-btn" data-id="${a.id}">Edit</button></td>`;
+          <td>${escapeHtml(a.displayOrder ?? 0)}</td>
+          <td><button class="btn-secondary attr-edit-btn" data-id="${escapeHtml(a.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.attr-edit-btn').addEventListener('click', () => openAttrModal(a));
       });
@@ -3626,7 +3626,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     attrSubmitBtn.disabled = false;
     attrOptionsRow.classList.add('step-hidden');
     const cats = await getAllCategoriesCached(true);
-    attrCategorySelect.innerHTML = cats.map(c => `<option value="${c.id}">${BRAND_LABELS[c.brandId] || c.brandId} — ${escapeHtml(c.name)}</option>`).join('');
+    attrCategorySelect.innerHTML = cats.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(BRAND_LABELS[c.brandId] || c.brandId)} — ${escapeHtml(c.name)}</option>`).join('');
     if (existing) {
       attrModalTitle.textContent = 'Edit attribute';
       document.getElementById('attr-editing-id').value = existing.id;
@@ -3800,12 +3800,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const status = warrantyStatus(d.purchaseDate, d.warrantyMonths);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.registrationId || '—'}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.registrationId || '—')}</td>
           <td>${escapeHtml(d.customerName || '—')}</td>
           <td>${escapeHtml(d.product || '—')}</td>
           <td>${escapeHtml(d.serialNumber || '—')}${d.serialCheck ? `<div style="font-size:11.5px;${d.serialCheck.status === 'verified' ? 'color:#1E7B34;' : 'color:var(--err);'}" title="${escapeHtml(d.serialCheck.note || '')}">${d.serialCheck.status === 'verified' ? '✓ serial verified' : '⚠ ' + escapeHtml(d.serialCheck.note || d.serialCheck.status)}</div>` : ''}</td>
-          <td>${d.purchaseDate || '—'}</td>
-          <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
+          <td>${escapeHtml(d.purchaseDate || '—')}</td>
+          <td><span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span></td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -3879,11 +3879,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${escapeHtml(d.name || '—')}</b></td>
-          <td>${BRAND_LABELS[d.brandId] || '—'}</td>
-          <td>${d.categoryName || 'Any'}</td>
+          <td>${escapeHtml(BRAND_LABELS[d.brandId] || '—')}</td>
+          <td>${escapeHtml(d.categoryName || 'Any')}</td>
           <td style="max-width:260px;color:var(--stone);font-size:12.5px;">${componentsSummary}</td>
-          <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${d.status || 'active'}</span></td>
-          <td><button class="btn-secondary wplan-edit-btn" data-id="${d.id}">Edit</button></td>`;
+          <td><span class="status-pill ${(d.status || 'active') === 'active' ? 'ok' : 'out'}">${escapeHtml(d.status || 'active')}</span></td>
+          <td><button class="btn-secondary wplan-edit-btn" data-id="${escapeHtml(d.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.wplan-edit-btn').addEventListener('click', () => openWplanModal(d));
       });
@@ -4036,9 +4036,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td>${escapeHtml(d.name || '—')}</td>
           <td>${escapeHtml(d.email || '—')}</td>
           <td>${distributionLabel}</td>
-          <td>${custSnap.size}</td>
-          <td>${orderSnap.size}</td>
-          <td>${saleSnap.size}</td>`;
+          <td>${escapeHtml(custSnap.size)}</td>
+          <td>${escapeHtml(orderSnap.size)}</td>
+          <td>${escapeHtml(saleSnap.size)}</td>`;
         tbody.appendChild(tr);
       }
     } catch (err) {
@@ -4093,9 +4093,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td>${escapeHtml(pincodesList)}</td>
           <td>${linkedDealerCount} <span class="hint">(auto, by pincode)</span></td>
           <td>${linkedCenterCount} <span class="hint">(auto, by pincode)</span></td>
-          <td>${custSnap.size}</td>
-          <td>${orderSnap.size}</td>
-          <td>${saleSnap.size}</td>`;
+          <td>${escapeHtml(custSnap.size)}</td>
+          <td>${escapeHtml(orderSnap.size)}</td>
+          <td>${escapeHtml(saleSnap.size)}</td>`;
         tbody.appendChild(tr);
       }
     } catch (err) {
@@ -4148,8 +4148,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="font-size:12.5px;">${escapeHtml(brandsLabel)}</td>
           <td style="font-size:12.5px;max-width:180px;">${escapeHtml(categoriesLabel)}</td>
           <td style="font-size:12.5px;">${coverageLabel}</td>
-          <td>${reqSnap.size}</td>
-          <td>${techSnap.size}</td>
+          <td>${escapeHtml(reqSnap.size)}</td>
+          <td>${escapeHtml(techSnap.size)}</td>
           <td>
             <button class="btn-secondary center-edit-btn">Edit</button>
             <button class="btn-secondary center-fullprofile-btn" style="margin-left:6px;">Full profile</button>
@@ -4212,10 +4212,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <tr data-day="${key}">
           <td style="padding:4px 6px;">${label}</td>
           <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="cfp-wh-working" ${day.working ? 'checked' : ''}></td>
-          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-start" value="${day.start || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-end" value="${day.end || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-start" value="${day.breakStart || ''}" style="width:110px;"></td>
-          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-end" value="${day.breakEnd || ''}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-start" value="${escapeHtml(day.start || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-end" value="${escapeHtml(day.end || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-start" value="${escapeHtml(day.breakStart || '')}" style="width:110px;"></td>
+          <td style="padding:4px 6px;"><input type="time" class="cfp-wh-break-end" value="${escapeHtml(day.breakEnd || '')}" style="width:110px;"></td>
           <td style="padding:4px 6px;text-align:center;"><input type="checkbox" class="cfp-wh-special" ${day.specialWorkingDay ? 'checked' : ''}></td>
         </tr>`;
     }).join('');
@@ -4241,8 +4241,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     return `
       <div class="cfp-holiday-row" style="border:1px solid var(--line, #e2e2e2);border-radius:8px;padding:10px 12px;position:relative;">
         <button type="button" class="cfp-holiday-remove" style="position:absolute;top:8px;right:8px;background:none;border:none;color:var(--err);cursor:pointer;font-size:13px;">Remove</button>
-        <div class="form-row"><label>Holiday Date</label><input type="date" class="cfp-holiday-date" value="${row.date || ''}"></div>
-        <div class="form-row"><label>End Date <span style="font-weight:400;color:var(--stone);">(optional, for multi-day closures)</span></label><input type="date" class="cfp-holiday-end-date" value="${row.endDate || ''}"></div>
+        <div class="form-row"><label>Holiday Date</label><input type="date" class="cfp-holiday-date" value="${escapeHtml(row.date || '')}"></div>
+        <div class="form-row"><label>End Date <span style="font-weight:400;color:var(--stone);">(optional, for multi-day closures)</span></label><input type="date" class="cfp-holiday-end-date" value="${escapeHtml(row.endDate || '')}"></div>
         <div class="form-row"><label>Closure Type</label>
           <select class="cfp-holiday-type">
             <option value="HOLIDAY" ${row.closureType === 'HOLIDAY' ? 'selected' : ''}>Holiday</option>
@@ -4351,7 +4351,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const availability = onLeave ? 'On Leave' : (t.employmentStatus && t.employmentStatus !== 'ACTIVE' ? '—' : 'Available');
         const skillsLabel = (t.technicalSkills || []).map(s => s.skill).filter(Boolean).slice(0, 2).join(', ') || t.skills || '—';
         const nameHtml = t.technicianUid
-          ? `<a href="#" class="cfp-tech-link" data-uid="${t.technicianUid}" data-name="${escapeHtml(t.name || '')}">${escapeHtml(t.name) || '—'}</a>`
+          ? `<a href="#" class="cfp-tech-link" data-uid="${escapeHtml(t.technicianUid)}" data-name="${escapeHtml(t.name || '')}">${escapeHtml(t.name) || '—'}</a>`
           : `${escapeHtml(t.name) || '—'} <span style="color:var(--stone);font-size:11px;">(informal)</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `<td style="padding:4px 6px;">${nameHtml}</td><td style="padding:4px 6px;">${escapeHtml(t.employmentStatus || '—')}</td><td style="padding:4px 6px;">${escapeHtml(skillsLabel)}</td><td style="padding:4px 6px;text-align:center;">${todayJobs}</td><td style="padding:4px 6px;">${availability}</td>`;
@@ -4506,7 +4506,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const rules = await getSlaRulesCache();
       const rule = resolveSlaRule(rules, district, '');
       if (rule) {
-        el.innerHTML = `<strong>${escapeHtml(rule.name)}</strong> — due in ${rule.dueSoonHours}h, breached after ${rule.breachedHours}h (matched on district: ${escapeHtml(district)})`;
+        el.innerHTML = `<strong>${escapeHtml(rule.name)}</strong> — due in ${escapeHtml(rule.dueSoonHours)}h, breached after ${escapeHtml(rule.breachedHours)}h (matched on district: ${escapeHtml(district)})`;
       } else {
         el.innerHTML = `Default — due in ${SLA_DEFAULT.dueSoonHours}h, breached after ${SLA_DEFAULT.breachedHours}h (no district-specific rule for "${escapeHtml(district || '—')}")`;
       }
@@ -4532,16 +4532,16 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </select>
         </div>
         <div class="form-row"><label>File</label>
-          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${row.fileUrl}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
+          ${row.fileUrl ? `<div style="margin-bottom:4px;"><a href="${escapeHtml(row.fileUrl)}" target="_blank" rel="noopener">View uploaded file</a></div>` : ''}
           <input type="file" class="cfp-doc-file">
         </div>
-        <div class="form-row"><label>Issue Date</label><input type="date" class="cfp-doc-issue-date" value="${row.issueDate || ''}"></div>
-        <div class="form-row"><label>Expiry Date${expiryBadge(row.expiryDate)}</label><input type="date" class="cfp-doc-expiry" value="${row.expiryDate || ''}"></div>
+        <div class="form-row"><label>Issue Date</label><input type="date" class="cfp-doc-issue-date" value="${escapeHtml(row.issueDate || '')}"></div>
+        <div class="form-row"><label>Expiry Date${expiryBadge(row.expiryDate)}</label><input type="date" class="cfp-doc-expiry" value="${escapeHtml(row.expiryDate || '')}"></div>
         <div class="form-row"><label>Uploaded By</label><input type="text" class="cfp-doc-uploaded-by" value="${escapeHtml(row.uploadedBy || '')}" disabled style="opacity:0.6;"></div>
-        <div class="form-row"><label>Uploaded Date</label><input type="text" class="cfp-doc-uploaded-date" value="${row.uploadedDate || ''}" disabled style="opacity:0.6;"></div>
+        <div class="form-row"><label>Uploaded Date</label><input type="text" class="cfp-doc-uploaded-date" value="${escapeHtml(row.uploadedDate || '')}" disabled style="opacity:0.6;"></div>
         <div class="form-row" style="display:flex;align-items:center;gap:8px;"><label style="margin:0;">Verified</label><input type="checkbox" class="cfp-doc-verified" ${row.verified ? 'checked' : ''}></div>
         <div class="form-row"><label>Verified By</label><input type="text" class="cfp-doc-verified-by" value="${escapeHtml(row.verifiedBy || '')}"></div>
-        <div class="form-row"><label>Verification Date</label><input type="date" class="cfp-doc-verification-date" value="${row.verificationDate || ''}"></div>
+        <div class="form-row"><label>Verification Date</label><input type="date" class="cfp-doc-verification-date" value="${escapeHtml(row.verificationDate || '')}"></div>
       </div>`;
   }
   function cfpAddDocRow(row) {
@@ -4599,14 +4599,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       partsSnap.forEach(p => { partMap[p.id] = p.data(); });
       const rows = []; invSnap.forEach(r => rows.push(r.data()));
       const totalQty = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
-      summaryEl.innerHTML = `<strong>${rows.length}</strong> part(s) on hand &nbsp; · &nbsp; <strong>${totalQty}</strong> total units`;
+      summaryEl.innerHTML = `<strong>${escapeHtml(rows.length)}</strong> part(s) on hand &nbsp; · &nbsp; <strong>${totalQty}</strong> total units`;
       if (rows.length === 0) {
         tbodyEl.innerHTML = `<tr><td colspan="3" class="empty-row">No parts in inventory yet.</td></tr>`;
       } else {
         rows.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
         tbodyEl.innerHTML = rows.map(r => {
           const part = partMap[r.partId];
-          return `<tr><td style="padding:4px 6px;font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td><td style="padding:4px 6px;">${escapeHtml(part ? part.name : '—')}</td><td style="padding:4px 6px;text-align:center;"><b>${r.quantity ?? 0}</b></td></tr>`;
+          return `<tr><td style="padding:4px 6px;font-size:12px;color:var(--stone);">${escapeHtml(part ? part.partCode : r.partId)}</td><td style="padding:4px 6px;">${escapeHtml(part ? part.name : '—')}</td><td style="padding:4px 6px;text-align:center;"><b>${escapeHtml(r.quantity ?? 0)}</b></td></tr>`;
         }).join('');
       }
       const moves = []; movSnap.forEach(m => moves.push(m.data()));
@@ -4615,7 +4615,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       movementsEl.innerHTML = recent.length === 0 ? `<div style="color:var(--stone);font-size:13px;">No stock movements recorded yet.</div>` : recent.map(m => {
         const part = partMap[m.partId];
         const when = m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString() : '—';
-        return `<div style="font-size:13px;">${when} — ${m.type === 'receive' ? 'Received' : 'Issued'} ${m.quantity ?? 0} × ${escapeHtml(part ? part.name : m.partId)}${m.reason ? ' (' + escapeHtml(m.reason) + ')' : ''}</div>`;
+        return `<div style="font-size:13px;">${when} — ${m.type === 'receive' ? 'Received' : 'Issued'} ${escapeHtml(m.quantity ?? 0)} × ${escapeHtml(part ? part.name : m.partId)}${m.reason ? ' (' + escapeHtml(m.reason) + ')' : ''}</div>`;
       }).join('');
     } catch (err) {
       console.error('Load inventory summary failed:', err);
@@ -4683,8 +4683,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <option value="PREMIUM" ${b.level === 'PREMIUM' ? 'selected' : ''}>Premium</option>
             </select>
           </div>
-          <div class="form-row"><label>Effective From</label><input type="date" class="cfp-brand-from" data-brand="${val}" value="${b.effectiveFrom || ''}"></div>
-          <div class="form-row"><label>Effective To</label><input type="date" class="cfp-brand-to" data-brand="${val}" value="${b.effectiveTo || ''}"></div>
+          <div class="form-row"><label>Effective From</label><input type="date" class="cfp-brand-from" data-brand="${val}" value="${escapeHtml(b.effectiveFrom || '')}"></div>
+          <div class="form-row"><label>Effective To</label><input type="date" class="cfp-brand-to" data-brand="${val}" value="${escapeHtml(b.effectiveTo || '')}"></div>
           <div class="form-row"><label>Approved By</label><input type="text" class="cfp-brand-approvedby" data-brand="${val}" value="${escapeHtml(b.approvedBy || '')}"></div>
         </div>`;
     }).join('');
@@ -4767,18 +4767,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
     function fillCategories(brandId, selectedCategoryId) {
       const cats = cfpCatalogCache.categories.filter(c => c.brandId === brandId);
-      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${c.id}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
+      catSelect.innerHTML = '<option value="">—</option>' + cats.map(c => `<option value="${escapeHtml(c.id)}" ${c.id === selectedCategoryId ? 'selected' : ''}>${escapeHtml(c.name || c.id)}</option>`).join('');
       fillProducts(brandId, selectedCategoryId, null);
     }
     function fillProducts(brandId, categoryId, selectedProductId) {
       const prods = cfpCatalogCache.products.filter(p => p.brandId === brandId && (!categoryId || p.categoryId === categoryId));
-      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${p.id}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
+      prodSelect.innerHTML = '<option value="">—</option>' + prods.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedProductId ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
       fillModels(prodSelect.value, null);
     }
     function fillModels(productId, selectedModelId) {
       productId = productId || prodSelect.value;
       const mods = productId ? cfpCatalogCache.models.filter(m => m.productId === productId) : [];
-      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
+      modelSelect.innerHTML = '<option value="">—</option>' + mods.map(m => `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? 'selected' : ''}>${escapeHtml(m.modelNumber || m.id)}</option>`).join('');
     }
 
     brandSelect.addEventListener('change', () => fillCategories(brandSelect.value, null));
@@ -5000,8 +5000,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       <div style="font-weight:600;margin:16px 0 8px;">Coverage</div>
       <div style="font-size:12px;color:var(--stone);margin-bottom:8px;">This is the same Covered Districts/Pincodes used for routing and for the Coverage Analysis (conflicts &amp; gaps) page — shown here read-only; edit it from this row's "Edit" button on the Centers list (Coverage Districts/Pincodes fields) rather than here, so there's one place it's changed. Territory follows the Pincode Master hierarchy above; per-pincode Coverage Type, Priority and Effective Dates aren't tracked as separate fields — a pincode is simply covered or not.</div>
-      <div><strong>Covered Districts (${(d.districtsCovered || []).length}):</strong> ${(d.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
-      <div><strong>Covered Pincodes (${(d.pincodesCovered || []).length}):</strong> ${(d.pincodesCovered || []).length ? (d.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
+      <div><strong>Covered Districts (${escapeHtml((d.districtsCovered || []).length)}):</strong> ${(d.districtsCovered || []).map(escapeHtml).join(', ') || '—'}</div>
+      <div><strong>Covered Pincodes (${escapeHtml((d.pincodesCovered || []).length)}):</strong> ${(d.pincodesCovered || []).length ? (d.pincodesCovered || []).map(escapeHtml).join(', ') : '—'}</div>
 
       <div style="font-weight:600;margin:16px 0 8px;">Working Hours</div>
       <div style="overflow-x:auto;">
@@ -5170,7 +5170,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('cfp-pan').value = d.pan || '';
     document.getElementById('cfp-reg-number').value = d.registrationNumber || '';
     document.getElementById('cfp-agreement-validity').value = d.agreementValidity || '';
-    document.getElementById('cfp-agreement-link').innerHTML = d.agreementUrl ? `<a href="${d.agreementUrl}" target="_blank" rel="noopener">View current agreement</a>` : `<span style="color:var(--stone);font-size:12px;">No agreement uploaded yet.</span>`;
+    document.getElementById('cfp-agreement-link').innerHTML = d.agreementUrl ? `<a href="${escapeHtml(d.agreementUrl)}" target="_blank" rel="noopener">View current agreement</a>` : `<span style="color:var(--stone);font-size:12px;">No agreement uploaded yet.</span>`;
     renderCfpBrandAuthBlock(d);
     await renderCfpCapabilityBlock(d);
     document.getElementById('cfp-add-capability').addEventListener('click', () => addCfpCapabilityRow(null));
@@ -5379,11 +5379,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td>${typeLabel}</td>
           <td style="font-size:12.5px;">${brandsLabel}</td>
           <td style="font-size:12.5px;max-width:220px;">${skillsLabel}</td>
-          <td>${jobSnap.size}</td>
-          <td>${availStatus ? `<span class="status-pill ${availMeta.cls}">${escapeHtml(availMeta.label)}</span>` : '—'}</td>
+          <td>${escapeHtml(jobSnap.size)}</td>
+          <td>${availStatus ? `<span class="status-pill ${escapeHtml(availMeta.cls)}">${escapeHtml(availMeta.label)}</span>` : '—'}</td>
           <td>
-            <button class="btn-secondary tech-suspend-btn" data-uid="${userDoc.id}" data-suspended="${isSuspended}">${isSuspended ? 'Reinstate' : 'Suspend'}</button>
-            <button class="btn-secondary tech-fullprofile-btn" data-uid="${userDoc.id}" data-name="${escapeHtml(d.name || d.email || '')}" style="margin-left:6px;">Full profile</button>
+            <button class="btn-secondary tech-suspend-btn" data-uid="${escapeHtml(userDoc.id)}" data-suspended="${isSuspended}">${isSuspended ? 'Reinstate' : 'Suspend'}</button>
+            <button class="btn-secondary tech-fullprofile-btn" data-uid="${escapeHtml(userDoc.id)}" data-name="${escapeHtml(d.name || d.email || '')}" style="margin-left:6px;">Full profile</button>
           </td>`;
         tbody.appendChild(tr);
         tr.querySelector('.tech-fullprofile-btn').addEventListener('click', (e) => {
@@ -5453,10 +5453,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function renderTfpBody(d) {
     const body = document.getElementById('tfp-body');
     const brandsHtml = (d.brandAuthorizations || []).filter(b => b.status || b.level).map(b =>
-      `<div><strong>${TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${b.status || '—'}${b.level ? ' · ' + b.level : ''}</div>`
+      `<div><strong>${TFP_BRAND_LABELS[b.brand] || b.brand}:</strong> ${escapeHtml(b.status || '—')}${b.level ? ' · ' + b.level : ''}</div>`
     ).join('') || `<div style="color:var(--stone);">None on file.</div>`;
     const skillsHtml = (d.technicalSkills || []).filter(s => s.skill).map(s => `<div>${escapeHtml(s.skill)}${s.level ? ' — ' + s.level : ''}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
-    const toolsHtml = (d.tools || []).filter(t => t.toolName).map(t => `<div>${escapeHtml(t.toolName)} — ${t.status || 'ASSIGNED'}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
+    const toolsHtml = (d.tools || []).filter(t => t.toolName).map(t => `<div>${escapeHtml(t.toolName)} — ${escapeHtml(t.status || 'ASSIGNED')}</div>`).join('') || `<div style="color:var(--stone);">None on file.</div>`;
 
     body.innerHTML = `
       <div style="font-weight:600;margin-bottom:8px;">Identity &amp; Employment</div>
@@ -5589,7 +5589,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (!docs.length) { el.innerHTML = `<div style="color:var(--stone);">No documents uploaded.</div>`; return; }
     el.innerHTML = docs.map((doc_, i) => `
       <div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--hairline);">
-        <div style="flex:1;font-size:13px;">${escapeHtml(doc_.docType || '—')} — ${doc_.fileUrl ? `<a href="${doc_.fileUrl}" target="_blank" rel="noopener">View</a>` : 'no file'} · <strong>${doc_.verified ? 'Verified' : 'Pending verification'}</strong></div>
+        <div style="flex:1;font-size:13px;">${escapeHtml(doc_.docType || '—')} — ${doc_.fileUrl ? `<a href="${escapeHtml(doc_.fileUrl)}" target="_blank" rel="noopener">View</a>` : 'no file'} · <strong>${doc_.verified ? 'Verified' : 'Pending verification'}</strong></div>
         ${!doc_.verified ? `<button type="button" class="btn-secondary tfp-doc-verify" data-idx="${i}">Verify</button>` : ''}
       </div>`).join('');
     el.querySelectorAll('.tfp-doc-verify').forEach(btn => btn.addEventListener('click', () => verifyTfpDoc(Number(btn.dataset.idx))));
@@ -5700,18 +5700,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         const timeLabel = r.startTime ? `${r.startTime}${r.endTime ? '–' + r.endTime : ''}` : '—';
         const dateHtml = isUnscheduled ? '' : (() => {
-          const dateCell = r.date === lastDate ? '' : `<b>${r.date}</b>`;
+          const dateCell = r.date === lastDate ? '' : `<b>${escapeHtml(r.date)}</b>`;
           lastDate = r.date;
           return `<td style="white-space:nowrap;">${dateCell}</td><td style="white-space:nowrap;">${timeLabel}</td>`;
         })();
         tr.innerHTML = `
           ${dateHtml}
-          <td>${r.source}</td>
-          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${escapeHtml(r.source)}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(r.id || '—')}</td>
           <td>${escapeHtml(r.customer || '—')}</td>
           <td>${escapeHtml(r.assigned || '—')}</td>
-          <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>
-          <td><button class="btn-secondary appt-schedule-btn" data-coll="${r.coll}" data-id="${r.docId}">${r.date ? 'Reschedule' : 'Schedule'}</button></td>`;
+          <td><span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[r.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[r.status] || r.status)}</span></td>
+          <td><button class="btn-secondary appt-schedule-btn" data-coll="${escapeHtml(r.coll)}" data-id="${escapeHtml(r.docId)}">${r.date ? 'Reschedule' : 'Schedule'}</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.appt-schedule-btn').addEventListener('click', () => openScheduleModal(r, filter));
       });
@@ -5869,7 +5869,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       slot.innerHTML = `<div><b>Status history:</b></div>` + entries.map(e => {
         const when = e.createdAt && e.createdAt.toDate ? e.createdAt.toDate().toLocaleString() : '—';
         return `<div style="font-size:12.5px;color:var(--stone);padding:4px 0;border-bottom:1px solid var(--hairline);">
-          <span class="status-pill ${SVC_STATUS_PILL_CLASS[e.status] || ''}">${SVC_STATUS_LABELS[e.status] || e.status}</span>
+          <span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[e.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[e.status] || e.status)}</span>
           &nbsp; ${when} &nbsp; <span>by ${escapeHtml(e.changedByEmail) || 'unknown'}</span>
           ${e.note ? `<br>${escapeHtml(e.note)}` : ''}
         </div>`;
@@ -5896,7 +5896,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const items = [];
       snap.forEach(d => {
         const s = d.data();
-        items.push(`${escapeHtml(s.item) || 'Part'} — <span class="status-pill ${s.status}">${SR_STATUS_LABELS[s.status] || s.status}</span> (${escapeHtml(s.requestId || d.id)})`);
+        items.push(`${escapeHtml(s.item) || 'Part'} — <span class="status-pill ${escapeHtml(s.status)}">${escapeHtml(SR_STATUS_LABELS[s.status] || s.status)}</span> (${escapeHtml(s.requestId || d.id)})`);
       });
       slot.innerHTML = `<div style="margin-top:10px;"><b>Linked spare request${items.length > 1 ? 's' : ''}:</b><br>${items.join('<br>')}</div>`;
     } catch (err) {
@@ -6037,11 +6037,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       dedupedRows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${r.source}</td>
-          <td><a href="#" class="c360-open-link" style="font-size:12px;">${r.id || '—'}</a></td>
+          <td>${escapeHtml(r.source)}</td>
+          <td><a href="#" class="c360-open-link" style="font-size:12px;">${escapeHtml(r.id || '—')}</a></td>
           <td>${escapeHtml(r.customer) || '—'}</td>
           <td>${escapeHtml(r.assigned) || '—'}</td>
-          <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></td>`;
+          <td><span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[r.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[r.status] || r.status)}</span></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.c360-open-link').addEventListener('click', (e) => {
           e.preventDefault();
@@ -6088,7 +6088,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // onto the ticket by the processFeedback function; read only).
   function customerFeedbackHtml(cf) {
     if (!cf || !cf.rating) return '';
-    return `<div${cf.rating <= 2 ? ' style="color:var(--err);"' : ''}><b>Customer rating:</b> ${'★'.repeat(cf.rating)}${'☆'.repeat(5 - cf.rating)} (${cf.rating}/5)${cf.comment ? ' — “' + escapeHtml(cf.comment) + '”' : ''}</div>`;
+    return `<div${cf.rating <= 2 ? ' style="color:var(--err);"' : ''}><b>Customer rating:</b> ${'★'.repeat(cf.rating)}${'☆'.repeat(5 - cf.rating)} (${escapeHtml(cf.rating)}/5)${cf.comment ? ' — “' + escapeHtml(cf.comment) + '”' : ''}</div>`;
   }
 
   // The single popup every ticket opens into. What's shown in the
@@ -6101,7 +6101,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const f = r.full;
     svcTicketTitle.textContent = r.id || 'Service ticket';
     svcTicketBody.innerHTML = `
-      <div><b>Source:</b> ${r.source} &nbsp; <b>Status:</b> <span class="status-pill ${SVC_STATUS_PILL_CLASS[r.status] || ''}">${SVC_STATUS_LABELS[r.status] || r.status}</span></div>
+      <div><b>Source:</b> ${escapeHtml(r.source)} &nbsp; <b>Status:</b> <span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[r.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[r.status] || r.status)}</span></div>
       <div><b>Customer:</b> ${escapeHtml(r.customer) || '—'} &nbsp; <b>Phone:</b> ${escapeHtml(f.customerPhone) || '—'}</div>
       <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
       <div><b>Product:</b> ${escapeHtml(f.product || f.brand) || '—'} ${escapeHtml(f.category) || ''} &nbsp; <b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
@@ -6132,7 +6132,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
     if (f.closureCode) {
       svcTicketBody.innerHTML += `
-        <div style="margin-top:10px;"><b>Closure code:</b> ${f.closureCode}<br>
+        <div style="margin-top:10px;"><b>Closure code:</b> ${escapeHtml(f.closureCode)}<br>
         <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
         <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
     }
@@ -6235,7 +6235,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const brandFlag = brandOk(c) ? '' : '⚠ not brand-authorized';
       const flags = [locFlag, brandFlag].filter(Boolean).join(', ');
       const current = isReassign && c.name === d.serviceCenterName ? ' (current)' : '';
-      return `<option value="${c.uid}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${current}${flags ? ' — ' + flags : ''}</option>`;
+      return `<option value="${escapeHtml(c.uid)}|${escapeHtml(c.name || c.email)}">${escapeHtml(c.name || c.email)}${current}${flags ? ' — ' + flags : ''}</option>`;
     }).join('');
     svcTicketActions.innerHTML = `
       <div style="margin-bottom:8px;"><b>${isReassign ? `Reassign — currently at ${escapeHtml(d.serviceCenterName) || 'a center'}` : 'Route to service center'}</b></div>
@@ -6291,7 +6291,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     const options = sortedTechs.map(t => {
       const level = techMatchLevel(t);
       const flag = level === 2 ? ' ✓ skilled + authorized' : level === 1 ? ' ✓ partial match' : '';
-      return `<option value="${t.uid}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
+      return `<option value="${escapeHtml(t.uid)}|${escapeHtml(t.name || t.email)}">${escapeHtml(t.name || t.email)}${flag}</option>`;
     }).join('');
     const controlsHtml = `
       ${mountEl ? '' : '<div style="margin-bottom:8px;"><b>Assign a technician</b></div>'}
@@ -6360,9 +6360,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = { id: docSnap.id, ...docSnap.data() };
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.partCode || d.id}</td>
-          <td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.category || '—')}</td><td>${d.brandCompatibility || 'All'}</td>
-          <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${d.reorderLevel ?? '—'}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.partCode || d.id)}</td>
+          <td>${escapeHtml(d.name || '—')}</td><td>${escapeHtml(d.category || '—')}</td><td>${escapeHtml(d.brandCompatibility || 'All')}</td>
+          <td>${d.price != null ? '₹' + d.price : '—'}</td><td>${escapeHtml(d.reorderLevel ?? '—')}</td>
           <td><button class="btn-secondary edit-part-btn">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.edit-part-btn').addEventListener('click', () => openPartModal(d));
@@ -6486,7 +6486,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       tbody.innerHTML = '';
       rows.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td><b>${r.warehouse}</b></td><td>${r.servicecenter}</td><td>${r.technician}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td><b>${escapeHtml(r.warehouse)}</b></td><td>${escapeHtml(r.servicecenter)}</td><td>${escapeHtml(r.technician)}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -6536,9 +6536,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${d.type}</span></td>
-          <td style="text-transform:capitalize;">${d.location || '—'}</td>
-          <td>${d.quantity ?? '—'}</td>
+          <td><span class="status-pill ${d.type === 'issue' ? 'backorder' : 'ok'}">${escapeHtml(d.type)}</span></td>
+          <td style="text-transform:capitalize;">${escapeHtml(d.location || '—')}</td>
+          <td>${escapeHtml(d.quantity ?? '—')}</td>
           <td style="color:var(--stone);">${escapeHtml(d.reason) || '—'}</td>`;
         tbody.appendChild(tr);
       });
@@ -6753,8 +6753,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><a href="#" class="c360-open-link sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || docSnap.id)}</a></td>
-          <td>${escapeHtml(d.serviceCenter) || '—'}</td><td>${escapeHtml(d.item) || '—'}</td><td>${d.quantity ?? '—'}</td>
-          <td><span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></td>`;
+          <td>${escapeHtml(d.serviceCenter) || '—'}</td><td>${escapeHtml(d.item) || '—'}</td><td>${escapeHtml(d.quantity ?? '—')}</td>
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(SR_STATUS_LABELS[d.status] || d.status)}</span></td>`;
         tr.querySelector('.sr-open-link').addEventListener('click', (e) => {
           e.preventDefault();
           openSpareRequestPopup(docSnap.id);
@@ -6808,9 +6808,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     body.innerHTML = `
       <div><strong>Service Center:</strong> ${escapeHtml(d.serviceCenter) || '—'}</div>
       <div><strong>Item:</strong> ${escapeHtml(d.item) || '—'}</div>
-      <div><strong>Quantity:</strong> ${d.quantity ?? '—'}</div>
+      <div><strong>Quantity:</strong> ${escapeHtml(d.quantity ?? '—')}</div>
       <div><strong>Priority:</strong> ${escapeHtml(d.priority) || 'normal'}</div>
-      <div><strong>Status:</strong> <span class="status-pill ${d.status}">${SR_STATUS_LABELS[d.status] || d.status}</span></div>
+      <div><strong>Status:</strong> <span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(SR_STATUS_LABELS[d.status] || d.status)}</span></div>
       ${d.pipelineRejected ? `<div style="color:var(--err);"><strong>Last change rejected:</strong> ${escapeHtml(d.pipelineRejected.reason)}</div>` : ''}
       ${d.sourceJobLabel ? `<div><strong>Linked job:</strong> ${escapeHtml(d.sourceJobLabel)}</div>` : ''}
       ${d.notes ? `<div><strong>Notes:</strong> ${escapeHtml(d.notes)}</div>` : ''}
@@ -6820,7 +6820,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div><strong>Docket / LR / AWB No.:</strong> ${escapeHtml(t.docketNumber) || '—'}</div>
           ${t.vehicleNumber ? `<div><strong>Vehicle No.:</strong> ${escapeHtml(t.vehicleNumber)}</div>` : ''}
           <div><strong>Dispatched:</strong> ${escapeHtml(t.dispatchDate) || '—'}</div>
-          ${t.docketPhotoUrl ? `<div><strong>Receipt:</strong> <a href="${t.docketPhotoUrl}" target="_blank" rel="noopener" class="c360-open-link">View docket / LR receipt / challan photo</a></div>` : ''}
+          ${t.docketPhotoUrl ? `<div><strong>Receipt:</strong> <a href="${escapeHtml(t.docketPhotoUrl)}" target="_blank" rel="noopener" class="c360-open-link">View docket / LR receipt / challan photo</a></div>` : ''}
         </div>
       ` : ''}
     `;
@@ -6908,7 +6908,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       }
       actions.innerHTML = `
         <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Stock for this request has already been transferred.</div>
-        ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${a.next}">${escapeHtml(a.label)}</button>`).join(' ')}
+        ${nextActions.map(a => `<button type="button" class="btn-secondary sr-advance-btn" data-next="${escapeHtml(a.next)}">${escapeHtml(a.label)}</button>`).join(' ')}
       `;
       actions.querySelectorAll('.sr-advance-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -6960,7 +6960,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const partsSnap = await getDocs(collection(db, 'spareParts'));
       const partsOptions = partsSnap.docs.map(pd => {
         const p = pd.data();
-        return `<option value="${pd.id}">${escapeHtml(p.partCode) || ''} — ${escapeHtml(p.name) || ''}</option>`;
+        return `<option value="${escapeHtml(pd.id)}">${escapeHtml(p.partCode) || ''} — ${escapeHtml(p.name) || ''}</option>`;
       }).join('');
       actions.innerHTML = `
         <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">This request has no linked spare-part record yet — select the matching part before stock can be transferred.</div>
@@ -6994,7 +6994,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
     actions.innerHTML = `
       <div style="font-size:12.5px;color:var(--stone);margin-bottom:8px;">Warehouse stock for this part: <strong>${warehouseQty}</strong></div>
-      <div class="form-row"><label>Quantity to transfer</label><input type="number" id="sr-transfer-qty" min="1" value="${d.quantity || 1}"></div>
+      <div class="form-row"><label>Quantity to transfer</label><input type="number" id="sr-transfer-qty" min="1" value="${escapeHtml(d.quantity || 1)}"></div>
       ${transportFormHtml('Transfer Stock & Dispatch').replace('sr-transport-submit', 'sr-transfer-btn')}
       <button type="button" class="btn-danger" id="sr-backorder-btn" style="margin-left:8px;">Mark Back Order</button>
     `;
@@ -7084,11 +7084,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const d = docSnap.data();
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="font-size:12px;color:var(--stone);">${d.requestId || docSnap.id}</td>
-          <td>${escapeHtml(d.item || '—')}</td><td>${d.requestedBy || '—'}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || docSnap.id)}</td>
+          <td>${escapeHtml(d.item || '—')}</td><td>${escapeHtml(d.requestedBy || '—')}</td>
           <td>${d.actualAmount != null ? '₹' + d.actualAmount : (d.estimatedAmount != null ? '~₹' + d.estimatedAmount : '—')}</td>
           <td>${d.emergency ? 'Yes' : '—'}</td>
-          <td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          <td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(d.status)}</span></td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -7171,7 +7171,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <td>${escapeHtml(c.claimantName) || '—'}</td>
             <td>${escapeHtml(c.description) || '—'}</td>
             <td>${c.amount != null ? '₹' + c.amount : '—'}</td>
-            <td><span class="status-pill ${FIN_CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${FIN_CLAIM_STATUS_LABELS[c.status] || c.status}</span></td>`;
+            <td><span class="status-pill ${escapeHtml(FIN_CLAIM_STATUS_PILL_CLASS[c.status] || '')}">${escapeHtml(FIN_CLAIM_STATUS_LABELS[c.status] || c.status)}</span></td>`;
           tr.querySelector('.fin-claim-link').addEventListener('click', (e) => {
             e.preventDefault();
             c360DetailTitle.textContent = c.claimId || 'Claim';
@@ -7179,7 +7179,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               <div><b>Claimant:</b> ${escapeHtml(c.claimantName) || '—'} ${c.claimantType ? `(${escapeHtml(c.claimantType)})` : ''}</div>
               <div><b>Description:</b> ${escapeHtml(c.description) || '—'}</div>
               <div><b>Amount:</b> ${c.amount != null ? '₹' + c.amount : '—'}</div>
-              <div><b>Status:</b> <span class="status-pill ${FIN_CLAIM_STATUS_PILL_CLASS[c.status] || ''}">${FIN_CLAIM_STATUS_LABELS[c.status] || c.status}</span></div>
+              <div><b>Status:</b> <span class="status-pill ${escapeHtml(FIN_CLAIM_STATUS_PILL_CLASS[c.status] || '')}">${escapeHtml(FIN_CLAIM_STATUS_LABELS[c.status] || c.status)}</span></div>
               ${c.notes ? `<div><b>Notes:</b> ${escapeHtml(c.notes)}</div>` : ''}
               ${c.sourceTicketId ? `<div><b>Service ticket:</b> ${escapeHtml(c.sourceTicketId)}</div>` : ''}
               ${c.sourceReturnId ? `<div><b>Linked return:</b> ${escapeHtml(c.sourceReturnId)}</div>` : ''}
@@ -7203,18 +7203,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <td>${escapeHtml(l.item) || '—'}</td>
             <td>${escapeHtml(l.requestedBy) || '—'}</td>
             <td>${l.actualAmount != null ? '₹' + l.actualAmount : (l.estimatedAmount != null ? '~₹' + l.estimatedAmount : '—')}</td>
-            <td><span class="status-pill ${FIN_LP_STATUS_PILL_CLASS[l.status] || ''}">${FIN_LP_STATUS_LABELS[l.status] || l.status}</span></td>`;
+            <td><span class="status-pill ${escapeHtml(FIN_LP_STATUS_PILL_CLASS[l.status] || '')}">${escapeHtml(FIN_LP_STATUS_LABELS[l.status] || l.status)}</span></td>`;
           tr.querySelector('.fin-lp-link').addEventListener('click', (e) => {
             e.preventDefault();
             c360DetailTitle.textContent = l.requestId || 'Local purchase';
             c360DetailBody.innerHTML = `
-              <div><b>Item:</b> ${escapeHtml(l.item) || '—'} &nbsp; <b>Qty:</b> ${l.quantity ?? '—'}</div>
+              <div><b>Item:</b> ${escapeHtml(l.item) || '—'} &nbsp; <b>Qty:</b> ${escapeHtml(l.quantity ?? '—')}</div>
               <div><b>Requested by:</b> ${escapeHtml(l.requestedBy) || '—'}</div>
               <div><b>Estimated amount:</b> ${l.estimatedAmount != null ? '₹' + l.estimatedAmount : '—'} &nbsp; <b>Actual amount:</b> ${l.actualAmount != null ? '₹' + l.actualAmount : '—'}</div>
               <div><b>Emergency:</b> ${l.emergency ? 'Yes' : 'No'}</div>
-              <div><b>Status:</b> <span class="status-pill ${FIN_LP_STATUS_PILL_CLASS[l.status] || ''}">${FIN_LP_STATUS_LABELS[l.status] || l.status}</span></div>
+              <div><b>Status:</b> <span class="status-pill ${escapeHtml(FIN_LP_STATUS_PILL_CLASS[l.status] || '')}">${escapeHtml(FIN_LP_STATUS_LABELS[l.status] || l.status)}</span></div>
               ${l.notes ? `<div><b>Notes:</b> ${escapeHtml(l.notes)}</div>` : ''}
-              ${l.invoiceUrl ? `<div><b>Invoice:</b> <a href="${l.invoiceUrl}" target="_blank" rel="noopener">View invoice</a></div>` : ''}
+              ${l.invoiceUrl ? `<div><b>Invoice:</b> <a href="${escapeHtml(l.invoiceUrl)}" target="_blank" rel="noopener">View invoice</a></div>` : ''}
             `;
             c360DetailOverlay.classList.add('show');
           });
@@ -7279,7 +7279,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     finClaimTicketResults.innerHTML = matches.map(t =>
-      `<div class="fin-claim-ticket-result" data-key="${t.coll}|${t.docId}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
+      `<div class="fin-claim-ticket-result" data-key="${escapeHtml(t.coll)}|${escapeHtml(t.docId)}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
     ).join('');
     finClaimTicketResults.style.display = 'block';
     finClaimTicketResults.querySelectorAll('.fin-claim-ticket-result').forEach(row => {
@@ -7421,13 +7421,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           if (d.sourceType === 'claim') claimsTotal += amt; else lpTotal += amt;
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td style="white-space:nowrap;">${d.paidDate || '—'}</td>
+            <td style="white-space:nowrap;">${escapeHtml(d.paidDate || '—')}</td>
             <td style="text-transform:capitalize;">${d.sourceType === 'claim' ? 'Claim' : 'Local Purchase'}</td>
-            <td style="font-size:12px;color:var(--stone);">${d.sourceRef || '—'}</td>
+            <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.sourceRef || '—')}</td>
             <td>${escapeHtml(d.description || '—')}</td>
             <td>₹${amt}</td>
-            <td>${d.method || '—'}</td>
-            <td style="font-size:12px;color:var(--stone);">${d.referenceNumber || '—'}</td>`;
+            <td>${escapeHtml(d.method || '—')}</td>
+            <td style="font-size:12px;color:var(--stone);">${escapeHtml(d.referenceNumber || '—')}</td>`;
           tbody.appendChild(tr);
         });
       }
@@ -7504,7 +7504,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     saPaymentResults.innerHTML = matches.map(t =>
-      `<div class="sa-payment-result" data-id="${t.id}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${escapeHtml(t.refId)} — ${escapeHtml(t.who) || 'unnamed'} — ${escapeHtml(t.description) || 'no description'} — ₹${t.amount}</div>`
+      `<div class="sa-payment-result" data-id="${escapeHtml(t.id)}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${escapeHtml(t.refId)} — ${escapeHtml(t.who) || 'unnamed'} — ${escapeHtml(t.description) || 'no description'} — ₹${escapeHtml(t.amount)}</div>`
     ).join('');
     saPaymentResults.style.display = 'block';
     saPaymentResults.querySelectorAll('.sa-payment-result').forEach(row => {
@@ -7558,8 +7558,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     saPaymentSelectedList.innerHTML = saPaymentSelectedItems.map(t => `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px;border-bottom:1px solid var(--hairline);">
         <div style="flex:1;">${escapeHtml(t.refId)} — ${escapeHtml(t.who) || 'unnamed'} — ${escapeHtml(t.description) || 'no description'}</div>
-        <input type="number" min="0" step="0.01" value="${t.amount}" data-id="${t.id}" class="sa-payment-item-amount" style="width:90px;">
-        <button type="button" data-id="${t.id}" class="sa-payment-item-remove" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:12.5px;">Remove</button>
+        <input type="number" min="0" step="0.01" value="${escapeHtml(t.amount)}" data-id="${escapeHtml(t.id)}" class="sa-payment-item-amount" style="width:90px;">
+        <button type="button" data-id="${escapeHtml(t.id)}" class="sa-payment-item-remove" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:12.5px;">Remove</button>
       </div>`).join('');
     saPaymentSelectedList.querySelectorAll('.sa-payment-item-amount').forEach(inp => {
       inp.addEventListener('input', () => updateSaPaymentItemAmount(inp.dataset.id, inp.value));
@@ -7737,7 +7737,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       techs.forEach(t => (t.data().documents || []).forEach(d => add(t.data().name || t.data().fullName || t.data().technicianCode || t.id, 'Technician', d)));
       rows.sort((a, b) => a.days - b.days);
       body.innerHTML = rows.length ? `<table><thead><tr><th>Who</th><th>Type</th><th>Document</th><th>Expiry</th><th>Verified</th><th>File</th></tr></thead><tbody>
-        ${rows.map(r => `<tr><td>${escapeHtml(r.who)}</td><td>${r.kind}</td><td>${escapeHtml(r.d.docType || '—')}</td><td>${escapeHtml(r.d.expiryDate)}${expiryBadge(r.d.expiryDate)}</td>
+        ${rows.map(r => `<tr><td>${escapeHtml(r.who)}</td><td>${escapeHtml(r.kind)}</td><td>${escapeHtml(r.d.docType || '—')}</td><td>${escapeHtml(r.d.expiryDate)}${expiryBadge(r.d.expiryDate)}</td>
           <td>${r.d.verified ? 'Yes' + (r.d.verifiedBy ? ' — ' + escapeHtml(r.d.verifiedBy) : '') : 'No'}</td>
           <td>${r.d.fileUrl ? `<a href="${escapeHtml(r.d.fileUrl)}" target="_blank" rel="noopener">View</a>` : '—'}</td></tr>`).join('')}</tbody></table>
         <div style="font-size:12.5px;color:var(--stone);margin-top:8px;">Reminders go out automatically each morning (30 days, 7 days, and on expiry) to the center, the technician and Super Admin.</div>`
@@ -7804,7 +7804,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody1.innerHTML = '';
         rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.claimId || d.id}</td><td>${d.claimantType || '—'}</td><td>${d.claimantName || '—'}</td><td>₹${d.amount ?? '—'}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${escapeHtml(d.claimId || d.id)}</td><td>${escapeHtml(d.claimantType || '—')}</td><td>${escapeHtml(d.claimantName || '—')}</td><td>₹${escapeHtml(d.amount ?? '—')}</td><td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(d.status)}</span></td>`;
           tbody1.appendChild(tr);
         });
       }
@@ -7822,7 +7822,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody2.innerHTML = '';
         rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${escapeHtml(d.item || '—')}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td><td>${escapeHtml(d.item || '—')}</td><td>${d.actualAmount != null ? '₹' + d.actualAmount : '~₹' + (d.estimatedAmount ?? '—')}</td><td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(d.status)}</span></td>`;
           tbody2.appendChild(tr);
         });
       }
@@ -7840,7 +7840,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tbody3.innerHTML = '';
         rows.forEach(d => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${d.requestId || d.id}</td><td>${d.serviceCenter || '—'}</td><td>${escapeHtml(d.item || '—')}</td><td><span class="status-pill ${d.status}">${d.status}</span></td>`;
+          tr.innerHTML = `<td style="font-size:12px;color:var(--stone);">${escapeHtml(d.requestId || d.id)}</td><td>${escapeHtml(d.serviceCenter || '—')}</td><td>${escapeHtml(d.item || '—')}</td><td><span class="status-pill ${escapeHtml(d.status)}">${escapeHtml(d.status)}</span></td>`;
           tbody3.appendChild(tr);
         });
       }
@@ -8068,7 +8068,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             <h2>${bestName} <span style="color:var(--stone);font-weight:500;font-size:13px;">— ${phone}</span></h2>
           </div>
           <div class="panel-body" style="font-size:13px;color:var(--stone);">
-            ${registrations.length} registration(s) · ${jobs.length + centerReqs.length + publicSvc.length} service record(s) · ${enquiries.length} enquiry(ies)${dealerLinks.length ? ' · known to a dealer' : ''}
+            ${escapeHtml(registrations.length)} registration(s) · ${jobs.length + centerReqs.length + publicSvc.length} service record(s) · ${escapeHtml(enquiries.length)} enquiry(ies)${dealerLinks.length ? ' · known to a dealer' : ''}
           </div>
         </div>`;
 
@@ -8091,7 +8091,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         html += `<div class="panel" style="margin-top:16px;"><div class="panel-header"><h2>Website Enquiries</h2></div>
           <div class="panel-body" style="padding:0;"><table><thead><tr><th>Ticket ID</th><th>Subject</th><th>Message</th></tr></thead><tbody>`;
         enquiries.forEach(e => {
-          html += `<tr><td style="font-size:12px;color:var(--stone);">${e.ticketId || '—'}</td><td>${escapeHtml(e.subject || '—')}</td><td style="max-width:280px;">${escapeHtml(e.message || '—')}</td></tr>`;
+          html += `<tr><td style="font-size:12px;color:var(--stone);">${escapeHtml(e.ticketId || '—')}</td><td>${escapeHtml(e.subject || '—')}</td><td style="max-width:280px;">${escapeHtml(e.message || '—')}</td></tr>`;
         });
         html += `</tbody></table></div></div>`;
       }
@@ -8134,11 +8134,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const status = warrantyStatus(r.purchaseDate, r.warrantyMonths);
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><a href="#" class="c360-open-link" style="font-size:12px;">${r.registrationId || '—'}</a></td>
+        <td><a href="#" class="c360-open-link" style="font-size:12px;">${escapeHtml(r.registrationId || '—')}</a></td>
         <td>${escapeHtml(r.product || '—')}</td>
         <td>${escapeHtml(r.serialNumber || '—')}</td>
-        <td>${r.purchaseDate || '—'}</td>
-        <td><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></td>`;
+        <td>${escapeHtml(r.purchaseDate || '—')}</td>
+        <td><span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.c360-open-link').addEventListener('click', (e) => {
         e.preventDefault();
@@ -8150,7 +8150,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           componentsHtml = '<div style="margin-top:12px;"><b>Warranty by component</b><br>' +
             r.warrantyComponents.map(c => {
               const cStatus = warrantyStatus(r.purchaseDate, (c.durationYears || 0) * 12);
-              return `${escapeHtml(c.componentName)}: <span class="status-pill ${cStatus.cls}">${escapeHtml(cStatus.label)}</span>`;
+              return `${escapeHtml(c.componentName)}: <span class="status-pill ${escapeHtml(cStatus.cls)}">${escapeHtml(cStatus.label)}</span>`;
             }).join(' &nbsp; ') + '</div>';
         }
         const historyHtml = linkedHistory.length
@@ -8185,27 +8185,27 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     allServiceRecords.forEach(s => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${s.source}</td>
-        <td><a href="#" class="c360-open-link" style="font-size:12px;">${s.id || '—'}</a></td>
+        <td>${escapeHtml(s.source)}</td>
+        <td><a href="#" class="c360-open-link" style="font-size:12px;">${escapeHtml(s.id || '—')}</a></td>
         <td>${escapeHtml(s.detail) || '—'}</td>
-        <td><span class="status-pill ${SVC_STATUS_PILL_CLASS[s.status] || ''}">${SVC_STATUS_LABELS[s.status] || s.status}</span></td>`;
+        <td><span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[s.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[s.status] || s.status)}</span></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.c360-open-link').addEventListener('click', (e) => {
         e.preventDefault();
         const f = s.full;
         let closureHtml = '';
         if (f.closureCode) {
-          closureHtml = `<div style="margin-top:12px;"><b>Closure code:</b> ${f.closureCode}<br>
+          closureHtml = `<div style="margin-top:12px;"><b>Closure code:</b> ${escapeHtml(f.closureCode)}<br>
             <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
             <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
         }
         const routingHtml = f.sourceRequestId
-          ? `<div><b>Routing:</b> Originally submitted on the website as ${f.sourceRequestId}, routed here.</div>`
+          ? `<div><b>Routing:</b> Originally submitted on the website as ${escapeHtml(f.sourceRequestId)}, routed here.</div>`
           : `<div><b>Routing:</b> ${s.source === 'Website' ? 'Submitted directly on the website.' : s.source === 'Technician' ? 'Logged directly by the technician.' : 'Created directly by the service center.'}</div>`;
         c360DetailTitle.textContent = s.id || 'Service record';
         c360DetailBody.innerHTML = `
           <div><b>Customer:</b> ${escapeHtml(customerName)} — ${escapeHtml(customerPhone)}</div>
-          <div style="margin-top:8px;"><b>Source:</b> ${s.source} &nbsp; <b>Status:</b> <span class="status-pill ${SVC_STATUS_PILL_CLASS[s.status] || ''}">${SVC_STATUS_LABELS[s.status] || s.status}</span></div>
+          <div style="margin-top:8px;"><b>Source:</b> ${escapeHtml(s.source)} &nbsp; <b>Status:</b> <span class="status-pill ${escapeHtml(SVC_STATUS_PILL_CLASS[s.status] || '')}">${escapeHtml(SVC_STATUS_LABELS[s.status] || s.status)}</span></div>
           <div><b>Address:</b> ${escapeHtml(f.address) || '—'}</div>
           <div><b>Serial:</b> ${escapeHtml(f.serialNumber || f.serialNo) || '—'}</div>
           <div><b>Assigned to:</b> ${escapeHtml(f.technicianEmail || f.technicianName) || '—'}</div>
@@ -8245,8 +8245,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       claimsSnap.forEach(d => { if (d.data().status === 'settled') settledClaims += Number(d.data().amount) || 0; });
 
       document.getElementById('reports-body').innerHTML = `
-        <b style="color:var(--ink)">${dealersSnap.size}</b> dealers, <b style="color:var(--ink)">${centersSnap.size}</b> service centers, <b style="color:var(--ink)">${techsSnap.size}</b> technicians.<br>
-        <b style="color:var(--ink)">${salesSnap.size}</b> dealer sales logged, totaling <b style="color:var(--ink)">₹${revenue}</b>.<br>
+        <b style="color:var(--ink)">${escapeHtml(dealersSnap.size)}</b> dealers, <b style="color:var(--ink)">${escapeHtml(centersSnap.size)}</b> service centers, <b style="color:var(--ink)">${escapeHtml(techsSnap.size)}</b> technicians.<br>
+        <b style="color:var(--ink)">${escapeHtml(salesSnap.size)}</b> dealer sales logged, totaling <b style="color:var(--ink)">₹${revenue}</b>.<br>
         <b style="color:var(--ink)">${completedJobs}</b> service jobs/requests completed company-wide.<br>
         <b style="color:var(--ink)">₹${settledClaims}</b> in claims settled to date.`;
     } catch (err) {
@@ -8485,8 +8485,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td><b>${escapeHtml(r.name)}</b></td>
           <td>${matchLabel}</td>
-          <td>${r.dueSoonHours}h</td>
-          <td>${r.breachedHours}h</td>
+          <td>${escapeHtml(r.dueSoonHours)}h</td>
+          <td>${escapeHtml(r.breachedHours)}h</td>
           <td><button class="btn-secondary sla-rule-edit-btn">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.sla-rule-edit-btn').addEventListener('click', () => openSlaRuleModal(r));
@@ -8534,12 +8534,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const badge = r.hoursOpen > r.breachedHours ? 'cancelled' : r.hoursOpen > r.dueSoonHours ? 'low' : 'ok';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${r.source}</td>
-          <td style="font-size:12px;color:var(--stone);">${r.id || '—'}</td>
+          <td>${escapeHtml(r.source)}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(r.id || '—')}</td>
           <td>${escapeHtml(r.customer || '—')}</td>
           <td><span class="status-pill ${badge}">${Math.round(r.hoursOpen)}h</span></td>
-          <td>${SVC_STATUS_LABELS[r.status] || r.status}</td>
-          <td style="font-size:12px;color:var(--stone);">${r.ruleLabel}</td>`;
+          <td>${escapeHtml(SVC_STATUS_LABELS[r.status] || r.status)}</td>
+          <td style="font-size:12px;color:var(--stone);">${escapeHtml(r.ruleLabel)}</td>`;
         tbody.appendChild(tr);
       });
     } catch (err) {
@@ -8729,7 +8729,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       return;
     }
     rmaTicketResults.innerHTML = matches.map(t =>
-      `<div class="rma-ticket-result" data-key="${t.coll}|${t.docId}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
+      `<div class="rma-ticket-result" data-key="${escapeHtml(t.coll)}|${escapeHtml(t.docId)}" style="padding:8px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--hairline);">${rmaTicketLine(t)}</div>`
     ).join('');
     rmaTicketResults.style.display = 'block';
     rmaTicketResults.querySelectorAll('.rma-ticket-result').forEach(row => {
@@ -8880,9 +8880,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${escapeHtml(d.name || '—')}</td>
-          <td>${d.channel || '—'}</td>
-          <td style="max-width:320px;color:var(--stone);">${d.body || '—'}</td>
-          <td><button class="btn-secondary template-edit-btn" data-id="${d.id}">Edit</button></td>`;
+          <td>${escapeHtml(d.channel || '—')}</td>
+          <td style="max-width:320px;color:var(--stone);">${escapeHtml(d.body || '—')}</td>
+          <td><button class="btn-secondary template-edit-btn" data-id="${escapeHtml(d.id)}">Edit</button></td>`;
         tbody.appendChild(tr);
         tr.querySelector('.template-edit-btn').addEventListener('click', () => openTemplateModal(d));
       });
@@ -8993,7 +8993,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function paintMasterDataTabs() {
     contentEl.innerHTML = `
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${t.key}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
+        ${MASTER_DATA_TABS.map(t => `<button type="button" class="btn-secondary md-tab-btn" data-tab="${escapeHtml(t.key)}" style="${t.key === masterDataActiveTab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${escapeHtml(t.label)}</button>`).join('')}
       </div>
       <div id="md-tab-body"></div>`;
     document.querySelectorAll('.md-tab-btn').forEach(btn => {
@@ -9026,7 +9026,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Download sample file</h2></div>
         <div class="panel-body">
-          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">${cfg.hint}</p>
+          <p style="font-size:13.5px;color:var(--stone);margin-bottom:14px;">${escapeHtml(cfg.hint)}</p>
           <button class="btn-secondary" id="md-download-sample">Download sample CSV</button>
         </div>
       </div>
@@ -9450,7 +9450,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     if (ok.length) {
       const csvLines = ['name,email,role,temporary_password', ...ok.map(r => `${r.name},${r.email},${r.role},${r.tempPassword}`)];
       html += `<div style="margin-bottom:10px;">
-        <b>${ok.length} account(s) created.</b>
+        <b>${escapeHtml(ok.length)} account(s) created.</b>
         <button type="button" class="btn-secondary" id="md-download-creds" style="margin-left:10px;">Download credentials CSV</button>
         <div style="font-size:11.5px;color:var(--err);margin-top:6px;">These temporary passwords are shown here once — download them now and share securely. Ask each person to change their password after first login.</div>
       </div>`;
@@ -9466,7 +9466,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       });
     }
     if (failed.length) {
-      el.innerHTML += `<div style="color:var(--err);font-size:12.5px;"><b>${failed.length} failed:</b><br>` +
+      el.innerHTML += `<div style="color:var(--err);font-size:12.5px;"><b>${escapeHtml(failed.length)} failed:</b><br>` +
         failed.map(r => `${escapeHtml(r.email)} — ${escapeHtml(r.error || 'unknown error')}`).join('<br>') + `</div>`;
     }
   }
@@ -9612,8 +9612,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
-          <td style="text-transform:capitalize;">${d.entityType || '—'}</td>
-          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${AUDIT_ACTION_LABELS[d.action] || d.action}</span></td>
+          <td style="text-transform:capitalize;">${escapeHtml(d.entityType || '—')}</td>
+          <td><span class="status-pill ${d.action === 'role_changed' ? 'low' : 'ok'}">${escapeHtml(AUDIT_ACTION_LABELS[d.action] || d.action)}</span></td>
           <td style="font-size:12px;">${escapeHtml(d.performedBy || '—')}</td>
           <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);

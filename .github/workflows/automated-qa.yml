@@ -193,6 +193,16 @@ jobs:
         continue-on-error: true
         run: npx playwright test tests/e2e/external-links.spec.js
 
+      - name: Run browser security QA (stored-XSS sweep of every CRM screen)
+        id: security_qa
+        continue-on-error: true
+        run: npx playwright test tests/e2e/security.spec.js
+
+      - name: Check Cloud Functions dependencies for known vulnerabilities
+        id: audit_qa
+        continue-on-error: true
+        run: npm --prefix functions audit --omit=dev --audit-level=high
+
       - name: Publish QA phase summary
         if: always()
         run: |
@@ -207,6 +217,8 @@ jobs:
             echo "| Mobile | **${{ steps.mobile_qa.outcome }}** |"
             echo "| Responsive | **${{ steps.responsive_qa.outcome }}** |"
             echo "| Outside links (local links: Frontend unit) | **${{ steps.links_qa.outcome }}** |"
+            echo "| Security: XSS sweep | **${{ steps.security_qa.outcome }}** |"
+            echo "| Security: dependency audit | **${{ steps.audit_qa.outcome }}** |"
             echo "| Public site | **${{ steps.public_qa.outcome }}** |"
             echo "| CRM Phase 2 | **${{ steps.crm_qa.outcome }}** |"
             echo "| CRM Phase 3 | **${{ steps.phase3_qa.outcome }}** |"
@@ -227,13 +239,13 @@ jobs:
           retention-days: 14
 
       - name: Create or update QA bug
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ISSUE_TITLE="Automated QA: Site/CRM Test Failures"
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site/CRM Test Failures in:title" --json number --jq '.[0].number')
-          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
+          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
@@ -259,5 +271,5 @@ jobs:
           fi
 
       - name: Fail workflow when QA fails
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
         run: exit 1

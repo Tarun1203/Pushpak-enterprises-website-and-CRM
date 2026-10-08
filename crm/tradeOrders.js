@@ -99,7 +99,7 @@ function dispatchHtml(order) {
   if (!d) return '';
   const serials = order.dispatchedSerials ? Object.values(order.dispatchedSerials).flat() : [];
   return `<div style="font-size:12.5px;margin-top:6px;"><b>Dispatch:</b> ${esc(d.transporter || '—')}${d.docket ? ' · Docket ' + esc(d.docket) : ''}${d.vehicle ? ' · ' + esc(d.vehicle) : ''}${d.date ? ' · ' + esc(d.date) : ''}</div>`
-    + (serials.length ? `<details style="font-size:12px;margin-top:4px;"><summary>${serials.length} serial number${serials.length > 1 ? 's' : ''}</summary>${serials.map(esc).join(', ')}</details>` : '');
+    + (serials.length ? `<details style="font-size:12px;margin-top:4px;"><summary>${esc(serials.length)} serial number${serials.length > 1 ? 's' : ''}</summary>${serials.map(esc).join(', ')}</details>` : '');
 }
 
 // Stock reserved for an approved order (functions: reserveForOrder).
@@ -280,7 +280,7 @@ export async function renderOrderQueue(el, opts) {
   el.innerHTML = `<div class="panel"><div class="panel-header"><h2>${mode === 'company' ? 'Dealer & distributor orders' : 'Orders from your dealers'}</h2></div>
     <div class="panel-body"><div id="to-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div><div id="to-q-body">Loading…</div></div></div>`;
   const tabsEl = el.querySelector('#to-tabs');
-  tabsEl.innerHTML = QUEUE_TABS.map((t) => `<button type="button" class="btn-secondary" data-tab="${t.key}" style="${t.key === tab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${t.label}</button>`).join('');
+  tabsEl.innerHTML = QUEUE_TABS.map((t) => `<button type="button" class="btn-secondary" data-tab="${esc(t.key)}" style="${t.key === tab ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}">${esc(t.label)}</button>`).join('');
   tabsEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => renderOrderQueue(el, { ...opts, tab: b.dataset.tab })));
   const body = el.querySelector('#to-q-body');
   try {
@@ -394,9 +394,9 @@ export async function renderOrderQueue(el, opts) {
         <div class="form-row"><label>Transporter / courier</label><input type="text" class="tdf-transporter" maxlength="100"></div>
         <div class="form-row"><label>Docket / LR no.</label><input type="text" class="tdf-docket" maxlength="60"></div>
         <div class="form-row"><label>Vehicle no.</label><input type="text" class="tdf-vehicle" maxlength="30"></div>
-        ${lines.map((l) => `<div class="form-row"><label>Serials — ${esc(l.label || l.modelId)} (${l.qty})</label>
-          <textarea class="tdf-serials" data-model="${esc(l.modelId)}" data-qty="${l.qty}" rows="${Math.min(6, Math.max(2, l.qty))}" placeholder="Scan or type one serial per line"></textarea>
-          <div class="tdf-count" style="font-size:12px;color:var(--stone);">0 of ${l.qty}</div></div>`).join('')}
+        ${lines.map((l) => `<div class="form-row"><label>Serials — ${esc(l.label || l.modelId)} (${esc(l.qty)})</label>
+          <textarea class="tdf-serials" data-model="${esc(l.modelId)}" data-qty="${esc(l.qty)}" rows="${Math.min(6, Math.max(2, l.qty))}" placeholder="Scan or type one serial per line"></textarea>
+          <div class="tdf-count" style="font-size:12px;color:var(--stone);">0 of ${esc(l.qty)}</div></div>`).join('')}
         <div class="modal-error tdf-err"></div>
         <button type="button" class="btn-primary tdf-go">Dispatch</button> <button type="button" class="btn-secondary tdf-cancel">Close</button></div>`;
       const parse = (t) => (window.TradeStockParse ? window.TradeStockParse(t) : String(t || '').split(/[\s,;]+/).map((x) => x.trim().toUpperCase()).filter(Boolean));
@@ -478,7 +478,7 @@ export async function renderPriceEditor(el, opts) {
     if (!catalog.length) { body.innerHTML = `<div class="empty-row">No product models in the catalogue yet.</div>`; return; }
     body.innerHTML = `<table style="width:100%;font-size:13px;"><thead><tr><th>Product — Model</th><th>GST</th><th>Status</th><th style="width:160px;">Price excl. GST (₹)</th></tr></thead><tbody>
       ${catalog.map((c) => `<tr><td>${esc(c.label)}</td><td>${c.gstRate !== null ? esc(c.gstRate) + '%' : '<span style="color:var(--err);">not set</span>'}</td><td>${esc(c.status)}</td>
-        <td><input type="number" min="0" step="0.01" class="to-pl-price" data-model="${esc(c.modelId)}" value="${current[c.modelId] ?? ''}" style="width:140px;"></td></tr>`).join('')}
+        <td><input type="number" min="0" step="0.01" class="to-pl-price" data-model="${esc(c.modelId)}" value="${esc(current[c.modelId] ?? '')}" style="width:140px;"></td></tr>`).join('')}
       </tbody></table>
       <div class="modal-error" id="to-pl-error"></div><div id="to-pl-ok" style="color:#1E7B34;font-weight:600;margin:6px 0;"></div>
       <button type="button" class="btn-primary" id="to-pl-save" style="margin-top:10px;">Save prices</button>`;

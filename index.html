@@ -833,7 +833,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         return;
       }
       registerCategory.innerHTML = '<option value="">Select…</option>' +
-        cats.map(c => `<option value="${c.id}" data-name="${c.name}">${c.name}</option>`).join('');
+        cats.map(c => `<option value="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
     } catch (err) {
       console.warn('Could not load categories:', err.message);
       registerCategory.innerHTML = '<option value="">Couldn\'t load categories</option>';
@@ -1449,13 +1449,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
               bodyHtml += `
                 <div class="row" style="margin-bottom:8px;">
                   <span>${escapeHtml(c.componentName)}${c.coverage ? ' <span style="font-weight:400;color:var(--stone);">— ' + escapeHtml(c.coverage) + '</span>' : ''}</span>
-                  <span class="status-pill ${status.cls}">${status.label}</span>
+                  <span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span>
                 </div>`;
             });
             bodyHtml += `</div>`;
           } else {
             const status = computeWarrantyStatus(d.purchaseDate, d.warrantyMonths);
-            bodyHtml += `<div style="margin-top:8px;"><span class="status-pill ${status.cls}">${status.label}</span></div>`;
+            bodyHtml += `<div style="margin-top:8px;"><span class="status-pill ${escapeHtml(status.cls)}">${escapeHtml(status.label)}</span></div>`;
           }
           card.innerHTML = bodyHtml;
           warrantyResult.appendChild(card);
