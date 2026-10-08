@@ -121,6 +121,6 @@ test.describe('Phase 7 — Customer 360, product registration and warranty lifec
     // Customer feedback is server-controlled on the service job rather than
     // exposed as a customer-writable top-level collection. Technicians are
     // explicitly prevented from modifying this field directly.
-    expect(rules).toContain("['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']");
+    expect(rules).toContain("['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck']");
   });
 });
