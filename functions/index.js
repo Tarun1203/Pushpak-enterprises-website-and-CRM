@@ -2082,13 +2082,16 @@ exports.bookService = onCall({ region: REGION, maxInstances: 10 }, async (reques
 // browser. The portal's "My Services" timeline reads it.
 // ---------------------------------------------------------------
 
-async function writeTrack(src, fallbackId) {
+async function writeTrack(src, fallbackId, onlyIfNew) {
   const probe = Object.assign({}, src, src.requestId || src.jobId ? {} : { requestId: fallbackId });
   const ref = db.collection('customerTracking').doc(Customer.ticketIdOf(probe) || '_none_');
   if (!Customer.ticketIdOf(probe)) return;
   await db.runTransaction(async (tx) => {
     const prevSnap = await tx.get(ref);
     const prev = prevSnap.exists ? prevSnap.data() : null;
+    // A late retry of the website request's own trigger must not drag a
+    // finished service back to its first state: the ticket owns the record.
+    if (onlyIfNew && prev) return;
     const built = Customer.buildTrack(prev, probe, Timestamp.now());
     if (!built) return;
     const data = built.data;
@@ -2101,7 +2104,7 @@ async function writeTrack(src, fallbackId) {
 
 exports.trackOnPublicRequest = onDocumentCreated(
   { document: 'publicServiceRequests/{docId}', region: REGION },
-  async (event) => { if (event.data) await writeTrack(event.data.data(), event.params.docId); }
+  async (event) => { if (event.data) await writeTrack(event.data.data(), event.params.docId, true); }
 );
 
 for (const coll of ['centerRequests', 'serviceJobs']) {
@@ -2186,3 +2189,105 @@ exports.supportTicket = onCall({ region: REGION, maxInstances: 10 }, async (requ
     return { ok: true, status: res.update.status };
   });
 });
+
+// ---------------------------------------------------------------
+// Phase 9 — the customer's service timeline, ID integrity, escalation.
+// ---------------------------------------------------------------
+const Escalation = require('./escalation');
+
+// A spare part moving for a customer's job shows on the customer's timeline.
+const SPARE_EVENT_LABELS = {
+  new: 'Spare part requested', approved: 'Spare part approved', backorder: 'Spare part on back order',
+  dispatched: 'Spare part dispatched', intransit: 'Spare part on its way', received: 'Spare part received',
+  fulfilled_by_center: 'Spare part issued from the center\'s stock'
+};
+async function addTimelineEvent(ticketId, type, text, key) {
+  const ref = db.collection('customerTracking').doc(ticketId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const events = Array.isArray(snap.get('events')) ? snap.get('events').slice(-59) : [];
+    if (events.some((e) => e.key === key)) return; // a retried trigger adds nothing
+    events.push({ type, label: text, key, at: Timestamp.now() });
+    tx.update(ref, { events });
+  });
+}
+exports.trackSpareEvent = onDocumentWritten(
+  { document: 'spareRequests/{docId}', region: REGION },
+  async (event) => {
+    const after = event.data && event.data.after;
+    if (!after || !after.exists) return;
+    const d = after.data();
+    const before = event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    if (before && before.status === d.status) return;
+    const text = SPARE_EVENT_LABELS[d.status];
+    if (!text || !d.sourceJobId || !['centerRequests', 'serviceJobs'].includes(d.sourceJobCollection)) return;
+    const job = await db.collection(d.sourceJobCollection).doc(d.sourceJobId).get();
+    if (!job.exists) return;
+    const ticketId = job.get('requestId') || job.get('jobId');
+    if (ticketId) await addTimelineEvent(ticketId, 'spare', text, `spare:${event.params.docId}:${d.status}`);
+  }
+);
+
+// Every business ID (request, job, spare request, return, claim, registration)
+// must be unique. The browsers draw them from a shared counter; this is the
+// server's check that nobody got the same one twice (a stale counter, a
+// hand-typed ID, a replayed write). A duplicate is flagged and Head Office
+// told — IDs are never rewritten, because customers and claims already point at them.
+const ID_FIELDS = {
+  centerRequests: 'requestId', serviceJobs: 'jobId', spareRequests: 'requestId', returns: 'returnId',
+  claims: 'claimId', productRegistrations: 'registrationId', publicServiceRequests: 'requestId', dealerOrders: 'orderId'
+};
+const ID_SHAPE = /^PE-[A-Z]{2,3}-\d{8}-\d{4}-[A-Za-z]+$/;
+for (const [coll, field] of Object.entries(ID_FIELDS)) {
+  exports[`checkIdIntegrity_${coll}`] = onDocumentCreated(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      if (!event.data) return;
+      const d = event.data.data();
+      const id = d[field];
+      if (!id) return;
+      const same = await db.collection(coll).where(field, '==', id).limit(5).get();
+      const others = same.docs.filter((x) => x.id !== event.params.docId).map((x) => x.id);
+      const badShape = !ID_SHAPE.test(String(id));
+      if (!others.length && !badShape) return;
+      const problem = others.length ? 'duplicate' : 'unexpected_format';
+      await event.data.ref.update({ idCheck: { status: problem, field, of: others.slice(0, 5), at: FieldValue.serverTimestamp() } });
+      await db.collection('notifications').add({
+        recipientType: 'role', recipientValue: 'superadmin', title: 'ID problem',
+        message: `${coll}: ${id} is ${others.length ? 'also used by ' + others.length + ' other record(s)' : 'not in the standard format'}.`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    }
+  );
+}
+
+// Things that are stuck: tell the people who can act, once each.
+async function runEscalationSweep(nowMs) {
+  const today = new Date(nowMs + 330 * 60000).toISOString().slice(0, 10);
+  let sent = 0;
+  const raise = async (ref, d, found) => {
+    if (!found) return;
+    const batch = db.batch();
+    found.targets.forEach((t) => batch.set(db.collection('notifications').doc(), { ...t, title: found.title, message: found.message, read: false, createdAt: FieldValue.serverTimestamp() }));
+    batch.update(ref, found.update || { escalation: { ...(d.escalation || {}), [found.code]: Timestamp.now() } });
+    await batch.commit();
+    sent += 1;
+  };
+  const pubs = await db.collection('publicServiceRequests').where('status', '==', 'new').get();
+  for (const s of pubs.docs) await raise(s.ref, s.data(), Escalation.unrouted(s.data(), nowMs));
+  for (const coll of ['centerRequests', 'serviceJobs']) {
+    for (const st of ['new', 'assigned', 'accepted', 'on_the_way', 'waiting_spare']) {
+      const snap = await db.collection(coll).where('status', '==', st).get();
+      for (const s of snap.docs) {
+        const d = s.data();
+        await raise(s.ref, d, Escalation.unassigned(d, nowMs) || Escalation.missedAppointment(d, today) || Escalation.stuckOnSpare(d, nowMs));
+      }
+    }
+  }
+  return sent;
+}
+exports.escalationSweep = onSchedule(
+  { schedule: '30 * * * *', timeZone: 'Asia/Kolkata', region: REGION },
+  async (event) => { await runEscalationSweep(event && event.scheduleTime ? Date.parse(event.scheduleTime) : Date.now()); }
+);

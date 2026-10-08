@@ -268,11 +268,11 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck']));
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
             && !request.resource.data.keys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck']));
       allow delete: if isAdmin();
 
       // Append-only status/progress log — every status change any
@@ -305,7 +305,7 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback',
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback',
             // Billing is decided by the server (billOnClose_* / applyBillingRequest) and
             // claim locking by checkClaim — a browser only files a billingRequest.
             'warrantyStatus', 'serviceCharge', 'sparePartsCost', 'otherCharges', 'billingTotal', 'billingType', 'billingStatus',
@@ -329,7 +329,7 @@ service cloud.firestore {
                ])));
       allow create: if (isAdmin()
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'billingComputedAt', 'customerFeedback']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —

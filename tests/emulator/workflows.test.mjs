@@ -339,3 +339,31 @@ test('phase 9: spare requests — duplicate on one job is flagged by the server,
   const second = await waitFor('duplicate flagged', async () => { const d = await adminGet(env, 'spareRequests/srP9b2'); return d.possibleDuplicateOf && d; });
   assert.deepStrictEqual(second.possibleDuplicateOf, ['PE-SR-P9B-1']);
 });
+
+// Phase 9 items 11-18: the customer's timeline is built by the server as the
+// ticket moves, and a business ID used twice is flagged.
+test('phase 9: timeline events follow the ticket; a repeated business id is flagged', async () => {
+  await adminSet(env, 'users/scP9c', { role: 'servicecenter', name: 'P9c SC', pincodesCovered: ['584233'], brandsAuthorized: ['makwell'] });
+  await adminSet(env, 'serviceCenterProfiles/scP9c', { status: 'ACTIVE' });
+  const cust = await phoneSignIn('9000000221');
+  await call('ensureCustomerProfile', { name: 'Timeline' }, cust.idToken);
+  const bk = await call('bookService', { requestType: 'service', issueDescription: 'No hot water', brand: 'MakWell', category: 'Geyser', name: 'Timeline', address: '1 Lake Rd', city: 'Raichur', state: 'Karnataka', pincode: '584233' }, cust.idToken);
+  await waitFor('routed', () => adminGet(env, `centerRequests/route_${bk.requestId}`));
+  const track = await waitFor('timeline has routing', async () => { const d = await adminGet(env, `customerTracking/${bk.requestId}`); return d && Array.isArray(d.events) && d.events.some((e) => e.type === 'routing') && d; });
+  assert.ok(track.events.some((e) => e.label === 'Request received'));
+  assert.ok(track.events.every((e) => e.at && e.type && e.label));
+  assert.ok(!JSON.stringify(track.events).includes('scP9c'), 'no staff ids in the customer\'s timeline');
+  // The same business id on two records is flagged (the original is left alone).
+  const id = `PE-SR-${ymd()}-9101-Technician`;
+  await adminSet(env, 'users/tP9c', { role: 'technician', name: 'P9c Tech' });
+  const sr = (n) => ({ requestId: id, partId: 'x', item: 'Part', quantity: 1, status: 'new', requestedByUid: 'tP9c', createdAt: '__ST__' });
+  await assertSucceeds(write('tP9c', 'create', 'spareRequests/idDup1', sr(1)));
+  await waitFor('first id checked', async () => { const d = await adminGet(env, 'spareRequests/idDup1'); return d.possibleDuplicateOf && d; });
+  await assertSucceeds(write('tP9c', 'create', 'spareRequests/idDup2', sr(2)));
+  const dup = await waitFor('duplicate id flagged', async () => { const d = await adminGet(env, 'spareRequests/idDup2'); return d.idCheck && d; });
+  assert.strictEqual(dup.idCheck.status, 'duplicate');
+  assert.deepStrictEqual(dup.idCheck.of, ['idDup1']);
+  assert.ok(!(await adminGet(env, 'spareRequests/idDup1')).idCheck);
+  // A browser cannot set or clear the flag.
+  await assertFails(write('tP9c', 'create', 'spareRequests/idDup3', { ...sr(3), requestId: id + 'x', idCheck: { status: 'ok' } }));
+});

@@ -28,6 +28,12 @@ function customerData(name) {
       warrantyStatus: 'out_of_warranty', billingType: 'customer', billingStatus: 'collected', billingTotal: 1850 },
     { id: 'crX', requestId: 'PE-CR-X', customerName: 'Someone Else', customerPhone: '9100000099', status: 'new' }
   ];
+  const at = (daysAgo) => ({ __ms: Date.now() - daysAgo * DAY });
+  data.customerTracking = [
+    { id: 'PE-CR-2', ticketId: 'PE-CR-2', customerPhone: PHONE, events: [{ type: 'status', label: 'Service closed', at: at(3) }, { type: 'request', label: 'Request received', at: at(9) }] },
+    { id: 'PE-SVC-1', ticketId: 'PE-SVC-1', customerPhone: PHONE, events: [{ type: 'feedback', label: 'Feedback received', at: at(1) }, { type: 'assignment', label: 'Technician assigned: Tech Ravi', at: at(6) }, { type: 'spare', label: 'Spare part dispatched', at: at(5) }] },
+    { id: 'PE-OTHER', ticketId: 'PE-OTHER', customerPhone: '9100000099', events: [{ type: 'request', label: 'Someone else request', at: at(2) }] }
+  ];
   data.contactEnquiries = [{ id: 'e1', ticketId: 'PE-ENQ-1', phone: PHONE, subject: 'Price of G25', message: 'What is the price?' }];
   return data;
 }
@@ -76,6 +82,12 @@ test('Customer 360 shows the whole customer, consistent across sections, and nob
   // Feedback.
   await expect(profile.locator('#c360-feedback')).toContainText('4/5');
   await expect(profile.locator('#c360-feedback')).toContainText('Quick and polite');
+  // One timeline for all of this customer's requests, oldest first, nobody else's.
+  const tl = profile.locator('#c360-timeline tbody tr');
+  await expect(tl).toHaveCount(5);
+  const labels = await tl.locator('td:nth-child(3)').allTextContents();
+  expect(labels).toEqual(['Request received', 'Technician assigned: Tech Ravi', 'Spare part dispatched', 'Service closed', 'Feedback received']);
+  await expect(profile).not.toContainText('Someone else request');
   // Enquiries.
   await expect(profile).toContainText('Price of G25');
   // A registration opens with the service history of that very serial.
@@ -102,6 +114,7 @@ test('Customer 360 shows hostile names, notes and comments as text', async ({ pa
   data.centerRequests[0].technicianName = 'Tech' + XSS;
   data.centerRequests[0].customerFeedback.comment = 'Great' + XSS;
   data.centerRequests[0].claimId = 'CL-1' + XSS;
+  data.customerTracking[0].events[0].label += XSS; data.customerTracking[0].ticketId += XSS;
   data.contactEnquiries[0].subject = 'Hi' + XSS;
   await openPage(page, origin, 'crm/CRMsuperadmin.html', 'superadmin', data);
   await search(page, PHONE);

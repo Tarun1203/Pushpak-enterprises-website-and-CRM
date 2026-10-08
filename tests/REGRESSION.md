@@ -70,6 +70,11 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Customer tracking kept only the latest appointment, not moves and cancellations | `phase9b.test.js` P9.7 (appointmentHistory) |
 | Parts could be added to a finished or cancelled job | `phase9b.test.js` P9.9 |
 | Duplicate open spare requests for one part on one job went unflagged | `phase9b.test.js` P9.9, emulator `workflows.test.mjs` › phase 9 spare requests |
+| A late retry of the website request's trigger dragged a finished service's tracking back to its first state | `phase9c.test.js` P9.18 (replaying triggers of a finished run changes nothing) |
+| Customer 360 had no single chronological timeline (routing, assignment, appointment, spare, billing, closure, feedback) | `phase9c.test.js` P9.13, `customer360.spec.js`, emulator phase 9 timeline test |
+| Appointment missed, no technician for a day, unrouted request, job stuck waiting for a spare: nobody was told | `phase9c.test.js` P9.16 (`escalationSweep`) |
+| A business ID used twice (request, job, spare request, return, claim, registration, order) went unnoticed | `phase9c.test.js` P9.15, emulator phase 9 timeline test |
+| A technician could write the server's own markers (`lifecycleRejected`, `scheduleRejected`, `assignmentRejected`, `escalation`, `idCheck`) on a service job | `firestore.rules`, `rules_qa` |
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,

@@ -143,8 +143,28 @@ function buildTrack(prev, src, at) {
   if (apptKey(appointment) !== apptKey(lastAppt)) {
     appointmentHistory.push(appointment ? { ...appointment, technicianName: src.technicianName ? String(src.technicianName).slice(0, 100) : '', at } : { cancelled: true, at });
   }
+  // One chronological list of what happened: request, routing, assignment,
+  // appointment, progress, warranty/billing, feedback. An entry is added only
+  // when its fact changes (keyed), so a repeated save adds nothing. Spare part
+  // steps are added by the spare-request trigger.
+  const events = Array.isArray(prev && prev.events) ? prev.events.slice(-59) : [];
+  const note = (type, label, key) => { if (!events.some((e) => e.key === key)) events.push({ type, label, key, at }); };
+  note('request', 'Request received', 'request');
+  if (src.serviceCenterName) note('routing', 'Assigned to ' + String(src.serviceCenterName).slice(0, 100), 'routing:' + src.serviceCenterName);
+  if (src.technicianName) note('assignment', 'Technician assigned: ' + String(src.technicianName).slice(0, 100), 'tech:' + src.technicianName);
+  if (appointmentHistory.length && appointmentHistory.length !== (prev && Array.isArray(prev.appointmentHistory) ? prev.appointmentHistory.length : 0)) {
+    const a = appointmentHistory[appointmentHistory.length - 1];
+    note('appointment', a.cancelled ? 'Appointment cancelled' : 'Appointment ' + (appointmentHistory.length > 1 ? 'changed to ' : 'booked for ') + a.date + (a.start ? ' ' + a.start : ''), 'appt:' + appointmentHistory.length);
+  }
+  if (src.appointmentMissed && src.appointmentMissed.date) note('appointment', 'Appointment on ' + String(src.appointmentMissed.date).slice(0, 10) + ' was missed', 'missed:' + src.appointmentMissed.date);
+  const STEP = { accepted: 'Technician accepted the job', on_the_way: 'Technician is on the way', at_customer: 'Technician reached you', in_progress: 'Diagnosis and repair started', waiting_spare: 'Waiting for a spare part', completed: 'Repair completed', verification: 'Repair being verified', closed: 'Service closed', cancelled: 'Request cancelled', reopened: 'Service reopened' };
+  if (history[history.length - 1] && history.length !== (prev && Array.isArray(prev.history) ? prev.history.length : 0) && STEP[status]) note('status', STEP[status], 'status:' + history.length + ':' + status);
+  if (src.warrantyStatus === 'in_warranty' || src.warrantyStatus === 'out_of_warranty') note('billing', src.warrantyStatus === 'in_warranty' ? 'Covered by warranty' : 'Not covered by warranty', 'warranty:' + src.warrantyStatus);
+  if (src.billingStatus === 'collected') note('billing', 'Payment recorded', 'billing:collected');
+  if (src.customerFeedback && src.customerFeedback.rating) note('feedback', 'Feedback received', 'feedback');
   const data = {
     ticketId: id,
+    events,
     customerPhone: String(phone),
     requestType: (src.type === 'installation' || src.requestType === 'installation') ? 'installation' : 'service',
     category: String(src.category || '').slice(0, 60),

@@ -8011,13 +8011,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     profileEl.innerHTML = '<div class="panel"><div class="panel-body" style="text-align:center;color:var(--stone);">Searching…</div></div>';
 
     try {
-      const [regsSnap, jobsSnap, centerReqSnap, publicSvcSnap, enqSnap, dealerCustSnap] = await Promise.all([
+      const [regsSnap, jobsSnap, centerReqSnap, publicSvcSnap, enqSnap, dealerCustSnap, trackSnap] = await Promise.all([
         getDocs(query(collection(db, 'productRegistrations'), where('customerPhone', '==', phone))),
         getDocs(query(collection(db, 'serviceJobs'), where('customerPhone', '==', phone))),
         getDocs(query(collection(db, 'centerRequests'), where('customerPhone', '==', phone))),
         getDocs(query(collection(db, 'publicServiceRequests'), where('customerPhone', '==', phone))),
         getDocs(query(collection(db, 'contactEnquiries'), where('phone', '==', phone))),
         getDocs(query(collection(db, 'dealerCustomers'), where('phone', '==', phone))),
+        getDocs(query(collection(db, 'customerTracking'), where('customerPhone', '==', phone))).catch(() => null),
       ]);
 
       const registrations = []; regsSnap.forEach(d => registrations.push(d.data()));
@@ -8086,6 +8087,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
             const amt = f.billingType === 'customer' ? money(f.billingTotal) : f.billingType === 'claim' ? 'No charge to customer' : '—';
             const claim = f.claimId ? escapeHtml(f.claimId) + ' (' + escapeHtml(f.billingStatus || 'claimed') + ')' : escapeHtml(f.billingStatus || '—');
             return `<tr><td style="font-size:12px;">${escapeHtml(s.id || '—')}</td><td>${escapeHtml(w)}</td><td>${escapeHtml(as)}</td><td>${escapeHtml(amt)}</td><td>${claim}</td></tr>`; }).join('') +
+          `</tbody></table></div></div>`;
+      }
+      // One chronological timeline across all of this customer's requests,
+      // from the server-kept tracking records (request, routing, assignment,
+      // appointment, progress, spare parts, warranty/billing, feedback).
+      const tlMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
+      const timeline = [];
+      if (trackSnap) trackSnap.forEach(d => {
+        const t = d.data();
+        const evs = Array.isArray(t.events) && t.events.length ? t.events
+          : (Array.isArray(t.history) ? t.history.map(h => ({ type: 'status', label: 'Status: ' + (SVC_STATUS_LABELS[h.status] || h.status), at: h.at })) : []);
+        evs.forEach(e => timeline.push({ id: t.ticketId || d.id, type: e.type || 'status', label: e.label || '', ms: tlMs(e.at) }));
+      });
+      timeline.sort((a, b) => a.ms - b.ms);
+      if (timeline.length) {
+        html += `<div class="panel" id="c360-timeline" style="margin-top:16px;"><div class="panel-header"><h2>Service Timeline</h2></div>
+          <div class="panel-body" style="padding:0;"><table><thead><tr><th>When</th><th>Service ID</th><th>Event</th></tr></thead><tbody>` +
+          timeline.map(e => `<tr><td style="font-size:12px;white-space:nowrap;">${escapeHtml(e.ms ? new Date(e.ms).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—')}</td><td style="font-size:12px;">${escapeHtml(e.id)}</td><td>${escapeHtml(e.label)}</td></tr>`).join('') +
           `</tbody></table></div></div>`;
       }
       const rated = allServiceRecords.filter(s => s.full.customerFeedback && s.full.customerFeedback.rating);

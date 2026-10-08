@@ -37,6 +37,8 @@ runCases('Rules: counters', [
 runCases('Rules: service tickets', [
   ['t1', 'update', 'serviceJobs/j1', { status: 'accepted' }, A],
   ['t1', 'update', 'serviceJobs/j1', { warrantyStatus: 'in_warranty' }, D, 'warranty verdict is server-decided'],
+  ['t1', 'update', 'serviceJobs/j1', { lifecycleRejected: { reason: 'x' } }, D, 'server markers are the server\'s'], ['t1', 'update', 'serviceJobs/j1', { escalation: { missed: 1 } }, D], ['t1', 'update', 'serviceJobs/j1', { idCheck: { status: 'ok' } }, D],
+  ['t1', 'update', 'centerRequests/cr1', { appointmentMissed: { date: '2026-01-01' } }, D], ['t1', 'update', 'centerRequests/cr1', { idCheck: null }, D],
   ['t1', 'update', 'serviceJobs/j1', { billingTotal: 0 }, D], ['t1', 'update', 'serviceJobs/j1', { customerFeedback: { rating: 5 } }, D],
   ['t1', 'create', 'serviceJobs/jn', { jobId: 'PE-JOB-N', technicianUid: 't1', status: 'new' }, A],
   ['t1', 'create', 'serviceJobs/jn', { jobId: 'PE-JOB-N', technicianUid: 't1', status: 'new', serviceCharge: 999 }, D],

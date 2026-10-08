@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 147
+      "minTests": 155
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",
@@ -11,11 +11,11 @@
     },
     "rules_qa": {
       "label": "Firestore/Storage rules & roles (emulator)",
-      "minTests": 409
+      "minTests": 414
     },
     "workflow_qa": {
       "label": "Workflows (emulator, rules + functions)",
-      "minTests": 8
+      "minTests": 9
     },
     "public_qa": {
       "label": "Public site (live)",
