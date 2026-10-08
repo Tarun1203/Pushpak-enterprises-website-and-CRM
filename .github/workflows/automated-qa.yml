@@ -71,6 +71,7 @@ jobs:
         id: backend_qa
         continue-on-error: true
         run: |
+          mkdir -p qa-results/json
           cd functions
           npm install
           node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=../scripts/qa/node-json-reporter.mjs --test-reporter-destination=../qa-results/json/backend_qa.json
