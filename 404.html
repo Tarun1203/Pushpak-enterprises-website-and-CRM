@@ -17,9 +17,10 @@
     --hairline:#E0D6BC;
   }
   *{margin:0;padding:0;box-sizing:border-box;}
+  html{overflow-x:hidden;}
   body{
     font-family:'Inter',system-ui,sans-serif;background:var(--cream);color:var(--ink);
-    min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;
+    min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;overflow-x:clip;
     position:relative;
   }
   a{color:inherit;text-decoration:none;}
@@ -115,6 +116,7 @@
     .illustration,.plug-spark,.dash-line,.bg-circle,.code,h1,p,.actions{animation:none;opacity:1;transform:none;}
   }
 </style>
+<link rel="stylesheet" href="assets/fit.css">
 </head>
 <body>
 

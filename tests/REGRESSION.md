@@ -58,6 +58,8 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Layout breaking at tablet / desktop widths | `tests/e2e/responsive.spec.js` |
 | 1 MB+ logo and oversized hero images | `performance.spec.js` › "right-sized images" |
 | Dashboards downloading whole collections to count them | `performance.spec.js` › "no full history downloads on open" |
+| 404 page scrolled sideways; home-page header overflowed on landscape phones | `tests/e2e/fit.spec.js` (every page × 10 screen sizes) |
+| Pages stayed laptop-sized on big monitors/TVs | `fit.spec.js` (page scale and fill at 1920 / 2560 / 3840 px), styles in `assets/fit.css` |
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,

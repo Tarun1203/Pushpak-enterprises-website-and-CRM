@@ -1,0 +1,19 @@
+/* Auto-fit for big screens (loaded last on every page).
+   Phones, tablets and laptops are handled by each page's own responsive CSS.
+   On large monitors and TVs the pages used to stay laptop-sized in the middle
+   of a huge window; here the whole page scales up with the screen so text,
+   buttons and tables are comfortable to read from a normal distance and the
+   layout fills the width. `zoom` also scales the pixel sizes the pages use.
+   Anything sized with vh is divided by the zoom so it still matches the
+   real screen height. */
+@media (min-width: 1920px) { :root { --fit-z: 1.15; } }
+@media (min-width: 2560px) { :root { --fit-z: 1.5; } }
+@media (min-width: 3840px) { :root { --fit-z: 2; } }
+
+@media (min-width: 1920px) {
+  html { zoom: var(--fit-z); }
+  body { min-height: calc(100vh / var(--fit-z)); }
+  .layout { min-height: calc(100vh / var(--fit-z)); }
+  .sidebar { height: calc(100vh / var(--fit-z)); }
+  .modal, .modal[style*="vh"] { max-height: calc(88vh / var(--fit-z)) !important; }
+}
