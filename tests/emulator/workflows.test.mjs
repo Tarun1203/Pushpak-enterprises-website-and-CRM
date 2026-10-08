@@ -322,3 +322,20 @@ test('phase 9: register -> warranty -> book -> route, one serial one registratio
   assert.strictEqual(centers[0].requestId, tracks[0].ticketId);
   assert.strictEqual(centers[0].sourceRequestId, pubs[0].requestId);
 });
+
+// Phase 9 items 6-10: a second open request for the same part on the same
+// job is flagged for Warehouse by the server; the flag cannot be set (or
+// cleared) from a browser.
+test('phase 9: spare requests — duplicate on one job is flagged by the server, flag not client-writable', async () => {
+  await adminSet(env, 'users/scP9b', { role: 'servicecenter', name: 'P9b SC' });
+  await adminSet(env, 'users/tP9b', { role: 'technician', name: 'P9b Tech', linkedServiceCenterUid: 'scP9b' });
+  await adminSet(env, 'centerRequests/crP9b', { requestId: 'PE-CR-P9B', serviceCenterUid: 'scP9b', technicianUid: 'tP9b', status: 'in_progress', category: 'Geyser' });
+  const req = (n) => ({ requestId: `PE-SR-P9B-${n}`, partId: 'spP9b', item: 'Heating Element', quantity: 1, status: 'new', sourceJobId: 'crP9b', sourceJobCollection: 'centerRequests', requestedByUid: 'tP9b', createdAt: '__ST__' });
+  await assertFails(write('tP9b', 'create', 'spareRequests/srP9b0', { ...req(0), possibleDuplicateOf: [] }), 'a browser cannot set the duplicate flag');
+  await assertSucceeds(write('tP9b', 'create', 'spareRequests/srP9b1', req(1)));
+  const first = await waitFor('first request checked', async () => { const d = await adminGet(env, 'spareRequests/srP9b1'); return d.possibleDuplicateOf && d; });
+  assert.deepStrictEqual(first.possibleDuplicateOf, []);
+  await assertSucceeds(write('tP9b', 'create', 'spareRequests/srP9b2', req(2)));
+  const second = await waitFor('duplicate flagged', async () => { const d = await adminGet(env, 'spareRequests/srP9b2'); return d.possibleDuplicateOf && d; });
+  assert.deepStrictEqual(second.possibleDuplicateOf, ['PE-SR-P9B-1']);
+});

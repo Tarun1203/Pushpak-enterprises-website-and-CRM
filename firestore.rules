@@ -923,7 +923,7 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid
             && request.resource.data.get('status', '') in ['new', 'fulfilled_by_center']
-            && !request.resource.data.keys().hasAny(['transport', 'dispatchedQty', 'receivedAt', 'consumedAt', 'consumedQty', 'pipelineRejected'])
+            && !request.resource.data.keys().hasAny(['transport', 'dispatchedQty', 'receivedAt', 'consumedAt', 'consumedQty', 'pipelineRejected', 'possibleDuplicateOf'])
             && request.resource.data.quantity is number
             && request.resource.data.quantity >= 1
             && request.resource.data.quantity <= 1000);

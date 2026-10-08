@@ -64,6 +64,12 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Two registrations of one serial (same moment, dealer typing lower case, spaces) | `phase9.test.js` P9.2 "one registration per serial", emulator phase 9 test |
 | Closure warranty verdict missed a registration that has no serial number (booking link ignored) | `phase9.test.js` P9.3 (JOB-W4) |
 | Customer 360 ran hostile names as HTML; pasted "+91 …" phone cut off | `tests/e2e/customer360.spec.js` |
+| Approved leave ignored when ranking technicians and when a center assigned one for a given day | `phase9b.test.js` P9.6 (matching + server assignment check) |
+| Impossible dates such as 30 Feb accepted as appointment dates (rolled over to 2 Mar) | `phase9b.test.js` P9.7 |
+| Re-assigning a booked appointment to a technician who is busy or on leave was not checked | `phase9b.test.js` P9.7 |
+| Customer tracking kept only the latest appointment, not moves and cancellations | `phase9b.test.js` P9.7 (appointmentHistory) |
+| Parts could be added to a finished or cancelled job | `phase9b.test.js` P9.9 |
+| Duplicate open spare requests for one part on one job went unflagged | `phase9b.test.js` P9.9, emulator `workflows.test.mjs` › phase 9 spare requests |
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,

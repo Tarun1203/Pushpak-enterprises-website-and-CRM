@@ -301,7 +301,7 @@ async function checkAssignment(ticket, techUid) {
     ticket, roster: [{ id: rosterDoc.id, ...rosterDoc.data() }],
     users: { [techUid]: userSnap.exists ? userSnap.data() : {} },
     avail: availSnap.exists ? { [techUid]: availSnap.data() } : {},
-    openCounts: {}, today: new Date().toISOString().slice(0, 10)
+    openCounts: {}, today: new Date().toISOString().slice(0, 10), date: ticket.scheduledDate || undefined
   });
   return ranked[0].eligible ? null : `technician is not eligible: ${ranked[0].excludedReason}`;
 }
@@ -358,7 +358,11 @@ async function enforceSchedule(coll, event, before) {
   const after = afterSnap.data();
   const prevSlot = slotOf(before);
   const slot = slotOf(after);
-  if (sameSlot(prevSlot, slot)) return;
+  // Giving an existing appointment to a different technician is a new
+  // booking for THAT technician: it needs the same checks (leave, clashes).
+  const techChanged = !!before && (before.technicianUid || '') !== (after.technicianUid || '');
+  if (sameSlot(prevSlot, slot) && (!techChanged || !slot.date || !slot.start)) return;
+  const techOnly = techChanged && sameSlot(prevSlot, slot);
   // Our own revert changes the slot too; don't re-check it.
   if (after.scheduleRejected && millis(after.scheduleRejected.at) !== millis(before && before.scheduleRejected && before.scheduleRejected.at)) return;
 
@@ -368,7 +372,7 @@ async function enforceSchedule(coll, event, before) {
 
   await db.runTransaction(async (tx) => {
     const fresh = await tx.get(ref);
-    if (!fresh.exists || !sameSlot(slotOf(fresh.data()), slot)) return; // a newer write will be checked on its own
+    if (!fresh.exists || !sameSlot(slotOf(fresh.data()), slot) || (fresh.get('technicianUid') || '') !== (after.technicianUid || '')) return; // a newer write will be checked on its own
     await tx.get(lockRef);
 
     let reason = Appointment.validateSlot(slot, Date.now());
@@ -392,7 +396,16 @@ async function enforceSchedule(coll, event, before) {
       }
     }
 
-    if (reason) {
+    if (reason && techOnly) {
+      // The slot is fine for its old owner; it is the new assignment that
+      // can't take it. Put the assignment back, like the assignment check does.
+      tx.update(ref, {
+        technicianUid: before.technicianUid || null,
+        technicianName: before.technicianName || null,
+        ...(before.technicianUid ? {} : { status: before.status || 'new' }),
+        scheduleRejected: { reason, attempted: slot, at: FieldValue.serverTimestamp() }
+      });
+    } else if (reason) {
       tx.update(ref, {
         scheduledDate: before ? (before.scheduledDate || null) : null,
         scheduledStartTime: before ? (before.scheduledStartTime || null) : null,
@@ -458,6 +471,28 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
 // The dispatch screens move the stock and set the status in ONE
 // transaction, so the stock and the status can't drift apart.
 // ---------------------------------------------------------------
+// A second open request for the same part on the same job (or, with no job,
+// by the same person) is flagged for Warehouse before both get shipped.
+const SPARE_OPEN = ['new', 'approved', 'picking', 'packing', 'backorder', 'dispatched', 'intransit'];
+exports.flagDuplicateSpareRequest = onDocumentCreated(
+  { document: 'spareRequests/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    const req = event.data.data();
+    if (!req.partId || req.status === 'fulfilled_by_center' || req.possibleDuplicateOf) return;
+    const filter = req.sourceJobId ? ['sourceJobId', req.sourceJobId] : (req.requestedByUid ? ['requestedByUid', req.requestedByUid] : null);
+    if (!filter) return;
+    const snap = await db.collection('spareRequests').where(filter[0], '==', filter[1]).limit(50).get();
+    const dups = [];
+    snap.forEach((d) => {
+      if (d.id === event.data.ref.id) return;
+      const o = d.data();
+      if (o.partId === req.partId && SPARE_OPEN.includes(o.status)) dups.push(o.requestId || d.id);
+    });
+    await event.data.ref.update({ possibleDuplicateOf: dups.slice(0, 5) });
+  }
+);
+
 exports.checkSparePipeline = onDocumentUpdatedWithAuthContext(
   { document: 'spareRequests/{docId}', region: REGION },
   async (event) => {
@@ -1315,6 +1350,9 @@ async function applySparesOp(ref) {
     const actor = { role, uid: op.byUid };
     if (op.type === 'consume') {
       if (!job) return reject('A part can only be used against a job.');
+      // Parts used after the bill was worked out would never reach it.
+      const finished = role === 'technician' ? ['completed', 'verification', 'closed', 'cancelled'] : ['closed', 'cancelled'];
+      if (finished.includes(job.status)) return reject(`This job is already ${job.status} — parts can't be added to it.`);
       if (role === 'technician' && job.technicianUid !== op.byUid) return reject('That job isn\'t assigned to you.');
       if (role === 'servicecenter' && job.serviceCenterUid !== op.byUid) return reject('That job isn\'t your center\'s.');
     }

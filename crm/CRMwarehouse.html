@@ -3059,7 +3059,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ).join('');
         tr.innerHTML = `
           <td><a href="#" class="sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</a></td>
-          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || requesterLabel || d.sourceJobId)}` : escapeHtml(requesterLabel || '—')}</td>
+          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || requesterLabel || d.sourceJobId)}` : escapeHtml(requesterLabel || '—')}${Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length ? `<div class="dup-flag" style="font-size:11.5px;color:var(--err);margin-top:2px;">Possible duplicate of ${escapeHtml(d.possibleDuplicateOf.join(', '))}</div>` : ''}</td>
           <td>${escapeHtml(d.item) || '—'}</td>
           <td>${escapeHtml(d.quantity ?? '—')}</td>
           <td><span class="priority-tag ${escapeHtml(d.priority || 'normal')}">${(d.priority || 'normal').toUpperCase()}</span></td>

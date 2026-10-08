@@ -13,6 +13,7 @@ const FieldValue = {
   serverTimestamp: () => SERVER_TS,
   increment: (n) => ({ __inc: n }),
   arrayUnion: (...x) => ({ __union: x }),
+  delete: () => ({ __del: true }),
 };
 function resolve(prev, val) {
   if (val === SERVER_TS) return Timestamp.now();
@@ -24,7 +25,7 @@ function applyWrite(path, data, mode) {
   const prev = store.get(path);
   if (mode === 'update' && !prev) throw new Error('update on missing doc ' + path);
   const base = mode === 'set' ? {} : { ...(prev || {}) };
-  for (const [k, v] of Object.entries(data)) base[k] = resolve((prev || {})[k], v);
+  for (const [k, v] of Object.entries(data)) { if (v && v.__del) delete base[k]; else base[k] = resolve((prev || {})[k], v); }
   store.set(path, base);
 }
 class Snap {

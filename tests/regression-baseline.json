@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 141
+      "minTests": 147
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",
@@ -15,7 +15,7 @@
     },
     "workflow_qa": {
       "label": "Workflows (emulator, rules + functions)",
-      "minTests": 7
+      "minTests": 8
     },
     "public_qa": {
       "label": "Public site (live)",

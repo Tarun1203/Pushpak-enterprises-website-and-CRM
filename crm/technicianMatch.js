@@ -23,6 +23,14 @@
     return !!user && user.accountType === 'temporary' && !!user.contractEndDate && user.contractEndDate < today;
   }
 
+  // Only APPROVED leave blocks (same rule as appointment.js); `date` is the
+  // appointment date when known, else today.
+  function onApprovedLeave(records, date) {
+    return !!date && (records || []).some(function (l) {
+      return l && l.status === 'APPROVED' && l.startDate && l.endDate && l.startDate <= date && date <= l.endDate;
+    });
+  }
+
   // Which brands / categories a technician has declared, from the linked
   // account (brandsAuthorized, skills[{category}]) and the roster record
   // (productCapabilities[{brand, category}]).
@@ -59,6 +67,7 @@
       else if (av && av.suspended === true) excluded = 'suspended';
       else if (contractExpired(user, today)) excluded = 'contract expired';
       else if (av && BLOCKED_AVAILABILITY.indexOf(av.status) !== -1) excluded = av.status === 'holiday' ? 'on holiday' : 'on leave';
+      else if (onApprovedLeave(r.leaveRecords, args.date || today)) excluded = 'on approved leave';
 
       var d = declared(r, user);
       var hasBrands = Object.keys(d.brands).length > 0;

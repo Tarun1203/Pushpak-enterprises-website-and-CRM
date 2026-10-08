@@ -17,7 +17,12 @@
   function todayIST(nowMs) { return new Date(nowMs + IST_OFFSET_MS).toISOString().slice(0, 10); }
   function toMin(t) { var m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; }
   function toHHMM(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
-  function validDate(d) { return /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !isNaN(new Date(d + 'T00:00:00Z').getTime()); }
+  function validDate(d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return false;
+    var t = new Date(d + 'T00:00:00Z');
+    // JavaScript rolls 30 Feb over to 2 Mar; a real date reads back unchanged.
+    return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+  }
 
   // Returns an error message, or null when the slot is acceptable.
   // A date with no times is a legacy "date only" booking: only the date is checked.

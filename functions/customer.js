@@ -130,6 +130,19 @@ function buildTrack(prev, src, at) {
   const history = Array.isArray(prev && prev.history) ? prev.history.slice(-40) : [];
   if (!history.length || history[history.length - 1].status !== status) history.push({ status, at });
   const hasSlot = src.scheduledDate;
+  // Every change of appointment (booked, moved, cancelled) is kept, so the
+  // customer's timeline can say "moved from 10:00 to 14:00".
+  const appointment = hasSlot ? {
+    date: String(src.scheduledDate).slice(0, 10),
+    start: String(src.scheduledStartTime || '').slice(0, 5),
+    end: String(src.scheduledEndTime || '').slice(0, 5)
+  } : null;
+  const apptKey = (a) => (a && !a.cancelled ? [a.date, a.start, a.end].join('|') : 'none');
+  const appointmentHistory = Array.isArray(prev && prev.appointmentHistory) ? prev.appointmentHistory.slice(-40) : [];
+  const lastAppt = appointmentHistory.length ? appointmentHistory[appointmentHistory.length - 1] : null;
+  if (apptKey(appointment) !== apptKey(lastAppt)) {
+    appointmentHistory.push(appointment ? { ...appointment, technicianName: src.technicianName ? String(src.technicianName).slice(0, 100) : '', at } : { cancelled: true, at });
+  }
   const data = {
     ticketId: id,
     customerPhone: String(phone),
@@ -141,11 +154,8 @@ function buildTrack(prev, src, at) {
     warrantyStatus: String(src.warrantyStatus || '').slice(0, 30),
     technicianName: src.technicianName ? String(src.technicianName).slice(0, 100) : '',
     serviceCenterName: src.serviceCenterName ? String(src.serviceCenterName).slice(0, 100) : '',
-    appointment: hasSlot ? {
-      date: String(src.scheduledDate).slice(0, 10),
-      start: String(src.scheduledStartTime || '').slice(0, 5),
-      end: String(src.scheduledEndTime || '').slice(0, 5)
-    } : null,
+    appointment,
+    appointmentHistory,
     history,
     // For the customer's service history: which product this was, what
     // was done, and what the customer paid (only when they paid — a
