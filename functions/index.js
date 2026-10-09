@@ -84,7 +84,26 @@ async function writeAudit(coll, event) {
   await batch.commit();
 }
 
-for (const [name, coll] of [['auditUsers', 'users'], ['auditServiceCenters', 'serviceCenterProfiles'], ['auditTechnicians', 'centerTechnicians']]) {
+// Alerts for assignment, appointment, completion, spare decisions and claim
+// approval (rules in notify.js). One fixed document id per event.
+const NOTIFY = require('./notify');
+for (const coll of NOTIFY.WATCHED) {
+  exports['notifyWf_' + coll] = onDocumentUpdatedWithAuthContext(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      const ch = event.data;
+      if (!ch || !ch.before.exists || !ch.after.exists) return;
+      const list = NOTIFY.buildNotifications(coll, event.params.docId, ch.before.data(), ch.after.data(), event.authType === 'system' ? null : event.authId);
+      await Promise.all(list.map((n) => db.collection('notifications').doc(n.key).set({
+        recipientType: 'uid', recipientValue: n.uid, title: n.title, message: n.message, read: false, createdAt: FieldValue.serverTimestamp()
+      })));
+    }
+  );
+}
+
+const AUDIT_TRIGGERS = [['auditUsers', 'users'], ['auditServiceCenters', 'serviceCenterProfiles'], ['auditTechnicians', 'centerTechnicians']]
+  .concat(Object.keys(require('./audit').WORKFLOW).map((c) => ['auditWf_' + c, c]));
+for (const [name, coll] of AUDIT_TRIGGERS) {
   exports[name] = onDocumentWrittenWithAuthContext(
     { document: `${coll}/{docId}`, region: REGION },
     (event) => writeAudit(coll, event)

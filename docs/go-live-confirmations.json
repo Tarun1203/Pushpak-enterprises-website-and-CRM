@@ -1,0 +1,22 @@
+{
+  "_about": "Set each item to true ONLY after you (the owner) have checked it on the real system. The go-live gate reads this file. Leave false if unsure.",
+  "firebaseProductionProject": false,
+  "firestoreRulesDeployed": false,
+  "storageRulesDeployed": false,
+  "cloudFunctionsDeployed": false,
+  "firebaseAuthConfigured": false,
+  "hostingGithubPages": false,
+  "domain": false,
+  "sslHttps": false,
+  "backupSwitchedOnAndRestoreDrillPassed": false,
+  "monitoringAlertsCreated": false,
+  "adminAccount": false,
+  "serviceCenterAccounts": false,
+  "technicianAccounts": false,
+  "warehouseAccounts": false,
+  "masterData": false,
+  "productData": false,
+  "spareData": false,
+  "uatSignedOff": false,
+  "trainingDataRemoved": false
+}

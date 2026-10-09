@@ -45,7 +45,7 @@ jobs:
         run: npm install
 
       - name: Install Playwright
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Check authenticated QA configuration
         env:
@@ -223,6 +223,11 @@ jobs:
         continue-on-error: true
         run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/perf_qa.json npx playwright test tests/e2e/performance.spec.js --reporter=list,json
 
+      - name: Run browser compatibility QA (Chrome, Firefox, Safari engine, Android, iPhone, iPad)
+        id: browsers_qa
+        continue-on-error: true
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/browsers_qa.json npx playwright test tests/e2e/browsers.spec.js --reporter=list,json
+
       # One pass/fail verdict over every suite above, compared with
       # tests/regression-baseline.json (fails if any test failed, a suite
       # produced no results, or a suite has fewer tests than before).
@@ -231,6 +236,14 @@ jobs:
         if: always()
         continue-on-error: true
         run: node scripts/qa/regression-summary.mjs
+
+      - name: Go-live gate (GO / GO WITH KNOWN ISSUES / NO-GO)
+        id: go_live_gate
+        if: always()
+        continue-on-error: true
+        env:
+          GATE_OUTCOMES: '{"public_qa":"${{ steps.public_qa.outcome }}","backend_qa":"${{ steps.backend_qa.outcome }}","frontend_qa":"${{ steps.frontend_qa.outcome }}","rules_qa":"${{ steps.rules_qa.outcome }}","workflow_qa":"${{ steps.workflow_qa.outcome }}","mobile_qa":"${{ steps.mobile_qa.outcome }}","responsive_qa":"${{ steps.responsive_qa.outcome }}","links_qa":"${{ steps.links_qa.outcome }}","security_qa":"${{ steps.security_qa.outcome }}","audit_qa":"${{ steps.audit_qa.outcome }}","perf_qa":"${{ steps.perf_qa.outcome }}","fit_qa":"${{ steps.fit_qa.outcome }}","phase9_qa":"${{ steps.phase9_qa.outcome }}","browsers_qa":"${{ steps.browsers_qa.outcome }}","crm_qa":"${{ steps.crm_qa.outcome }}","phase3_qa":"${{ steps.phase3_qa.outcome }}","phase4_qa":"${{ steps.phase4_qa.outcome }}","phase5_qa":"${{ steps.phase5_qa.outcome }}","phase6_qa":"${{ steps.phase6_qa.outcome }}","phase7_qa":"${{ steps.phase7_qa.outcome }}","phase8_qa":"${{ steps.phase8_qa.outcome }}"}'
+        run: node scripts/qa/go-live-gate.mjs
 
       - name: Publish QA phase summary
         if: always()
@@ -269,13 +282,13 @@ jobs:
           retention-days: 14
 
       - name: Create or update QA bug
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.fit_qa.outcome == 'failure' || steps.phase9_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.fit_qa.outcome == 'failure' || steps.phase9_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure' || steps.browsers_qa.outcome == 'failure' || steps.go_live_gate.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ISSUE_TITLE="Automated QA: Site/CRM Test Failures"
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site/CRM Test Failures in:title" --json number --jq '.[0].number')
-          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Auto-fit QA: ${{ steps.fit_qa.outcome }}\n- Phase 9-10 Customer 360 & role QA: ${{ steps.phase9_qa.outcome }}\n- Regression gate: ${{ steps.regression_qa.outcome }} (see qa-results/regression.md)\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
+          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Auto-fit QA: ${{ steps.fit_qa.outcome }}\n- Phase 9-10 Customer 360 & role QA: ${{ steps.phase9_qa.outcome }}\n- Regression gate: ${{ steps.regression_qa.outcome }} (see qa-results/regression.md)\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Browser compatibility QA: ${{ steps.browsers_qa.outcome }}\n- Go-live gate: ${{ steps.go_live_gate.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else
@@ -301,5 +314,5 @@ jobs:
           fi
 
       - name: Fail workflow when QA fails
-        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.fit_qa.outcome == 'failure' || steps.phase9_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure'
+        if: steps.public_qa.outcome == 'failure' || steps.backend_qa.outcome == 'failure' || steps.frontend_qa.outcome == 'failure' || steps.rules_qa.outcome == 'failure' || steps.workflow_qa.outcome == 'failure' || steps.mobile_qa.outcome == 'failure' || steps.responsive_qa.outcome == 'failure' || steps.links_qa.outcome == 'failure' || steps.security_qa.outcome == 'failure' || steps.audit_qa.outcome == 'failure' || steps.perf_qa.outcome == 'failure' || steps.fit_qa.outcome == 'failure' || steps.phase9_qa.outcome == 'failure' || steps.regression_qa.outcome == 'failure' || steps.crm_qa.outcome == 'failure' || steps.phase3_qa.outcome == 'failure' || steps.phase4_qa.outcome == 'failure' || steps.phase5_qa.outcome == 'failure' || steps.phase6_qa.outcome == 'failure' || steps.phase7_qa.outcome == 'failure' || steps.phase8_qa.outcome == 'failure' || steps.browsers_qa.outcome == 'failure' || steps.go_live_gate.outcome == 'failure'
         run: exit 1

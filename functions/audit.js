@@ -21,6 +21,25 @@ const WATCHED = {
   }
 };
 
+// Business records: who created them and who moved them to each new status
+// (accepted, assigned, approved, dispatched, received, closed, rejected ...).
+const WORKFLOW = {
+  serviceJobs: { entityType: 'serviceJob', fields: ['status', 'technicianUid', 'serviceCenterUid'], label: (d) => d.jobId || d.requestId || '' },
+  centerRequests: { entityType: 'centerRequest', fields: ['status', 'technicianUid'], label: (d) => d.requestId || '' },
+  spareRequests: { entityType: 'spareRequest', fields: ['status'], label: (d) => d.requestId || '' },
+  claims: { entityType: 'claim', fields: ['status', 'approvedAmount'], label: (d) => d.claimId || '' },
+  rmaRequests: { entityType: 'rma', fields: ['status'], label: (d) => d.rmaId || d.requestId || '' },
+  brandReturns: { entityType: 'brandReturn', fields: ['status'], label: (d) => d.returnId || '' },
+  returns: { entityType: 'return', fields: ['status'], label: (d) => d.returnId || '' },
+  dealerOrders: { entityType: 'order', fields: ['status'], label: (d) => d.orderId || '' },
+  distributorOrders: { entityType: 'order', fields: ['status'], label: (d) => d.orderId || '' },
+  invoices: { entityType: 'invoice', fields: ['status'], label: (d) => d.invoiceNo || d.invoiceId || '' },
+  tradePayments: { entityType: 'payment', fields: ['status'], label: (d) => d.paymentId || '' },
+  stockReceipts: { entityType: 'stockReceipt', fields: ['status'], label: (d) => d.receiptId || '' },
+  changeRequests: { entityType: 'changeRequest', fields: ['status'], label: (d) => d.requestId || '' }
+};
+Object.keys(WORKFLOW).forEach((k) => { WATCHED[k] = WORKFLOW[k]; WATCHED[k].workflow = true; });
+
 function buildAuditEntries(coll, docId, before, after) {
   const cfg = WATCHED[coll];
   if (!cfg) return [];
@@ -30,7 +49,9 @@ function buildAuditEntries(coll, docId, before, after) {
   const base = { entityType: cfg.entityType, entityId: docId, source: 'server' };
 
   if (!b && a) {
-    if (coll === 'users') {
+    if (cfg.workflow) {
+      entries.push({ ...base, action: 'created', details: `${cfg.entityType} ${cfg.label(a)} created` + (a.status ? ` (status "${a.status}")` : ''), after: { status: a.status === undefined ? null : a.status } });
+    } else if (coll === 'users') {
       entries.push({ ...base, action: 'created',
         details: `Account created for ${cfg.label(a)} with role "${a.role || ''}"`, after: { role: a.role || null } });
     }
@@ -48,7 +69,7 @@ function buildAuditEntries(coll, docId, before, after) {
     if (JSON.stringify(was) === JSON.stringify(now)) continue;
     entries.push({
       ...base,
-      action: f === 'role' ? 'role_changed' : 'status_changed',
+      action: f === 'role' ? 'role_changed' : f === 'status' && cfg.workflow ? 'status_changed' : f === 'status' || f === 'employmentStatus' ? 'status_changed' : 'field_changed',
       details: `${cfg.entityType} ${cfg.label(a)}: ${f} changed from "${was}" to "${now}"`,
       before: { [f]: was }, after: { [f]: now }
     });
@@ -56,4 +77,4 @@ function buildAuditEntries(coll, docId, before, after) {
   return entries;
 }
 
-module.exports = { buildAuditEntries, WATCHED };
+module.exports = { buildAuditEntries, WATCHED, WORKFLOW };

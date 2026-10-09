@@ -21,7 +21,14 @@ module.exports = defineConfig({
     navigationTimeout: 20_000,
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: /browsers\.spec\.js/, use: { ...devices['Desktop Chrome'] } },
+    // Other browsers run only the compatibility spec (CI: "Browser compatibility QA").
+    { name: 'chromium-compat', testMatch: /browsers\.spec\.js/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', testMatch: /browsers\.spec\.js/, use: { ...devices['Desktop Firefox'] } },
+    { name: 'safari', testMatch: /browsers\.spec\.js/, use: { ...devices['Desktop Safari'] } },
+    { name: 'android', testMatch: /browsers\.spec\.js/, use: { ...devices['Pixel 7'] } },
+    { name: 'iphone', testMatch: /browsers\.spec\.js/, use: { ...devices['iPhone 13'] } },
+    { name: 'tablet', testMatch: /browsers\.spec\.js/, use: { ...devices['iPad (gen 7)'] } },
   ],
   outputDir: 'qa-results/artifacts'
 });

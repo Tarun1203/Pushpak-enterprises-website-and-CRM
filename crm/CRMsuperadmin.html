@@ -162,6 +162,8 @@
 <link rel="stylesheet" href="mobile.css">
 <script src="mobile.js" defer></script>
 <link rel="stylesheet" href="../assets/fit.css">
+<script src="release.js"></script>
+<script src="resilience.js"></script>
 </head>
 <body>
 
@@ -1066,7 +1068,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, limit, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
@@ -9627,12 +9629,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
   }
 
-  const AUDIT_ACTION_LABELS = { created: 'Created', updated: 'Updated', role_changed: 'Role Changed', settled: 'Settled', status_changed: 'Status Changed' };
+  const AUDIT_ACTION_LABELS = { created: 'Created', updated: 'Updated', role_changed: 'Role Changed', settled: 'Settled', status_changed: 'Status Changed', field_changed: 'Changed', deleted: 'Deleted' };
 
   async function loadAuditLogs() {
     const tbody = document.getElementById('audit-tbody');
     try {
-      const snap = await getDocs(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc')));
+      const snap = await getDocs(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc'), limit(500)));
       if (snap.empty) {
         tbody.innerHTML = `<tr><td colspan="5" class="empty-row">No audit entries yet.</td></tr>`;
         return;
@@ -9650,6 +9652,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <td style="color:var(--stone);font-size:12.5px;">${escapeHtml(d.details || '—')}</td>`;
         tbody.appendChild(tr);
       });
+      const flt = document.getElementById('audit-filter');
+      if (flt) flt.oninput = () => {
+        const q = flt.value.trim().toLowerCase();
+        tbody.querySelectorAll('tr').forEach(r => { r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+      };
     } catch (err) {
       console.error('Load audit logs failed:', err);
       tbody.innerHTML = `<tr><td colspan="5" class="empty-row" style="color:var(--err);">Couldn't load the audit log. Check console for details.</td></tr>`;
@@ -9679,6 +9686,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       </div>
       <div class="panel" style="margin-top:24px;">
         <div class="panel-header"><h2>Audit log</h2></div>
+        <div style="padding:8px 14px;"><input type="search" id="audit-filter" placeholder="Find a job, claim, order or person (latest 500 entries)" aria-label="Filter the audit log" style="width:100%;max-width:420px;min-height:40px;font-size:16px;"></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Date</th><th>Type</th><th>Action</th><th>By</th><th>Details</th></tr></thead>

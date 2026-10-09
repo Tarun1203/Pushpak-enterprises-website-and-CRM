@@ -83,6 +83,11 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
 | Nothing could be printed or sent: warranty card, service voucher, claim voucher and dispatch challan did not exist, and the invoice had no paper size | `functions/phase10b.test.js` P10.8/P10.9, `phase10-field.spec.js` (A4/A5/A6/thermal PDFs, 320px phone, toolbar) |
 | Technician ranking and stock rules (leave, suspension, brand, skills, negative stock, per-owner isolation) had no readiness check | `functions/phase10b.test.js` P10.6/P10.7 |
+| Only Chrome was ever tested | `browsers.spec.js` on Chrome, Firefox, Safari engine, Android, iPhone, iPad (CI step "Browser compatibility QA") |
+| An error, a lost connection or a double tap on Save gave a blank page, a silent failure or a double save | `crm/resilience.js`, `phase10c.test.js` P10.13/P10.17, `browsers.spec.js` |
+| Nobody could see who created, approved, dispatched or closed a job, claim, spare request, order or invoice | `audit.js` WORKFLOW, `phase10c.test.js` P10.15 |
+| A technician was not told when the center assigned a job or set an appointment; centers and requesters were not told about completion, spare decisions or claim approval | `notify.js`, `phase10c.test.js` P10.16 |
+| No go / no-go decision, backup, rollback, monitoring, UAT, SOP or training documents | `docs/`, `scripts/qa/go-live-gate.mjs`, `phase10c.test.js` P10.18-24 |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.
