@@ -156,6 +156,9 @@
     }
     try {
       const roleSnap = await getDoc(doc(db, 'users', user.uid));
+      // Shared header (ui.js) shows who is signed in from this profile.
+      window.PE_IDENTITY = Object.assign({ uid: user.uid, email: user.email || '', authName: user.displayName || '' }, roleSnap.exists() ? roleSnap.data() : {});
+      window.dispatchEvent(new Event('pe-identity'));
       if (!roleSnap.exists() || roleSnap.data().role !== ALLOWED_ROLE || roleSnap.data().accessDisabled === true) {
         await signOut(auth);
         window.location.href = 'login.html';

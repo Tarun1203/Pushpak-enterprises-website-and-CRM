@@ -115,3 +115,109 @@ test('login page keeps working with the new look', async ({ page }) => {
   await expect(page.locator('form input').first()).toBeVisible();
   await expect(page.locator('form button').first()).toBeVisible();
 });
+
+// ---- Global header: who is signed in (shared component) ----
+const { installFirebaseStub } = require('./support/firebase-stub');
+async function openAs(page, path, profile) {
+  await installFirebaseStub(page, { role: profile.role, uid: 'u1', data: {}, profile });
+  await page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(origin + '/' + path, { waitUntil: 'load' });
+  await page.waitForFunction(() => { const a = document.getElementById('app'); return a && getComputedStyle(a).display !== 'none'; }, null, { timeout: 10000 });
+  await page.waitForTimeout(300);
+  return errors;
+}
+
+test('header shows the signed-in person, role and centre — from the profile, not hard-coded', async ({ page }) => {
+  const errors = await openAs(page, PAGES.servicecenter, { role: 'servicecenter', displayName: 'Tarun Chettam', name: 'Raichur Service Center', email: 'tarun@pe.test' });
+  const btn = page.locator('.ui-user-btn');
+  await expect(btn.locator('.ui-av')).toHaveText('TC');
+  await expect(btn.locator('.ui-who b')).toHaveText('Tarun Chettam');
+  await expect(btn.locator('.ui-who span')).toHaveText('Service Center Manager');
+  await btn.click();
+  await expect(page.locator('.ui-mh-org')).toHaveText('Raichur Service Center');
+  await expect(page.locator('.ui-mh-role')).toHaveText('Service Center Manager');
+  await page.keyboard.press('Escape');
+  // Organisation + role are not repeated on every screen's sidebar.
+  await expect(page.locator('.sidebar-header .name')).toHaveText('Pushpak CRM');
+  await expect(page.locator('.sidebar-header .role')).toBeHidden();
+  await expect(page.locator('.ui-hero .hi')).toContainText('Tarun');
+  expect(errors).toEqual([]);
+});
+
+for (const [role, label, org] of [['technician', 'Technician', 'Raichur Service Center'], ['warehouse', 'Warehouse Staff', 'Raichur Warehouse'], ['superadmin', 'Super Admin', 'Pushpak Enterprises']]) {
+  test(`header for ${role}: name, "${label}", organisation`, async ({ page }) => {
+    await openAs(page, PAGES[role], { role, displayName: 'Ravi Kumar', serviceCenterName: org, warehouseName: org, email: 'ravi@pe.test' });
+    await expect(page.locator('.ui-user-btn .ui-who b')).toHaveText('Ravi Kumar');
+    await expect(page.locator('.ui-user-btn .ui-who span')).toHaveText(label);
+    await page.locator('.ui-user-btn').click();
+    await expect(page.locator('.ui-mh-org')).toHaveText(org);
+  });
+}
+
+test('a profile with no display name falls back to the email, never a made-up name', async ({ page }) => {
+  await openAs(page, PAGES.dealer, { role: 'dealer', email: 'suresh.kumar@pe.test' });
+  await expect(page.locator('.ui-user-btn .ui-who b')).toHaveText('Suresh Kumar');
+});
+
+test('account menu: opens, arrow keys move, Escape closes, items work, sign out is reachable', async ({ page }) => {
+  await openAs(page, PAGES.technician, { role: 'technician', displayName: 'Ravi Kumar', email: 'ravi@pe.test' });
+  const btn = page.locator('.ui-user-btn');
+  await btn.click();
+  const menu = page.locator('.ui-user-menu');
+  await expect(menu).toBeVisible();
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  await expect(menu.locator('button[role=menuitem]:visible')).toHaveText(['My Profile', 'Security', 'Preferences', 'Sign Out']);
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.locator('button[role=menuitem]').nth(1)).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(btn).toBeFocused();
+  // My Profile opens the technician's own Profile screen.
+  await btn.click(); await menu.getByRole('menuitem', { name: 'My Profile' }).click();
+  await expect(page.locator('#page-title')).toHaveText(/profile/i);
+  // Preferences: compact tables persist on this device.
+  await btn.click(); await menu.getByRole('menuitem', { name: 'Preferences' }).click();
+  await page.getByLabel(/Compact tables/).check();
+  await expect(page.locator('body')).toHaveClass(/ui-compact/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ui-dialog')).toHaveCount(0);
+  // Clicking elsewhere closes the menu.
+  await btn.click(); await page.locator('.content').click({ position: { x: 5, y: 5 } });
+  await expect(menu).toBeHidden();
+});
+
+test('account menu has no dead links: My Profile shows a details dialog when there is no profile screen; My Activity opens Audit Logs where one exists', async ({ page }) => {
+  await openAs(page, PAGES.warehouse, { role: 'warehouse', displayName: 'Suresh Kumar', warehouseName: 'Raichur Warehouse', email: 's@pe.test' });
+  await page.locator('.ui-user-btn').click();
+  const items = await page.locator('.ui-user-menu button[role=menuitem]:visible').allTextContents();
+  expect(items).toContain('My Activity');
+  await page.getByRole('menuitem', { name: 'My Activity' }).click();
+  await expect(page.locator('#page-title')).toHaveText(/audit/i);
+  await page.locator('.ui-user-btn').click();
+  await page.getByRole('menuitem', { name: 'My Profile' }).click();
+  await expect(page.locator('#page-title')).toHaveText(/profile/i);
+  // A role with no Profile screen (super admin) gets a details dialog instead.
+  const p2 = await page.context().newPage();
+  await openAs(p2, PAGES.superadmin, { role: 'superadmin', displayName: 'Anil Rao', email: 'a@pe.test' });
+  await p2.locator('.ui-user-btn').click();
+  await p2.getByRole('menuitem', { name: 'My Profile' }).click();
+  await expect(p2.locator('.ui-dialog')).toContainText('Anil Rao');
+  await expect(p2.locator('.ui-dialog')).toContainText('Super Admin');
+});
+
+test('phone: header shows only the avatar and stays inside the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openAs(page, PAGES.servicecenter, { role: 'servicecenter', displayName: 'Tarun Chettam', name: 'Raichur Service Center', email: 't@pe.test' });
+  await expect(page.locator('.ui-who')).toBeHidden();
+  await page.locator('.ui-user-btn').click();
+  const box = await page.locator('.ui-user-menu').boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(321);
+  const r = await layoutReport(page); expect(r.scrollWidth).toBeLessThanOrEqual(321);
+});
+
+test('breadcrumb: group › screen, and the page title still changes per screen', async ({ page }) => {
+  await openAs(page, PAGES.technician, { role: 'technician', displayName: 'Ravi', email: 'r@pe.test' });
+  await page.locator('.sidebar .nav-item', { hasText: 'My Jobs' }).click();
+  await expect(page.locator('.ui-crumb')).toHaveText('My Work › My Jobs');
+});

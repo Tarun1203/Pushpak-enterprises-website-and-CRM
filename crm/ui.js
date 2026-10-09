@@ -37,7 +37,24 @@
     var h = new Date().getHours();
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }
+  function identity() {
+    var d = window.PE_IDENTITY || {};
+    var email = d.email || (($('#user-email') || {}).textContent || '').trim();
+    var local = (email.split('@')[0] || '').split(/[._\d-]+/).filter(Boolean).map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    var name = d.displayName || d.authName || d.fullName || d.contactPerson || d.ownerName || d.name || local || 'Signed in';
+    var rk = String(d.role || '').toLowerCase().replace(/[^a-z]/g, '') || roleKey();
+    var ROLE = { superadmin: 'Super Admin', servicecenter: 'Service Center Manager', technician: 'Technician', warehouse: 'Warehouse Staff', areamanager: 'Area Manager', dealer: 'Dealer', distributor: 'Distributor' };
+    var org = rk === 'superadmin' ? 'Pushpak Enterprises' : (d.serviceCenterName || d.warehouseName || d.businessName || d.organization || (d.name && d.name !== name ? d.name : '') || '');
+    if (org === name) org = '';
+    return { name: name, role: ROLE[rk] || (d.role ? String(d.role) : ''), org: org, email: email };
+  }
+  function initials(n) {
+    var p = String(n).trim().split(/\s+/).filter(Boolean);
+    return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : '')).toUpperCase();
+  }
   function firstName() {
+    var id = identity();
+    if (window.PE_IDENTITY && id.name) return id.name.split(/\s+/)[0];
     var e = (($('#user-email') || {}).textContent || '').trim();
     var n = e.split('@')[0].split(/[._\d-]+/)[0] || '';
     return n ? n.charAt(0).toUpperCase() + n.slice(1) : '';
@@ -309,11 +326,177 @@
     $$('.modal-overlay').forEach(function (o) { overlayObs.observe(o, { attributes: true, attributeFilter: ['class'] }); });
   }
 
+
+  /* ---------- Global header: who is signed in (one component, every CRM page) ---------- */
+  var PREFS = { compact: false, calm: false };
+  function loadPrefs() {
+    try { PREFS.compact = localStorage.getItem('pe.ui.compact') === '1'; PREFS.calm = localStorage.getItem('pe.ui.calm') === '1'; } catch (e) { /* storage blocked */ }
+    document.body.classList.toggle('ui-compact', PREFS.compact);
+    document.body.classList.toggle('ui-calm', PREFS.calm);
+    if (PREFS.calm) reduce = true;
+  }
+  function savePref(k, v) { try { localStorage.setItem('pe.ui.' + k, v ? '1' : '0'); } catch (e) { /* ignore */ } }
+
+  function dialog(title, bodyNode) {
+    var ov = document.createElement('div');
+    ov.className = 'modal-overlay show ui-dialog';
+    var m = document.createElement('div');
+    m.className = 'modal';
+    m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    var h = document.createElement('h3'); h.textContent = title; h.id = 'ui-dlg-h'; m.setAttribute('aria-labelledby', 'ui-dlg-h');
+    m.appendChild(h); m.appendChild(bodyNode);
+    var act = document.createElement('div'); act.className = 'modal-actions';
+    var c = document.createElement('button'); c.type = 'button'; c.className = 'btn-secondary'; c.textContent = 'Close';
+    function close() { ov.remove(); }
+    c.addEventListener('click', close); act.appendChild(c); m.appendChild(act);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) close(); });
+    ov.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    ov.appendChild(m); document.body.appendChild(ov);
+    c.focus();
+  }
+  function rowsNode(rows) {
+    var d = document.createElement('div');
+    d.style.cssText = 'display:grid;gap:10px;font-size:13.5px';
+    rows.forEach(function (r) {
+      var line = document.createElement('div');
+      var k = document.createElement('div'); k.textContent = r[0]; k.style.cssText = 'font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:.04em';
+      var v = document.createElement('div'); v.textContent = r[1] || '—'; v.style.wordBreak = 'break-word';
+      line.appendChild(k); line.appendChild(v); d.appendChild(line);
+    });
+    return d;
+  }
+  function navMatch(re) { return navItems().filter(function (n) { return re.test(n.textContent); })[0]; }
+  function signOut() { var b = $('.logout-btn') || $('#logout-btn'); if (b) b.click(); }
+
+  function profileDialog() {
+    var id = identity();
+    dialog('My profile', rowsNode([['Name', id.name], ['Role', id.role], ['Organisation', id.org], ['Email', id.email]]));
+  }
+  function securityDialog() {
+    var id = identity();
+    var wrap = document.createElement('div');
+    wrap.appendChild(rowsNode([['Signed in as', id.email], ['Access', id.role]]));
+    var p = document.createElement('p');
+    p.style.cssText = 'font-size:13px;color:var(--stone);margin:14px 0 10px';
+    p.textContent = 'To change your password, sign out and use "Forgot password" on the sign-in page. A reset link is emailed to you.';
+    wrap.appendChild(p);
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn-primary'; b.textContent = 'Sign out';
+    b.addEventListener('click', signOut); wrap.appendChild(b);
+    dialog('Security', wrap);
+  }
+  function prefsDialog() {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:grid;gap:14px;font-size:13.5px';
+    [['compact', 'Compact tables', 'Tighter rows so more fit on screen.'], ['calm', 'Calm mode', 'Turns off animations and counters.']].forEach(function (o) {
+      var l = document.createElement('label');
+      l.style.cssText = 'display:flex;gap:12px;align-items:flex-start;cursor:pointer';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = PREFS[o[0]]; cb.style.marginTop = '3px';
+      cb.addEventListener('change', function () { PREFS[o[0]] = cb.checked; savePref(o[0], cb.checked); document.body.classList.toggle('ui-' + o[0], cb.checked); if (o[0] === 'calm') reduce = cb.checked || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); });
+      var t = document.createElement('span'); var b = document.createElement('b'); b.textContent = o[1]; var s = document.createElement('span'); s.style.cssText = 'display:block;color:var(--stone);font-size:12.5px'; s.textContent = o[2];
+      t.appendChild(b); t.appendChild(s); l.appendChild(cb); l.appendChild(t); wrap.appendChild(l);
+    });
+    var n = document.createElement('p'); n.style.cssText = 'font-size:12px;color:var(--stone)'; n.textContent = 'Saved on this device only.'; wrap.appendChild(n);
+    dialog('Preferences', wrap);
+  }
+
+  var menuOpen = false;
+  function closeMenu() {
+    var m = $('.ui-user-menu'), b = $('.ui-user-btn');
+    if (m) m.hidden = true;
+    if (b) b.setAttribute('aria-expanded', 'false');
+    menuOpen = false;
+  }
+  function fillUser() {
+    var btn = $('.ui-user-btn');
+    if (!btn) return;
+    var id = identity();
+    $('.ui-av', btn).textContent = initials(id.name);
+    $('.ui-who b', btn).textContent = id.name;
+    $('.ui-who span', btn).textContent = id.role;
+    btn.setAttribute('aria-label', 'Account menu for ' + id.name + (id.role ? ', ' + id.role : ''));
+    var mh = $('.ui-user-menu .ui-mh');
+    if (mh) {
+      $('.ui-av', mh).textContent = initials(id.name);
+      $('.ui-mh-name', mh).textContent = id.name;
+      $('.ui-mh-role', mh).textContent = id.role;
+      $('.ui-mh-org', mh).textContent = id.org;
+    }
+    var title = $('.sidebar-header .name');
+    if (title && title.textContent.trim() !== 'Pushpak CRM') title.textContent = 'Pushpak CRM';
+    var rl = $('.sidebar-header .role'); if (rl) rl.style.display = 'none';
+  }
+  function buildHeader() {
+    var topbar = $('.main .topbar');
+    if (!topbar) return;
+    if ($('.ui-user', topbar)) { fillUser(); return; }
+    var bellWrap = $('.notif-bell') ? $('.notif-bell').parentElement : null;
+    var right = document.createElement('div');
+    right.className = 'ui-top-right';
+    if (bellWrap && bellWrap.parentElement === topbar) right.appendChild(bellWrap);
+    var user = document.createElement('div');
+    user.className = 'ui-user';
+    user.innerHTML =
+      '<button type="button" class="ui-user-btn" aria-haspopup="menu" aria-expanded="false"><span class="ui-av" aria-hidden="true"></span><span class="ui-who"><b></b><span></span></span><svg viewBox="0 0 24 24" class="ui-caret" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
+      '<div class="ui-user-menu" role="menu" hidden>' +
+      '<div class="ui-mh"><span class="ui-av" aria-hidden="true"></span><div><div class="ui-mh-name"></div><div class="ui-mh-role"></div><div class="ui-mh-org"></div></div></div>' +
+      '<button type="button" role="menuitem" data-act="profile">My Profile</button>' +
+      '<button type="button" role="menuitem" data-act="security">Security</button>' +
+      '<button type="button" role="menuitem" data-act="prefs">Preferences</button>' +
+      '<button type="button" role="menuitem" data-act="activity">My Activity</button>' +
+      '<button type="button" role="menuitem" data-act="signout" class="ui-danger">Sign Out</button></div>';
+    right.appendChild(user);
+    topbar.appendChild(right);
+    var btn = $('.ui-user-btn', user), menu = $('.ui-user-menu', user);
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      menuOpen = menu.hidden;
+      menu.hidden = !menuOpen;
+      btn.setAttribute('aria-expanded', menuOpen ? 'true' : 'false');
+      if (menuOpen) { var f = $('button[role=menuitem]', menu); if (f) f.focus(); }
+    });
+    menu.addEventListener('keydown', function (e) {
+      var items = $$('button[role=menuitem]:not([hidden])', menu), i = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (e.key === 'Escape') { e.stopPropagation(); closeMenu(); btn.focus(); }
+      else if (e.key === 'Tab') { closeMenu(); }
+    });
+    menu.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-act]'); if (!b) return;
+      var act = b.dataset.act; closeMenu();
+      if (act === 'profile') { var n = navMatch(/^\s*(my )?profile/i); if (n) n.click(); else profileDialog(); }
+      else if (act === 'security') securityDialog();
+      else if (act === 'prefs') prefsDialog();
+      else if (act === 'activity') { var a = navMatch(/audit|activity/i); if (a) a.click(); }
+      else if (act === 'signout') signOut();
+    });
+    document.addEventListener('click', function (e) { if (menuOpen && !e.target.closest('.ui-user')) closeMenu(); });
+    // "My Activity" only appears when this role has an activity or audit screen.
+    var act = $('[data-act=activity]', menu);
+    function syncActivity() { act.hidden = !navMatch(/audit|activity/i); }
+    syncActivity();
+    menu._sync = syncActivity;
+    fillUser();
+  }
+  function crumb() {
+    var t = $('.main .topbar > div:not(.ui-top-right)');
+    var h1 = $('#page-title');
+    if (!t || !h1) return;
+    var active = navItems().filter(function (n) { return n.classList.contains('active'); })[0];
+    var g = active && active.closest('.nav-group') ? ($('.nav-group-label', active.closest('.nav-group')) || {}).textContent : '';
+    var el = $('.ui-crumb', t);
+    if (!el) { el = document.createElement('div'); el.className = 'ui-crumb'; t.insertBefore(el, t.firstChild); }
+    var cur = h1.textContent.trim();
+    var first = navItems()[0];
+    el.textContent = g && active !== first && g.toLowerCase() !== cur.toLowerCase() ? g + ' › ' + cur : '';
+    el.hidden = !el.textContent;
+  }
+
   /* ---------- Wiring ---------- */
   var scheduled = false;
   function refresh() {
     scheduled = false;
-    a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
+    buildHeader(); crumb(); var um = $('.ui-user-menu'); if (um && um._sync) um._sync(); a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
     if (!bottom && navItems().length) buildBottom();
   }
   function schedule() { if (!scheduled) { scheduled = true; requestAnimationFrame(refresh); } }
@@ -321,7 +504,9 @@
   function init() {
     var app = $('#app');
     if (!app) return;
+    loadPrefs();
     watchOverlays();
+    window.addEventListener('pe-identity', function () { schedule(); var h = $('.ui-hero .hi'); if (h) h.textContent = greeting() + (firstName() ? ', ' + firstName() : ''); });
     var content = $('#content') || $('.content');
     if (content) new MutationObserver(function () { schedule(); }).observe(content, { childList: true });
     var title = $('#page-title');
