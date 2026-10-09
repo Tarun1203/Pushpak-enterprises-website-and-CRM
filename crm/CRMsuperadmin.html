@@ -1121,7 +1121,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     try {
       const roleSnap = await getDoc(doc(db, 'users', user.uid));
-      if (!roleSnap.exists() || roleSnap.data().role !== 'superadmin') {
+      if (!roleSnap.exists() || roleSnap.data().role !== 'superadmin' || roleSnap.data().accessDisabled === true) {
         await signOut(auth);
         window.location.href = 'login.html';
         return;

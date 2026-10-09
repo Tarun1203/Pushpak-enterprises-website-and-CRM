@@ -75,6 +75,11 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Appointment missed, no technician for a day, unrouted request, job stuck waiting for a spare: nobody was told | `phase9c.test.js` P9.16 (`escalationSweep`) |
 | A business ID used twice (request, job, spare request, return, claim, registration, order) went unnoticed | `phase9c.test.js` P9.15, emulator phase 9 timeline test |
 | A technician could write the server's own markers (`lifecycleRejected`, `scheduleRejected`, `assignmentRejected`, `escalation`, `idCheck`) on a service job | `firestore.rules`, `rules_qa` |
+| A suspended / terminated technician or an inactive service center could still read and write data directly (only the web page turned them away) | `functions/phase10a.test.js` P10.2 (account switch-off), `rules.test.mjs` › "switched-off accounts", `phase10-roles.spec.js` |
+| Head Office had no way to switch any account off | `users/{uid}.disabledByAdmin` → `syncAccess_users`, `phase10a.test.js` P10.2 |
+| Technician working hours, breaks, days off, service-center closures and the daily job limit were stored but never enforced when booking | `phase10a.test.js` P10.5 |
+| A spare part for one brand could be fitted on another brand's job | `phase10a.test.js` P10.3 |
+| The same spare part, model, product, category, brand or active warranty plan could be created twice | `phase10a.test.js` P10.4 (`checkMasterIntegrity_*`) |
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,

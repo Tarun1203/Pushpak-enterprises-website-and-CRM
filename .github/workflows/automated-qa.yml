@@ -208,10 +208,10 @@ jobs:
         continue-on-error: true
         run: npm --prefix functions audit --omit=dev --audit-level=high
 
-      - name: Run Phase 9 Customer 360 QA (one customer, every record, safe display)
+      - name: Run Phase 9-10 Customer 360 & role QA (one customer, every record, safe display)
         id: phase9_qa
         continue-on-error: true
-        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase9_qa.json npx playwright test tests/e2e/customer360.spec.js --reporter=list,json
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase9_qa.json npx playwright test tests/e2e/customer360.spec.js tests/e2e/phase10-roles.spec.js --reporter=list,json
 
       - name: Run auto-fit QA (phones, tablets, laptops, monitors and TVs; every page)
         id: fit_qa
@@ -275,7 +275,7 @@ jobs:
         run: |
           ISSUE_TITLE="Automated QA: Site/CRM Test Failures"
           ISSUE_NUMBER=$(gh issue list --state open --search "Automated QA: Site/CRM Test Failures in:title" --json number --jq '.[0].number')
-          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Auto-fit QA: ${{ steps.fit_qa.outcome }}\n- Phase 9 Customer 360 QA: ${{ steps.phase9_qa.outcome }}\n- Regression gate: ${{ steps.regression_qa.outcome }} (see qa-results/regression.md)\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
+          BODY="## Automated QA failure\n\nThe CI tests detected one or more failures.\n\n- Backend lifecycle QA: ${{ steps.backend_qa.outcome }}\n- Frontend unit QA: ${{ steps.frontend_qa.outcome }}\n- Rules & role QA: ${{ steps.rules_qa.outcome }}\n- Workflow QA: ${{ steps.workflow_qa.outcome }}\n- Mobile QA: ${{ steps.mobile_qa.outcome }}\n- Responsive QA: ${{ steps.responsive_qa.outcome }}\n- Outside-link QA: ${{ steps.links_qa.outcome }}\n- Security XSS QA: ${{ steps.security_qa.outcome }}\n- Dependency audit: ${{ steps.audit_qa.outcome }}\n- Performance QA: ${{ steps.perf_qa.outcome }}\n- Auto-fit QA: ${{ steps.fit_qa.outcome }}\n- Phase 9-10 Customer 360 & role QA: ${{ steps.phase9_qa.outcome }}\n- Regression gate: ${{ steps.regression_qa.outcome }} (see qa-results/regression.md)\n- Public QA: ${{ steps.public_qa.outcome }}\n- CRM Phase 2 QA: ${{ steps.crm_qa.outcome }}\n- CRM Phase 3 QA: ${{ steps.phase3_qa.outcome }}\n- CRM Phase 4 QA: ${{ steps.phase4_qa.outcome }}\n- CRM Phase 5 security QA: ${{ steps.phase5_qa.outcome }}\n- Phase 6 production readiness QA: ${{ steps.phase6_qa.outcome }}\n- Phase 7 customer lifecycle QA: ${{ steps.phase7_qa.outcome }}\n- Phase 8 inventory & logistics QA: ${{ steps.phase8_qa.outcome }}\n- Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Commit: $GITHUB_SHA\n- Base URL: https://tarun1203.github.io/Pushpak-enterprises-website-and-CRM/\n- Generated: $(date -u '+%Y-%m-%d %H:%M UTC')\n\nSee the **pushpak-qa-report** artifact for the Playwright report, traces, screenshots and videos."
           if [ -z "$ISSUE_NUMBER" ]; then
             gh issue create --title "$ISSUE_TITLE" --body "$BODY"
           else

@@ -148,6 +148,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       return;
     }
 
+    if (roleSnap.data().accessDisabled === true) {
+      showError('Your account has been deactivated. Contact your admin if you believe this is a mistake.');
+      await auth.signOut();
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+      return;
+    }
+
     const role = roleSnap.data().role;
     const destination = ROLE_REDIRECTS[role];
     if (!destination) {

@@ -491,7 +491,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     }
     try {
       const roleSnap = await getDoc(doc(db, 'users', user.uid));
-      if (!roleSnap.exists() || roleSnap.data().role !== ALLOWED_ROLE) {
+      if (!roleSnap.exists() || roleSnap.data().role !== ALLOWED_ROLE || roleSnap.data().accessDisabled === true) {
         await signOut(auth);
         window.location.href = 'login.html';
         return;

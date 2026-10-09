@@ -5,6 +5,25 @@ import { runCases } from './runner.mjs';
 const A = 'allow', D = 'deny';
 const ST = '__ST__';
 
+runCases('Rules: switched-off accounts', [
+  ['tOff', 'get', 'users/tOff', null, A, 'can still read their own record (the login page tells them why)'],
+  ['tOff', 'get', 'serviceJobs/jOff', null, D, 'suspended technician: own job unreadable'],
+  ['tOff', 'update', 'serviceJobs/jOff', { status: 'accepted' }, D, 'suspended technician cannot work'],
+  ['tOff', 'update', 'users/tOff', { name: 'Still here' }, D, 'cannot edit own record'],
+  ['tOff', 'update', 'users/tOff', { accessDisabled: false }, D, 'cannot switch themselves back on'],
+  ['t1', 'update', 'users/t1', { accessDisabled: true }, D, 'a user cannot switch themselves off or on'],
+  ['t1', 'update', 'users/t1', { disabledByAdmin: false }, D],
+  ['scOff', 'get', 'centerRequests/crOff', null, D, 'inactive center cannot read its tickets'],
+  ['scOff', 'update', 'centerRequests/crOff', { technicianUid: 't1' }, D],
+  ['scOff', 'get', 'users/t1', null, D, 'nor staff profiles'],
+  ['saOff', 'get', 'users/t1', null, D, 'a disabled Super Admin has no admin powers'],
+  ['saOff', 'update', 'users/t1', { name: 'X' }, D],
+  ['saOff', 'create', 'users/newx', { role: 'technician' }, D],
+  ['cOff', 'get', 'productRegistrations/regOff', null, D, 'disabled customer sees nothing'],
+  ['sa', 'update', 'users/t1', { disabledByAdmin: true }, A, 'Head Office can switch an account off'],
+  ['sc1', 'update', 'users/t1', { disabledByAdmin: true }, D, 'a center cannot']
+]);
+
 runCases('Rules: user accounts and roles', [
   ['t1', 'update', 'users/t1', { name: 'New Name' }, A, 'self-edit name'],
   ['t1', 'update', 'users/t1', { role: 'superadmin' }, D, 'self-promote'],

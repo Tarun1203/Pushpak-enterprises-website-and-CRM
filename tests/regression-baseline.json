@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 155
+      "minTests": 160
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",
@@ -11,7 +11,7 @@
     },
     "rules_qa": {
       "label": "Firestore/Storage rules & roles (emulator)",
-      "minTests": 414
+      "minTests": 430
     },
     "workflow_qa": {
       "label": "Workflows (emulator, rules + functions)",
@@ -74,8 +74,8 @@
       "minTests": 160
     },
     "phase9_qa": {
-      "label": "Phase 9 Customer 360 (screen)",
-      "minTests": 3
+      "label": "Phase 9-10 Customer 360 and role access (screens)",
+      "minTests": 16
     }
   }
 }

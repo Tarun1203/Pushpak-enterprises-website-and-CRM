@@ -20,11 +20,11 @@ service cloud.firestore {
     // by existing. Customer access is granted explicitly by isCustomer()
     // on the few collections they may read.
     function isSignedIn() {
-      return request.auth != null && callerRole() != 'customer';
+      return request.auth != null && callerRole() != 'customer' && callerActive();
     }
 
     function isCustomer() {
-      return request.auth != null && callerRole() == 'customer';
+      return request.auth != null && callerRole() == 'customer' && callerActive();
     }
 
     // The customer's verified phone, written onto their profile by the
@@ -38,6 +38,14 @@ service cloud.firestore {
     // /users/{uid} document with a `role` field for this to work.
     function callerRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // An account switched off by Head Office (or by a technician's Suspended /
+    // Terminated / Resigned status, or an Inactive service center) stops
+    // working at once - the functions set `accessDisabled` on the user doc.
+    // It reads the same document as callerRole(), so it costs no extra lookup.
+    function callerActive() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accessDisabled', false) != true;
     }
 
     function isAdmin() {
@@ -228,7 +236,8 @@ service cloud.firestore {
             && request.resource.data.role == resource.data.role
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
                  ['districtsCovered', 'pincodesCovered', 'brandsAuthorized', 'linkedServiceCenterUid', 'createdAt',
-                  'distributionType', 'distributorUid', 'distributorName', 'accountType', 'contractEndDate', 'skills', 'phone10']))
+                  'distributionType', 'distributorUid', 'distributorName', 'accountType', 'contractEndDate', 'skills', 'phone10',
+                  'accessDisabled', 'disabledByAdmin']))
         // A service center (or technician's own account, via isStaff())
         // claiming/releasing a technician onto/off its own roster —
         // this is the ONLY field a staff member may touch on someone

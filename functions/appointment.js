@@ -49,6 +49,39 @@
     });
   }
 
+  // The technician's own schedule, the center's closures and the daily job
+  // limit - all set on the Service Center screens, now enforced here.
+  // roster: centerTechnicians doc; profile: serviceCenterProfiles doc (or null);
+  // activeToday: number of the technician's other live bookings that date.
+  var DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  var DAY_NAMES = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
+  function rosterProblem(roster, profile, slot, activeToday) {
+    roster = roster || {};
+    var meta = roster.workingHoursMeta || {};
+    var closures = (profile && profile.holidaysAndClosures) || [];
+    for (var i = 0; i < closures.length; i++) {
+      var c = closures[i];
+      if (c && c.date && c.date <= slot.date && slot.date <= (c.endDate || c.date) && !meta.holidayOverride) {
+        return 'The service center is closed on that date' + (c.reason ? ' (' + String(c.reason).slice(0, 60) + ')' : '') + '.';
+      }
+    }
+    var wh = roster.workingHours;
+    var configured = wh && DAY_KEYS.some(function (k) { return wh[k] && (wh[k].working === true || wh[k].start || wh[k].end); });
+    if (configured) {
+      var key = DAY_KEYS[new Date(slot.date + 'T00:00:00Z').getUTCDay()];
+      var day = wh[key] || {};
+      if (day.working !== true) return "The technician doesn't work on " + DAY_NAMES[key] + 's.';
+      var s = toMin(slot.start), e = toMin(slot.end);
+      var ds = toMin(day.start), de = toMin(day.end);
+      if (s !== null && e !== null && ds !== null && de !== null && (s < ds || e > de)) return "That is outside the technician's working hours (" + day.start + '-' + day.end + ').';
+      var bs = toMin(day.breakStart), be = toMin(day.breakEnd);
+      if (s !== null && e !== null && bs !== null && be !== null && s < be && e > bs) return "That falls in the technician's break (" + day.breakStart + '-' + day.breakEnd + ').';
+    }
+    var max = roster.capacity && Number(roster.capacity.maxJobsPerDay);
+    if (max > 0 && (activeToday || 0) >= max) return 'The technician already has ' + activeToday + ' job' + (activeToday === 1 ? '' : 's') + ' that day (the limit is ' + max + ').';
+    return null;
+  }
+
   // others: [{ label, status, date, start, end }] for the same technician.
   // Returns the first overlapping booking or null. Date-only and
   // inactive bookings never conflict.
@@ -77,7 +110,7 @@
 
   return {
     WORK_START: WORK_START, WORK_END: WORK_END, FREE_STATUSES: FREE_STATUSES,
-    todayIST: todayIST, validateSlot: validateSlot, onApprovedLeave: onApprovedLeave,
+    todayIST: todayIST, validateSlot: validateSlot, onApprovedLeave: onApprovedLeave, rosterProblem: rosterProblem,
     findConflict: findConflict, suggestSlots: suggestSlots
   };
 }));

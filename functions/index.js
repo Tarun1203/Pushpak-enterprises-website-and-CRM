@@ -378,7 +378,8 @@ async function enforceSchedule(coll, event, before) {
     let reason = Appointment.validateSlot(slot, Date.now());
     if (!reason && slot.date && slot.start && techUid) {
       const rosterQ = await tx.get(db.collection('centerTechnicians').where('technicianUid', '==', techUid).limit(1));
-      const leave = rosterQ.empty ? [] : (rosterQ.docs[0].get('leaveRecords') || []);
+      const rosterDoc = rosterQ.empty ? null : rosterQ.docs[0];
+      const leave = rosterDoc ? (rosterDoc.get('leaveRecords') || []) : [];
       if (Appointment.onApprovedLeave(leave, slot.date)) reason = 'The technician is on approved leave on that date.';
       if (!reason) {
         const others = [];
@@ -393,6 +394,12 @@ async function enforceSchedule(coll, event, before) {
         }
         const clash = Appointment.findConflict(slot, others);
         if (clash) reason = `The technician is already booked ${clash.start}-${clash.end} that day (${clash.label}).`;
+        if (!reason && rosterDoc) {
+          const centerUid = rosterDoc.get('serviceCenterUid');
+          const profile = centerUid ? await tx.get(db.collection('serviceCenterProfiles').doc(centerUid)) : null;
+          const live = others.filter((o) => !Appointment.FREE_STATUSES.includes(o.status)).length;
+          reason = Appointment.rosterProblem(rosterDoc.data(), profile && profile.exists ? profile.data() : null, slot, live);
+        }
       }
     }
 
@@ -1384,7 +1391,17 @@ async function applySparesOp(ref) {
       tx.getAll(...partIds.map((id) => db.collection('spareParts').doc(id)))
     ]);
     const partNames = {};
-    for (const p of partSnaps) { if (!p.exists) return reject('A part on this request isn\'t in the part master.'); partNames[p.id] = p.get('name') || p.id; }
+    for (const p of partSnaps) {
+      if (!p.exists) return reject('A part on this request isn\'t in the part master.');
+      partNames[p.id] = p.get('name') || p.id;
+      // Brands stay separate: a part made for one brand is not fitted on another brand's job.
+      if (op.type === 'consume' && job && job.brand) {
+        const forBrand = String(p.get('brandCompatibility') || 'All').trim().toLowerCase();
+        if (forBrand && forBrand !== 'all' && forBrand !== String(job.brand).trim().toLowerCase()) {
+          return reject(`${partNames[p.id]} is a ${p.get('brandCompatibility')} part; this job is for ${job.brand}.`);
+        }
+      }
+    }
     const current = {};
     invSnaps.forEach((s) => { current[s.id] = s.exists ? (s.get('quantity') || 0) : 0; });
     const applied = Spares.applyChanges(changes, current, partNames);
@@ -2291,3 +2308,101 @@ exports.escalationSweep = onSchedule(
   { schedule: '30 * * * *', timeZone: 'Asia/Kolkata', region: REGION },
   async (event) => { await runEscalationSweep(event && event.scheduleTime ? Date.parse(event.scheduleTime) : Date.now()); }
 );
+
+// ---------------------------------------------------------------
+// Switching accounts off (Phase 10). Setting a technician to Suspended /
+// Terminated / Resigned, deactivating a service center, or Head Office setting
+// users/{uid}.disabledByAdmin, all end up here: the user's record gets
+// accessDisabled (read by the Firestore and Storage rules, so the account
+// stops working immediately) and the sign-in account is disabled with its
+// sessions revoked (so it can't sign in or refresh again).
+// ---------------------------------------------------------------
+const Access = require('./access');
+async function applyAuthState(uid, disabled) {
+  try {
+    const { getAuth } = require('firebase-admin/auth');
+    const auth = getAuth();
+    await auth.updateUser(uid, { disabled });
+    if (disabled) await auth.revokeRefreshTokens(uid);
+  } catch (err) {
+    console.warn('Could not update sign-in account', uid, err && err.message);
+  }
+}
+async function recomputeAccess(uid) {
+  if (!uid) return null;
+  const userRef = db.collection('users').doc(uid);
+  const user = await userRef.get();
+  if (!user.exists) return null;
+  const roster = await db.collection('centerTechnicians').where('technicianUid', '==', uid).get();
+  const profile = await db.collection('serviceCenterProfiles').doc(uid).get();
+  const decision = Access.accessDecision({
+    disabledByAdmin: user.get('disabledByAdmin'),
+    employmentStatuses: roster.docs.map((d) => d.get('employmentStatus')),
+    centerStatus: user.get('role') === 'servicecenter' && profile.exists ? profile.get('status') : null
+  });
+  if ((user.get('accessDisabled') === true) === decision.disabled) return decision;
+  await userRef.update({ accessDisabled: decision.disabled, accessDisabledReason: decision.reason, accessChangedAt: FieldValue.serverTimestamp() });
+  await applyAuthState(uid, decision.disabled);
+  await db.collection('notifications').add({
+    recipientType: 'role', recipientValue: 'superadmin',
+    title: decision.disabled ? 'Account switched off' : 'Account switched back on',
+    message: `${user.get('name') || user.get('email') || uid}: ${decision.disabled ? decision.reason : 'access restored'}.`,
+    read: false, createdAt: FieldValue.serverTimestamp()
+  });
+  return decision;
+}
+exports.syncAccess_centerTechnicians = onDocumentWritten(
+  { document: 'centerTechnicians/{docId}', region: REGION },
+  async (event) => {
+    const b = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const a = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    const uids = new Set([b && b.technicianUid, a && a.technicianUid].filter(Boolean));
+    for (const uid of uids) await recomputeAccess(uid);
+  }
+);
+exports.syncAccess_serviceCenterProfiles = onDocumentWritten(
+  { document: 'serviceCenterProfiles/{docId}', region: REGION },
+  async (event) => { await recomputeAccess(event.params.docId); }
+);
+exports.syncAccess_users = onDocumentUpdated(
+  { document: 'users/{docId}', region: REGION },
+  async (event) => {
+    if (!event.data) return;
+    if (event.data.before.get('disabledByAdmin') === event.data.after.get('disabledByAdmin')) return;
+    await recomputeAccess(event.params.docId);
+  }
+);
+
+// ---------------------------------------------------------------
+// Master data integrity (Phase 10). The masters are the single source of
+// truth, so the same spare part, model, product, category, brand or active
+// warranty plan must not exist twice (a CSV imported twice, a double click).
+// A newly created duplicate is flagged and Head Office told; nothing is
+// deleted, because other records may already point at it.
+// ---------------------------------------------------------------
+const Masters = require('./masters');
+for (const coll of Object.keys(Masters.KEYS)) {
+  exports[`checkMasterIntegrity_${coll}`] = onDocumentCreated(
+    { document: `${coll}/{docId}`, region: REGION },
+    async (event) => {
+      if (!event.data) return;
+      const mine = Masters.keysOf(coll, event.data.data());
+      if (!mine.length) return;
+      const snap = await db.collection(coll).get();
+      const dups = [];
+      snap.forEach((s) => {
+        if (s.id === event.params.docId) return;
+        const theirs = Masters.keysOf(coll, s.data());
+        const hit = mine.find((k) => theirs.includes(k));
+        if (hit) dups.push({ id: s.id, key: hit });
+      });
+      if (!dups.length) return;
+      await event.data.ref.update({ masterCheck: { status: 'duplicate', of: dups.slice(0, 5).map((x) => x.id), key: dups[0].key, at: FieldValue.serverTimestamp() } });
+      await db.collection('notifications').add({
+        recipientType: 'role', recipientValue: 'superadmin', title: 'Duplicate master record',
+        message: `${coll}: "${event.data.get('name') || event.data.get('modelNumber') || event.params.docId}" already exists (${dups[0].id}).`,
+        read: false, createdAt: FieldValue.serverTimestamp()
+      });
+    }
+  );
+}

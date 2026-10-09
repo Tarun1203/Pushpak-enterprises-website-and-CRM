@@ -44,13 +44,21 @@ export const USERS = {
   x1: { role: 'distributor', name: 'Distributor One' },
   x2: { role: 'distributor', name: 'Distributor Two' },
   c1: { role: 'customer', name: 'Asha', phone10: '9000000001' },
-  c2: { role: 'customer', name: 'Ravi', phone10: '9000000002' }
+  c2: { role: 'customer', name: 'Ravi', phone10: '9000000002' },
+  // Accounts switched off by Head Office / suspended / deactivated: no access to anything but their own record.
+  tOff: { role: 'technician', name: 'Suspended Tech', linkedServiceCenterUid: 'sc1', accessDisabled: true },
+  scOff: { role: 'servicecenter', name: 'Inactive Center', accessDisabled: true },
+  saOff: { role: 'superadmin', name: 'Disabled Admin', accessDisabled: true },
+  cOff: { role: 'customer', name: 'Disabled Customer', phone10: '9000000003', accessDisabled: true }
 };
 
 export function seedDocs() {
   const now = Date.now();
   return {
     ...Object.fromEntries(Object.entries(USERS).map(([uid, u]) => [`users/${uid}`, u])),
+    'serviceJobs/jOff': { jobId: 'PE-JOB-OFF', technicianUid: 'tOff', status: 'assigned', customerPhone: '9000000003' },
+    'centerRequests/crOff': { requestId: 'PE-CR-OFF', serviceCenterUid: 'scOff', status: 'new', customerPhone: '9000000003' },
+    'productRegistrations/regOff': { registrationId: 'PE-REG-OFF', customerPhone: '9000000003', serialNumber: 'OFF-1', purchaseDate: '2026-01-01', warrantyMonths: 12 },
     'serviceJobs/j1': { jobId: 'PE-JOB-1', technicianUid: 't1', status: 'assigned', customerPhone: '9000000001' },
     'serviceJobs/j2': { jobId: 'PE-JOB-2', technicianUid: 't2', status: 'closed' },
     'centerRequests/cr1': { requestId: 'PE-CR-1', serviceCenterUid: 'sc1', technicianUid: 't1', status: 'assigned', customerPhone: '9000000001', customerName: 'Asha', category: 'Geyser' },

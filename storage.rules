@@ -15,7 +15,8 @@ service firebase.storage {
     // customer (role 'customer'), who must never gain staff access just
     // by creating an account.
     function signedIn() {
-      return request.auth != null && role() != 'customer';
+      return request.auth != null && role() != 'customer'
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('accessDisabled', false) != true;
     }
 
     function role() {
