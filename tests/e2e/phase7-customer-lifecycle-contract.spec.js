@@ -15,7 +15,7 @@ test.describe('Phase 7 — Customer 360, product registration and warranty lifec
     // These are the labels actually exposed by the public site. Keep this
     // contract user-facing instead of assuming internal modal/control IDs.
     const bodyText = (await page.locator('body').innerText()).toLowerCase();
-    for (const label of ['register a product', 'book a service', 'track a service', 'warranty status']) {
+    for (const label of ['register product', 'book a service', 'track service', 'check warranty']) {
       expect(bodyText, `Missing customer-service entry point: ${label}`).toContain(label);
     }
   });
