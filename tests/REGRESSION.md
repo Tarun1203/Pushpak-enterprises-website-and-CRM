@@ -89,6 +89,7 @@ Locally, suites you did not run show as "no results" — that is expected.
 | A technician was not told when the center assigned a job or set an appointment; centers and requesters were not told about completion, spare decisions or claim approval | `notify.js`, `phase10c.test.js` P10.16 |
 | No go / no-go decision, backup, rollback, monitoring, UAT, SOP or training documents | `docs/`, `scripts/qa/go-live-gate.mjs`, `phase10c.test.js` P10.18-24 |
 | Customer website redesign broke hub tiles, hash deep links, wizard forms, service timeline or phone layout | `ui-customer.spec.js`, `mobile.spec.js` |
+| CRM redesign broke the dashboard hero, jump-to palette, phone bottom bar, dialogs, keyboard menu or phone layout on a role screen | `ui-crm.spec.js`, `phase10-roles.spec.js`, `mobile.spec.js` |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.

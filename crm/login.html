@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pushpak Enterprises CRM — Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#25292E;--paper:#F5EFE0;--stone:#7A7565;--hairline:#E0D6BC;--blue:#1C6FBA;--blue-deep:#0F4C88;--err:#B3261E;}
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -32,6 +32,20 @@
   .back-link:hover{color:var(--blue);}
   /* 16px text in form fields on phones, so iOS does not zoom in on focus */
   @media (max-width:820px){input,select,textarea{font-size:16px !important;}}
+</style>
+<style>
+/* Refreshed look (UI phase 7): same markup, softer tokens, rounded card. */
+:root{--ink:#0B1020;--paper:#F3F5FA;--stone:#59627A;--hairline:#D5DBEC;--blue:#2F5BFF;--blue-deep:#0E1330}
+body{font-family:'Inter','Manrope',system-ui,sans-serif;background:radial-gradient(120% 90% at 100% 0%,rgba(92,224,255,.28),transparent 55%),linear-gradient(135deg,#0E1330,#1B2C8F);padding:16px;-webkit-font-smoothing:antialiased}
+.card{background:#fff;border-radius:24px;padding:40px 36px;box-shadow:0 24px 70px rgba(5,8,25,.45)}
+.logo-box{width:48px;background:#fff;border-radius:12px}
+h1{font-family:'Manrope','Inter',sans-serif;letter-spacing:-.02em;font-size:26px}
+input{border-radius:12px;border-color:#CFD6EA;background:#fff;transition:border-color .15s,box-shadow .15s}
+input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,91,255,.3)}
+button{border-radius:999px;box-shadow:0 8px 20px rgba(47,91,255,.32);transition:transform .15s,background .15s}
+button:hover:not(:disabled){background:#2449D6;transform:translateY(-1px)}
+.error-msg{border-radius:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <link rel="stylesheet" href="../assets/fit.css">
 <script src="release.js"></script>
