@@ -74,8 +74,8 @@
       "minTests": 160
     },
     "phase9_qa": {
-      "label": "Phase 9-10 Customer 360 and role access (screens)",
-      "minTests": 34
+      "label": "Phase 9-10 Customer 360, role access and customer UI (screens)",
+      "minTests": 46
     },
     "browsers_qa": {
       "label": "Browser compatibility (Chrome, Firefox, Safari, Android, iPhone, iPad)",

@@ -88,6 +88,7 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Nobody could see who created, approved, dispatched or closed a job, claim, spare request, order or invoice | `audit.js` WORKFLOW, `phase10c.test.js` P10.15 |
 | A technician was not told when the center assigned a job or set an appointment; centers and requesters were not told about completion, spare decisions or claim approval | `notify.js`, `phase10c.test.js` P10.16 |
 | No go / no-go decision, backup, rollback, monitoring, UAT, SOP or training documents | `docs/`, `scripts/qa/go-live-gate.mjs`, `phase10c.test.js` P10.18-24 |
+| Customer website redesign broke hub tiles, hash deep links, wizard forms, service timeline or phone layout | `ui-customer.spec.js`, `mobile.spec.js` |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.

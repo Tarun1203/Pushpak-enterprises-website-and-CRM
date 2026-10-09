@@ -211,7 +211,7 @@ jobs:
       - name: Run Phase 9-10 Customer 360 & role QA (one customer, every record, safe display)
         id: phase9_qa
         continue-on-error: true
-        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase9_qa.json npx playwright test tests/e2e/customer360.spec.js tests/e2e/phase10-roles.spec.js tests/e2e/phase10-field.spec.js --reporter=list,json
+        run: PLAYWRIGHT_JSON_OUTPUT_FILE=qa-results/json/phase9_qa.json npx playwright test tests/e2e/customer360.spec.js tests/e2e/phase10-roles.spec.js tests/e2e/phase10-field.spec.js tests/e2e/ui-customer.spec.js --reporter=list,json
 
       - name: Run auto-fit QA (phones, tablets, laptops, monitors and TVs; every page)
         id: fit_qa

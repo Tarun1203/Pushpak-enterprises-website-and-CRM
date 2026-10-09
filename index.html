@@ -1,431 +1,206 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pushpak Enterprises — MakWell, Flyvision, Skevia</title>
+<meta name="description" content="Technology made for every home. MakWell, Flyvision and Skevia televisions and appliances, with registered warranty and a service network across Karnataka.">
+<meta name="theme-color" content="#070B16">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-:root{
-    --ink:#25292E;
-    --paper:#F5EFE0;
-    --paper-deep:#EDE3CC;
-    --stone:#7A7565;
-    --hairline:#E0D6BC;
-    --blue:#1C6FBA;
-    --blue-deep:#0F4C88;
-    --makwell:#8A3B94;
-    --flyvision:#E5262C;
-    --flyvision-navy:#1B1B3A;
-    --skevia:#1C7DC0;
-    --radius:2px;
-  }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  html{scroll-behavior:smooth;}
-  body{
-    font-family:'Inter',system-ui,sans-serif;
-    background:var(--paper);
-    color:var(--ink);
-    line-height:1.5;
-    -webkit-font-smoothing:antialiased;
-  }
-  a{color:inherit;text-decoration:none;}
-  img{max-width:100%;display:block;}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
-
-  /* ---------- Header ---------- */
-  header{
-    position:sticky;top:0;z-index:50;
-    background:rgba(245,239,224,0.92);
-    backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--hairline);
-  }
-  .header-inner{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:18px 32px;max-width:1180px;margin:0 auto;
-  }
-  .brandmark-wrap{display:flex;align-items:center;gap:10px;}
-  .brandmark-icon{width:32px;height:32px;flex-shrink:0;object-fit:contain;}
-  .brandmark{font-weight:800;font-size:15px;letter-spacing:-0.01em;line-height:1.3;}
-  .brandmark span{display:block;color:var(--stone);font-weight:500;font-size:12px;}
-  nav{display:flex;gap:36px;}
-  nav a{font-size:14px;font-weight:500;color:var(--stone);transition:color .2s;}
-  nav a:hover{color:var(--ink);}
-  .nav-cta{
-    font-size:14px;font-weight:600;color:var(--blue);
-    border:1px solid var(--blue);padding:9px 20px;border-radius:var(--radius);
-    transition:background .2s, color .2s;
-  }
-  .nav-cta:hover{background:var(--blue);color:#fff;}
-  .nav-toggle{display:none;}
-
-  /* ---------- Hero ---------- */
-  .hero{
-    padding:96px 0 88px;
-    border-bottom:1px solid var(--hairline);
-  }
-  .hero-grid{
-    display:grid;grid-template-columns:1.1fr 0.9fr;gap:64px;align-items:center;
-  }
-  .eyebrow{
-    font-size:13px;color:var(--stone);margin-bottom:20px;font-weight:500;
-  }
-  h1{
-    font-size:clamp(36px,4.6vw,58px);
-    font-weight:800;
-    letter-spacing:-0.02em;
-    line-height:1.06;
-    max-width:11ch;
-  }
-  .hero-rule{
-    width:64px;height:3px;background:var(--blue);margin:28px 0 24px;
-    transform:scaleX(0);transform-origin:left;
-    animation:draw-in 0.9s cubic-bezier(.4,0,.2,1) 0.3s forwards;
-  }
-  @keyframes draw-in{to{transform:scaleX(1);}}
-  @media (prefers-reduced-motion:reduce){.hero-rule{animation:none;transform:scaleX(1);}}
-  .hero p{font-size:17px;color:var(--stone);max-width:46ch;}
-  .hero-actions{display:flex;gap:16px;margin-top:36px;}
-  .btn-primary{
-    background:var(--blue);color:#fff;font-weight:600;font-size:14px;
-    padding:14px 26px;border-radius:var(--radius);
-  }
-  .btn-secondary{
-    border:1px solid var(--hairline);font-weight:600;font-size:14px;
-    padding:14px 26px;border-radius:var(--radius);
-  }
-  .hero-visual{
-    aspect-ratio:4/5;background:var(--blue-deep);border-radius:var(--radius);
-    display:flex;align-items:center;justify-content:center;overflow:hidden;
-    position:relative;
-  }
-  .hero-visual .stat{
-    position:absolute;bottom:0;left:0;right:0;
-    background:linear-gradient(0deg,rgba(15,76,136,0.95),transparent);
-    color:#fff;padding:28px 24px 22px;
-  }
-  .hero-visual .stat b{display:block;font-size:28px;font-weight:800;}
-  .hero-visual .stat span{font-size:13px;color:#CFE1F2;}
-  .hero-product-img{
-    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-    opacity:0;transition:opacity 1.2s ease-in-out;
-  }
-  .hero-product-img.active{opacity:1;}
-
-  /* ---------- Section shell ---------- */
-  section{padding:80px 0;border-bottom:1px solid var(--hairline);}
-  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:44px;gap:24px;}
-  h2{font-size:clamp(26px,2.6vw,34px);font-weight:800;letter-spacing:-0.015em;max-width:16ch;}
-  .section-head p{font-size:15px;color:var(--stone);max-width:36ch;text-align:right;}
-  @media (max-width:720px){.section-head{flex-direction:column;align-items:flex-start;}.section-head p{text-align:left;}}
-
-  /* ---------- Brands ---------- */
-  .brands{padding:0;border-bottom:1px solid var(--hairline);}
-  .brands .wrap{padding:0;max-width:none;}
-  .brand-intro{max-width:1180px;margin:0 auto;padding:80px 32px 44px;}
-  .brand-panels{display:grid;grid-template-columns:1.15fr 0.95fr 0.9fr;}
-  .brand-panel{
-    padding:56px 40px 48px;min-height:420px;
-    display:flex;flex-direction:column;justify-content:space-between;
-    position:relative;overflow:hidden;
-  }
-  .brand-panel .logo-box{
-    background:#fff;padding:20px 24px;border-radius:var(--radius);
-    width:fit-content;max-width:220px;
-  }
-  .brand-panel .logo-box img{width:100%;height:auto;}
-  .brand-copy{margin-top:32px;}
-  .brand-copy .tag{font-size:13px;font-weight:600;letter-spacing:0.02em;margin-bottom:10px;opacity:0.85;}
-  .brand-copy p{font-size:14.5px;max-width:34ch;opacity:0.92;}
-  .brand-link{
-    margin-top:24px;display:inline-flex;align-items:center;gap:8px;
-    font-size:14px;font-weight:600;border-bottom:1px solid currentColor;padding-bottom:2px;width:fit-content;
-  }
-  .p-makwell{background:var(--makwell);color:#F3E9F5;}
-  .p-flyvision{background:var(--flyvision-navy);color:#FCE6E7;}
-  .p-flyvision .accent{color:var(--flyvision);}
-  .p-skevia{background:var(--skevia);color:#E7F3FB;}
-
-  /* ---------- Why choose us ---------- */
-  .why-list{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--hairline);}
-  .why-item{padding:32px 28px 32px 0;border-right:1px solid var(--hairline);}
-  .why-item:last-child{border-right:none;}
-  .why-item h3{font-size:17px;font-weight:700;margin-bottom:10px;}
-  .why-item p{font-size:14px;color:var(--stone);}
-  @media (max-width:860px){.why-list{grid-template-columns:1fr;}.why-item{border-right:none;border-bottom:1px solid var(--hairline);padding:28px 0;}}
-
-  /* ---------- Services ---------- */
-  .services-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
-  .service-card{background:var(--paper);padding:28px 22px;transition:background .2s;display:block;border:none;text-align:left;width:100%;cursor:pointer;font-family:inherit;}
-  .service-card:hover{background:var(--paper-deep);}
-  .service-card h3{font-size:15px;font-weight:700;margin-bottom:6px;}
-  .service-card p{font-size:13px;color:var(--stone);}
-  @media (max-width:860px){.services-grid{grid-template-columns:repeat(2,1fr);}}
-
-  /* ---------- About ---------- */
-  .about-grid{display:grid;grid-template-columns:0.8fr 1.2fr;gap:64px;}
-  .about-grid .num{font-size:15px;color:var(--stone);font-weight:600;}
-  .about-copy p{font-size:16px;color:var(--ink);max-width:58ch;margin-bottom:18px;}
-  .about-copy p:last-child{margin-bottom:0;}
-  @media (max-width:860px){.about-grid{grid-template-columns:1fr;gap:20px;}}
-
-  /* ---------- Contact ---------- */
-  .contact-info-standalone{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;}
-  .modal-overlay{
-    position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;
-    align-items:center;justify-content:center;z-index:100;padding:20px;
-  }
-  .modal-overlay.show{display:flex;}
-  .modal{background:var(--paper);width:100%;max-width:440px;border-radius:2px;padding:30px;max-height:90vh;overflow-y:auto;}
-  .modal h3{font-size:19px;font-weight:800;margin-bottom:4px;}
-  .modal .modal-sub{font-size:13px;color:var(--stone);margin-bottom:20px;}
-  .modal form{display:flex;flex-direction:column;gap:12px;}
-  .modal-close{position:absolute;top:8px;right:8px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:none;border:none;font-size:24px;color:var(--stone);cursor:pointer;line-height:1;}
-  .modal{position:relative;}
-  .modal.modal-wide{max-width:640px;}
-  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
-  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
-  .form-row .hint{font-size:11px;color:var(--stone);font-weight:400;}
-  .form-row input,.form-row select,.form-row textarea{
-    border:1px solid var(--hairline);padding:11px 13px;font-family:inherit;font-size:13.5px;
-    border-radius:var(--radius);background:#fff;width:100%;
-  }
-  .form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:2px solid var(--blue);outline-offset:1px;}
-  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  @media (max-width:520px){.form-grid-2{grid-template-columns:1fr;}}
-  .checkbox-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;margin-bottom:14px;}
-  .checkbox-row input{width:auto;}
-  .search-result-card{
-    border:1px solid var(--hairline);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;
-    cursor:pointer;transition:background .15s;
-  }
-  .search-result-card:hover{background:var(--paper-deep);}
-  .search-result-card b{display:block;font-size:13.5px;margin-bottom:3px;}
-  .search-result-card span{font-size:12px;color:var(--stone);}
-  .step-hidden{display:none;}
-  .track-status-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:16px;}
-  .track-status-box .label{font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;margin-bottom:4px;}
-  .track-status-box .value{font-size:15px;font-weight:700;margin-bottom:12px;}
-  .fb-box{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:12px;}
-  .fb-stars{display:flex;gap:6px;margin:8px 0 12px;}
-  .fb-stars button{font-size:26px;line-height:1;background:none;border:none;cursor:pointer;color:#C9C9C9;padding:0 2px;}
-  .fb-stars button.on{color:#E8A317;}
-  .fb-box textarea{width:100%;min-height:70px;border:1px solid var(--hairline);border-radius:var(--radius);padding:10px;font:inherit;font-size:14px;box-sizing:border-box;}
-  .fb-box .fb-msg{font-size:13.5px;margin-top:10px;}
-  .status-pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;}
-  .status-pill.active{background:#D9EEE0;color:#1C7A46;}
-  .status-pill.low{background:#FBEAD2;color:#9A6A15;}
-  .status-pill.expired{background:#F6DCDC;color:#B3261E;}
-  .warranty-result-card{border:1px solid var(--hairline);border-radius:var(--radius);padding:18px;margin-top:14px;}
-  .warranty-result-card h4{font-size:14.5px;font-weight:700;margin-bottom:8px;}
-  .warranty-result-card .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--stone);margin-bottom:4px;}
-  .warranty-result-card .row span:first-child{color:var(--ink);font-weight:600;}
-  .contact-detail{margin-bottom:24px;min-width:0;}
-  .contact-detail .label{font-size:12px;color:var(--stone);font-weight:600;letter-spacing:0.02em;margin-bottom:6px;}
-  .contact-detail .value{font-size:17px;font-weight:600;overflow-wrap:anywhere;}
-  form{display:flex;flex-direction:column;gap:14px;}
-  form input,form textarea,form select{
-    border:1px solid var(--hairline);padding:14px 16px;font-family:inherit;font-size:14px;
-    border-radius:var(--radius);background:#fff;
-  }
-  form input:focus,form textarea:focus,form select:focus{outline:2px solid var(--blue);outline-offset:1px;}
-  form textarea{resize:vertical;min-height:100px;}
-  .field-error{font-size:12px;color:#B3261E;display:none;margin-top:-8px;}
-  .field-error.show{display:block;}
-  .ticket-note{font-size:13px;color:var(--stone);margin-top:4px;}
-  .ticket-note b{color:var(--blue);}
-  form button{
-    background:var(--blue);color:#fff;font-weight:600;font-size:14px;
-    padding:14px 26px;border:none;border-radius:var(--radius);cursor:pointer;width:fit-content;
-  }
-  @media (max-width:860px){.contact-info-standalone{grid-template-columns:minmax(0,1fr);gap:24px;}}
-
-  /* ---------- Footer ---------- */
-  footer{padding:36px 0;}
-  .footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--stone);}
-  @media (max-width:600px){.footer-inner{flex-direction:column;gap:10px;text-align:center;}}
-
-  @media (max-width:900px){
-    .hero-grid{grid-template-columns:1fr;}
-    .hero-visual{order:-1;aspect-ratio:16/9;}
-    .brand-panels{grid-template-columns:1fr;}
-    .about-grid{gap:24px;}
-  }
-  @media (max-width:760px){nav{display:none;}}
-  @media (max-width:640px){
-    .header-inner{padding:16px 20px;}
-    .wrap,.brand-intro{padding-left:20px;padding-right:20px;}
-    section{padding:56px 0;}
-    .hero{padding:56px 0 48px;}
-  }
-  /* 16px text in form fields on phones, so iOS does not zoom in on focus */
-  @media (max-width:820px){input,select,textarea{font-size:16px !important;}}
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/pe.css">
 <script src="assets/mobile-nav.js" defer></script>
+<script src="assets/pe.js" defer></script>
 <link rel="stylesheet" href="assets/fit.css">
 </head>
-<body>
+<body class="has-tabbar">
+<a class="skip" href="#main">Skip to content</a>
 
 <header>
   <div class="header-inner">
-    <div class="brandmark-wrap">
-      <img src="assets/logos/pushpak-enterprises-icon.png" alt="Pushpak Enterprises" class="brandmark-icon">
+    <a class="brandmark-wrap" href="index.html" aria-label="Pushpak Enterprises home">
+      <img src="assets/logos/pushpak-enterprises-icon.png" alt="" class="brandmark-icon">
       <div class="brandmark">Pushpak Enterprises <span>Building Brands. Delivering Trust.</span></div>
-    </div>
-    <nav>
+    </a>
+    <nav aria-label="Main">
+      <a href="#products">Products</a>
       <a href="#brands">Brands</a>
-      <a href="#services">Customer Services</a>
+      <a href="#help">Support</a>
       <a href="#about">About</a>
       <a href="#contact">Contact</a>
-      <a href="portal.html">My Account</a>
     </nav>
-    <a href="#contact" class="nav-cta">Book a Service</a>
+    <div class="header-actions">
+      <a href="#help" class="nav-cta">Find a Service</a>
+      <a href="portal.html" class="acct" aria-label="My Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></a>
+    </div>
   </div>
 </header>
 
-<section class="hero">
+<main id="main">
+<section class="hero" id="home">
   <div class="wrap hero-grid">
     <div>
-      <h1 id="hero-headline">Appliances built to last. Service that shows up.</h1>
-      <div class="hero-rule"></div>
-      <p id="hero-subcopy">Pushpak Enterprises brings together three appliance brands — MakWell, Flyvision and Skevia — backed by one service network of technicians and centers across the state.</p>
+      <span class="eyebrow">Pushpak Enterprises</span>
+      <h1 id="hero-headline">Technology made for <em>every home.</em></h1>
+      <p class="lead" id="hero-subcopy">Discover MakWell, Flyvision and Skevia — televisions and appliances built for modern India, backed by one service network across Karnataka.</p>
       <div class="hero-actions">
-        <a href="#brands" class="btn-primary">Explore our brands</a>
-        <a href="#services" class="btn-secondary">Book a service</a>
+        <a href="#products" class="btn btn-primary">Explore Products</a>
+        <a href="#help" class="btn btn-ghost">Get Support</a>
+      </div>
+      <div class="hero-stats">
+        <div><b id="stat-number">3</b><span id="stat-label">brands, one service promise</span></div>
+        <div><b>Registered</b><span>warranty on every product</span></div>
+        <div><b>Doorstep</b><span>service by local technicians</span></div>
       </div>
     </div>
-    <div class="hero-visual">
+    <div class="hero-visual" aria-hidden="false">
+      <div class="glow"></div>
       <img src="assets/products/hero-tv-makwell.webp" alt="MakWell LED TV" class="hero-product-img active" data-idx="0">
       <img src="assets/products/hero-tv-flyvision.webp" alt="Flyvision LED TV" class="hero-product-img" data-idx="1">
       <img src="assets/products/hero-tv-skevia.webp" alt="Skevia LED TV" class="hero-product-img" data-idx="2">
-      <div class="stat">
-        <b id="stat-number">3</b>
-        <span id="stat-label">appliance brands, one service promise</span>
-      </div>
+      <span class="hero-chip c1">Warranty-backed</span>
+      <span class="hero-chip c2">Smart &amp; connected</span>
+      <div class="hero-dots" aria-hidden="true"><i></i><i></i><i></i></div>
     </div>
   </div>
 </section>
 
-<section class="brands" id="brands">
-  <div class="brand-intro">
-    <div class="section-head">
-      <h2>Our brands</h2>
-      <p id="brands-intro">Each brand runs its own product line — all backed by the same Pushpak Enterprises service network.</p>
+<section class="strip" aria-label="Why Pushpak">
+  <div class="wrap strip-grid">
+    <div class="strip-item rv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><div><b>Registered warranty</b><span>Register once; check cover any time.</span></div></div>
+    <div class="strip-item rv d1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg><div><b>One service network</b><span>Technicians and centers across Karnataka.</span></div></div>
+    <div class="strip-item rv d2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><div><b>Local presence</b><span>Built and run from Karnataka.</span></div></div>
+  </div>
+</section>
+
+<section id="brands">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div><span class="eyebrow">Our brands</span><h2 style="margin-top:12px;">Three brands. One promise.</h2></div>
+      <p id="brands-intro">Each brand has its own personality — all backed by the same Pushpak Enterprises service network.</p>
+    </div>
+    <div class="brand-stack">
+      <article class="brand-card p-makwell rv">
+        <div class="brand-copy">
+          <div class="logo-chip"><img src="assets/logos/makwell-logo.jpeg" alt="MakWell"></div>
+          <div class="tag" id="makwell-tag">Make it happen</div>
+          <p id="makwell-desc">Geysers, washing machines and home essentials — MakWell's own line, engineered for everyday reliability.</p>
+          <a href="makwell/index.html" class="btn btn-light">Explore MakWell <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="brand-art"><img src="assets/products/hero-tv-makwell.webp" alt="MakWell TV" loading="lazy"></div>
+      </article>
+      <article class="brand-card p-flyvision rev rv">
+        <div class="brand-copy">
+          <div class="logo-chip"><img src="assets/logos/flyvision-logo.jpeg" alt="Flyvision"></div>
+          <div class="tag" id="flyvision-tag">Precision in motion</div>
+          <p id="flyvision-desc">Flyvision's appliance range, built for performance-minded households.</p>
+          <a href="flyvision/index.html" class="btn btn-light">Explore Flyvision <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="brand-art"><img src="assets/products/hero-tv-flyvision.webp" alt="Flyvision TV" loading="lazy"></div>
+      </article>
+      <article class="brand-card p-skevia rv">
+        <div class="brand-copy">
+          <div class="logo-chip"><img src="assets/logos/skevia-logo.jpeg" alt="Skevia"></div>
+          <div class="tag" id="skevia-tag">A new awakening</div>
+          <p id="skevia-desc">Skevia, a product by MakWell — a newer line exploring the next generation of home appliances.</p>
+          <a href="skevia/index.html" class="btn btn-light">Explore Skevia <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="brand-art"><img src="assets/products/hero-tv-skevia.webp" alt="Skevia TV" loading="lazy"></div>
+      </article>
     </div>
   </div>
-  <div class="brand-panels">
-    <div class="brand-panel p-makwell">
-      <div class="logo-box"><img src="assets/logos/makwell-logo.jpeg" alt="MakWell logo"></div>
-      <div class="brand-copy">
-        <div class="tag" id="makwell-tag">Make it happen</div>
-        <p id="makwell-desc">Geysers, washing machines and home essentials — MakWell's own line, engineered for everyday reliability.</p>
-        <a href="makwell/index.html" class="brand-link">View MakWell products →</a>
-      </div>
+</section>
+
+<section id="products" style="padding-top:0;">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div><span class="eyebrow">Products</span><h2 style="margin-top:12px;">Find what fits your home.</h2></div>
+      <p>Browse by what you need. Every product can be registered for warranty.</p>
     </div>
-    <div class="brand-panel p-flyvision">
-      <div class="logo-box"><img src="assets/logos/flyvision-logo.jpeg" alt="Flyvision logo"></div>
-      <div class="brand-copy">
-        <div class="tag accent" id="flyvision-tag">Precision in motion</div>
-        <p id="flyvision-desc">Flyvision's appliance range, built for performance-minded households.</p>
-        <a href="flyvision/index.html" class="brand-link">View Flyvision products →</a>
-      </div>
+    <div class="cat-row">
+      <a class="cat-tile rv" href="makwell/index.html#products"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><h3>TVs</h3><p>Smart and LED televisions, 24" to 65".</p><span class="link-arrow">Browse TVs</span></a>
+      <a class="cat-tile rv d1" href="makwell/index.html#products"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8 6h2"/></svg></div><h3>Appliances</h3><p>Geysers, washing machines and home essentials.</p><span class="link-arrow">Browse appliances</span></a>
+      <a class="cat-tile rv d2" href="makwell/index.html#products"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><h3>Accessories</h3><p>Stabilizers, irons and everyday add-ons.</p><span class="link-arrow">Browse accessories</span></a>
+      <a class="cat-tile rv d3" href="#contact"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div><h3>Other products</h3><p>Looking for something else? Ask our team.</p><span class="link-arrow">Contact us</span></a>
     </div>
-    <div class="brand-panel p-skevia">
-      <div class="logo-box"><img src="assets/logos/skevia-logo.jpeg" alt="Skevia logo"></div>
-      <div class="brand-copy">
-        <div class="tag" id="skevia-tag">A new awakening</div>
-        <p id="skevia-desc">Skevia, a product by MakWell — a newer line exploring the next generation of home appliances.</p>
-        <a href="skevia/index.html" class="brand-link">View Skevia products →</a>
-      </div>
+  </div>
+</section>
+
+<section id="help" class="hub">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div><span class="eyebrow">Support</span><h2 style="margin-top:12px;">How can we help?</h2></div>
+      <p>Register, check, book and track — all in a minute, no account needed.</p>
+    </div>
+    <div class="hub-grid" id="services">
+      <button type="button" class="service-card rv" data-modal="book"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></span><h3>Book a service</h3><p>Repair or installation. We route it to a technician near you.</p></button>
+      <button type="button" class="service-card rv d1" data-modal="warranty"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span><h3>Check warranty</h3><p>See what is covered and until when, with your mobile number.</p></button>
+      <button type="button" class="service-card rv d2" data-modal="register"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><h3>Register product</h3><p>Five quick steps to activate your warranty.</p></button>
+      <button type="button" class="service-card rv" data-category="Service Center Enquiry"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span><h3>Find service center</h3><p>Tell us your pincode and we will point you to the nearest center.</p></button>
+      <button type="button" class="service-card rv d1" data-modal="track"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg></span><h3>Track service</h3><p>Follow your request from booking to completion.</p></button>
+      <button type="button" class="service-card rv d2" data-category="FAQ / Question"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg></span><h3>Help &amp; FAQs</h3><p>Answers on service, warranty and your product.</p></button>
+    </div>
+    <div class="hub-more rv">
+      <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
+      <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
+      <button type="button" class="service-card" data-category="General Support"><h3>Talk to support</h3><p>Reach our team for anything not covered above.</p></button>
     </div>
   </div>
 </section>
 
 <section id="why">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Why choose Pushpak Enterprises</h2>
-      <p>One company standing behind every brand, every sale, every repair.</p>
+    <div class="sec-head rv">
+      <div><span class="eyebrow">Why Pushpak</span><h2 style="margin-top:12px;">One company behind every brand.</h2></div>
+      <p>Every sale, every repair, one standard.</p>
     </div>
     <div class="why-list" id="why-list">
-      <div class="why-item">
-        <h3>One service network</h3>
-        <p>Technicians and service centers across Karnataka, shared across all three brands.</p>
-      </div>
-      <div class="why-item">
-        <h3>Registered warranty</h3>
-        <p>Every product can be registered and tracked from purchase through warranty and repair.</p>
-      </div>
-      <div class="why-item">
-        <h3>Local presence</h3>
-        <p>Built and run from Karnataka, with dealers and service partners across the state.</p>
-      </div>
+      <div class="why-item rv"><div class="n">01</div><h3>One service network</h3><p>Technicians and service centers across Karnataka, shared across all three brands.</p></div>
+      <div class="why-item rv d1"><div class="n">02</div><h3>Registered warranty</h3><p>Every product can be registered and tracked from purchase through warranty and repair.</p></div>
+      <div class="why-item rv d2"><div class="n">03</div><h3>Local presence</h3><p>Built and run from Karnataka, with dealers and service partners across the state.</p></div>
     </div>
   </div>
 </section>
 
-<section id="services">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Customer services</h2>
-      <p>Everything you need after you've bought a MakWell, Flyvision or Skevia product.</p>
-    </div>
-    <div class="services-grid">
-      <button type="button" class="service-card" data-modal="register"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></button>
-      <button type="button" class="service-card" data-modal="book"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></button>
-      <button type="button" class="service-card" data-modal="track"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></button>
-      <button type="button" class="service-card" data-modal="warranty"><h3>Warranty status</h3><p>Check what's covered and until when.</p></button>
-      <button type="button" class="service-card" data-category="Manuals Request"><h3>Manuals</h3><p>Download the manual for your product model.</p></button>
-      <button type="button" class="service-card" data-category="Brochures Request"><h3>Brochures</h3><p>Browse the current product catalogue.</p></button>
-      <button type="button" class="service-card" data-category="General Support"><h3>Support</h3><p>Reach our team for anything not covered above.</p></button>
-      <button type="button" class="service-card" data-category="FAQ / Question"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></button>
-    </div>
-  </div>
-</section>
-
-<section id="about">
+<section id="about" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
   <div class="wrap about-grid">
-    <div class="num">01 / About</div>
-    <div class="about-copy">
-      <h2 style="margin-bottom:20px;">About Pushpak Enterprises</h2>
+    <div class="rv"><span class="eyebrow">About</span><h2 style="margin-top:12px;">About Pushpak Enterprises</h2></div>
+    <div class="about-copy rv d1">
       <p id="about-text-1">Pushpak Enterprises is a Karnataka-based home appliances distribution business, bringing together three brands — MakWell, Flyvision and Skevia — under one company and one service standard.</p>
-      <p id="about-text-2">From geysers and washing machines to newer product lines, every item we sell is backed by product registration, tracked warranty, and a service network built to reach customers directly — not just at the point of sale.</p>
+      <p id="about-text-2">From geysers and washing machines to newer product lines, every item we sell is backed by product registration, tracked warranty, and a service network built to reach customers directly.</p>
     </div>
   </div>
 </section>
 
-<section id="contact" style="border-bottom:none;">
+<section id="contact">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Get in touch</h2>
-      <p>Reach out any time — here's how.</p>
+    <div class="sec-head rv">
+      <div><span class="eyebrow">Contact</span><h2 style="margin-top:12px;">Get in touch.</h2></div>
+      <p>Questions, service requests or dealer enquiries — reach us directly.</p>
     </div>
-
-    <div class="contact-info-standalone" style="margin-top:40px;">
-      <div class="contact-detail">
-        <div class="label">Location</div>
-        <div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div>
-      </div>
-      <div class="contact-detail">
-        <div class="label">Phone</div>
-        <div class="value" id="contact-phone">+91 99800 00515</div>
-      </div>
-      <div class="contact-detail">
-        <div class="label">Email</div>
-        <div class="value" id="contact-email">pushpakenterprises91@gmail.com</div>
-      </div>
+    <div class="contact-info-standalone">
+      <div class="contact-detail rv"><div class="label">Location</div><div class="value" id="contact-location">No. 62/2, 3rd Main Road, New Timber Yard, Unkal, Hubli - 580031, Karnataka</div></div>
+      <div class="contact-detail rv d1"><div class="label">Phone</div><div class="value" id="contact-phone">+91 99800 00515</div></div>
+      <div class="contact-detail rv d2"><div class="label">Email</div><div class="value" id="contact-email">pushpakenterprises91@gmail.com</div></div>
     </div>
   </div>
 </section>
+</main>
 
 <footer>
   <div class="wrap footer-inner">
     <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
-    <span>MakWell · Flyvision · Skevia</span>
+    <span class="foot-links"><a href="makwell/index.html">MakWell</a><a href="flyvision/index.html">Flyvision</a><a href="skevia/index.html">Skevia</a><a href="portal.html">My Account</a></span>
   </div>
 </footer>
+
+<nav class="tabbar" aria-label="Quick links">
+  <a href="#home" data-sec="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#products" data-sec="products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Products</a>
+  <a href="#help" data-sec="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Support</a>
+  <a href="portal.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Account</a>
+</nav>
 
 <!-- Register Product modal -->
 <!-- Generic service request modal (Warranty/Manuals/Brochures/Support/FAQ) -->
@@ -472,48 +247,58 @@
     <button type="button" class="modal-close" id="register-close">&times;</button>
     <h3>Register a Product</h3>
     <div class="modal-sub">Activate your warranty by registering your purchase.</div>
-    <form id="register-form">
-      <div class="form-grid-2">
-        <div class="form-row"><label>Name</label><input type="text" name="name" required></div>
-        <div class="form-row"><label>Mobile No</label><input type="tel" id="register-phone" inputmode="numeric" maxlength="10" required></div>
-      </div>
-      <div class="form-row"><label>Address</label><input type="text" name="address" required></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>City</label><input type="text" name="city" required></div>
-        <div class="form-row"><label>State</label><input type="text" name="state" required></div>
-      </div>
-      <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" required></div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Brand</label>
-          <select id="register-brand" name="brand" required>
-            <option value="">Select…</option>
-            <option value="MakWell">MakWell</option>
-            <option value="Flyvision">Flyvision</option>
-            <option value="Skevia">Skevia</option>
-          </select>
+    <form id="register-form" data-wizard>
+      <div class="wiz-step" data-label="Product">
+        <div class="form-grid-2">
+          <div class="form-row"><label for="register-brand">Brand</label>
+            <select id="register-brand" name="brand" data-sum="Brand" required>
+              <option value="">Select…</option>
+              <option value="MakWell">MakWell</option>
+              <option value="Flyvision">Flyvision</option>
+              <option value="Skevia">Skevia</option>
+            </select>
+          </div>
+          <div class="form-row"><label for="register-category">Product</label>
+            <select id="register-category" name="category" data-sum="Product" required>
+              <option value="">Select brand first…</option>
+            </select>
+          </div>
         </div>
-        <div class="form-row"><label>Product Category</label>
-          <select id="register-category" name="category" required>
-            <option value="">Select brand first…</option>
+        <div class="form-row">
+          <label for="register-model-select">Model</label>
+          <select id="register-model-select" name="modelNo" data-sum="Model" required>
+            <option value="">Select brand and product first…</option>
           </select>
+          <input type="text" id="register-model-text" name="modelNoText" placeholder="Type your model number" style="display:none;margin-top:8px;">
+        </div>
+        <div class="form-row"><label>Serial number <span class="hint">(optional, on the product sticker)</span></label><input type="text" name="serialNumber" data-sum="Serial"></div>
+      </div>
+      <div class="wiz-step" data-label="Purchase">
+        <div class="form-grid-2">
+          <div class="form-row"><label>Date of purchase</label><input type="date" name="purchaseDate" data-sum="Purchased" required></div>
+          <div class="form-row"><label>Bought from (dealer)</label><input type="text" name="dealerName" data-sum="Dealer" required></div>
+        </div>
+        <div class="form-row"><label>Invoice copy <span class="hint">(online upload coming soon; we will follow up if needed)</span></label><input type="file" name="invoice" disabled style="opacity:0.5;"></div>
+        <div class="checkbox-row step-hidden" id="register-installation-row">
+          <input type="checkbox" id="register-installation" name="installationRequired">
+          <label for="register-installation">Installation / demo required for this product</label>
         </div>
       </div>
-      <div class="form-grid-2">
-        <div class="form-row"><label>Date of Purchase</label><input type="date" name="purchaseDate" required></div>
-        <div class="form-row"><label>Purchased From (Dealer Name)</label><input type="text" name="dealerName" required></div>
+      <div class="wiz-step" data-label="You">
+        <div class="form-grid-2">
+          <div class="form-row"><label>Name</label><input type="text" name="name" data-sum="Name" autocomplete="name" required></div>
+          <div class="form-row"><label>Mobile number</label><input type="tel" id="register-phone" data-sum="Mobile" inputmode="numeric" maxlength="10" autocomplete="tel-national" required></div>
+        </div>
+        <div class="form-row"><label>Address</label><input type="text" name="address" autocomplete="street-address" required></div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>City</label><input type="text" name="city" data-sum="City" required></div>
+          <div class="form-row"><label>State</label><input type="text" name="state" required></div>
+        </div>
+        <div class="form-row"><label>Pincode</label><input type="text" name="pincode" data-sum="Pincode" inputmode="numeric" maxlength="6" required></div>
       </div>
-      <div class="form-row">
-        <label>Product Model No</label>
-        <select id="register-model-select" name="modelNo" required>
-          <option value="">Select brand and category first…</option>
-        </select>
-        <input type="text" id="register-model-text" name="modelNoText" placeholder="Type your model number" style="display:none;margin-top:8px;">
-      </div>
-      <div class="form-row"><label>Product Serial No <span class="hint">(not mandatory)</span></label><input type="text" name="serialNumber"></div>
-      <div class="form-row"><label>Invoice Copy <span class="hint">(not mandatory — online upload coming soon, we'll follow up if needed)</span></label><input type="file" name="invoice" disabled style="opacity:0.5;"></div>
-      <div class="checkbox-row step-hidden" id="register-installation-row">
-        <input type="checkbox" id="register-installation" name="installationRequired">
-        <label for="register-installation">Installation / Demo required for this product</label>
+      <div class="wiz-step" data-label="Confirm">
+        <p class="modal-sub" style="margin:0 0 6px;">Check your details, then register. Your warranty starts from the purchase date.</p>
+        <div class="wiz-summary"></div>
       </div>
       <span id="register-phone-error" class="field-error"></span>
       <div class="modal-error" id="register-error"></div>
@@ -534,76 +319,86 @@
       <div class="modal-sub">Search by your mobile number to find a registered product, or continue without one.</div>
       <div class="form-row"><label>Mobile No</label><input type="tel" id="book-search-phone" inputmode="numeric" maxlength="10"></div>
       <span id="book-search-error" class="field-error"></span>
-      <button type="button" id="book-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Search</button>
+      <button type="button" id="book-search-btn" >Search</button>
       <div id="book-search-results" style="margin-top:18px;"></div>
-      <button type="button" id="book-skip-search" class="btn-secondary" style="margin-top:10px;border:1px solid var(--hairline);background:none;font-weight:600;font-size:13px;padding:11px 20px;border-radius:var(--radius);cursor:pointer;">Continue without a registered product →</button>
+      <button type="button" id="book-skip-search" class="btn btn-secondary" style="margin-top:10px;">Continue without a registered product →</button>
     </div>
 
     <div id="book-step-form" class="step-hidden">
       <h3>Service Details</h3>
       <div class="modal-sub">Fill in the rest and we'll route your request.</div>
-      <form id="book-form">
-        <div class="form-grid-2">
-          <div class="form-row"><label>Name</label><input type="text" name="name" maxlength="100" required></div>
-          <div class="form-row"><label>Mobile No</label><input type="tel" id="book-phone" inputmode="numeric" maxlength="10" required></div>
-        </div>
-        <div class="form-row"><label>Address</label><input type="text" name="address" maxlength="300" required></div>
-        <div class="form-grid-2">
-          <div class="form-row"><label>City</label><input type="text" name="city" required></div>
-          <div class="form-row"><label>State</label><input type="text" name="state" required></div>
-        </div>
-        <div class="form-row"><label>Pincode</label><input type="text" name="pincode" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" title="6-digit pincode" required></div>
-        <div class="form-grid-2">
-          <div class="form-row"><label>Brand</label>
-            <select name="brand" required>
+      <form id="book-form" data-wizard>
+        <div class="wiz-step" data-label="Need">
+          <div class="form-row">
+            <label for="book-request-type">What do you need?</label>
+            <select id="book-request-type" data-sum="Request" required>
               <option value="">Select…</option>
-              <option value="MakWell">MakWell</option>
-              <option value="Flyvision">Flyvision</option>
-              <option value="Skevia">Skevia</option>
+              <option value="installation">Installation / Demo</option>
+              <option value="service">Repair / service</option>
             </select>
           </div>
-          <div class="form-row"><label>Product Category</label>
-            <select id="book-category" name="category" required>
-              <option value="">Select…</option>
-              <option value="LED TV">LED TV</option>
-              <option value="Washing Machine">Washing Machine</option>
-              <option value="Geyser">Geyser</option>
-              <option value="Solar Water Heater">Solar Water Heater</option>
-              <option value="Other">Other</option>
-            </select>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Brand</label>
+              <select name="brand" data-sum="Brand" required>
+                <option value="">Select…</option>
+                <option value="MakWell">MakWell</option>
+                <option value="Flyvision">Flyvision</option>
+                <option value="Skevia">Skevia</option>
+              </select>
+            </div>
+            <div class="form-row"><label for="book-category">Product</label>
+              <select id="book-category" name="category" data-sum="Product" required>
+                <option value="">Select…</option>
+                <option value="LED TV">LED TV</option>
+                <option value="Washing Machine">Washing Machine</option>
+                <option value="Geyser">Geyser</option>
+                <option value="Solar Water Heater">Solar Water Heater</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div class="form-grid-2">
-          <div class="form-row"><label>Date of Purchase</label><input type="date" name="purchaseDate" required></div>
-          <div class="form-row"><label>Purchased From (Dealer Name)</label><input type="text" name="dealerName" required></div>
+        <div class="wiz-step" data-label="Problem">
+          <div class="form-row step-hidden" id="book-issue-row">
+            <label for="book-issue">What's the issue?</label>
+            <select id="book-issue" data-sum="Issue"></select>
+          </div>
+          <div class="form-row step-hidden" id="book-issue-fallback-row">
+            <label for="book-issue-fallback">Describe the issue</label>
+            <textarea id="book-issue-fallback" maxlength="1000"></textarea>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Model number</label><input type="text" name="modelNo" data-sum="Model" required></div>
+            <div class="form-row"><label>Serial number <span class="hint">(optional)</span></label><input type="text" name="serialNumber"></div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Date of purchase</label><input type="date" name="purchaseDate" required></div>
+            <div class="form-row"><label>Bought from (dealer)</label><input type="text" name="dealerName" required></div>
+          </div>
+          <div class="form-row"><label>Invoice copy <span class="hint">(online upload coming soon)</span></label><input type="file" disabled style="opacity:0.5;"></div>
         </div>
-        <div class="form-row"><label>Product Model No</label><input type="text" name="modelNo" required></div>
-        <div class="form-row"><label>Product Serial No <span class="hint">(not mandatory)</span></label><input type="text" name="serialNumber"></div>
-        <div class="form-row"><label>Invoice Copy <span class="hint">(not mandatory — online upload coming soon)</span></label><input type="file" disabled style="opacity:0.5;"></div>
-
-        <div class="form-row">
-          <label>Request Type</label>
-          <select id="book-request-type" required>
-            <option value="">Select…</option>
-            <option value="installation">Installation / Demo</option>
-            <option value="service">Service Request</option>
-          </select>
+        <div class="wiz-step" data-label="You">
+          <div class="form-grid-2">
+            <div class="form-row"><label>Name</label><input type="text" name="name" data-sum="Name" maxlength="100" autocomplete="name" required></div>
+            <div class="form-row"><label>Mobile number</label><input type="tel" id="book-phone" data-sum="Mobile" inputmode="numeric" maxlength="10" autocomplete="tel-national" required></div>
+          </div>
+          <div class="form-row"><label>Address</label><input type="text" name="address" maxlength="300" autocomplete="street-address" required></div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>City</label><input type="text" name="city" data-sum="City" required></div>
+            <div class="form-row"><label>State</label><input type="text" name="state" required></div>
+          </div>
+          <div class="form-row"><label>Pincode</label><input type="text" name="pincode" data-sum="Pincode" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" title="6-digit pincode" required></div>
         </div>
-        <div class="form-row step-hidden" id="book-issue-row">
-          <label>What's the issue?</label>
-          <select id="book-issue"></select>
+        <div class="wiz-step" data-label="Confirm">
+          <p class="modal-sub" style="margin:0 0 6px;">Check your details. We route the request to the nearest service center; they will confirm the visit time with you.</p>
+          <div class="wiz-summary"></div>
         </div>
-        <div class="form-row step-hidden" id="book-issue-fallback-row">
-          <label>Describe the issue</label>
-          <textarea id="book-issue-fallback" maxlength="1000"></textarea>
-        </div>
-
         <span id="book-phone-error" class="field-error"></span>
         <div class="modal-error" id="book-error"></div>
         <div class="modal-success" id="book-success"></div>
         <button type="submit">Submit request</button>
         <div class="ticket-note" id="book-ticket-note"></div>
-      </form>
+    </form>
     </div>
   </div>
 </div>
@@ -617,7 +412,7 @@
     <div class="form-row"><label>Request / Ticket Number</label><input type="text" id="track-ticket" placeholder="e.g. PE-SVC-20260910-0001-CustomerSite"></div>
     <div class="form-row"><label>Mobile No</label><input type="tel" id="track-phone" inputmode="numeric" maxlength="10"></div>
     <span id="track-error" class="field-error"></span>
-    <button type="button" id="track-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Check status</button>
+    <button type="button" id="track-search-btn" >Check status</button>
     <div id="track-result"></div>
   </div>
 </div>
@@ -630,7 +425,7 @@
     <div class="modal-sub">Enter your mobile number to check coverage on all your registered products.</div>
     <div class="form-row"><label>Mobile No</label><input type="tel" id="warranty-phone" inputmode="numeric" maxlength="10"></div>
     <span id="warranty-error" class="field-error"></span>
-    <button type="button" id="warranty-search-btn" style="background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 26px;border:none;border-radius:var(--radius);cursor:pointer;">Check warranty</button>
+    <button type="button" id="warranty-search-btn" >Check warranty</button>
     <div id="warranty-result"></div>
   </div>
 </div>
@@ -1234,6 +1029,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // 'out_of_warranty', set automatically once a technician closes the
   // job, or absent while it's still open) into the plain-language line
   // shown on the Track Service result.
+  // Customer-facing progress for a service request (status -> step).
+  const TRACK_STEPS = ['Request received', 'Service center assigned', 'Technician assigned', 'Technician visit', 'Repair', 'Completed'];
+  const TRACK_AT = { new: 0, assigned_to_center: 1, assigned: 2, accepted: 2, reassignment_required: 1, on_the_way: 3, at_customer: 3, in_progress: 4, waiting_spare: 4, reopened: 4, completed: 5, verification: 5, closed: 5 };
+  function trackTimeline(status) {
+    if (status === 'cancelled') return '<ol class="timeline cancelled"><li class="done">Request received</li><li class="cur">Cancelled</li></ol>';
+    const at = Object.prototype.hasOwnProperty.call(TRACK_AT, status) ? TRACK_AT[status] : 0;
+    const finished = at === TRACK_STEPS.length - 1;
+    return '<ol class="timeline" aria-label="Service progress">' + TRACK_STEPS.map((s, i) =>
+      '<li class="' + (i < at || (finished && i === at) ? 'done' : i === at ? 'cur' : '') + '">' + s + (status === 'waiting_spare' && i === at ? ' (waiting for a spare part)' : '') + '</li>').join('') + '</ol>';
+  }
+
   function warrantyStatusLabel(warrantyStatus) {
     if (warrantyStatus === 'in_warranty') return 'In warranty — covered by company';
     if (warrantyStatus === 'out_of_warranty') return 'Out of warranty — chargeable';
@@ -1343,8 +1149,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         const dateStr = res.createdAt ? new Date(res.createdAt).toLocaleDateString() : '—';
         trackResult.innerHTML = `
           <div class="track-status-box">
-            <div class="label">Status</div>
-            <div class="value">${escapeHtml((res.status || 'new').replace('_', ' '))}</div>
+            ${trackTimeline(res.status || 'new')}
+            <div class="label" style="margin-top:14px;">Status</div>
+            <div class="value">${escapeHtml((res.status || 'new').replace(/_/g, ' '))}</div>
             <div class="label">Request Type</div>
             <div class="value" style="font-size:13.5px;">${res.requestType === 'installation' ? 'Installation / Demo' : 'Service Request'}</div>
             <div class="label">Product</div>
@@ -1604,22 +1411,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   function isValidIndianMobile(digits) {
     return /^[6-9]\d{9}$/.test(digits);
   }
-</script>
-
-<script>
-// Hero product image carousel — cross-fades between the three
-  // brand TVs every 4 seconds. Pauses if the tab isn't visible.
-  (function () {
-    const imgs = document.querySelectorAll('.hero-product-img');
-    if (imgs.length < 2) return;
-    let current = 0;
-    setInterval(() => {
-      if (document.hidden) return;
-      imgs[current].classList.remove('active');
-      current = (current + 1) % imgs.length;
-      imgs[current].classList.add('active');
-    }, 4000);
-  })();
 </script>
 
 </body>

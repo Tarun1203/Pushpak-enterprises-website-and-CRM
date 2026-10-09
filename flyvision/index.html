@@ -1,173 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Flyvision — Pushpak Enterprises</title>
+<meta name="description" content="Flyvision products, warranty registration and service, backed by Pushpak Enterprises.">
+<meta name="theme-color" content="#14143A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-:root{
-    --ink:#25292E;--paper:#F5EFE0;--paper-deep:#EDE3CC;--stone:#7A7565;--hairline:#E0D6BC;
-    --brand:#E5262C;--brand-deep:#1B1B3A;
-    --radius:2px;
-  }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;}
-  a{color:inherit;text-decoration:none;}
-  img{max-width:100%;display:block;}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
-
-  header{position:sticky;top:0;z-index:50;background:rgba(245,239,224,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--hairline);}
-  .header-inner{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;max-width:1180px;margin:0 auto;}
-  .header-inner .back{font-size:12.5px;color:var(--stone);font-weight:600;}
-  .header-inner .back:hover{color:var(--ink);}
-  .logo-box{height:34px;}
-  .logo-box img{height:100%;width:auto;}
-  nav{display:flex;gap:30px;}
-  nav a{font-size:13.5px;font-weight:500;color:var(--stone);}
-  nav a:hover{color:var(--ink);}
-  @media (max-width:720px){nav{display:none;}}
-
-  section{padding:72px 0;border-bottom:1px solid var(--hairline);}
-  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:36px;gap:24px;}
-  h2{font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-0.015em;}
-  .section-head p{font-size:14px;color:var(--stone);max-width:34ch;text-align:right;}
-  @media (max-width:720px){.section-head{flex-direction:column;align-items:flex-start;}.section-head p{text-align:left;}}
-
-  .hero{padding:88px 0 72px;}
-  .hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:56px;align-items:center;}
-  .eyebrow{font-size:13px;color:var(--brand);font-weight:700;margin-bottom:16px;}
-  h1{font-size:clamp(32px,4.2vw,50px);font-weight:800;letter-spacing:-0.02em;line-height:1.08;max-width:13ch;}
-  .hero-rule{width:56px;height:3px;background:var(--brand);margin:26px 0 22px;}
-  .hero p.sub{font-size:16px;color:var(--stone);max-width:46ch;}
-  .hero-actions{display:flex;gap:14px;margin-top:32px;flex-wrap:wrap;}
-  .btn-primary{background:var(--brand);color:#fff;font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);border:none;cursor:pointer;}
-  .btn-secondary{border:1px solid var(--hairline);font-weight:600;font-size:14px;padding:13px 24px;border-radius:var(--radius);}
-  .hero-visual{background:var(--brand-deep);border-radius:var(--radius);aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;padding:36px;}
-  .hero-visual .logo-box{height:auto;width:70%;}
-  .hero-visual .logo-box img{width:100%;height:auto;}
-  @media (max-width:900px){.hero-grid{grid-template-columns:1fr;}.hero-visual{order:-1;aspect-ratio:16/9;}}
-
-  .cat-pills{display:flex;gap:10px;flex-wrap:wrap;}
-  .cat-pill{
-    background:var(--paper);border:1px solid var(--hairline);font-weight:600;font-size:13px;
-    padding:9px 18px;border-radius:20px;color:var(--stone);cursor:pointer;
-  }
-  .cat-pill.active{background:var(--brand);border-color:var(--brand);color:#fff;}
-
-  .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-top:24px;}
-  .product-card{background:var(--paper);padding:26px 22px;display:block;text-decoration:none;color:inherit;transition:background .15s;}
-  .product-card-image{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:2px;margin-bottom:14px;background:var(--paper-deep);}
-  .product-card-image-placeholder{display:flex;align-items:center;justify-content:center;}
-  .product-card-image-placeholder span{font-size:32px;font-weight:800;color:var(--brand);opacity:0.35;}
-  .product-card:hover{background:var(--paper-deep);}
-  .product-card .view-details{font-size:12px;font-weight:600;color:var(--brand);margin-top:10px;}
-  .product-card .cat{font-size:11.5px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
-  .product-card h3{font-size:16px;font-weight:700;margin-bottom:8px;}
-  .product-card .price{font-size:15px;color:var(--stone);}
-  @media (max-width:860px){.product-grid{grid-template-columns:repeat(2,1fr);}}
-  @media (max-width:600px){.product-grid{grid-template-columns:1fr;}}
-
-  .service-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);margin-top:24px;}
-  .service-card{background:var(--paper);padding:24px 20px;text-align:left;border:none;cursor:pointer;font-family:inherit;transition:background .15s;display:block;text-decoration:none;color:inherit;}
-  .service-card:hover{background:var(--paper-deep);}
-  .service-card h3{font-size:14.5px;font-weight:700;margin-bottom:6px;}
-  .service-card p{font-size:12.5px;color:var(--stone);}
-  @media (max-width:860px){.service-grid{grid-template-columns:repeat(2,1fr);}}
-  @media (max-width:560px){.service-grid{grid-template-columns:1fr;}}
-  .empty-note{color:var(--stone);font-size:13.5px;padding:24px 0;}
-
-  .why-list{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--hairline);}
-  .why-item{padding:28px 24px 28px 0;border-right:1px solid var(--hairline);}
-  .why-item:last-child{border-right:none;}
-  .why-item h3{font-size:16px;font-weight:700;margin-bottom:8px;}
-  .why-item p{font-size:13.5px;color:var(--stone);}
-  @media (max-width:860px){.why-list{grid-template-columns:1fr;}.why-item{border-right:none;border-bottom:1px solid var(--hairline);}}
-
-  .about-grid{display:grid;grid-template-columns:0.7fr 1.3fr;gap:56px;}
-  .about-grid .num{font-size:14px;color:var(--brand);font-weight:700;}
-  .about-copy p{font-size:15.5px;color:#3A3B41;max-width:60ch;margin-bottom:16px;}
-  .mission-list{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:24px;}
-  .mission-list div{font-size:13px;color:var(--stone);}
-  .mission-list b{display:block;color:var(--ink);font-size:14px;margin-bottom:6px;}
-  @media (max-width:860px){.about-grid{grid-template-columns:1fr;}.mission-list{grid-template-columns:1fr;}}
-
-  .contact-info-standalone{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:8px;}
-  .contact-detail .label{font-size:11.5px;color:var(--stone);font-weight:600;text-transform:uppercase;letter-spacing:0.02em;margin-bottom:4px;}
-  .contact-detail .value{font-size:14.5px;font-weight:600;}
-  @media (max-width:860px){.contact-info-standalone{grid-template-columns:1fr;gap:20px;}}
-
-  footer{padding:28px 0;}
-  .footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--stone);}
-  @media (max-width:600px){.footer-inner{flex-direction:column;gap:10px;text-align:center;}section{padding:52px 0;}.hero{padding:52px 0 44px;}}
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/pe.css">
+<style>:root{--b1:#14143A;--b2:#C21F2A;--accent:#C21F2A;}</style>
 <script src="../assets/mobile-nav.js" defer></script>
+<script src="../assets/pe.js" defer></script>
 <link rel="stylesheet" href="../assets/fit.css">
 </head>
-<body>
-
+<body class="has-tabbar">
+<a class="skip" href="#main">Skip to content</a>
 <header>
   <div class="header-inner">
-    <a href="../index.html" class="back">← Pushpak Enterprises</a>
-    <nav>
+    <a class="brandmark-wrap" href="../index.html" aria-label="Pushpak Enterprises home"><img src="../assets/logos/pushpak-enterprises-icon.png" alt="" class="brandmark-icon"><div class="brandmark">Flyvision <span>by Pushpak Enterprises</span></div></a>
+    <nav aria-label="Main">
       <a href="#products">Products</a>
-      <a href="#services">Services</a>
+      <a href="#why">Why Flyvision</a>
       <a href="#about">About</a>
+      <a href="#services">Support</a>
       <a href="#contact">Contact</a>
     </nav>
-    <div class="logo-box"><img src="../assets/logos/flyvision-logo.jpeg" alt="Flyvision"></div>
+    <div class="header-actions">
+      <a href="../index.html#book-service" class="nav-cta">Book a Service</a>
+      <a href="../portal.html" class="acct" aria-label="My Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></a>
+    </div>
   </div>
 </header>
-
-<section class="hero">
-  <div class="wrap hero-grid">
+<main id="main">
+<section class="bhero" id="home">
+  <div class="wrap bhero-grid">
     <div>
-      <div class="eyebrow" id="brand-tagline">Precision in motion</div>
-      <h1>See beyond the everyday.</h1>
-      <div class="hero-rule"></div>
-      <p class="sub" id="brand-description">Flyvision's appliance range, built for performance-minded households who want more from their electronics.</p>
+      <div class="logo-chip"><img src="../assets/logos/flyvision-logo.jpeg" alt="Flyvision"></div><br>
+      <span class="eyebrow" id="brand-tagline">Precision in motion</span>
+      <h1 style="margin-top:14px;">See beyond the everyday.</h1>
+      <p class="lead" id="brand-description">Flyvision's appliance range, built for performance-minded households who want more from their electronics.</p>
       <div class="hero-actions">
-        <a href="#products" class="btn-primary">View Products</a>
-        <a href="#contact" class="btn-secondary">Contact Us</a>
+        <a href="#products" class="btn btn-light">View Products</a>
+        <a href="../index.html#register-product" class="btn btn-ghost">Register a Product</a>
       </div>
     </div>
-    <div class="hero-visual">
-      <div class="logo-box"><img src="../assets/logos/flyvision-logo.jpeg" alt="Flyvision"></div>
-    </div>
+    <div class="bhero-art"><img src="../assets/products/hero-tv-flyvision.webp" alt="Flyvision TV"></div>
   </div>
 </section>
 
 <section id="products">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Products</h2>
-      <p>Browse the current Flyvision range.</p>
+    <div class="sec-head rv">
+      <div><span class="eyebrow" style="color:var(--b1)">Products</span><h2 style="margin-top:12px;">The Flyvision range.</h2></div>
+      <p>Browse the current range. Open any product for features, specifications and warranty.</p>
     </div>
     <div class="cat-pills" id="cat-pills"></div>
     <div class="product-grid" id="product-grid"></div>
   </div>
 </section>
 
-<section>
+<section id="why" style="padding-top:0;">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Why Flyvision</h2>
-      <p>What backs every product you buy.</p>
+    <div class="sec-head rv">
+      <div><span class="eyebrow" style="color:var(--b1)">Why Flyvision</span><h2 style="margin-top:12px;">Built to be backed.</h2></div>
+      <p>What stands behind every product you buy.</p>
     </div>
     <div class="why-list">
-      <div class="why-item"><h3>Registered warranty</h3><p>Every product can be registered at the point of sale and tracked through its warranty period.</p></div>
-      <div class="why-item"><h3>Service network</h3><p>Backed by Pushpak Enterprises' technicians and service centers across Karnataka.</p></div>
-      <div class="why-item"><h3>Authorized dealers</h3><p>Sold through a growing network of authorized dealers across the state.</p></div>
+      <div class="why-item rv"><div class="n" style="color:var(--b1)">01</div><h3>Registered warranty</h3><p>Every product can be registered at the point of sale and tracked through its warranty period.</p></div>
+      <div class="why-item rv d1"><div class="n" style="color:var(--b1)">02</div><h3>Service network</h3><p>Backed by Pushpak Enterprises' technicians and service centers across Karnataka.</p></div>
+      <div class="why-item rv d2"><div class="n" style="color:var(--b1)">03</div><h3>Authorized dealers</h3><p>Sold through a growing network of authorized dealers across the state.</p></div>
     </div>
   </div>
 </section>
 
-<section id="about">
+<section id="about" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);">
   <div class="wrap about-grid">
-    <div class="num">01 / About</div>
-    <div class="about-copy">
-      <h2 style="margin-bottom:18px;">About Flyvision</h2>
+    <div class="rv"><span class="eyebrow" style="color:var(--b1)">About</span><h2 style="margin-top:12px;">About Flyvision</h2></div>
+    <div class="about-copy rv d1">
       <p>Flyvision brings a performance-first approach to home electronics, with LED TVs and appliances built for households that want sharper pictures, smarter features, and dependable everyday use.</p>
       <p>As part of the Pushpak Enterprises family, every Flyvision product is backed by the same registered-warranty and service-network support as our other brands.</p>
       <div class="mission-list">
@@ -181,24 +92,24 @@
 
 <section id="services">
   <div class="wrap">
-    <div class="section-head">
-      <h2>Customer services</h2>
-      <p>Everything you need after you've bought a product.</p>
+    <div class="sec-head rv">
+      <div><span class="eyebrow" style="color:var(--b1)">Support</span><h2 style="margin-top:12px;">After you buy.</h2></div>
+      <p>Everything you need once the product is home.</p>
     </div>
     <div class="service-grid">
-      <a href="../index.html#register-product" class="service-card"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></a>
-      <a href="../index.html#book-service" class="service-card"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></a>
-      <a href="../index.html#track-service" class="service-card"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></a>
-      <a href="../index.html#warranty-check" class="service-card"><h3>Warranty status</h3><p>Check what's covered and until when.</p></a>
-      <a href="../index.html#manuals" class="service-card"><h3>Manuals</h3><p>Download the manual for your product model.</p></a>
-      <a href="../index.html#brochures" class="service-card"><h3>Brochures</h3><p>Browse the current product catalogue.</p></a>
-      <a href="../index.html#support" class="service-card"><h3>Support</h3><p>Reach our team for anything not covered above.</p></a>
-      <a href="../index.html#faq" class="service-card"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></a>
+      <a href="../index.html#register-product" class="service-card rv"><h3>Register a product</h3><p>Log your serial number to activate warranty cover.</p></a>
+      <a href="../index.html#book-service" class="service-card rv d1"><h3>Book a service</h3><p>Raise a request and get matched to a nearby technician.</p></a>
+      <a href="../index.html#track-service" class="service-card rv d2"><h3>Track a service</h3><p>Follow your request from booking to completion.</p></a>
+      <a href="../index.html#warranty-check" class="service-card rv d3"><h3>Warranty status</h3><p>Check what's covered and until when.</p></a>
+      <a href="../index.html#manuals" class="service-card rv"><h3>Manuals</h3><p>Download the manual for your product model.</p></a>
+      <a href="../index.html#brochures" class="service-card rv d1"><h3>Brochures</h3><p>Browse the current product catalogue.</p></a>
+      <a href="../index.html#support" class="service-card rv d2"><h3>Support</h3><p>Reach our team for anything not covered above.</p></a>
+      <a href="../index.html#faq" class="service-card rv d3"><h3>FAQs</h3><p>Answers to common questions on service and warranty.</p></a>
     </div>
   </div>
 </section>
 
-<section id="contact" style="border-bottom:none;">
+<section id="contact">
   <div class="wrap">
     <h2 style="margin-bottom:8px;">Get in touch</h2>
     <p style="font-size:14px;color:var(--stone);max-width:44ch;">Questions, service requests, or dealer enquiries — reach Pushpak Enterprises directly.</p>
@@ -218,13 +129,19 @@
     </div>
   </div>
 </section>
-
+</main>
 <footer>
   <div class="wrap footer-inner">
     <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
-    <span>Flyvision — a Pushpak Enterprises brand</span>
+    <span class="foot-links"><a href="../index.html">Pushpak Enterprises</a><a href="../makwell/index.html">MakWell</a><a href="../flyvision/index.html">Flyvision</a><a href="../skevia/index.html">Skevia</a></span>
   </div>
 </footer>
+<nav class="tabbar" aria-label="Quick links">
+  <a href="../index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#products" data-sec="products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Products</a>
+  <a href="#services" data-sec="services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Support</a>
+  <a href="../portal.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Account</a>
+</nav>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";

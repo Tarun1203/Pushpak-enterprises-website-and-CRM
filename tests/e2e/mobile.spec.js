@@ -44,7 +44,7 @@ for (const [phone, device] of Object.entries(PHONES)) {
       expect(await smallTapTargets(page, '.mnav-btn')).toEqual([]);
       await btn.tap();
       await expect(nav).toBeVisible();
-      for (const name of ['Brands', 'Customer Services', 'About', 'Contact', 'My Account']) await expect(nav.getByRole('link', { name })).toBeVisible();
+      for (const name of ['Products', 'Brands', 'Support', 'About', 'Contact']) await expect(nav.getByRole('link', { name })).toBeVisible();
       await nav.getByRole('link', { name: 'About' }).tap();
       await expect(nav).toBeHidden();
     });
@@ -60,6 +60,25 @@ for (const [phone, device] of Object.entries(PHONES)) {
       const r = await layoutReport(page);
       expect(r.smallText).toEqual([]);
       await page.locator('#book-skip-search').tap();
+      // The form is a step-by-step wizard: fill each page, go on, and the
+      // submit button must be reachable on the last page.
+      const form = overlay.locator('#book-form');
+      await form.locator('#book-request-type').selectOption('installation');
+      await form.locator('select[name="brand"]').selectOption('MakWell');
+      await form.locator('#book-category').selectOption('Geyser');
+      await form.locator('.wiz-nav .btn-primary').tap();
+      await form.locator('input[name="modelNo"]').fill('M1');
+      await form.locator('input[name="purchaseDate"]').fill('2026-01-01');
+      await form.locator('input[name="dealerName"]').fill('Shop');
+      await form.locator('.wiz-nav .btn-primary').tap();
+      await form.locator('input[name="name"]').fill('Test User');
+      await form.locator('#book-phone').fill('9980000515');
+      await form.locator('input[name="address"]').fill('1 Road');
+      await form.locator('input[name="city"]').fill('Raichur');
+      await form.locator('input[name="state"]').fill('Karnataka');
+      await form.locator('input[name="pincode"]').fill('584101');
+      await form.locator('.wiz-nav .btn-primary').tap();
+      await expect(form.locator('.wiz-summary')).toContainText('Raichur');
       const submit = overlay.locator('button[type="submit"]').first();
       await submit.scrollIntoViewIfNeeded();
       await expect(submit).toBeInViewport();
