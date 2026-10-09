@@ -604,6 +604,7 @@
 
 <script src="tradePricing.js"></script>
 <script src="finance.js"></script>
+<script src="documents.js"></script>
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -3397,6 +3398,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div>Dispatch date: ${escapeHtml(d.transport.dispatchDate) || '—'}</div>
           ${d.transport.photoUrl ? `<div><a href="${escapeHtml(d.transport.photoUrl)}" target="_blank" rel="noopener">View docket photo</a></div>` : ''}
         </div>` : ''}`;
+    if (window.PEDocs && d.transport) PEDocs.attach(whSrDetailBody, 'challan', Object.assign({ requestedByName: requesterName }, d));
 
     const actions = (STATUS_ACTIONS[d.status] || []).map(a =>
       `<button class="${a.variant === 'danger' ? 'btn-danger' : 'btn-primary'} sr-popup-action-btn" data-next="${escapeHtml(a.next)}">${escapeHtml(a.label)}</button>`
@@ -5063,6 +5065,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <h4 style="margin:14px 0 4px;">Payment details</h4>
         ${paymentHtml}`;
 
+      if (window.PEDocs) PEDocs.attach(bodyEl, 'claim', Object.assign({}, c, payments[0] ? { paymentMethod: payments[0].method, paymentRef: payments[0].referenceNumber } : {}));
       bodyEl.querySelectorAll('.claim-lineitem-row').forEach(row => {
         row.addEventListener('click', () => toggleClaimLineItemDetail(row.dataset.idx, lineItems[row.dataset.idx]));
       });

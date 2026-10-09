@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 160
+      "minTests": 174
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",
@@ -75,7 +75,7 @@
     },
     "phase9_qa": {
       "label": "Phase 9-10 Customer 360 and role access (screens)",
-      "minTests": 16
+      "minTests": 34
     }
   }
 }

@@ -1057,6 +1057,7 @@
 </div>
 
 <script src="appointment.js"></script>
+<script src="documents.js"></script>
 <script src="tradePricing.js"></script>
 <script src="finance.js"></script>
 <script type="module">
@@ -7161,6 +7162,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               ${c.sourceTicketId ? `<div><b>Service ticket:</b> ${escapeHtml(c.sourceTicketId)}</div>` : ''}
               ${c.sourceReturnId ? `<div><b>Linked return:</b> ${escapeHtml(c.sourceReturnId)}</div>` : ''}
             `;
+            if (window.PEDocs) PEDocs.attach(c360DetailBody, 'claim', c);
             c360DetailOverlay.classList.add('show');
           });
           claimsTbody.appendChild(tr);
@@ -8198,6 +8200,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div><b>Address:</b> ${escapeHtml(r.address) || '—'}, ${escapeHtml(r.city) || ''} ${escapeHtml(r.pincode) || ''}</div>
           ${componentsHtml}
           ${historyHtml}`;
+        if (window.PEDocs) PEDocs.attach(c360DetailBody, 'warranty', Object.assign({ customerName: customerName, customerPhone: customerPhone }, r));
         c360DetailOverlay.classList.add('show');
       });
     });
@@ -8239,6 +8242,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <div><b>Assigned to:</b> ${escapeHtml(f.technicianEmail || f.technicianName) || '—'}</div>
           ${routingHtml}
           ${closureHtml}`;
+        if (window.PEDocs) PEDocs.attach(c360DetailBody, 'voucher', Object.assign({ customerName: customerName, customerPhone: customerPhone }, f, { requestId: f.requestId || f.jobId || s.id }));
         c360DetailOverlay.classList.add('show');
       });
     });

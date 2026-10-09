@@ -151,6 +151,7 @@
 </style>
 <link rel="stylesheet" href="mobile.css">
 <script src="mobile.js" defer></script>
+<script src="documents.js"></script>
 <link rel="stylesheet" href="../assets/fit.css">
 </head>
 <body>
@@ -978,6 +979,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       jdRow('Scheduled', jobDoc.scheduledDate ? `${jobDoc.scheduledDate}${jobDoc.scheduledStartTime ? ' ' + jobDoc.scheduledStartTime : ''}` : ''),
       `<div style="margin-top:6px;">Status: <span class="status-pill ${JOB_STATUS_PILL_CLASS[jobDoc.status] || ''}">${JOB_STATUS_LABELS[jobDoc.status] || jobDoc.status}</span>${jobDoc.coll === 'centerRequests' ? ' <span style="color:var(--stone);">(via center)</span>' : ''}</div>`
     ].filter(Boolean).join('');
+    if (window.PEDocs) PEDocs.attach(bodyEl, 'voucher', jobDoc);
 
     const actions = (jobDoc.coll === 'serviceJobs' ? JOB_NEXT_ACTIONS[jobDoc.status] : CR_JOB_NEXT_ACTIONS[jobDoc.status]) || [];
     const actionsEl = document.getElementById('jd-actions');

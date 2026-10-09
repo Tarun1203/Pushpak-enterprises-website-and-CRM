@@ -850,6 +850,7 @@
 
 <script src="technicianMatch.js"></script>
 <script src="appointment.js"></script>
+<script src="documents.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -1249,6 +1250,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     bodyEl.innerHTML = `<div style="display:grid;grid-template-columns:150px 1fr;gap:6px 12px;">
       ${rows.map(([label, val]) => `<div style="color:var(--stone);">${escapeHtml(label)}</div><div>${escapeHtml(val)}</div>`).join('')}
     </div>`;
+    if (window.PEDocs) PEDocs.attach(bodyEl, 'voucher', d);
     const actionHtml = buildRequestActionsHtml(d);
     actionsEl.innerHTML = actionHtml === '—' ? '' : actionHtml;
     wireRequestActionButtons(actionsEl, [d], typeFilter, () => overlay.classList.remove('show'));

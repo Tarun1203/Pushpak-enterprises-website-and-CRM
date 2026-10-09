@@ -81,6 +81,8 @@ Locally, suites you did not run show as "no results" — that is expected.
 | A spare part for one brand could be fitted on another brand's job | `phase10a.test.js` P10.3 |
 | The same spare part, model, product, category, brand or active warranty plan could be created twice | `phase10a.test.js` P10.4 (`checkMasterIntegrity_*`) |
 | Vulnerable Cloud Functions dependencies | CI step "Dependency audit" (`npm audit --audit-level=high`) |
+| Nothing could be printed or sent: warranty card, service voucher, claim voucher and dispatch challan did not exist, and the invoice had no paper size | `functions/phase10b.test.js` P10.8/P10.9, `phase10-field.spec.js` (A4/A5/A6/thermal PDFs, 320px phone, toolbar) |
+| Technician ranking and stock rules (leave, suspension, brand, skills, negative stock, per-owner isolation) had no readiness check | `functions/phase10b.test.js` P10.6/P10.7 |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.

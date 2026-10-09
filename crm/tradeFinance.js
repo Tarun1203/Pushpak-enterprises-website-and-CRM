@@ -60,7 +60,7 @@ export function printInvoice(inv) {
     <td class="r">${inr(l.total)}</td></tr>`).join('');
   const s = inv.seller || {}, b = inv.buyer || {};
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(inv.invoiceNo)}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0 0 4px}
+  <style>@page{size:A4;margin:12mm}@media print{body{margin:0}.noprint{display:none}}body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0 0 4px}
   table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:5px;vertical-align:top}th{background:#f2f2f2}
   .r{text-align:right}.grid{display:flex;gap:16px}.grid>div{flex:1;border:1px solid #999;padding:8px}.muted{color:#555}
   .cancel{color:#B3261E;font-size:16px;font-weight:bold;border:2px solid #B3261E;display:inline-block;padding:4px 10px;margin-bottom:8px}
