@@ -73,8 +73,8 @@ test('P10.9 WhatsApp text and links', () => {
 });
 
 test('P10.9 download file names are safe', () => {
-  assert.strictEqual(Docs.fileName('voucher', { requestId: '../a b/c' }, 'a4'), '.._a_b_c-a4.html');
-  assert.strictEqual(Docs.fileName('claim', {}, 'a6'), 'claim-a6.html');
+  assert.strictEqual(Docs.fileName('voucher', { requestId: '../a b/c' }, 'a4'), '.._a_b_c-a4.pdf');
+  assert.strictEqual(Docs.fileName('claim', {}, 'a6'), 'claim-a6.pdf');
 });
 
 test('P10.9 invoice print has an A4 @page rule and the pages load documents.js', () => {

@@ -51,7 +51,16 @@ test('item 9: the toolbar prints, downloads and builds a WhatsApp link, in the p
   await expect(page.locator('.pe-docbar')).toHaveCount(1);
   await expect(page.locator('.pe-doc-wa')).toHaveAttribute('href', /^https:\/\/wa\.me\/919845012345\?text=/);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.pe-doc-dl')]);
-  expect(dl.suggestedFilename()).toBe('PE-SR-1-a4.html');
+  expect(dl.suggestedFilename()).toBe('PE-SR-1-a4.pdf');
+  const fs = require('fs');
+  const buf = fs.readFileSync(await dl.path());
+  expect(buf.slice(0, 5).toString()).toBe('%PDF-');
+  expect(buf.slice(-6).toString()).toMatch(/%%EOF/);
+  const txt = buf.toString('latin1');
+  expect((txt.match(/\/Type \/Page /g) || []).length).toBe(1);
+  expect(txt).toMatch(/\/Filter \/DCTDecode/);
+  expect(buf.length).toBeGreaterThan(8000); // a real picture of the page, not an empty file
+  fs.writeFileSync(require('os').tmpdir() + '/pe-doc-test.pdf', buf);
   await page.selectOption('.pe-doc-size', 'thermal');
   const [pop] = await Promise.all([context.waitForEvent('page'), page.click('.pe-doc-print')]);
   await pop.waitForLoadState();
@@ -74,5 +83,31 @@ test('item 10: the technician screen works on a 320px and a 360px phone', async 
     expect(over, `sideways scroll at ${width}px`).toBeLessThanOrEqual(1);
     const hasDocs = await page.evaluate(() => typeof window.PEDocs === 'object');
     expect(hasDocs, 'documents.js loaded on the technician page').toBe(true);
+  }
+});
+
+
+test('download is a real PDF for every document and page size, with correct page count and shape', async ({ page }) => {
+  test.setTimeout(120000);
+  await page.goto(origin + '/crm/login.html');
+  await page.addScriptTag({ url: origin + '/crm/documents.js' });
+  const kinds = { warranty: DATA.warranty, voucher: DATA.voucher, claim: DATA.claim, challan: DATA.challan };
+  for (const [kind, data] of Object.entries(kinds)) {
+    for (const size of ['a4', 'a5', 'a6', 'thermal']) {
+      const r = await page.evaluate(async ([k, d, sz]) => {
+        const blob = await PEDocs.toPdf(k, d, sz);
+        const u8 = new Uint8Array(await blob.arrayBuffer());
+        let head = ''; for (let i = 0; i < 8; i++) head += String.fromCharCode(u8[i]);
+        let all = ''; for (let i = 0; i < u8.length; i += 8192) all += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+        const mb = /\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/.exec(all);
+        return { type: blob.type, size: u8.length, head, pages: (all.match(/\/Type \/Page /g) || []).length, w: +mb[1], h: +mb[2] };
+      }, [kind, data, size]);
+      expect(r.type).toBe('application/pdf');
+      expect(r.head.startsWith('%PDF-')).toBe(true);
+      expect(r.pages, `${kind}/${size} pages`).toBeGreaterThanOrEqual(1);
+      expect(r.size, `${kind}/${size} bytes`).toBeGreaterThan(5000);
+      const wantW = { a4: 210, a5: 148, a6: 105, thermal: 80 }[size] / 25.4 * 72;
+      expect(Math.abs(r.w - wantW)).toBeLessThan(wantW * 0.03); // page is the right paper width
+    }
   }
 });

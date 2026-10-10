@@ -1,8 +1,8 @@
 /* Printable business documents (UMD: browser global PEDocs, or require()).
  * Warranty card, service voucher, claim voucher and dispatch challan, each in
  * A4 / A5 / A6 / thermal-slip (80 mm) page sizes, plus a short WhatsApp text.
- * Every value is HTML-escaped. "PDF" = the browser's Print -> Save as PDF, so
- * nothing is sent to any server. The GST invoice has its own printer in
+ * Every value is HTML-escaped. Download makes a real PDF in the browser and
+ * Print opens the print view, so nothing is sent to any server. The GST invoice has its own printer in
  * tradeFinance.js. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -179,7 +179,7 @@
     var digits = String(phone || '').replace(/\D/g, '').slice(-10);
     return /^[6-9]\d{9}$/.test(digits) ? 'https://wa.me/91' + digits + '?text=' + encodeURIComponent(msg) : null;
   }
-  function fileName(kind, data, size) { return (BUILD[kind](data).id || kind).replace(/[^A-Za-z0-9._-]+/g, '_') + '-' + size + '.html'; }
+  function fileName(kind, data, size) { return (BUILD[kind](data).id || kind).replace(/[^A-Za-z0-9._-]+/g, '_') + '-' + size + '.pdf'; }
 
   // ---- browser helpers ----
   function open(kind, data, size, opts) {
@@ -189,12 +189,103 @@
     w.document.open(); w.document.write(html); w.document.close();
     return w;
   }
-  function download(kind, data, size, opts) {
-    var blob = new Blob([render(kind, data, size, opts)], { type: 'text/html' });
+  // ---- real PDF download (no server, no outside library) ----
+  // The document is laid out by the browser exactly as it prints, drawn onto
+  // a canvas through an SVG <foreignObject> (so any script, e.g. Kannada,
+  // renders with the device's fonts), and each page is stored as a JPEG
+  // inside a small hand-written PDF file.
+  function b64ToBytes(b64) {
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function buildPdf(pages, wPx, hPx, title) {
+    var enc = new TextEncoder(), parts = [], offsets = [], len = 0;
+    function push(x) { var b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; }
+    function obj(n, body) { offsets[n] = len; push(n + ' 0 obj\n'); push(body); push('\nendobj\n'); }
+    var W = (wPx * 0.75).toFixed(2), H = (hPx * 0.75).toFixed(2), n = pages.length;
+    push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    var kids = [];
+    for (var i = 0; i < n; i++) kids.push((4 + i * 3) + ' 0 R');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>');
+    obj(3, '<< /Title (' + String(title || 'Document').replace(/[^\x20-\x7E]/g, '').replace(/([()\\])/g, '\\$1') + ') /Producer (Pushpak CRM) >>');
+    for (var k = 0; k < n; k++) {
+      var pg = 4 + k * 3, im = pg + 1, ct = pg + 2, jpg = pages[k];
+      obj(pg, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + ct + ' 0 R >>');
+      offsets[im] = len; push(im + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + jpg.w + ' /Height ' + jpg.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.bytes.length + ' >>\nstream\n'); push(jpg.bytes); push('\nendstream\nendobj\n');
+      var cs = 'q ' + W + ' 0 0 ' + H + ' 0 0 cm /Im0 Do Q';
+      obj(ct, '<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
+    }
+    var total = 4 + n * 3, xref = len;
+    var x = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+    for (var j = 1; j < total; j++) x += ('0000000000' + (offsets[j] || 0)).slice(-10) + ' 00000 n \n';
+    push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R /Info 3 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  function toPdf(kind, data, size, opts) {
+    return new Promise(function (resolve, reject) {
+      var sz = SIZES[size] || SIZES.a4, wPx = sz.screen, SCALE = 2;
+      var fixedH = { a4: 1123, a5: 794, a6: 559 }[size];
+      var ifr = document.createElement('iframe');
+      ifr.setAttribute('aria-hidden', 'true');
+      ifr.style.cssText = 'position:fixed;left:-99999px;top:0;width:' + wPx + 'px;height:600px;border:0;visibility:hidden';
+      ifr.onload = function () {
+        try {
+          var d = ifr.contentDocument, doc = d.querySelector('.doc');
+          if (!doc) return; // the empty frame's own load; wait for the document
+          var bar = d.querySelector('.bar'); if (bar) bar.remove();
+          d.body.style.background = '#fff';
+          var contentH = Math.ceil(Math.max(doc.getBoundingClientRect().height, doc.scrollHeight));
+          var pageH = fixedH || contentH;
+          var nPages = Math.max(1, Math.ceil(contentH / pageH));
+          var styleTxt = css(size).replace(/@media print\{.*\}$/, '').replace(/@page\{[^}]*\}/, '');
+          var inner = new XMLSerializer().serializeToString(doc);
+          var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + (wPx * SCALE) + '" height="' + (pageH * nPages * SCALE) + '" viewBox="0 0 ' + wPx + ' ' + (pageH * nPages) + '"><foreignObject width="' + wPx + '" height="' + (pageH * nPages) + '">' +
+            '<div xmlns="http://www.w3.org/1999/xhtml" style="background:#fff;width:' + wPx + 'px"><style>' + styleTxt.replace(/body\{[^}]*\}/, '') + 'body,div{font-family:Arial,Helvetica,sans-serif}</style>' +
+            '<div style="font:' + sz.font + 'px/1.45 Arial,Helvetica,sans-serif;color:#111">' + inner + '</div></div></foreignObject></svg>';
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var pages = [];
+              for (var i = 0; i < nPages; i++) {
+                var cv = document.createElement('canvas');
+                cv.width = wPx * SCALE; cv.height = pageH * SCALE;
+                var cx = cv.getContext('2d');
+                cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+                cx.drawImage(img, 0, i * pageH * SCALE, wPx * SCALE, pageH * SCALE, 0, 0, wPx * SCALE, pageH * SCALE);
+                var url = cv.toDataURL('image/jpeg', 0.92);
+                pages.push({ w: cv.width, h: cv.height, bytes: b64ToBytes(url.split(',')[1]) });
+              }
+              ifr.remove();
+              resolve(buildPdf(pages, wPx, pageH, BUILD[kind](data).title));
+            } catch (e) { ifr.remove(); reject(e); }
+          };
+          img.onerror = function () { ifr.remove(); reject(new Error('render failed')); };
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        } catch (e) { ifr.remove(); reject(e); }
+      };
+      ifr.srcdoc = render(kind, data, size, opts);
+      document.body.appendChild(ifr);
+      setTimeout(function () { if (ifr.parentNode) { ifr.remove(); reject(new Error('timeout')); } }, 15000);
+    });
+  }
+  function saveBlob(blob, name) {
     var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = fileName(kind, data, size);
+    a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  // Downloads a PDF. If this browser cannot draw it, opens the print view
+  // instead (Print -> Save as PDF) so the person is never left empty-handed.
+  function download(kind, data, size, opts) {
+    return toPdf(kind, data, size, opts).then(function (blob) {
+      saveBlob(blob, fileName(kind, data, size));
+      return blob;
+    }).catch(function () {
+      open(kind, data, size, opts);
+      return null;
+    });
   }
   // Adds a small "Print / Download / WhatsApp" toolbar to the end of `el`.
   function attach(el, kind, data, opts) {
@@ -207,7 +298,7 @@
       Object.keys(SIZES).map(function (k) { return '<option value="' + k + '">' + esc(SIZES[k].label) + '</option>'; }).join('') + '</select>';
     var link = waLink(BUILD[kind](data).phone, text(kind, data));
     bar.innerHTML = '<b style="font-size:12.5px;">' + esc(KINDS[kind]) + '</b>' + sel +
-      '<button type="button" class="btn-secondary pe-doc-print">Print / PDF</button><button type="button" class="btn-secondary pe-doc-dl">Download</button>' +
+      '<button type="button" class="btn-secondary pe-doc-print">Print / PDF</button><button type="button" class="btn-secondary pe-doc-dl">Download PDF</button>' +
       (link ? '<a class="btn-secondary pe-doc-wa" href="' + esc(link) + '" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;">WhatsApp</a>' : '');
     el.appendChild(bar);
     var size = function () { return bar.querySelector('.pe-doc-size').value; };
@@ -216,5 +307,5 @@
     return bar;
   }
 
-  return { SIZES: SIZES, KINDS: KINDS, render: render, text: text, waLink: waLink, fileName: fileName, open: open, download: download, attach: attach, esc: esc, addMonths: addMonths };
+  return { SIZES: SIZES, KINDS: KINDS, toPdf: toPdf, render: render, text: text, waLink: waLink, fileName: fileName, open: open, download: download, attach: attach, esc: esc, addMonths: addMonths };
 });
