@@ -38,7 +38,21 @@ export async function setDoc(r, d) { rec('set', r.path, d); } export async funct
 export async function addDoc(c, d) { rec('add', c.path, d); return { id: 'new' + Date.now() }; } export async function deleteDoc(r) { rec('delete', r.path); }
 export function writeBatch() { return { set() {}, update() {}, delete() {}, commit: async () => {} }; }
 export async function runTransaction(db, fn) { return fn({ get: getDoc, set: () => {}, update: () => {}, delete: () => {} }); }
-export function onSnapshot(q, next) { (q.kind === 'doc' ? getDoc(q) : getDocs(q)).then(next); return () => {}; }
+export function onSnapshot(q, next) {
+  if (q.kind === 'doc') { getDoc(q).then(next); return () => {}; }
+  const L = (window.__listeners = window.__listeners || []);
+  const entry = { q, next };
+  L.push(entry);
+  getDocs(q).then((s) => next({ ...s, docChanges: () => s.docs.map((d) => ({ type: 'added', doc: { ...d, metadata: { hasPendingWrites: false } } })) }));
+  return () => { const i = L.indexOf(entry); if (i >= 0) L.splice(i, 1); };
+}
+// Test helper: deliver a change to every open listener on a collection.
+window.__stubPush = (coll, id, data, type = 'added') => {
+  (window.__listeners || []).filter((e) => e.q.path.split('/')[0] === coll && e.q.filters.every((f) => match({ id, ...data }, f))).forEach((e) => {
+    const d = snapOf(id, data);
+    e.next({ docs: [d], size: 1, empty: false, forEach: (fn) => fn(d), docChanges: () => [{ type, doc: { ...d, metadata: { hasPendingWrites: false } } }] });
+  });
+};
 `;
 
 const AUTH = `
