@@ -492,11 +492,75 @@
     el.hidden = !el.textContent;
   }
 
+
+  /* ---------- Click any table row to see that item in a pop-up ---------- */
+  // Works on every list in every module: the pop-up shows the row's own
+  // columns (heading -> value). Rows that already open something of their
+  // own (pointer cursor, or a dialog opening within a moment) are left alone.
+  function rowEligible(tr) {
+    if (!tr || tr.closest('thead,.modal,.ui-dialog,.ui-cmd,.pe-docbar,.sidebar,.notif-panel,[data-ui-norow]')) return false;
+    var table = tr.closest('table');
+    if (!table || table.closest('[data-ui-norow]')) return false;
+    var tds = tr.children;
+    if (tds.length < 2) return false;
+    if (tr.querySelector('input,select,textarea')) return false; // an entry form, not a list item
+    if (tr.querySelector(':scope > td[colspan]') && tds.length < 3) return false;
+    return !!(table.querySelector('thead th') || table.querySelector('tr th'));
+  }
+  function tagRows() {
+    $$('.content tbody tr:not([data-ui-row])').forEach(function (tr) {
+      tr.setAttribute('data-ui-row', '0');
+      if (!rowEligible(tr)) return;
+      var cur = getComputedStyle(tr).cursor, tdCur = tr.children[0] ? getComputedStyle(tr.children[0]).cursor : '';
+      if (cur === 'pointer' || tdCur === 'pointer') return; // has its own click action
+      tr.setAttribute('data-ui-row', '1');
+      tr.tabIndex = 0;
+      tr.title = tr.title || 'Click for details';
+    });
+  }
+  function headings(table) {
+    var ths = $$('thead th', table);
+    if (!ths.length) ths = $$('tr:first-child th', table);
+    return ths.map(function (t) { return t.textContent.replace(/\s+/g, ' ').trim(); });
+  }
+  function openRow(tr) {
+    var table = tr.closest('table'), heads = headings(table), rows = [], title = '';
+    Array.prototype.forEach.call(tr.children, function (td, i) {
+      var clone = td.cloneNode(true);
+      $$('button,a.btn-secondary,a.btn-primary,select,input,.row-actions', clone).forEach(function (n) { n.remove(); });
+      var txt = clone.textContent.replace(/\s+/g, ' ').trim();
+      var label = heads[i] || ('Field ' + (i + 1));
+      if (!txt || /^(actions?|)$/i.test(label) && !txt) return;
+      if (!title) title = txt;
+      rows.push([label, txt]);
+    });
+    if (!rows.length) return;
+    var panel = ($('#page-title') || {}).textContent || 'Details';
+    dialog(title.length > 60 ? panel : (title || panel), rowsNode(rows));
+  }
+  document.addEventListener('click', function (e) {
+    var tr = e.target.closest && e.target.closest('tr[data-ui-row="1"]');
+    if (!tr) return;
+    if (e.target.closest('a,button,input,select,textarea,label,summary,[contenteditable]')) return;
+    if (window.getSelection && String(window.getSelection()).length > 0) return; // selecting text, not clicking
+    var before = $$('.modal-overlay.show').length, titleBefore = ($('#page-title') || {}).textContent;
+    setTimeout(function () {
+      if (!document.contains(tr)) return;
+      if (window.getSelection && String(window.getSelection()).length > 0) return;
+      if ($$('.modal-overlay.show').length > before || (($('#page-title') || {}).textContent) !== titleBefore) return; // the page handled it
+      openRow(tr);
+    }, 120);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.target.tagName !== 'TR' || e.target.getAttribute('data-ui-row') !== '1') return;
+    e.preventDefault(); openRow(e.target);
+  });
+
   /* ---------- Wiring ---------- */
   var scheduled = false;
   function refresh() {
     scheduled = false;
-    buildHeader(); crumb(); var um = $('.ui-user-menu'); if (um && um._sync) um._sync(); a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
+    tagRows(); buildHeader(); crumb(); var um = $('.ui-user-menu'); if (um && um._sync) um._sync(); a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
     if (!bottom && navItems().length) buildBottom();
   }
   function schedule() { if (!scheduled) { scheduled = true; requestAnimationFrame(refresh); } }
@@ -508,7 +572,7 @@
     watchOverlays();
     window.addEventListener('pe-identity', function () { schedule(); var h = $('.ui-hero .hi'); if (h) h.textContent = greeting() + (firstName() ? ', ' + firstName() : ''); });
     var content = $('#content') || $('.content');
-    if (content) new MutationObserver(function () { schedule(); }).observe(content, { childList: true });
+    if (content) new MutationObserver(function () { schedule(); }).observe(content, { childList: true, subtree: true });
     var title = $('#page-title');
     if (title) new MutationObserver(function () { if (content) enter(content); schedule(); }).observe(title, { childList: true, characterData: true, subtree: true });
     var sb = $('.sidebar');

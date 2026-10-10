@@ -208,3 +208,8 @@ body.ui-calm *,body.ui-calm *::before,body.ui-calm *::after{animation-duration:.
   .ui-kv{grid-template-columns:minmax(0,1fr)}
   .ui-kv-k{padding-top:6px}
 }
+
+/* Rows that open a details pop-up */
+tbody tr[data-ui-row="1"]{cursor:pointer}
+tbody tr[data-ui-row="1"]:hover{background:#EEF2FF}
+tbody tr[data-ui-row="1"]:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
