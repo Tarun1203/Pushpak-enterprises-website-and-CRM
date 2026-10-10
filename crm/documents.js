@@ -17,7 +17,7 @@
     thermal: { label: 'Thermal slip (80 mm)', page: '80mm 200mm', margin: '3mm', font: 11, screen: 302 }
   };
   var KINDS = { warranty: 'Warranty card', voucher: 'Service voucher', claim: 'Claim voucher', challan: 'Dispatch challan' };
-  var COMPANY = { name: 'Pushpak Enterprises', line: 'Raichur, Karnataka' };
+  var COMPANY = { name: 'Pushpak Enterprises', line: 'Hubli, Karnataka' };
 
   function esc(v) {
     if (v === null || v === undefined) return '';
@@ -116,8 +116,11 @@
     return {
       id: c.claimId || '', title: 'Claim Voucher', phone: null,
       body: kv([
-        ['Claim no.', '<b>' + val(c.claimId) + '</b>'], ['Date', fmtDate(c.createdAt)], ['Claimant', val(c.claimantName)], ['Type', val(c.claimantType)],
-        ['Claim for', val(c.claimType || (c.ticketIds ? 'Warranty tickets' : c.walletTxnIds ? 'Service-charge credits' : ''))], ['Items', items.length ? esc(items.length) + ' item(s)' : '—'],
+        ['Claim no.', '<b>' + val(c.claimId) + '</b>'], ['Date', fmtDate(c.createdAt)],
+        ['Claimant', val(c.claimantName || (c.claimantType === 'warehouse' ? 'Warehouse (Head Office)' : ''))], ['Type', val(c.claimantType)],
+        ['Service center', val(c.serviceCenterName)],
+        ['Claim for', val(c.claimType || (c.ticketIds ? 'Warranty tickets' : c.walletTxnIds ? 'Service-charge credits' : c.sourceReturnId ? 'Defective part' : ''))],
+        ['Items', items.length ? esc(items.length) + ' item(s)' : (c.partName ? val(c.partName) : '—')],
         ['Description', val(c.description)], ['Claimed', '<b>' + money(c.amount) + '</b>'],
         c.approvedAmount !== undefined && c.approvedAmount !== null ? ['Approved', '<b>' + money(c.approvedAmount) + '</b>'] : null,
         ['Status', val(c.status)], c.rejectReason ? ['Reason', val(c.rejectReason)] : null,

@@ -7169,7 +7169,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
               ${c.sourceTicketId ? `<div><b>Service ticket:</b> ${escapeHtml(c.sourceTicketId)}</div>` : ''}
               ${c.sourceReturnId ? `<div><b>Linked return:</b> ${escapeHtml(c.sourceReturnId)}</div>` : ''}
             `;
-            if (window.PEDocs) PEDocs.attach(c360DetailBody, 'claim', c);
+            if (window.PEDocs) enrichClaimForDoc(c).then((cc) => PEDocs.attach(c360DetailBody, 'claim', cc));
             c360DetailOverlay.classList.add('show');
           });
           claimsTbody.appendChild(tr);
@@ -8154,6 +8154,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // with no connection back to which product it was about.
   const c360DetailOverlay = document.getElementById('c360-detail-overlay');
   const c360DetailTitle = document.getElementById('c360-detail-title');
+  // Older claims filed from a return carry no service center; look it up
+  // from the return (which records the center the job was allocated to).
+  async function enrichClaimForDoc(c) {
+    try {
+      if (!c || c.serviceCenterName || !c.sourceReturnId) return c;
+      const rs = await getDoc(doc(db, 'returns', c.sourceReturnId));
+      if (!rs.exists()) return c;
+      const r = rs.data();
+      let name = '';
+      if (r.serviceCenterUid) { const us = await getDoc(doc(db, 'users', r.serviceCenterUid)); if (us.exists()) name = us.data().name || us.data().email || ''; }
+      return Object.assign({}, c, { serviceCenterName: name, partName: c.partName || r.partName || '' });
+    } catch (e) { return c; }
+  }
+
   const c360DetailBody = document.getElementById('c360-detail-body');
   document.getElementById('close-c360-detail').addEventListener('click', () => c360DetailOverlay.classList.remove('show'));
   c360DetailOverlay.addEventListener('click', (e) => { if (e.target === c360DetailOverlay) c360DetailOverlay.classList.remove('show'); });

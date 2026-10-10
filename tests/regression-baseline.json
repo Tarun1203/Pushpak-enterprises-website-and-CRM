@@ -3,7 +3,7 @@
   "suites": {
     "backend_qa": {
       "label": "Backend (Cloud Functions logic)",
-      "minTests": 185
+      "minTests": 186
     },
     "frontend_qa": {
       "label": "Frontend unit, links, secrets, indexes",

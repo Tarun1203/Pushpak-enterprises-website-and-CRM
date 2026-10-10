@@ -150,3 +150,13 @@ test('P10.7 return ids and defective due dates are deterministic (IST)', () => {
   assert.strictEqual(Spares.returnId(new Date('2026-12-01T20:00:00Z'), 7, 'SC'), 'PE-RT-20261202-0007-SC');
   assert.ok(Spares.defectiveDueDate(new Date('2026-12-01T00:00:00Z')) > new Date('2026-12-01T00:00:00Z'));
 });
+
+test('P10.x claim voucher: business address is Hubli, shows the allocated service center, and never leaves Claimant/Claim for blank', () => {
+  const v = Docs.render('claim', { claimId: 'PE-CL-9', claimantType: 'warehouse', serviceCenterName: 'Hubli Service Center', partName: 'Heating element', sourceReturnId: 'r1', amount: 0, status: 'submitted' }, 'a4');
+  assert.match(v, /Hubli, Karnataka/);
+  assert.doesNotMatch(v, /Raichur, Karnataka/);
+  assert.match(v, /Service center<\/th><td>Hubli Service Center/);
+  assert.match(v, /Warehouse \(Head Office\)/);
+  assert.match(v, /Defective part/);
+  assert.match(v, /Heating element/);
+});

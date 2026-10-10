@@ -5072,7 +5072,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <h4 style="margin:14px 0 4px;">Payment details</h4>
         ${paymentHtml}`;
 
-      if (window.PEDocs) PEDocs.attach(bodyEl, 'claim', Object.assign({}, c, payments[0] ? { paymentMethod: payments[0].method, paymentRef: payments[0].referenceNumber } : {}));
+      if (window.PEDocs) PEDocs.attach(bodyEl, 'claim', Object.assign({}, await enrichClaimForDoc(c), payments[0] ? { paymentMethod: payments[0].method, paymentRef: payments[0].referenceNumber } : {}));
       bodyEl.querySelectorAll('.claim-lineitem-row').forEach(row => {
         row.addEventListener('click', () => toggleClaimLineItemDetail(row.dataset.idx, lineItems[row.dataset.idx]));
       });
@@ -5496,16 +5496,36 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // into the existing Claims Verification pipeline for processing —
   // for a defective part that's genuinely the source/dealer's fault
   // (not just excess stock), rather than a silent dead end.
+  // Older claims filed from a return carry no service center; look it up
+  // from the return (which records the center the job was allocated to).
+  async function enrichClaimForDoc(c) {
+    try {
+      if (!c || c.serviceCenterName || !c.sourceReturnId) return c;
+      const rs = await getDoc(doc(db, 'returns', c.sourceReturnId));
+      if (!rs.exists()) return c;
+      const r = rs.data();
+      let name = '';
+      if (r.serviceCenterUid) { const us = await getDoc(doc(db, 'users', r.serviceCenterUid)); if (us.exists()) name = us.data().name || us.data().email || ''; }
+      return Object.assign({}, c, { serviceCenterName: name, partName: c.partName || r.partName || '' });
+    } catch (e) { return c; }
+  }
+
   async function fileClaimFromReturn(returnDocId, partId) {
     try {
       const returnSnap = await getDoc(doc(db, 'returns', returnDocId));
       if (!returnSnap.exists()) { alert('Could not find this return.'); return; }
       const r = returnSnap.data();
       const claimId = await generateClaimId();
+      // Record which service center the job was allocated to, so the claim
+      // and its printed voucher show it.
+      let scName = '';
+      if (r.serviceCenterUid) { try { const us = await getDoc(doc(db, 'users', r.serviceCenterUid)); if (us.exists()) scName = us.data().name || us.data().email || ''; } catch (e) { /* name is optional */ } }
       await addDoc(collection(db, 'claims'), {
         claimId,
         claimantUid: null,
         claimantType: 'warehouse',
+        ...(r.serviceCenterUid ? { serviceCenterUid: r.serviceCenterUid, serviceCenterName: scName } : {}),
+        ...(r.partName ? { partName: r.partName } : {}),
         partId,
         description: `Defective part claim — ${escapeHtml(r.reason || 'no reason given')} (from return ${r.returnId || returnDocId})`,
         amount: null,
