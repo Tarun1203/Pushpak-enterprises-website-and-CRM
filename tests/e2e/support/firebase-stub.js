@@ -14,8 +14,8 @@ export const documentId = () => '__name__';
 export const collection = (db, ...p) => ({ kind: 'coll', path: p.join('/'), filters: [] });
 export const collectionGroup = (db, id) => ({ kind: 'coll', path: id, filters: [] });
 export const doc = (a, ...p) => { const path = a && a.kind === 'coll' ? a.path + '/' + (p[0] || 'auto' + Math.random().toString(36).slice(2, 8)) : p.join('/'); return { kind: 'doc', path, id: path.split('/').pop() }; };
-export const where = (f, op, v) => ({ w: [f, op, v] }); export const orderBy = () => ({}); export const limit = () => ({}); export const startAfter = () => ({}); export const or = (...a) => ({}); export const and = (...a) => ({});
-export const query = (c, ...cs) => ({ ...c, filters: c.filters.concat(cs.filter((x) => x.w).map((x) => x.w)) });
+export const where = (f, op, v) => ({ w: [f, op, v] }); export const orderBy = () => ({}); export const limit = (n) => ({ lim: n }); export const startAfter = () => ({}); export const or = (...a) => ({}); export const and = (...a) => ({});
+export const query = (c, ...cs) => ({ ...c, filters: c.filters.concat(cs.filter((x) => x.w).map((x) => x.w)), lim: (cs.find((x) => x.lim) || {}).lim || c.lim });
 const conv = (v) => (v && typeof v === 'object' && v.__ms !== undefined ? TS(v.__ms) : v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, conv(x)])) : Array.isArray(v) ? v.map(conv) : v);
 const rows = (coll) => ((S().data || {})[coll] || []).map((r, i) => ({ id: r.id || coll + i, ...r }));
 const match = (d, [f, op, v]) => { const x = d[f]; return op === '==' ? x === v : op === 'in' ? v.includes(x) : op === 'array-contains' ? (x || []).includes(v) : op === '!=' ? x !== v : op === 'not-in' ? !v.includes(x) : true; };
@@ -28,8 +28,9 @@ export async function getDoc(r) {
   return snapOf(id, d);
 }
 export async function getDocs(q) {
-  (window.__reads = window.__reads || []).push({ kind: 'query', path: q.path, filtered: q.filters.length > 0 });
-  const docs = rows(q.path.split('/')[0]).filter((d) => q.filters.every((f) => match(d, f))).map((d) => snapOf(d.id, d));
+  (window.__reads = window.__reads || []).push({ kind: 'query', path: q.path, filtered: q.filters.length > 0 || !!q.lim });
+  let docs = rows(q.path.split('/')[0]).filter((d) => q.filters.every((f) => match(d, f))).map((d) => snapOf(d.id, d));
+  if (q.lim) docs = docs.slice(0, q.lim);
   return { docs, size: docs.length, empty: !docs.length, forEach: (fn) => docs.forEach(fn) };
 }
 export async function getCountFromServer(q) { (window.__reads = window.__reads || []).push({ kind: 'count', path: q.path }); const docs = rows(q.path.split('/')[0]).filter((d) => q.filters.every((f) => match(d, f))); return { data: () => ({ count: docs.length }) }; }

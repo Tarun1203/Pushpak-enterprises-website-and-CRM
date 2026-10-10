@@ -117,10 +117,12 @@ test('phone: alert sits inside the screen, above the content, and does not cause
   await page.setViewportSize({ width: 320, height: 640 });
   await openAs(page, 'technician');
   await push(page, 'serviceJobs', 'j2', { ...TICKET, technicianUid: 'u1', customerName: 'Mallikarjun Shivappa Patil of Sri Venkateshwara Home Appliances', status: 'assigned' });
+  await page.waitForTimeout(600); // let the slide-in finish before measuring
   const box = await page.locator('.ui-toast').boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(321);
   const r = await layoutReport(page); expect(r.scrollWidth).toBeLessThanOrEqual(321);
   await page.getByRole('button', { name: 'View' }).click();
+  await page.waitForTimeout(500);
   const m = await page.locator('.ui-live-dialog .modal').boundingBox();
   expect(m.x + m.width).toBeLessThanOrEqual(321);
   const r2 = await layoutReport(page); expect(r2.scrollWidth).toBeLessThanOrEqual(321);
