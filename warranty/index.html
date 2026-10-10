@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Warranty Card Generator — Pushpak Enterprises</title>
+<link rel="stylesheet" href="../assets/pe.css">
+<link rel="stylesheet" href="warranty.css">
+</head>
+<body>
+<div class="generator-shell">
+  <header class="generator-head no-print">
+    <div><span class="eyebrow">Pushpak Enterprises</span><h1>Warranty Card Generator</h1><p>A5 duplex • dynamic coverage • QR verification</p></div>
+    <div class="toolbar">
+      <select id="brandSelect" aria-label="Brand"><option value="makwell">MakWell</option><option value="flyvision">Flyvision</option><option value="skevia">Skevia</option></select>
+      <button id="printBtn" class="btn btn-primary">Print / Save PDF</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="form-panel no-print">
+      <div class="panel-title"><b>Warranty data</b><span>Demo values can be replaced by CRM data.</span></div>
+      <label>Warranty Card No.<input id="cardNo" value="WC-2026-000184"></label>
+      <div class="two"><label>Customer Name<input id="customerName" value="Customer Name"></label><label>Mobile<input id="mobile" value="9980000515"></label></div>
+      <label>Address<textarea id="address">Customer address, Karnataka</textarea></label>
+      <div class="two"><label>Category<input id="category" value="Television"></label><label>Product<input id="product" value="43 Smart Full HD TV"></label></div>
+      <div class="two"><label>Model<input id="model" value="MW43SFHD"></label><label>Serial No.<input id="serial" value="MW43SFHD-000001"></label></div>
+      <div class="two"><label>Purchase Date<input id="purchaseDate" type="date" value="2026-10-10"></label><label>Valid Until<input id="validUntil" type="date" value="2027-10-09"></label></div>
+      <label>Purchased From / Dealer<input id="dealer" value="Authorized Dealer"></label>
+      <label>Warranty Plan<input id="warrantyPlan" value="1 Year Full Warranty"></label>
+      <div class="coverage-editor">
+        <div class="editor-head"><b>Coverage components</b><button type="button" id="addRow">+ Add row</button></div>
+        <div id="coverageInputs"></div>
+      </div>
+      <label>Terms & Conditions<input id="terms" value="Warranty is subject to the applicable brand and product warranty policy. Physical damage, misuse and unauthorized repair are excluded."></label>
+    </section>
+
+    <section class="preview-wrap">
+      <div class="print-note no-print">A5 preview • page 1 front / page 2 back</div>
+      <div id="printDocument" class="print-document">
+        <article class="a5-page front" id="frontPage">
+          <div class="page-accent"></div>
+          <header class="brand-header"><div class="brand-logo-box"><img id="brandLogo" src="../assets/logos/makwell-logo.jpeg" alt="Brand logo"></div><div class="brand-heading"><div id="brandTagline">MAKE IT HAPPEN</div><h2>WARRANTY CARD</h2><span id="cardNoOut">WC-2026-000184</span></div></header>
+          <div class="rule"></div>
+          <section><div class="section-label">CUSTOMER DETAILS</div><div class="info-grid"><div><small>Customer Name</small><strong id="customerNameOut"></strong></div><div><small>Mobile</small><strong id="mobileOut"></strong></div><div class="wide"><small>Address</small><strong id="addressOut"></strong></div></div></section>
+          <section><div class="section-label">PRODUCT DETAILS</div><div class="info-grid"><div><small>Brand</small><strong id="brandOut">MakWell</strong></div><div><small>Category</small><strong id="categoryOut"></strong></div><div><small>Product</small><strong id="productOut"></strong></div><div><small>Model</small><strong id="modelOut"></strong></div><div><small>Serial No.</small><strong id="serialOut"></strong></div><div><small>Purchase Date</small><strong id="purchaseOut"></strong></div><div><small>Warranty Plan</small><strong id="planOut"></strong></div><div><small>Valid Until</small><strong id="validOut"></strong></div><div class="wide"><small>Purchased From</small><strong id="dealerOut"></strong></div></div></section>
+          <section class="coverage-section"><div class="section-label">WARRANTY COVERAGE</div><table><thead><tr><th>Component / Part</th><th>Coverage</th><th>Period</th></tr></thead><tbody id="coverageTable"></tbody></table></section>
+          <div class="front-bottom"><div class="signature"><span>Dealer Stamp / Signature</span><div></div></div><div class="qr-box"><img id="qrImage" alt="Warranty verification QR"><small>SCAN TO VERIFY WARRANTY<br>&amp; GET SUPPORT</small></div></div>
+          <footer class="mini-footer"><b>PUSHPAK ENTERPRISES</b><span>9980000515 • Pushpakenterprises91@gmail.com</span></footer>
+        </article>
+
+        <article class="a5-page back">
+          <div class="page-accent"></div>
+          <header class="back-head"><div class="brand-logo-box small"><img id="brandLogoBack" src="../assets/logos/makwell-logo.jpeg" alt="Brand logo"></div><div><span class="eyebrow">Warranty policy</span><h2>TERMS &amp; CONDITIONS</h2></div></header>
+          <div class="terms-body"><div class="terms-columns"><div><h3>1. Warranty Coverage</h3><p id="termsOut"></p><h3>2. Warranty Period</h3><p>The warranty period is calculated from the original purchase date shown on this warranty document.</p><h3>3. Warranty Claim</h3><p>Customer should retain the invoice and warranty card. The serial number must match the registered product record.</p><h3>4. Service Conditions</h3><p>Service is subject to the applicable brand, product category, location and warranty plan.</p><h3>5. Exclusions</h3><p>Damage caused by misuse, accident, liquid, voltage fluctuation, unauthorized repair, alteration, pests or external causes is excluded unless specifically covered by the applicable plan.</p></div><div><h3>6. Replacement / Repair</h3><p>Repair or replacement, where applicable, is governed by the selected warranty plan and service policy.</p><h3>7. Documents Required</h3><p>Warranty card, purchase invoice and product serial number may be required for verification.</p><h3>8. Transferability</h3><p>Warranty transferability, if any, is governed by the applicable brand policy.</p><h3>9. General</h3><p>Terms may vary by brand, category, model and warranty plan. The digitally registered warranty record is the authoritative service record.</p></div></div></div>
+          <div class="support-card"><div><span class="eyebrow">Customer support</span><h3>PUSHPAK ENTERPRISES</h3><p>NO. 62/2, 3rd MAIN ROAD, NEW TIMBER YARD, UNKAL, HUBLI - 580031</p><p><b>Cell:</b> 9980000515 &nbsp; <b>Email:</b> Pushpakenterprises91@gmail.com</p><p><b>GSTIN:</b> 29AGSPK2164P1ZJ</p></div><div class="qr-mini"><img id="qrImageBack" alt="Warranty QR"><small>VERIFY • REGISTER • SERVICE</small></div></div>
+          <footer class="back-footer">This document is generated from the Pushpak Enterprises warranty system. Public QR scans show verification/support information; authorized CRM users can access the complete warranty record.</footer>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="warranty.js"></script>
+</body>
+</html>
