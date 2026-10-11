@@ -1,300 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0A0E1A">
 <title>Product — Pushpak Enterprises</title>
 <link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/pe.css">
-<style>
-main.wrap{padding-top:36px;padding-bottom:80px;max-width:1100px}
-.state-msg{font-size:15px;color:var(--muted);padding:70px 0;text-align:center}
-.crumbs{font-size:13.5px;color:var(--muted);margin-bottom:22px}.crumbs a{font-weight:600;color:var(--ink-2)}.crumbs a:hover{color:var(--accent)}
-.product-hero{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;margin-bottom:56px;align-items:start}
-.product-visual{background:radial-gradient(circle at 50% 35%,#fff,#E9ECF6);border:1px solid var(--line);border-radius:var(--r-xl);aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;padding:28px;overflow:hidden}
-.product-visual #product-hero-img{object-fit:contain!important;padding:8px;transition:transform .5s}
-.product-visual:hover #product-hero-img{transform:scale(1.04)}
-.product-visual .logo-box{width:50%}.product-visual .logo-box img{width:100%;height:auto;border-radius:14px}
-.product-thumb{border-radius:12px!important;width:64px!important;height:64px!important;object-fit:contain!important;background:#fff;border:2px solid var(--line)!important;padding:4px}
-.product-info .cat{font-size:12.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;margin-bottom:12px}
-.product-info h1{font-size:clamp(30px,4vw,48px);margin-bottom:16px}
-.product-info .price-range{font-family:var(--font-d);font-size:28px;font-weight:800;margin-bottom:4px}
-.product-info .price-range span{font-size:15px;font-weight:600;color:var(--muted)}
-.price-note{font-size:13.5px;color:var(--muted);margin-bottom:22px}
-.cta-row{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 26px}
-.key-feats{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-.key-feats span{background:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-size:13.5px;font-weight:700}
-.key-feats small{color:var(--muted);font-weight:600;margin-right:6px}
-.perks{display:grid;gap:10px;margin-top:26px}.perks div{display:flex;gap:12px;align-items:center;font-size:14px;color:var(--ink-2)}
-.perks svg{width:22px;height:22px;color:var(--accent);flex:none}
-h2.sec{font-size:clamp(24px,3vw,34px);margin-bottom:22px}
-.models-list{display:grid;gap:16px;margin-bottom:48px}
-.model-card{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:28px}
-.model-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px;flex-wrap:wrap}
-.model-card-head .model-number{font-family:var(--font-d);font-size:22px;font-weight:800}
-.model-card-head .sku{font-size:12.5px;color:var(--muted);margin-top:3px}
-.model-card-head .model-price{font-size:19px;font-weight:800;color:var(--accent-deep);white-space:nowrap}
-.spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:0;margin-top:14px;border-top:1px solid var(--line)}
-.spec-item{padding:14px 16px 14px 0;border-bottom:1px solid var(--line)}
-.spec-item .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
-.spec-item .value{font-size:15px;font-weight:700;margin-top:3px}
-.warranty-note{margin-top:16px;padding:14px 16px;background:var(--bg);border-radius:var(--r-md);font-size:14px;color:var(--muted)}
-.warranty-note b{color:var(--ink)}
-.warranty-components{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px}
-.warranty-pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--ink)}
-.notes-box{font-size:14px;color:var(--muted);margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-@media (max-width:860px){.product-hero{grid-template-columns:1fr;gap:26px}.model-card{padding:22px 18px}}
-</style>
 <script src="assets/mobile-nav.js" defer></script>
 <script src="assets/pe.js" defer></script>
 <link rel="stylesheet" href="assets/fit.css">
 <link rel="stylesheet" href="assets/pe-trust.css">
 <script src="assets/pe-trust.js" defer></script>
+<style>
+:root{--product-brand:#7d3c88;--product-deep:#5e2568;--product-soft:#f4edf6;--product-glow:rgba(125,60,136,.18);--hero:#080b14;--hero2:#121827}
+body{background:#f7f8fb}.product-page{overflow:hidden}.product-shell{max-width:1220px;margin:auto;padding:0 24px}.product-state{min-height:65vh;display:grid;place-items:center;color:var(--muted);font-size:15px}
+/* premium header */
+.product-topbar{padding:18px 0 8px}.product-breadcrumb{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);white-space:nowrap;overflow:auto}.product-breadcrumb a{color:var(--ink-2);font-weight:700}.product-breadcrumb .sep{opacity:.4}
+/* hero */
+.product-hero{position:relative;margin:10px auto 0;max-width:1380px;min-height:650px;border-radius:34px;background:radial-gradient(circle at 72% 28%,var(--product-glow),transparent 34%),linear-gradient(135deg,var(--hero),var(--hero2));color:#fff;overflow:hidden;isolation:isolate}.product-hero:before{content:"";position:absolute;inset:-30%;background:radial-gradient(circle at 68% 48%,var(--product-glow),transparent 25%);filter:blur(30px);z-index:-1}.hero-grid{display:grid;grid-template-columns:1fr 1.05fr;min-height:650px;align-items:center;gap:10px;padding:70px 7% 64px}.hero-copy{position:relative;z-index:2;max-width:620px}.brand-chip{display:inline-flex;align-items:center;min-height:42px;padding:8px 15px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);margin-bottom:26px}.brand-chip img{max-width:150px;max-height:30px;object-fit:contain;border-radius:5px}.hero-kicker{text-transform:uppercase;letter-spacing:.18em;font-size:11px;font-weight:800;color:rgba(255,255,255,.58);margin-bottom:14px}.hero-copy h1{font-size:clamp(42px,6vw,76px);line-height:.98;letter-spacing:-.055em;margin:0 0 22px;color:#fff}.hero-description{font-size:17px;line-height:1.7;color:rgba(255,255,255,.68);max-width:54ch}.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0}.hero-actions a{transition:transform .25s,box-shadow .25s}.hero-actions a:hover{transform:translateY(-3px)}.btn-brand{background:var(--product-brand)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 12px 34px var(--product-glow)}.btn-darkghost{background:rgba(255,255,255,.07)!important;color:#fff!important;border:1px solid rgba(255,255,255,.16)!important}.hero-pills{display:flex;gap:9px;flex-wrap:wrap}.hero-pill{font-size:12px;font-weight:750;padding:9px 12px;border-radius:999px;background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.78)}
+.hero-media{position:relative;min-height:500px;display:grid;place-items:center}.hero-orbit{position:absolute;width:min(38vw,510px);height:min(38vw,510px);border:1px solid rgba(255,255,255,.08);border-radius:50%;animation:spin 26s linear infinite}.hero-orbit:before,.hero-orbit:after{content:"";position:absolute;width:8px;height:8px;border-radius:50%;background:var(--product-brand);box-shadow:0 0 25px var(--product-brand)}.hero-orbit:before{top:10%;left:12%}.hero-orbit:after{right:6%;bottom:22%}.hero-product-img{position:relative;z-index:2;width:min(92%,600px);max-height:540px;object-fit:contain;filter:drop-shadow(0 32px 45px rgba(0,0,0,.48));transform:translate3d(0,0,0);transition:transform .35s cubic-bezier(.2,.8,.2,1)}.hero-product-img.placeholder{opacity:.22}.hero-media:after{content:"";position:absolute;width:65%;height:14%;bottom:7%;left:18%;background:var(--product-brand);filter:blur(45px);opacity:.28}
+.gallery-dots{position:absolute;z-index:4;bottom:20px;display:flex;gap:7px;max-width:90%;overflow:auto}.gallery-dots button{width:46px;height:46px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);padding:4px;cursor:pointer}.gallery-dots button.active{border-color:#fff;background:#fff}.gallery-dots img{width:100%;height:100%;object-fit:contain;border-radius:6px}
+/* intro stats */
+.product-intro{display:grid;grid-template-columns:1.1fr .9fr;gap:70px;padding:100px 0 85px;align-items:start}.eyebrow-brand{color:var(--product-brand);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.18em}.product-intro h2,.section-title h2{font-size:clamp(32px,4vw,54px);line-height:1.03;letter-spacing:-.04em;margin:13px 0 18px}.product-intro p{color:var(--muted);font-size:16px;line-height:1.75;max-width:60ch}.trust-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.trust-card{padding:20px;background:#fff;border:1px solid var(--line);border-radius:18px;transition:transform .25s,border-color .25s,box-shadow .25s}.trust-card:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--product-brand),#fff 65%);box-shadow:0 16px 35px rgba(10,14,26,.06)}.trust-card strong{display:block;font-size:15px;margin-bottom:5px}.trust-card span{font-size:12.5px;color:var(--muted);line-height:1.5}
+/* feature spotlight */
+.feature-section{padding:90px 0;background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.section-title{display:flex;justify-content:space-between;align-items:end;gap:30px;margin-bottom:34px}.section-title p{max-width:45ch;color:var(--muted);line-height:1.6}.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.feature-card{min-height:230px;border-radius:24px;padding:28px;background:linear-gradient(145deg,#fff,#f4f5f9);border:1px solid var(--line);position:relative;overflow:hidden;transition:transform .3s,box-shadow .3s}.feature-card:hover{transform:translateY(-7px);box-shadow:0 22px 50px rgba(10,14,26,.09)}.feature-number{font-size:11px;color:var(--product-brand);font-weight:850;letter-spacing:.14em}.feature-card h3{font-size:21px;margin:55px 0 9px}.feature-card p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}.feature-card:after{content:"";position:absolute;width:120px;height:120px;border-radius:50%;right:-55px;bottom:-55px;background:var(--product-soft)}
+/* models */
+.models-section{padding:100px 0}.models-list{display:grid;gap:14px}.model-card{background:#fff;border:1px solid var(--line);border-radius:24px;overflow:hidden}.model-head{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px 26px;cursor:pointer}.model-title{display:flex;align-items:center;gap:14px}.model-index{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--product-soft);color:var(--product-brand);font-size:12px;font-weight:850}.model-number{font-size:19px;font-weight:800}.model-sku{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}.model-price{font-size:18px;font-weight:850}.model-chevron{font-size:18px;color:var(--muted);transition:transform .3s}.model-card.open .model-chevron{transform:rotate(180deg)}.model-body{display:none;padding:0 26px 28px}.model-card.open .model-body{display:block;animation:reveal .35s ease both}.spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));border-top:1px solid var(--line)}.spec-item{padding:16px 16px 16px 0;border-bottom:1px solid var(--line)}.spec-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}.spec-value{font-size:14px;font-weight:750;margin-top:4px;line-height:1.45}.model-warranty{margin-top:18px;padding:17px 18px;background:var(--product-soft);border-radius:15px;font-size:13px;color:var(--ink-2)}.model-warranty strong{color:var(--ink)}
+/* service */
+.service-section{padding:90px 0;background:linear-gradient(135deg,#0a0e1a,#171d2d);color:#fff}.service-section .eyebrow-brand{color:#fff;opacity:.55}.service-section h2{color:#fff}.service-section .section-title p{color:rgba(255,255,255,.55)}.service-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.service-card{display:block;padding:26px;border-radius:22px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#fff;transition:transform .3s,background .3s}.service-card:hover{transform:translateY(-5px);background:rgba(255,255,255,.09)}.service-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--product-brand);margin-bottom:28px}.service-card h3{font-size:18px;margin:0 0 7px}.service-card p{font-size:13px;color:rgba(255,255,255,.55);line-height:1.55;margin:0}
+/* related */
+.related-section{padding:90px 0}.related-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.related-card{display:block;background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;color:inherit;transition:transform .3s,box-shadow .3s}.related-card:hover{transform:translateY(-6px);box-shadow:0 22px 45px rgba(10,14,26,.09)}.related-image{height:240px;background:linear-gradient(145deg,#f8f9fc,#e9ecf4);display:grid;place-items:center;padding:22px}.related-image img{width:100%;height:100%;object-fit:contain}.related-copy{padding:20px 22px 22px}.related-copy .cat{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--product-brand);font-weight:850}.related-copy h3{font-size:18px;margin:7px 0 0}.related-copy span{display:inline-block;margin-top:13px;font-size:12px;font-weight:800;color:var(--product-brand)}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.8,.2,1)}.reveal.visible{opacity:1;transform:none}.delay-1{transition-delay:.08s}.delay-2{transition-delay:.16s}.delay-3{transition-delay:.24s}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes reveal{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;min-height:auto;padding:54px 7% 45px}.hero-copy{max-width:none}.hero-media{min-height:430px}.hero-orbit{width:420px;height:420px}.product-intro{grid-template-columns:1fr;gap:35px;padding:75px 0}.feature-grid,.service-grid,.related-grid{grid-template-columns:1fr 1fr}.section-title{display:block}.section-title p{margin-top:12px}.product-hero{border-radius:24px}}
+@media(max-width:620px){.product-shell{padding:0 16px}.product-hero{margin-left:-16px;margin-right:-16px;border-radius:0}.hero-grid{padding:45px 20px 35px}.hero-copy h1{font-size:46px}.hero-description{font-size:15px}.hero-media{min-height:350px}.hero-orbit{width:290px;height:290px}.hero-product-img{max-height:350px}.gallery-dots button{width:40px;height:40px}.trust-grid,.feature-grid,.service-grid,.related-grid{grid-template-columns:1fr}.feature-section,.models-section,.service-section,.related-section{padding:70px 0}.model-head{padding:20px}.model-body{padding:0 20px 22px}.model-price{font-size:15px}.model-title{gap:9px}.product-intro h2,.section-title h2{font-size:36px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}.reveal{opacity:1;transform:none}}
+</style>
 </head>
-<body class="has-tabbar">
+<body class="has-tabbar product-page">
 <a class="skip" href="#main">Skip to content</a>
 <header>
   <div class="header-inner">
     <a class="brandmark-wrap" href="index.html"><img src="assets/logos/pushpak-enterprises-icon.png" alt="" class="brandmark-icon"><div class="brandmark">Pushpak Enterprises <span>Building Brands. Delivering Trust.</span></div></a>
     <nav aria-label="Main"><a href="index.html#products">Products</a><a href="index.html#brands">Brands</a><a href="index.html#help">Support</a><a href="index.html#contact">Contact</a></nav>
-    <div class="header-actions"><div class="logo-box" id="brand-logo-box" style="height:30px"></div><a href="index.html#book-service" class="nav-cta">Book a Service</a><a href="portal.html" class="acct" aria-label="My Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></a></div>
+    <div class="header-actions"><div id="brand-logo-box" style="height:30px"></div><a href="index.html#book-service" class="nav-cta">Book a Service</a><a href="portal.html" class="acct" aria-label="My Account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg></a></div>
   </div>
 </header>
-
-<main class="wrap" id="main">
-  <div id="content"><div class="state-msg">Loading product…</div></div>
+<main id="main">
+  <div id="loading" class="product-state">Loading product experience…</div>
+  <div id="product-app" hidden></div>
 </main>
-
-<footer>
-  <div class="wrap footer-inner">
-    <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
-    <span class="foot-links"><a href="makwell/index.html">MakWell</a><a href="flyvision/index.html">Flyvision</a><a href="skevia/index.html">Skevia</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a><button type="button" class="linklike" data-cookie-settings>Cookie settings</button></span>
-  </div>
-</footer>
-<nav class="tabbar" aria-label="Quick links">
-  <a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
-  <a href="index.html#products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Products</a>
-  <a href="index.html#help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Support</a>
-  <a href="portal.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Account</a>
-</nav>
-
+<footer><div class="wrap footer-inner"><span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span><span class="foot-links"><a href="makwell/index.html">MakWell</a><a href="flyvision/index.html">Flyvision</a><a href="skevia/index.html">Skevia</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a><button type="button" class="linklike" data-cookie-settings>Cookie settings</button></span></div></footer>
+<nav class="tabbar" aria-label="Quick links"><a href="index.html">Home</a><a href="index.html#products">Products</a><a href="index.html#help">Support</a><a href="portal.html">Account</a></nav>
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
-    authDomain: "makwell-websiteandcrm.firebaseapp.com",
-    projectId: "makwell-websiteandcrm",
-    storageBucket: "makwell-websiteandcrm.firebasestorage.app",
-    messagingSenderId: "673518655103",
-    appId: "1:673518655103:web:1805d10de3c63eca23914a",
-    measurementId: "G-YLM91W3YF1"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  document.getElementById('year').textContent = new Date().getFullYear();
-
-  function escapeHtmlPE(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-  const BRAND_LOGO_FILES = { makwell: 'makwell-logo.jpeg', flyvision: 'flyvision-logo.jpeg', skevia: 'skevia-logo.jpeg' };
-  const BRAND_COLORS = {
-    makwell: { brand: '#8A3B94', deep: '#5E2568' },
-    flyvision: { brand: '#E5262C', deep: '#1B1B3A' },
-    skevia: { brand: '#1C7DC0', deep: '#0F4C88' },
-  };
-  const BRAND_HOME = { makwell: 'makwell/index.html', flyvision: 'flyvision/index.html', skevia: 'skevia/index.html' };
-
-  const params = new URLSearchParams(window.location.search);
-  const productId = params.get('id');
-  const contentEl = document.getElementById('content');
-
-  function applyBrandTheme(brandId) {
-    const colors = BRAND_COLORS[brandId];
-    if (colors) {
-      document.documentElement.style.setProperty('--brand', colors.brand);
-      document.documentElement.style.setProperty('--brand-deep', colors.deep);
-      document.documentElement.style.setProperty('--accent', colors.brand);
-      document.documentElement.style.setProperty('--accent-deep', colors.deep);
-    }
-    const logoBox = document.getElementById('brand-logo-box');
-    if (BRAND_LOGO_FILES[brandId]) {
-      logoBox.innerHTML = `<img src="assets/logos/${BRAND_LOGO_FILES[brandId]}" alt="${brandId}">`;
-    }
-  }
-
-  async function loadProduct() {
-    if (!productId) {
-      contentEl.innerHTML = '<div class="state-msg">No product specified.</div>';
-      return;
-    }
-    try {
-      const productSnap = await getDoc(doc(db, 'products', productId));
-      if (!productSnap.exists()) {
-        contentEl.innerHTML = '<div class="state-msg">Product not found — it may have been removed.</div>';
-        return;
-      }
-      const product = productSnap.data();
-      applyBrandTheme(product.brandId);
-      document.title = `${product.name || 'Product'} — Pushpak Enterprises`;
-
-      // Attribute definitions for this product's category, so model
-      // attribute values can be shown with real labels/units instead
-      // of raw keys.
-      let attrDefs = {};
-      if (product.categoryId) {
-        try {
-          const attrSnap = await getDocs(query(collection(db, 'productAttributes'), where('categoryId', '==', product.categoryId)));
-          attrSnap.forEach(d => { attrDefs[d.id] = d.data(); });
-          // Also index by attributeKey for lookup convenience
-          const byKey = {};
-          Object.values(attrDefs).forEach(a => { byKey[a.attributeKey] = a; });
-          attrDefs = byKey;
-        } catch (err) {
-          console.warn('Could not load attribute definitions:', err.message);
-        }
-      }
-
-      // Models for this product
-      let models = [];
-      try {
-        const modelsSnap = await getDocs(query(collection(db, 'productModels'), where('productId', '==', productId)));
-        modelsSnap.forEach(d => { const m = d.data(); if ((m.status || 'active') === 'active') models.push(m); });
-        models.sort((a, b) => (a.modelNumber || '').localeCompare(b.modelNumber || ''));
-      } catch (err) {
-        console.warn('Could not load models:', err.message);
-      }
-
-      // Warranty plan details (fetch each unique plan referenced by a model)
-      const warrantyPlanCache = {};
-      async function getWarrantyPlan(planId) {
-        if (!planId) return null;
-        if (warrantyPlanCache[planId] !== undefined) return warrantyPlanCache[planId];
-        try {
-          const snap = await getDoc(doc(db, 'warrantyPlans', planId));
-          warrantyPlanCache[planId] = snap.exists() ? snap.data() : null;
-        } catch (err) {
-          warrantyPlanCache[planId] = null;
-        }
-        return warrantyPlanCache[planId];
-      }
-
-      const prices = models.map(m => m.price).filter(p => p != null);
-      const priceRangeHtml = prices.length === 0
-        ? 'Price on request'
-        : (Math.min(...prices) === Math.max(...prices)
-            ? `₹${Math.min(...prices)}`
-            : `₹${Math.min(...prices)} <span>– ₹${Math.max(...prices)}</span>`);
-
-      // Key features: the first few specifications of the first model.
-      const keyFeatHtml = models.length ? Object.entries(models[0].attributeValues || {}).filter(([, v]) => v !== '' && v !== 'no').slice(0, 6).map(([key, val]) => {
-        const def = attrDefs[key]; const unit = def && def.unit ? ' ' + def.unit : '';
-        const show = val === 'yes' ? '' : escapeHtmlPE(val) + unit;
-        return `<span>${show ? '<small>' + escapeHtmlPE(def ? def.attributeName : key) + '</small>' + show : escapeHtmlPE(def ? def.attributeName : key)}</span>`;
-      }).join('') : '';
-      const brandHome = BRAND_HOME[product.brandId] || 'index.html';
-      const galleryImages = product.imageUrls && product.imageUrls.length ? product.imageUrls : (product.imageUrl ? [product.imageUrl] : []);
-
-      contentEl.innerHTML = `
-        <div class="product-hero">
-          <div>
-            <div class="product-visual" id="product-hero-visual" style="${galleryImages.length ? 'padding:0;' : ''}">
-              ${galleryImages.length
-                ? `<img src="${galleryImages[0]}" alt="${product.name || ''}" id="product-hero-img" style="width:100%;height:100%;object-fit:cover;">`
-                : `<div class="logo-box"><img src="assets/logos/${BRAND_LOGO_FILES[product.brandId] || ''}" alt=""></div>`}
-            </div>
-            ${galleryImages.length > 1 ? `
-              <div id="product-thumb-strip" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                ${galleryImages.map((url, i) => `
-                  <img src="${url}" data-idx="${i}" class="product-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:2px;cursor:pointer;border:2px solid ${i === 0 ? 'var(--brand)' : 'transparent'};">
-                `).join('')}
-              </div>` : ''}
-          </div>
-          <div class="product-info">
-            <div class="cat">${product.categoryName || 'Product'}</div>
-            <h1>${product.name || 'Unnamed product'}</h1>
-            <div class="price-range">${priceRangeHtml}</div>
-            <div class="price-note">Dealer pricing available. Final price at your authorized dealer.</div>
-            ${keyFeatHtml ? `<div class="key-feats" aria-label="Key features">${keyFeatHtml}</div>` : ''}
-            <div class="cta-row">
-              <a href="index.html#register-product" class="btn btn-primary">Register this product</a>
-              <a href="index.html#book-service" class="btn btn-secondary">Book a service</a>
-              <a href="${brandHome}" class="btn btn-secondary">Back to ${product.brand || 'brand'}</a>
-            </div>
-            <div class="perks">
-              <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Registered warranty, checkable any time</div>
-              <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>Service by Pushpak technicians across Karnataka</div>
-            </div>
-          </div>
-        </div>
-        <h2 class="sec">Available models${models.length ? ` (${models.length})` : ''}</h2>
-        <div class="models-list" id="models-list"></div>
-      `;
-
-      if (galleryImages.length > 1) {
-        document.querySelectorAll('.product-thumb').forEach(thumb => {
-          thumb.addEventListener('click', () => {
-            document.getElementById('product-hero-img').src = galleryImages[Number(thumb.dataset.idx)];
-            document.querySelectorAll('.product-thumb').forEach(t => t.style.borderColor = 'transparent');
-            thumb.style.borderColor = 'var(--brand)';
-          });
-        });
-      }
-
-      const modelsListEl = document.getElementById('models-list');
-      if (models.length === 0) {
-        modelsListEl.outerHTML = '<div class="state-msg" style="padding:30px 0;">No models listed yet for this product.</div>';
-        return;
-      }
-
-      for (const m of models) {
-        const specEntries = Object.entries(m.attributeValues || {}).map(([key, val]) => {
-          const def = attrDefs[key];
-          const label = def ? def.attributeName : key;
-          const unit = def && def.unit ? ' ' + def.unit : '';
-          const displayVal = val === 'yes' ? 'Yes' : val === 'no' ? 'No' : val;
-          return `<div class="spec-item"><div class="label">${label}</div><div class="value">${displayVal}${unit}</div></div>`;
-        }).join('');
-
-        let warrantyHtml = '';
-        if (m.warrantyPlanId) {
-          const plan = await getWarrantyPlan(m.warrantyPlanId);
-          if (plan) {
-            const compPills = (plan.components || []).map(c =>
-              `<span class="warranty-pill">${c.componentName}: ${c.durationYears}yr</span>`
-            ).join('');
-            warrantyHtml = `<div class="warranty-note"><b>Warranty:</b> ${plan.name}<div class="warranty-components">${compPills}</div></div>`;
-          } else {
-            warrantyHtml = `<div class="warranty-note"><b>Warranty:</b> ${m.warrantyPlanName || 'Plan on file'}</div>`;
-          }
-        }
-
-        const notesHtml = m.specifications
-          ? `<div class="notes-box">${m.specifications}</div>` : '';
-
-        const card = document.createElement('div');
-        card.className = 'model-card';
-        card.innerHTML = `
-          <div class="model-card-head">
-            <div>
-              <div class="model-number">${m.modelNumber || '—'}</div>
-              ${m.sku ? `<div class="sku">SKU: ${m.sku}</div>` : ''}
-            </div>
-            <div class="model-price">${m.price != null ? '₹' + m.price : 'Price on request'}</div>
-          </div>
-          ${specEntries ? `<div class="spec-grid">${specEntries}</div>` : ''}
-          ${warrantyHtml}
-          ${notesHtml}
-        `;
-        modelsListEl.appendChild(card);
-      }
-    } catch (err) {
-      console.error('Load product failed:', err);
-      contentEl.innerHTML = '<div class="state-msg">Could not load this product right now.</div>';
-    }
-  }
-
-  loadProduct();
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import {getFirestore,doc,getDoc,collection,getDocs,query,where,limit} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+const firebaseConfig={apiKey:'AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY',authDomain:'makwell-websiteandcrm.firebaseapp.com',projectId:'makwell-websiteandcrm',storageBucket:'makwell-websiteandcrm.firebasestorage.app',messagingSenderId:'673518655103',appId:'1:673518655103:web:1805d10de3c63eca23914a',measurementId:'G-YLM91W3YF1'};
+const db=getFirestore(initializeApp(firebaseConfig));
+const $=s=>document.querySelector(s), esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const brands={makwell:{name:'MakWell',brand:'#8A3B94',deep:'#5E2568',logo:'makwell-logo.jpeg',home:'makwell/index.html',tag:'MAKE IT HAPPEN'},flyvision:{name:'Flyvision',brand:'#E5262C',deep:'#1B1B3A',logo:'flyvision-logo.jpeg',home:'flyvision/index.html',tag:'SEE THE DIFFERENCE'},skevia:{name:'Skevia',brand:'#1C7DC0',deep:'#0F4C88',logo:'skevia-logo.jpeg',home:'skevia/index.html',tag:'NEW AWAKENING'}};
+const icons={warranty:'✓',service:'↗',register:'＋'};
+const params=new URLSearchParams(location.search), productId=params.get('id');
+function money(v){return v==null||v===''?'Price on request':'₹'+Number(v).toLocaleString('en-IN')}
+function val(v){if(v===true||v==='yes')return 'Yes';if(v===false||v==='no')return 'No';return v}
+function applyBrand(b){const x=brands[b]||brands.makwell;document.documentElement.style.setProperty('--product-brand',x.brand);document.documentElement.style.setProperty('--product-deep',x.deep);document.documentElement.style.setProperty('--product-soft',x.brand+'12');document.documentElement.style.setProperty('--product-glow',x.brand+'35');const box=$('#brand-logo-box');if(box)box.innerHTML=`<img src="assets/logos/${x.logo}" alt="${esc(x.name)}" style="max-height:30px;max-width:120px;object-fit:contain;border-radius:4px">`;return x}
+async function getAttrDefs(categoryId){if(!categoryId)return{};try{const s=await getDocs(query(collection(db,'productAttributes'),where('categoryId','==',categoryId)));const out={};s.forEach(d=>{const a=d.data();out[a.attributeKey||d.id]=a});return out}catch(e){return{}}}
+async function getModels(id){try{const s=await getDocs(query(collection(db,'productModels'),where('productId','==',id)));const out=[];s.forEach(d=>{const m=d.data();if((m.status||'active')==='active')out.push({id:d.id,...m})});return out.sort((a,b)=>String(a.modelNumber||'').localeCompare(String(b.modelNumber||'')))}catch(e){return[]}}
+async function getWarranty(planId){if(!planId)return null;try{const s=await getDoc(doc(db,'warrantyPlans',planId));return s.exists()?s.data():null}catch(e){return null}}
+function galleryImages(p){return p.imageUrls?.length?p.imageUrls:p.imageUrl?[p.imageUrl]:[]}
+function featureData(models,defs){const first=models[0]?.attributeValues||{};return Object.entries(first).filter(([,v])=>v!==''&&v!=='no'&&v!=null).slice(0,6).map(([k,v])=>({label:defs[k]?.attributeName||k,value:val(v)+(defs[k]?.unit?' '+defs[k].unit:'')}))}
+function specMarkup(m,defs){const av=m.attributeValues||{};const rows=Object.entries(av).filter(([,v])=>v!==''&&v!=null).map(([k,v])=>`<div class="spec-item"><div class="spec-label">${esc(defs[k]?.attributeName||k)}</div><div class="spec-value">${esc(val(v))}${defs[k]?.unit?' '+esc(defs[k].unit):''}</div></div>`).join('');return rows||'<div class="spec-item"><div class="spec-value">Specifications will be updated soon.</div></div>'}
+async function render(){
+ if(!productId){$('#loading').textContent='No product specified.';return}
+ try{
+  const ps=await getDoc(doc(db,'products',productId));if(!ps.exists()){throw new Error('Product not found')};const p={id:ps.id,...ps.data()},brand=applyBrand(p.brandId),models=await getModels(productId),defs=await getAttrDefs(p.categoryId),imgs=galleryImages(p),features=featureData(models,defs);
+  document.title=`${p.name||'Product'} — ${brand.name}`;$('#loading').remove();
+  const prices=models.map(m=>m.price).filter(v=>v!=null), price=prices.length?(Math.min(...prices)===Math.max(...prices)?money(prices[0]):`${money(Math.min(...prices))} – ${money(Math.max(...prices))}`):'Price on request';
+  const featureCards=(features.length?features:[{label:'Designed for everyday use',value:'Reliable product engineering'},{label:'Warranty backed',value:'Support through Pushpak Enterprises'},{label:'Service ready',value:'Register, book and track service'}]).map((f,i)=>`<article class="feature-card reveal delay-${Math.min(i+1,3)}"><span class="feature-number">0${i+1}</span><h3>${esc(f.label)}</h3><p>${esc(f.value)}</p></article>`).join('');
+  const modelsHtml=models.length?models.map((m,i)=>`<article class="model-card reveal ${i===0?'open':''}"><div class="model-head" role="button" tabindex="0" aria-expanded="${i===0}"><div class="model-title"><span class="model-index">${String(i+1).padStart(2,'0')}</span><div><span class="model-number">${esc(m.modelNumber||'Model')}</span><span class="model-sku">${esc(m.sku||m.modelName||'')}</span></div></div><div style="display:flex;align-items:center;gap:14px"><span class="model-price">${money(m.price)}</span><span class="model-chevron">⌄</span></div></div><div class="model-body"><div class="spec-grid">${specMarkup(m,defs)}</div><div class="model-warranty"><strong>Warranty</strong><br>${esc(m.warrantyPlanName||m.warranty||'Warranty details are available through product registration and the warranty service.')}</div></div></article>`).join(''):'<div class="product-state" style="min-height:220px">No active models are listed for this product yet.</div>';
+  const heroImg=imgs[0]?`<img id="hero-img" class="hero-product-img" src="${esc(imgs[0])}" alt="${esc(p.name||brand.name+' product')}">`:'<div class="hero-product-img placeholder" style="display:grid;place-items:center;font-size:80px;font-weight:900">'+esc((p.name||'P')[0])+'</div>';
+  const thumbs=imgs.length>1?`<div class="gallery-dots">${imgs.map((src,i)=>`<button class="${i===0?'active':''}" data-gallery="${i}" aria-label="View image ${i+1}"><img src="${esc(src)}" alt=""></button>`).join('')}</div>`:'';
+  const related=[];try{const q=p.categoryId?query(collection(db,'products'),where('brandId','==',p.brandId),where('categoryId','==',p.categoryId),limit(7)):query(collection(db,'products'),where('brandId','==',p.brandId),limit(7));const s=await getDocs(q);s.forEach(d=>{if(d.id!==p.id&&related.length<3)related.push({id:d.id,...d.data()})})}catch(e){}
+  const relatedHtml=related.map(r=>{const ri=galleryImages(r)[0];return `<a class="related-card reveal" href="product.html?id=${encodeURIComponent(r.id)}"><div class="related-image">${ri?`<img src="${esc(ri)}" alt="${esc(r.name||'')}">`:'<span style="font-size:42px;font-weight:900;color:var(--product-brand)">'+esc((r.name||'P')[0])+'</span>'}</div><div class="related-copy"><span class="cat">${esc(r.categoryName||'Product')}</span><h3>${esc(r.name||'Product')}</h3><span>View product →</span></div></a>`}).join('');
+  $('#product-app').innerHTML=`<div class="product-shell product-topbar"><div class="product-breadcrumb"><a href="${brand.home}">${esc(brand.name)}</a><span class="sep">/</span><span>${esc(p.categoryName||'Products')}</span><span class="sep">/</span><span>${esc(p.name||'Product')}</span></div></div>
+  <section class="product-hero reveal visible"><div class="hero-grid"><div class="hero-copy"><div class="brand-chip"><img src="assets/logos/${brand.logo}" alt="${esc(brand.name)}"></div><div class="hero-kicker">${esc(p.categoryName||'Product')} · ${esc(brand.tag)}</div><h1>${esc(p.name||'Product')}</h1><p class="hero-description">${esc(p.description||p.shortDescription||`Explore the ${brand.name} ${p.name||'product'} with live specifications, models, warranty information and service support.`)}</p><div class="hero-actions"><a class="btn btn-brand" href="${brand.home}#products">Explore ${esc(brand.name)}</a><a class="btn btn-darkghost" href="index.html#book-service">Book a Service</a></div><div class="hero-pills"><span class="hero-pill">From ${esc(price)}</span><span class="hero-pill">${models.length||0} model${models.length===1?'':'s'}</span><span class="hero-pill">Warranty backed</span></div></div><div class="hero-media"><div class="hero-orbit"></div>${heroImg}${thumbs}</div></div></section>
+  <section class="product-shell product-intro"><div class="reveal"><span class="eyebrow-brand">The product experience</span><h2>Designed around what matters.</h2><p>Explore the details before you buy — model choices, specifications and support are presented from the same live product data used by the Pushpak Enterprises product system.</p></div><div class="trust-grid"><div class="trust-card reveal delay-1"><strong>Warranty ready</strong><span>Register your product and keep warranty information connected to your purchase.</span></div><div class="trust-card reveal delay-2"><strong>Service support</strong><span>Book and track service through the connected customer support journey.</span></div><div class="trust-card reveal delay-3"><strong>Live models</strong><span>Model cards and specifications are loaded from the product master.</span></div><div class="trust-card reveal delay-1"><strong>${esc(brand.name)} experience</strong><span>Brand identity, colours and presentation adapt automatically to the product.</span></div></div></section>
+  <section class="feature-section"><div class="product-shell"><div class="section-title reveal"><div><span class="eyebrow-brand">Highlights</span><h2>See the difference.</h2></div><p>Key product information is surfaced first, so customers can understand the product without digging through a dense specification sheet.</p></div><div class="feature-grid">${featureCards}</div></div></section>
+  <section class="models-section"><div class="product-shell"><div class="section-title reveal"><div><span class="eyebrow-brand">Models & specifications</span><h2>Choose your model.</h2></div><p>Open a model to see its current attributes and warranty information.</p></div><div class="models-list">${modelsHtml}</div></div></section>
+  <section class="service-section"><div class="product-shell"><div class="section-title reveal"><div><span class="eyebrow-brand">After you buy</span><h2>Backed beyond the sale.</h2></div><p>Connect this product to registration, warranty and service support whenever you need it.</p></div><div class="service-grid"><a class="service-card reveal" href="index.html#register-product"><div class="service-icon">${icons.register}</div><h3>Register product</h3><p>Activate and keep your warranty record connected.</p></a><a class="service-card reveal delay-1" href="index.html#book-service"><div class="service-icon">${icons.service}</div><h3>Book a service</h3><p>Raise a service request when your product needs attention.</p></a><a class="service-card reveal delay-2" href="index.html#warranty-check"><div class="service-icon">${icons.warranty}</div><h3>Check warranty</h3><p>Review warranty coverage and validity.</p></a></div></div></section>
+  ${related.length?`<section class="related-section"><div class="product-shell"><div class="section-title reveal"><div><span class="eyebrow-brand">You may also like</span><h2>More from ${esc(brand.name)}.</h2></div></div><div class="related-grid">${relatedHtml}</div></div></section>`:''}`;
+  $('#product-app').hidden=false;bindInteractions();observeReveals();
+ }catch(e){console.error(e);$('#loading').textContent=e.message==='Product not found'?'Product not found — it may have been removed.':'Unable to load this product right now.'}
+}
+function bindInteractions(){document.querySelectorAll('.model-head').forEach(h=>{const toggle=()=>{const c=h.parentElement,open=c.classList.toggle('open');h.setAttribute('aria-expanded',open)};h.addEventListener('click',toggle);h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}})});document.querySelectorAll('[data-gallery]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.gallery),imgs=galleryImages(window.__product||{});const hero=$('#hero-img');if(hero&&imgs[i]){hero.src=imgs[i];document.querySelectorAll('[data-gallery]').forEach(x=>x.classList.remove('active'));b.classList.add('active')}}));const hero=$('.hero-product-img');const media=$('.hero-media');if(hero&&media&&matchMedia('(pointer:fine)').matches){media.addEventListener('pointermove',e=>{const r=media.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;hero.style.transform=`translate3d(${x*12}px,${y*10}px,0) scale(1.015)`});media.addEventListener('pointerleave',()=>hero.style.transform='translate3d(0,0,0)')}}
+function observeReveals(){const els=document.querySelectorAll('.reveal:not(.visible)');if(!('IntersectionObserver' in window)){els.forEach(x=>x.classList.add('visible'));return}const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}}),{threshold:.12});els.forEach(x=>io.observe(x))}
+document.getElementById('year').textContent=new Date().getFullYear();render();
 </script>
 </body>
 </html>
