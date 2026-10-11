@@ -9,6 +9,36 @@
   function ready(fn) { if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', fn); else fn(); }
 
   ready(function () {
+    // Modern homepage presentation layer: keep the existing HTML and product
+    // data intact, while adding the new motion/visual system only to the root.
+    var path = window.location.pathname.replace(/\\/g, '/');
+    var isRootHome = path === '/' || /\/index\.html$/.test(path) && !/\/(makwell|flyvision|skevia)\/index\.html$/.test(path);
+    if (isRootHome) {
+      doc.body.classList.add('modern-home');
+      var modernCss = doc.createElement('link');
+      modernCss.rel = 'stylesheet';
+      modernCss.href = 'assets/modern-home.css';
+      doc.head.appendChild(modernCss);
+
+      // Lightweight pointer light for desktop depth. Disabled for touch and
+      // reduced-motion users; it never blocks clicks or changes layout.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && window.matchMedia('(pointer:fine)').matches) {
+        var pointer = doc.createElement('div');
+        pointer.className = 'mh-pointer';
+        pointer.setAttribute('aria-hidden', 'true');
+        doc.body.appendChild(pointer);
+        var px = -400, py = -400, tx = -400, ty = -400;
+        window.addEventListener('pointermove', function (e) { tx = e.clientX; ty = e.clientY; }, { passive: true });
+        function pointerFrame() {
+          px += (tx - px) * 0.12;
+          py += (ty - py) * 0.12;
+          pointer.style.transform = 'translate(' + px + 'px,' + py + 'px) translate(-50%,-50%)';
+          requestAnimationFrame(pointerFrame);
+        }
+        requestAnimationFrame(pointerFrame);
+      }
+    }
+
     // header gets a hairline + shadow once the page scrolls
     var header = doc.querySelector('header');
     function onScroll() { if (header) header.classList.toggle('scrolled', window.scrollY > 8); }
