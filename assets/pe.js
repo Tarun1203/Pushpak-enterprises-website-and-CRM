@@ -9,10 +9,12 @@
   function ready(fn) { if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', fn); else fn(); }
 
   ready(function () {
-    // Modern homepage presentation layer: keep the existing HTML and product
-    // data intact, while adding the new motion/visual system only to the root.
     var path = window.location.pathname.replace(/\\/g, '/');
     var isRootHome = path === '/' || /\/index\.html$/.test(path) && !/\/(makwell|flyvision|skevia)\/index\.html$/.test(path);
+    var brandMatch = path.match(/\/(makwell|flyvision|skevia)\/index\.html$/);
+
+    // Modern homepage presentation layer. Existing markup, Firebase data and
+    // support flows stay intact; this only adds a visual layer to the gateway.
     if (isRootHome) {
       doc.body.classList.add('modern-home');
       var modernCss = doc.createElement('link');
@@ -20,8 +22,6 @@
       modernCss.href = 'assets/modern-home.css';
       doc.head.appendChild(modernCss);
 
-      // Lightweight pointer light for desktop depth. Disabled for touch and
-      // reduced-motion users; it never blocks clicks or changes layout.
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && window.matchMedia('(pointer:fine)').matches) {
         var pointer = doc.createElement('div');
         pointer.className = 'mh-pointer';
@@ -37,6 +37,15 @@
         }
         requestAnimationFrame(pointerFrame);
       }
+    }
+
+    // Shared modern brand presentation layer for MakWell, Flyvision and Skevia.
+    if (brandMatch) {
+      doc.body.classList.add('modern-brand');
+      var brandCss = doc.createElement('link');
+      brandCss.rel = 'stylesheet';
+      brandCss.href = '../assets/modern-brand.css';
+      doc.head.appendChild(brandCss);
     }
 
     // header gets a hairline + shadow once the page scrolls
@@ -137,7 +146,6 @@
     }
     next.addEventListener('click', function () { if (valid()) go(i + 1); });
     back.addEventListener('click', function () { go(i - 1); });
-    // start over whenever the surrounding sheet is opened
     var overlay = form.closest('.modal-overlay');
     if (overlay) new MutationObserver(function () { if (overlay.classList.contains('show')) go(0); }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
     form.addEventListener('submit', function (e) { if (i !== steps.length - 1) { e.preventDefault(); e.stopImmediatePropagation(); if (valid()) go(i + 1); } }, true);
