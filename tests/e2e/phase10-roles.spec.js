@@ -17,12 +17,16 @@ async function visit(page, pathname, stub) {
   await installFirebaseStub(page, stub);
   await page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
   const errors = [];
+  page._visited = [];
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) page._visited.push(f.url()); });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(origin + '/' + pathname, { waitUntil: 'load' });
   return errors;
 }
 const data = (role, extra = {}) => { const d = sampleFor(role); Object.assign(d.users[0], extra); return d; };
-const bounced = (page) => page.waitForURL(/login\.html/, { timeout: 10000 });
+// The login page may hand a signed-in user straight on to their own dashboard, so
+// "was sent to login" means login.html appeared in the pages visited.
+const bounced = (page) => page.waitForFunction(() => true).then(() => { const t0 = Date.now(); return new Promise((res, rej) => { (function poll() { if ((page._visited || []).some((u) => /login\.html/.test(u))) return res(); if (Date.now() - t0 > 10000) return rej(new Error('never reached login')); setTimeout(poll, 50); })(); }); });
 const opened = (page) => page.waitForFunction(() => { const a = document.getElementById('app'); return a && getComputedStyle(a).display !== 'none'; }, null, { timeout: 10000 });
 
 for (const [role, path] of Object.entries(PAGES)) {

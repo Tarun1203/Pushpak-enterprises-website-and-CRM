@@ -91,6 +91,7 @@
       var last = i === steps.length - 1;
       next.style.display = last ? 'none' : '';
       if (submit) submit.style.display = last ? '' : 'none';
+      var cons = form.querySelector('.consent'); if (cons) { cons.style.display = last ? '' : 'none'; var ce = cons.nextElementSibling; if (ce && ce.classList.contains('consent-error')) ce.style.display = last ? '' : 'none'; }
       if (last) summary();
       var first = steps[i].querySelector('input:not([type=hidden]):not([disabled]),select,textarea');
       if (first && first.offsetParent !== null && doc.activeElement && !form.contains(doc.activeElement)) first.focus({ preventScroll: true });

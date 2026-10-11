@@ -18,5 +18,6 @@
   "productData": false,
   "spareData": false,
   "uatSignedOff": false,
-  "trainingDataRemoved": false
+  "trainingDataRemoved": false,
+  "legalTextsReviewedByOwner": false
 }

@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Account — Pushpak Enterprises</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
 <style>
 :root{--ink:#0A0E1A;--ink-2:#2A3142;--muted:#5B6475;--line:#E3E6EE;--bg:#F6F7FB;--accent:#2F5BFF;--accent-deep:#1B3FD1;--red:#B3261E;--green:#12804A;--amber:#9A6A15;--r:14px;
   --paper:var(--bg);--paper-deep:#ECEEF5;--stone:var(--muted);--hairline:var(--line);--blue:var(--accent);--blue-deep:var(--accent-deep);--radius:var(--r);
@@ -87,6 +85,8 @@ table.w th{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:
   @media (max-width:820px){input,select,textarea{font-size:16px !important;}}
 </style>
 <link rel="stylesheet" href="assets/fit.css">
+<link rel="stylesheet" href="assets/pe-trust.css">
+<script src="assets/pe-trust.js" defer></script>
 </head>
 <body>
 <header><div class="bar">
@@ -214,6 +214,7 @@ table.w th{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:
         </div>
         <label for="r-pin">Pincode</label><input id="r-pin" type="text" inputmode="numeric" maxlength="6">
         <label class="check"><input id="r-install" type="checkbox"> I need installation / demo</label>
+        <label class="consent" for="pr-consent"><input type="checkbox" id="pr-consent" required> <span>I have read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and agree that Pushpak Enterprises may use these details to handle this request.</span></label>
         <button class="primary" id="r-submit" type="submit">Register product</button>
         <div class="msg" id="r-msg" role="alert"></div>
       </form>
@@ -259,6 +260,7 @@ table.w th{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:
           <div><label for="b-state">State</label><input id="b-state" type="text" maxlength="60"></div>
         </div>
         <label for="b-pin">Pincode</label><input id="b-pin" type="text" inputmode="numeric" maxlength="6">
+        <label class="consent" for="pb-consent"><input type="checkbox" id="pb-consent" required> <span>I have read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and agree that Pushpak Enterprises may use these details to handle this request.</span></label>
         <button class="primary" id="b-submit" type="submit">Submit request</button>
         <div class="msg" id="b-msg" role="alert"></div>
       </form>

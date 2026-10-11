@@ -6,13 +6,13 @@
 <title>Pushpak Enterprises — MakWell, Flyvision, Skevia</title>
 <meta name="description" content="Technology made for every home. MakWell, Flyvision and Skevia televisions and appliances, with registered warranty and a service network across Karnataka.">
 <meta name="theme-color" content="#070B16">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="assets/pe.css">
 <script src="assets/mobile-nav.js" defer></script>
 <script src="assets/pe.js" defer></script>
 <link rel="stylesheet" href="assets/fit.css">
+<link rel="stylesheet" href="assets/pe-trust.css">
+<script src="assets/pe-trust.js" defer></script>
 </head>
 <body class="has-tabbar">
 <a class="skip" href="#main">Skip to content</a>
@@ -191,7 +191,7 @@
 <footer>
   <div class="wrap footer-inner">
     <span>© <span id="year"></span> Pushpak Enterprises. All rights reserved.</span>
-    <span class="foot-links"><a href="makwell/index.html">MakWell</a><a href="flyvision/index.html">Flyvision</a><a href="skevia/index.html">Skevia</a><a href="portal.html">My Account</a></span>
+    <span class="foot-links"><a href="makwell/index.html">MakWell</a><a href="flyvision/index.html">Flyvision</a><a href="skevia/index.html">Skevia</a><a href="portal.html">My Account</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a><button type="button" class="linklike" data-cookie-settings>Cookie settings</button></span>
   </div>
 </footer>
 
@@ -217,7 +217,7 @@
       </div>
       <span id="service-modal-phone-error" class="field-error"></span>
       <div class="form-grid-2">
-        <select name="brand" id="service-modal-brand">
+        <select name="brand" id="service-modal-brand" aria-label="Brand">
           <option value="">Brand (optional)</option>
           <option value="MakWell">MakWell</option>
           <option value="Flyvision">Flyvision</option>
@@ -236,6 +236,7 @@
         <input type="text" name="pincode" placeholder="Pincode (optional)" inputmode="numeric" maxlength="6">
       </div>
       <textarea name="message" placeholder="Details" required></textarea>
+      <label class="consent" for="svc-consent"><input type="checkbox" id="svc-consent" required> <span>I have read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and agree that Pushpak Enterprises may use these details to handle this request.</span></label>
       <button type="submit">Submit request</button>
       <div class="ticket-note" id="service-modal-ticket-note"></div>
     </form>
@@ -303,6 +304,7 @@
       <span id="register-phone-error" class="field-error"></span>
       <div class="modal-error" id="register-error"></div>
       <div class="modal-success" id="register-success"></div>
+      <label class="consent" for="reg-consent"><input type="checkbox" id="reg-consent" required> <span>I have read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and agree that Pushpak Enterprises may use these details to handle this request.</span></label>
       <button type="submit">Register product</button>
       <div class="ticket-note" id="register-ticket-note"></div>
     </form>
@@ -396,6 +398,7 @@
         <span id="book-phone-error" class="field-error"></span>
         <div class="modal-error" id="book-error"></div>
         <div class="modal-success" id="book-success"></div>
+      <label class="consent" for="book-consent"><input type="checkbox" id="book-consent" required> <span>I have read the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and agree that Pushpak Enterprises may use these details to handle this request.</span></label>
         <button type="submit">Submit request</button>
         <div class="ticket-note" id="book-ticket-note"></div>
     </form>

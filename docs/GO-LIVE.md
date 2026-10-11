@@ -13,7 +13,7 @@ Minor UI issues · browser limits · offline limits · non-critical performance 
 
 ## 🟢 Must be confirmed by you
 Set each to `true` in `docs/go-live-confirmations.json` only after checking it yourself on the real system:
-Firebase production project · Firestore rules · Storage rules · Cloud Functions · Firebase Auth · GitHub Pages · domain · SSL · **backup on and a restore drill passed** (BACKUP-RECOVERY.md) · **monitoring alerts created** (MONITORING.md) · Admin, Service Center, Technician and Warehouse accounts · master, product and spare data · **UAT signed off** (UAT.md) · training data removed (TRAINING.md).
+Firebase production project · Firestore rules · Storage rules · Cloud Functions · Firebase Auth · GitHub Pages · domain · SSL · **Privacy Policy, Terms and Cookie Policy read and confirmed (retention periods, grievance contact, data region) · backup on and a restore drill passed** (BACKUP-RECOVERY.md) · **monitoring alerts created** (MONITORING.md) · Admin, Service Center, Technician and Warehouse accounts · master, product and spare data · **UAT signed off** (UAT.md) · training data removed (TRAINING.md).
 
 ## Day-one routine
 Sign in as Admin → health check (MONITORING.md) → watch the first 10 real jobs end to end → review the Audit log at the end of the day.

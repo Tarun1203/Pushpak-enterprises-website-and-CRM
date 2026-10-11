@@ -96,6 +96,10 @@ Locally, suites you did not run show as "no results" — that is expected.
 | A new ticket, registration, claim, enquiry or notification arrived but nothing told the person until they reloaded, and its details had no pop-up | `ui-live.spec.js` (alerts, View pop-up, own-records-only, safe refresh, phone) |
 | Clicking an item in a list (registration, ticket, claim ...) did nothing; no pop-up with that item's details | `ui-rows.spec.js` (row pop-up, no double pop-up, buttons/selection ignored) |
 | The row pop-up only repeated the row's own columns, with no extra information | `ui-rows.spec.js` (full record, warranty valid-until, role-scoped lookup, quiet fallback) |
+| No privacy policy, terms, cookie policy or consent choice; fonts were loaded from Google; unticked-consent forms could be submitted | `trust-a11y.spec.js` (legal pages and footer links, banner with equal choices and nothing stored before a choice, 12-month expiry, withdraw from footer, no third-party requests, source audit vs `docs/THIRD-PARTY.md`, consent tick-box blocks submit) |
+| Dark patterns: pre-ticked boxes, urgency or guilt wording, optional fields made required, a banner that hides the page | `trust-a11y.spec.js` (dark-pattern scan, optional enquiry fields, banner leaves room and sits under pop-ups) |
+| Keyboard and screen-reader gaps: no focus ring on cards, pop-ups with no dialog role or name, focus lost on close, unlabelled fields, images without alt | `trust-a11y.spec.js` (skip link, visible focus, dialog role/name/Tab trap/Esc/focus return, field names, alt text) |
+| Colour contrast or WCAG 2.2 AA violations on public pages, legal pages, banner, pop-ups and all CRM dashboards | `trust-a11y.spec.js` (axe-core, WCAG 2.0/2.1/2.2 A and AA) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.
