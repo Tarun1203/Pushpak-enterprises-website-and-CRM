@@ -6120,10 +6120,11 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     svcTicketActions.innerHTML = '';
 
     if (f.closureCode) {
-      svcTicketBody.innerHTML += `
+      // insertAdjacentHTML keeps the status-history and photo slots that are already being filled
+      svcTicketBody.insertAdjacentHTML('beforeend', `
         <div style="margin-top:10px;"><b>Closure code:</b> ${escapeHtml(f.closureCode)}<br>
         <b>Action taken:</b> ${escapeHtml(f.actionTaken) || '—'}<br>
-        <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`;
+        <b>Parts used:</b> ${escapeHtml(f.partsUsedNotes) || '—'}</div>`);
     }
 
     if ((r.coll === 'serviceJobs' || r.coll === 'centerRequests') && ['completed', 'verification', 'closed'].includes(r.status)) {

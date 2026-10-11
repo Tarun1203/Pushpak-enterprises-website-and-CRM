@@ -136,3 +136,18 @@ test('row pop-up: non-admin lookup is scoped to the signed-in user, and a miss f
   expect(html.miss).toContain('No further details');
   expect(html.reads.every((r) => r.filtered)).toBe(true);
 });
+
+test('Super Admin Service: a ticket with a closure code still shows its status history (not stuck on "Loading")', async ({ page }) => {
+  const data = sampleFor('superadmin');
+  data.centerRequests = [{ id: 'cr1', requestId: 'PE-CR-20261004-0001-ServiceCenter', source: 'service_center', customerName: 'Guru', customerPhone: '9342618555', address: 'Raichur', product: '40 Iron Box', serialNumber: 'MK40SMT123456789', issue: 'No power', status: 'verification', technicianName: 'Rajesh', closureCode: 'repaired', actionTaken: 'Wire Is replaced', partsUsedNotes: 'None', createdAt: { __ms: Date.now() - 86400000 } }];
+  data.serviceJobs = [];
+  const errors = await openAs(page, 'superadmin', data);
+  await page.locator('.sidebar .nav-item', { hasText: /^\s*Service\s*$/ }).first().click();
+  const row = page.locator('.content tbody tr', { hasText: 'Guru' }).first();
+  await expect(row).toBeVisible();
+  await row.locator('a.c360-open-link').click();
+  await expect(page.locator('.modal-overlay.show')).toContainText('Closure code');
+  await expect(page.locator('.modal-overlay.show')).toContainText('Status history');
+  await expect(page.locator('.modal-overlay.show')).not.toContainText('Loading status history');
+  expect(errors).toEqual([]);
+});
