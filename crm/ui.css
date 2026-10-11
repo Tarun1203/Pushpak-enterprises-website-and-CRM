@@ -145,6 +145,7 @@ tbody tr:hover{background:#F6F8FE}
   .ui-bottom button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .ui-bottom button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ui-bottom button[aria-current=page]{background:var(--blue);color:#fff}
+  body[data-ui-bottom] #pe-bug-trigger{bottom:calc(86px + env(safe-area-inset-bottom,0px));right:12px}
   body.crm-nav-open .ui-bottom{display:none}
   /* Large touch targets for field and warehouse work */
   body[data-ui-bottom] .btn-primary,body[data-ui-bottom] .btn-secondary,body[data-ui-bottom] .btn-danger{min-height:46px;padding-left:20px;padding-right:20px}

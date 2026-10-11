@@ -176,6 +176,7 @@ test('keyboard: skip link works, tab order reaches nav and tiles, focus is alway
   const seen = new Set(); let bad = [];
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press('Tab');
+    await page.waitForTimeout(260); // some cards fade their ring in over 0.2s
     const r = await page.evaluate(() => { const a = document.activeElement; if (!a || a === document.body) return null; const cs = getComputedStyle(a); const vis = parseFloat(cs.outlineWidth) > 0 && cs.outlineStyle !== 'none' || cs.boxShadow !== 'none'; return { id: (a.tagName + '.' + (a.className || '') + ' ' + (a.textContent || '').trim().slice(0, 24)), vis }; });
     if (!r) continue; seen.add(r.id); if (!r.vis) bad.push(r.id);
   }
