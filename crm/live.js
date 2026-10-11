@@ -6,7 +6,7 @@
 // that is safe, and "View" opens the record's details in a pop-up window.
 // Read-only: it never writes data. Uses the same Firebase app the page already
 // started, so there is no second sign-in or connection set-up.
-import { getFirestore, collection, query, where, orderBy, limit, onSnapshot }
+import { getFirestore, collection, query, where, orderBy, limit, onSnapshot, getDocs }
   from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -156,6 +156,121 @@ export function openDetails(kind, d, role) {
   $('.ui-live-close', m).focus();
 }
 
+
+/* ---------------- richer details for a clicked list row ---------------- */
+// A list row only shows a few columns. This finds the full record behind it
+// (by its PE-… number), and adds what the row cannot: customer, product and
+// warranty position, service and billing detail, line items, the status
+// history and related spare requests. Read-only and role-scoped; if anything
+// is not allowed or not found, the row's own details simply stay as they are.
+const IDMAP = {
+  REG: { colls: ['productRegistrations'], field: 'registrationId' },
+  CR: { colls: ['centerRequests', 'publicServiceRequests'], field: 'requestId', log: true },
+  JOB: { colls: ['serviceJobs'], field: 'jobId', log: true },
+  CL: { colls: ['claims', 'warrantyClaims'], field: 'claimId' },
+  RT: { colls: ['returns'], field: 'returnId' },
+  SR: { colls: ['spareRequests'], field: 'requestId' },
+  ENQ: { colls: ['enquiries'], field: 'enquiryId' }
+};
+const SCOPE = { servicecenter: 'serviceCenterUid', technician: 'technicianUid', dealer: 'dealerUid', distributor: 'distributorUid', areamanager: 'areaManagerUid' };
+const GROUPS = [
+  ['Customer', /^(customer|name$|phone$|email$|address|city$|district$|state$|pincode$|landmark|contact)/i],
+  ['Product & warranty', /^(product|brand|model|category|serial|purchase|warranty|invoice|dealer|batch|variant)/i],
+  ['Service', /^(issue|problem|description|diagnos|resolution|closure|preferred|appointment|schedule|visit|service|technician|assigned|priority|remarks|notes|reason)/i],
+  ['Billing', /^(amount|total|charge|cost|price|payment|paid|invoice|gst|tax|labou?r|spare)/i]
+];
+function warrantyLine(d) {
+  const pd = d.purchaseDate && (typeof d.purchaseDate.toDate === 'function' ? d.purchaseDate.toDate() : new Date(d.purchaseDate));
+  const months = Number(d.warrantyMonths || d.warrantyPeriodMonths || d.warranty);
+  if (!pd || isNaN(pd) || !months) return null;
+  const end = new Date(pd.getTime()); end.setMonth(end.getMonth() + months);
+  const days = Math.ceil((end - Date.now()) / 86400000);
+  return { until: end.toLocaleDateString(), text: days >= 0 ? `In warranty — ${days} day${days === 1 ? '' : 's'} left` : `Warranty ended ${-days} day${days === -1 ? '' : 's'} ago` };
+}
+function kvSection(title, pairs) {
+  if (!pairs.length) return null;
+  const sec = document.createElement('section'); sec.className = 'ui-rich-sec';
+  sec.innerHTML = `<h4>${esc(title)}</h4><div class="ui-kv">${pairs.map(([k, v]) => `<div class="ui-kv-k">${esc(k)}</div><div class="ui-kv-v">${v && v.html ? v.html : esc(v)}</div>`).join('')}</div>`;
+  return sec;
+}
+function listSection(title, items) {
+  if (!items.length) return null;
+  const sec = document.createElement('section'); sec.className = 'ui-rich-sec';
+  sec.innerHTML = `<h4>${esc(title)}</h4><ul class="ui-rich-list">${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`;
+  return sec;
+}
+const brief = (o) => Object.keys(o).filter((k) => !SKIP.test(k) && show(o[k]) !== '').slice(0, 6).map((k) => `${labelOf(k)}: ${show(o[k])}`).join(' · ');
+async function firstDoc(db, colls, field, id, scope) {
+  for (const c of colls) {
+    const tries = scope ? [[where(field, '==', id), where(scope[0], '==', scope[1])], [where(field, '==', id)]] : [[where(field, '==', id)]];
+    for (const cons of tries) {
+      try {
+        const snap = await getDocs(query(collection(db, c), ...cons, limit(1)));
+        if (snap.docs && snap.docs.length) return { coll: c, doc: snap.docs[0] };
+      } catch (e) { /* not permitted or unavailable: try the next way */ }
+    }
+  }
+  return null;
+}
+export async function enrich(opts) {
+  const { rows, mount } = opts;
+  const role = opts.role || String((window.PE_IDENTITY || {}).role || '').toLowerCase().replace(/[^a-z]/g, '');
+  const uid = (window.PE_IDENTITY || {}).uid;
+  const text = rows.map((r) => r[1]).join(' ');
+  const m = /\bPE-(REG|CR|JOB|CL|RT|SR|ENQ)-[A-Za-z0-9-]+/.exec(text);
+  const done = (msg) => { mount.innerHTML = ''; if (msg) { const p = document.createElement('p'); p.className = 'ui-rich-note'; p.textContent = msg; mount.appendChild(p); } };
+  if (!m) return done('');
+  let db; try { db = getFirestore(); } catch (e) { return done(''); }
+  const spec = IDMAP[m[1]];
+  const scope = SCOPE[role] && uid ? [SCOPE[role], uid] : null;
+  const hit = await firstDoc(db, spec.colls, spec.field, m[0], scope);
+  if (!hit) return done('No further details are available for this item.');
+  const d = Object.assign({ id: hit.doc.id }, hit.doc.data());
+  const shown = new Set(rows.map((r) => String(r[1]).trim()));
+  const used = new Set();
+  const frag = document.createDocumentFragment();
+  const add = (n) => n && frag.appendChild(n);
+  const wl = warrantyLine(d);
+  GROUPS.forEach(([title, re]) => {
+    const pairs = [];
+    Object.keys(d).forEach((k) => {
+      if (used.has(k) || SKIP.test(k) || !re.test(k)) return;
+      const v = show(d[k]); if (v === '') return;
+      used.add(k);
+      if (shown.has(v)) return; // already visible in the row
+      pairs.push([labelOf(k), k === 'status' ? { html: `<span class="status-pill ${esc(d[k])}">${esc(nice(d[k]))}</span>` } : v]);
+    });
+    if (title === 'Product & warranty' && wl) { pairs.push(['Warranty valid until', wl.until]); pairs.push(['Warranty position', wl.text]); }
+    add(kvSection(title, pairs));
+  });
+  const other = [];
+  Object.keys(d).forEach((k) => {
+    if (used.has(k) || SKIP.test(k)) return;
+    const v = show(d[k]); if (v === '' || shown.has(v)) return;
+    other.push([labelOf(k), k === 'status' ? { html: `<span class="status-pill ${esc(d[k])}">${esc(nice(d[k]))}</span>` } : v]);
+  });
+  add(kvSection('Other details', other.slice(0, 30)));
+  Object.keys(d).forEach((k) => {
+    if (Array.isArray(d[k]) && d[k].length && d[k].some((x) => x && typeof x === 'object')) add(listSection(labelOf(k), d[k].slice(0, 25).map((x) => (x && typeof x === 'object' ? brief(x) : String(x)))));
+  });
+  if (spec.log) {
+    try {
+      const snap = await getDocs(query(collection(db, hit.coll, hit.doc.id, 'statusLog'), limit(30)));
+      const ev = (snap.docs || []).map((x) => x.data()).sort((a, b) => ((a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0) - (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0)));
+      add(listSection('Status history', ev.map((e) => `${e.createdAt && e.createdAt.toDate ? e.createdAt.toDate().toLocaleString() + ' — ' : ''}${nice(e.status)}${e.note ? ' · ' + e.note : ''}${e.changedByEmail ? ' (' + e.changedByEmail + ')' : ''}`)));
+    } catch (e) { /* history not visible to this role */ }
+  }
+  if (m[1] === 'JOB') {
+    try {
+      const snap = await getDocs(query(collection(db, 'spareRequests'), where('sourceJobId', '==', hit.doc.id), limit(10)));
+      add(listSection('Spare requests for this job', (snap.docs || []).map((x) => { const q = x.data(); return `${q.requestId || x.id} — ${q.partName || ''}${q.quantity ? ' × ' + q.quantity : ''} · ${nice(q.status)}`; })));
+    } catch (e) { /* not visible to this role */ }
+  }
+  mount.innerHTML = '';
+  if (!frag.childNodes.length) return done('No further details on file for this item.');
+  mount.appendChild(frag);
+}
+
 /* ---------------- refresh the screen when it is safe ---------------- */
 let refreshTimer;
 function refreshSoon() {
@@ -227,4 +342,4 @@ function start() {
 
 window.addEventListener('pe-identity', start);
 if (window.PE_IDENTITY) start();
-window.PE_LIVE = { openDetails, toast };
+window.PE_LIVE = { openDetails, toast, enrich };

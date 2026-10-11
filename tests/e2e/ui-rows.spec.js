@@ -102,3 +102,37 @@ for (const role of ['servicecenter', 'warehouse', 'dealer', 'distributor']) {
     expect(opened).toBeGreaterThanOrEqual(0);
   });
 }
+
+test('row pop-up adds information the row does not show (full record, warranty position)', async ({ page }) => {
+  const data = sampleFor('superadmin');
+  data.productRegistrations = [{ ...REG, customerEmail: 'anita@example.com', address: '12 Station Road, Hubli', purchaseDate: '2026-09-01', warrantyMonths: 24, dealerName: 'Shree Electricals', invoiceNumber: 'INV-7781' }];
+  const errors = await openAs(page, 'superadmin', data);
+  await page.locator('.sidebar .nav-item', { hasText: 'Serial & Registration' }).click();
+  await page.locator('.content tbody tr[data-ui-row="1"]').first().locator('td').nth(1).click();
+  const dlg = page.locator('.ui-dialog [role=dialog]');
+  await expect(dlg).toContainText('anita@example.com');
+  await expect(dlg).toContainText('12 Station Road, Hubli');
+  await expect(dlg).toContainText('INV-7781');
+  await expect(dlg).toContainText('Warranty valid until');
+  await expect(dlg).toContainText(/In warranty/);
+  await expect(dlg).not.toContainText('Loading more details');
+  expect(errors).toEqual([]);
+});
+
+test('row pop-up: non-admin lookup is scoped to the signed-in user, and a miss falls back quietly', async ({ page }) => {
+  const data = sampleFor('dealer');
+  data.productRegistrations = [{ ...REG, dealerUid: 'u1', customerEmail: 'mine@example.com' }];
+  await openAs(page, 'dealer', data);
+  await page.evaluate(() => { window.__reads = []; });
+  const html = await page.evaluate(async () => {
+    const mount = document.createElement('div'); document.body.appendChild(mount);
+    await window.PE_LIVE.enrich({ rows: [['Registration', 'PE-REG-20260929-0001-CustomerSite']], mount, role: 'dealer' });
+    const first = mount.textContent;
+    const m2 = document.createElement('div'); document.body.appendChild(m2);
+    await window.PE_LIVE.enrich({ rows: [['Registration', 'PE-REG-NOPE']], mount: m2, role: 'dealer' });
+    return { first, miss: m2.textContent, reads: window.__reads };
+  });
+  expect(html.first).toContain('mine@example.com');
+  expect(html.miss).toContain('No further details');
+  expect(html.reads.every((r) => r.filtered)).toBe(true);
+});

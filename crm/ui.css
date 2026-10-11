@@ -213,3 +213,10 @@ body.ui-calm *,body.ui-calm *::before,body.ui-calm *::after{animation-duration:.
 tbody tr[data-ui-row="1"]{cursor:pointer}
 tbody tr[data-ui-row="1"]:hover{background:#EEF2FF}
 tbody tr[data-ui-row="1"]:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+
+/* richer row details */
+.ui-rich{margin-top:14px;display:grid;gap:14px}
+.ui-rich-sec h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--stone,#6b6b6b)}
+.ui-rich-list{margin:0;padding-left:18px;font-size:13px;display:grid;gap:4px}
+.ui-rich-note{margin:0;font-size:13px;color:var(--stone,#6b6b6b)}
+.ui-dialog .modal{max-height:88vh;overflow:auto}

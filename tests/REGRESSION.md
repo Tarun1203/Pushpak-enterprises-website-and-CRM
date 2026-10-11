@@ -95,6 +95,7 @@ Locally, suites you did not run show as "no results" — that is expected.
 | "Download" on a document saved an HTML file, not a PDF | `phase10-field.spec.js` (real PDF for every document and page size), `phase10b.test.js` file names |
 | A new ticket, registration, claim, enquiry or notification arrived but nothing told the person until they reloaded, and its details had no pop-up | `ui-live.spec.js` (alerts, View pop-up, own-records-only, safe refresh, phone) |
 | Clicking an item in a list (registration, ticket, claim ...) did nothing; no pop-up with that item's details | `ui-rows.spec.js` (row pop-up, no double pop-up, buttons/selection ignored) |
+| The row pop-up only repeated the row's own columns, with no extra information | `ui-rows.spec.js` (full record, warranty valid-until, role-scoped lookup, quiet fallback) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.
