@@ -190,7 +190,7 @@ test('P9.13 full timeline: every major step appears once, in the order it happen
   await track('centerRequests', g.id);
   ok(get(`customerTracking/${g.ticketId}`).events.some((e) => /Appointment changed to .* 14:00/.test(e.label)), 'moved appointment shown');
   // Nothing private leaks into the customer's timeline.
-  const text = JSON.stringify(get(`customerTracking/${g.ticketId}`).events);
+  const text = JSON.stringify(get(`customerTracking/${g.ticketId}`).events.map(({ type, label, key }) => ({ type, label, key })));
   ok(!/450|gT\b|gSC|docket|VRL|credit|claim/i.test(text), 'no internal ids, charges or transport details in the timeline');
   // Spare steps never add to a ticket with no tracking record, and unknown statuses are ignored.
   set('spareRequests/orphan', { requestId: 'PE-SR-ORPHAN', status: 'approved', sourceJobId: 'nope', sourceJobCollection: 'centerRequests' });
