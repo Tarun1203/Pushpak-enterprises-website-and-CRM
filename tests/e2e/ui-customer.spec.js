@@ -151,7 +151,9 @@ test('motion: reduced-motion users get no reveal animation or floating', async (
 
 test('product page: opens on a bad id with a plain message, in brand-neutral colours', async ({ page }) => {
   await openPage(page, origin, 'product.html?id=missing');
-  await expect(page.locator('#content')).toContainText(/product/i);
+  await expect(page.locator('#loading')).toContainText(/product unavailable/i);
+  await expect(page.locator('#loading')).toContainText(/removed|no longer available/i);
+  await expect(page.locator('#loading')).toHaveCSS('background-color', 'rgb(247, 248, 251)');
   await expect(page.locator('header nav a')).toHaveCount(4);
 });
 
