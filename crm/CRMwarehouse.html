@@ -613,7 +613,7 @@
 <script type="module">
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp, arrayUnion, getCountFromServer
+  import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, limit, runTransaction, serverTimestamp, arrayUnion, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
@@ -2891,13 +2891,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       const C = (name) => collection(db, name);
       const CLOSED_TICKET = ['completed', 'closed', 'cancelled', 'verification'];
       const [
-        newRequests, backorder, inTransit, partsSnap, damaged,
+        newRequests, backorder, inTransit, warehouseInvSnap, damaged,
         pendingLp, pendingClaims, pendingReturns, openJobs, openCenterReqs
       ] = await Promise.all([
         count(query(C('spareRequests'), where('status', '==', 'new'))),
         count(query(C('spareRequests'), where('status', '==', 'backorder'))),
         count(query(C('spareRequests'), where('status', '==', 'intransit'))),
-        getDocs(C('spareParts')),
+        getDocs(query(C('inventory'), where('location', '==', 'warehouse'), limit(500))),
         count(query(C('returns'), where('status', 'in', ['defective', 'disposed']))),
         count(query(C('localPurchases'), where('status', '==', 'requested'))),
         count(query(C('claims'), where('status', '==', 'submitted'))),
@@ -2907,7 +2907,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       ]);
 
       let lowStock = 0;
-      partsSnap.forEach(docSnap => {
+      warehouseInvSnap.forEach(docSnap => {
         const d = docSnap.data();
         const qty = typeof d.quantity === 'number' ? d.quantity : (typeof d.stock === 'number' ? d.stock : null);
         const reorder = typeof d.reorderLevel === 'number' ? d.reorderLevel : 5;

@@ -1525,7 +1525,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         enquiries, brands, users,
         pendingClaims, approvalsClaims, pendingLp, approvalsLp, pendingSr, approvalsSr,
         pendingRma, pendingDealerOrders,
-        jobsSnap, requestsSnap, pincodeMaster, slaRules, approvalsChangeRequests,
+        serviceJobsOpenCount, centerRequestsOpenCount, jobsSnap, requestsSnap, pincodeMaster, slaRules, approvalsChangeRequests,
       ] = await Promise.all([
         count(C('contactEnquiries')),
         count(C('brands')),
@@ -1541,8 +1541,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         count(query(C('spareRequests'), where('status', '==', 'new'))),
         count(query(C('rmaRequests'), where('status', 'not-in', ['replaced', 'rejected']))),
         count(query(C('dealerOrders'), where('status', 'not-in', ['delivered', 'cancelled']))),
-        getDocs(query(C('serviceJobs'), where('status', 'not-in', CLOSED_TICKET))),
-        getDocs(query(C('centerRequests'), where('status', 'not-in', CLOSED_TICKET))),
+        count(query(C('serviceJobs'), where('status', 'not-in', CLOSED_TICKET))),
+        count(query(C('centerRequests'), where('status', 'not-in', CLOSED_TICKET))),
+        getDocs(query(C('serviceJobs'), where('status', 'not-in', CLOSED_TICKET), limit(100))),
+        getDocs(query(C('centerRequests'), where('status', 'not-in', CLOSED_TICKET), limit(100))),
         getPincodesCache(false),
         getSlaRulesCache(false),
         count(query(C('changeRequests'), where('status', '==', 'pending'))),
@@ -1555,7 +1557,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       // breached hours are measured against.
       const isOpenTicket = status => !CLOSED_TICKET.includes(status);
       const slaClockStatuses = ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare'];
-      let serviceTickets = 0, installationDemo = 0, slaAlerts = 0;
+      let serviceTickets = serviceJobsOpenCount + centerRequestsOpenCount;
+      let installationDemo = 0, slaAlerts = 0;
       const now = Date.now();
       function tally(d) {
         if (!isOpenTicket(d.status)) return;
