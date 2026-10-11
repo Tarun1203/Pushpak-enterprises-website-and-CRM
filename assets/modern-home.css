@@ -1,0 +1,178 @@
+/* Pushpak Enterprises — modern public homepage layer
+   Inspired by the visual principles of Godly, Realtime Colors, Haikei and Motion:
+   editorial typography, fluid gradients, bento composition, subtle depth and
+   purposeful motion. No framework or runtime dependency. */
+:root{
+  --mh-ink:#080B12;
+  --mh-muted:#667085;
+  --mh-line:rgba(10,14,26,.10);
+  --mh-paper:#F5F6FA;
+  --mh-white:#fff;
+  --mh-blue:#5D72FF;
+  --mh-cyan:#56D9FF;
+  --mh-purple:#A855F7;
+  --mh-radius:28px;
+}
+html{background:var(--mh-paper)}
+body.modern-home{background:var(--mh-paper);color:var(--mh-ink);overflow-x:hidden}
+body.modern-home::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(circle at 8% 10%,rgba(93,114,255,.08),transparent 28%),radial-gradient(circle at 92% 35%,rgba(168,85,247,.06),transparent 26%)}
+body.modern-home .wrap{max-width:1320px;padding-left:32px;padding-right:32px}
+body.modern-home section{padding:120px 0}
+body.modern-home h1,body.modern-home h2,body.modern-home h3{letter-spacing:-.045em}
+body.modern-home .eyebrow{font-size:11px;letter-spacing:.18em;color:#667085}
+
+/* Header */
+body.modern-home header{background:rgba(245,246,250,.72);backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);border-bottom:1px solid rgba(255,255,255,.4)}
+body.modern-home header.scrolled{background:rgba(245,246,250,.92);box-shadow:0 12px 40px rgba(10,14,26,.08)}
+body.modern-home .header-inner{max-width:1320px;padding:14px 32px}
+body.modern-home .brandmark-wrap{gap:12px}
+body.modern-home .brandmark-icon{width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(10,14,26,.08)}
+body.modern-home .brandmark{font-size:15px}
+body.modern-home header nav{gap:3px}
+body.modern-home header nav a{padding:9px 13px;font-size:13px;color:#505A6D}
+body.modern-home header nav a:hover{background:#fff;color:#080B12;box-shadow:0 4px 18px rgba(10,14,26,.06)}
+body.modern-home .nav-cta{background:#080B12;border-radius:12px;padding:11px 17px;box-shadow:0 8px 24px rgba(8,11,18,.16)}
+body.modern-home .nav-cta:hover{background:#5D72FF}
+body.modern-home .acct{border:1px solid rgba(10,14,26,.10);box-shadow:0 4px 16px rgba(10,14,26,.04)}
+
+/* Hero — cinematic but still fast */
+body.modern-home .hero{min-height:calc(100vh - 68px);display:flex;align-items:center;padding:80px 0 92px;background:#080B12;color:#fff;isolation:isolate}
+body.modern-home .hero::before{content:"";position:absolute;inset:-20%;z-index:-2;background:radial-gradient(circle at 68% 45%,rgba(93,114,255,.40),transparent 28%),radial-gradient(circle at 88% 12%,rgba(86,217,255,.23),transparent 24%),radial-gradient(circle at 38% 110%,rgba(168,85,247,.25),transparent 30%);animation:mh-breathe 12s ease-in-out infinite alternate}
+body.modern-home .hero::after{opacity:.32;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:56px 56px;mask-image:linear-gradient(90deg,#000,transparent 90%);-webkit-mask-image:linear-gradient(90deg,#000,transparent 90%)}
+body.modern-home .hero-grid{grid-template-columns:minmax(0,.92fr) minmax(430px,1.08fr);gap:48px;max-width:1320px}
+body.modern-home .hero .eyebrow{color:#9DAAFF;margin-bottom:24px}
+body.modern-home .hero h1{font-size:clamp(54px,7.2vw,104px);line-height:.94;max-width:10ch;font-weight:800}
+body.modern-home .hero h1 em{background:linear-gradient(100deg,#fff 0%,#9FB0FF 45%,#62E5FF 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.modern-home .hero .lead{font-size:clamp(17px,1.5vw,20px);line-height:1.65;color:#AAB3C7;max-width:52ch;margin-top:28px}
+body.modern-home .hero-actions{margin-top:38px;gap:10px}
+body.modern-home .hero .btn{min-height:52px;padding:15px 21px;border-radius:14px}
+body.modern-home .hero .btn-primary{background:#fff;color:#080B12;box-shadow:0 16px 40px rgba(255,255,255,.13)}
+body.modern-home .hero .btn-primary:hover{background:#CFEFFF;color:#080B12}
+body.modern-home .hero .btn-ghost{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.05)}
+body.modern-home .hero-stats{gap:28px;margin-top:56px}
+body.modern-home .hero-stats b{font-size:22px}
+body.modern-home .hero-stats span{color:#7F8AA2}
+body.modern-home .hero-visual{max-width:690px;aspect-ratio:1/.82;margin-right:-3%;transform:translateZ(0)}
+body.modern-home .hero-visual::before{content:"";position:absolute;inset:12% 5% 9%;border:1px solid rgba(255,255,255,.10);border-radius:44px;background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.02));box-shadow:inset 0 1px rgba(255,255,255,.12),0 40px 100px rgba(0,0,0,.28);transform:rotate(-3deg)}
+body.modern-home .hero-visual::after{content:"";position:absolute;width:180px;height:180px;right:9%;bottom:2%;border-radius:50%;background:rgba(86,217,255,.20);filter:blur(45px)}
+body.modern-home .hero-visual .glow{inset:13% 11%;background:radial-gradient(closest-side,rgba(93,114,255,.55),transparent 70%);filter:blur(42px)}
+body.modern-home .hero-product-img{padding:6% 2%;filter:drop-shadow(0 36px 55px rgba(0,0,0,.52));transform:scale(.91) translateY(14px) rotate(-1deg);z-index:2}
+body.modern-home .hero-product-img.active{transform:scale(1) translateY(0) rotate(-1deg);animation:mh-float 6s ease-in-out infinite}
+body.modern-home .hero-chip{z-index:5;padding:10px 14px;border-radius:13px;font-size:11px;letter-spacing:.02em;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.13);box-shadow:0 10px 30px rgba(0,0,0,.18)}
+body.modern-home .hero-chip.c1{left:4%;bottom:12%}
+body.modern-home .hero-chip.c2{right:3%;top:13%}
+body.modern-home .hero-dots{bottom:3%;z-index:5}
+
+/* Value strip becomes a floating bento rail */
+body.modern-home .strip{margin-top:-52px;padding:0;z-index:8}
+body.modern-home .strip-grid{grid-template-columns:repeat(3,1fr);gap:10px}
+body.modern-home .strip-item{min-height:108px;border:1px solid rgba(255,255,255,.7);border-radius:18px;padding:20px 22px;background:rgba(255,255,255,.88);backdrop-filter:blur(16px);box-shadow:0 20px 60px rgba(10,14,26,.10)}
+body.modern-home .strip-item svg{color:#5D72FF}
+body.modern-home .strip-item b{font-size:14px}
+body.modern-home .strip-item span{font-size:12.5px}
+
+/* Sections */
+body.modern-home .sec-head{margin-bottom:42px;align-items:end}
+body.modern-home .sec-head h2{font-size:clamp(36px,4.8vw,64px);max-width:14ch}
+body.modern-home .sec-head p{font-size:15px;line-height:1.7;color:#667085}
+body.modern-home #brands{padding-top:132px}
+
+/* Brand cards — editorial gallery */
+body.modern-home .brand-stack{gap:14px}
+body.modern-home .brand-card{min-height:520px;padding:60px 64px;border-radius:30px;grid-template-columns:.86fr 1.14fr;overflow:hidden;box-shadow:none;transform:none}
+body.modern-home .brand-card:hover{transform:translateY(-5px);box-shadow:0 30px 80px rgba(10,14,26,.14)}
+body.modern-home .brand-card::before{width:700px;height:700px;right:-180px;top:-230px;background:radial-gradient(circle,rgba(255,255,255,.17),transparent 62%);transition:transform .7s ease}
+body.modern-home .brand-card:hover::before{transform:scale(1.12)}
+body.modern-home .p-makwell{--b1:#4D1E58;--b2:#C35AD2;background:linear-gradient(130deg,#31153A,#7B2E88 55%,#B04BBC)}
+body.modern-home .p-flyvision{--b1:#101329;--b2:#E52D34;background:linear-gradient(130deg,#0A0D1E,#151A45 55%,#C8222B)}
+body.modern-home .p-skevia{--b1:#073F68;--b2:#43CBEA;background:linear-gradient(130deg,#052D4A,#0E6E9F 55%,#2ABFE3)}
+body.modern-home .brand-card .logo-chip{border-radius:12px;padding:9px 13px;box-shadow:0 12px 30px rgba(0,0,0,.16)}
+body.modern-home .brand-card .logo-chip img{height:31px}
+body.modern-home .brand-card .tag{font-size:clamp(31px,3.8vw,52px);max-width:9ch}
+body.modern-home .brand-card p{font-size:15px;line-height:1.7;max-width:38ch;color:rgba(255,255,255,.76)}
+body.modern-home .brand-card .btn-light{border-radius:13px;padding:13px 18px}
+body.modern-home .brand-art{position:relative;min-height:350px}
+body.modern-home .brand-art::before{content:"";position:absolute;inset:12% 3% 8%;border-radius:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);transform:rotate(4deg)}
+body.modern-home .brand-card .brand-art img{position:relative;z-index:2;max-width:520px;filter:drop-shadow(0 35px 45px rgba(0,0,0,.44));transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+body.modern-home .brand-card:hover .brand-art img{transform:scale(1.06) rotate(-2deg) translateY(-5px)}
+
+/* Product categories — bento */
+body.modern-home #products{padding-top:132px}
+body.modern-home .cat-row{grid-template-columns:1.3fr 1fr 1fr 1fr;gap:12px}
+body.modern-home .cat-tile{min-height:250px;border:1px solid rgba(10,14,26,.08);border-radius:22px;padding:28px;background:#fff;box-shadow:0 12px 45px rgba(10,14,26,.055);position:relative;overflow:hidden}
+body.modern-home .cat-tile:first-child{background:#080B12;color:#fff;min-height:310px}
+body.modern-home .cat-tile:first-child p{color:#9DA7BA}
+body.modern-home .cat-tile:first-child .ic{background:rgba(255,255,255,.08);color:#9DB0FF}
+body.modern-home .cat-tile:first-child .link-arrow{color:#fff}
+body.modern-home .cat-tile::after{content:"";position:absolute;width:150px;height:150px;right:-70px;bottom:-80px;border-radius:50%;background:rgba(93,114,255,.12);transition:transform .5s}
+body.modern-home .cat-tile:hover::after{transform:scale(2)}
+body.modern-home .cat-tile:hover{transform:translateY(-5px);border-color:rgba(93,114,255,.35);box-shadow:0 22px 55px rgba(10,14,26,.10)}
+body.modern-home .cat-tile .ic{width:52px;height:52px;border-radius:15px;background:#F0F2FF;color:#5268F5}
+body.modern-home .cat-tile h3{font-size:24px}
+body.modern-home .cat-tile p{line-height:1.6;color:#667085}
+body.modern-home .cat-tile .link-arrow{margin-top:auto;font-size:13px;color:#2F5BFF}
+
+/* Support */
+body.modern-home .hub{background:#fff;border-top:1px solid var(--mh-line);border-bottom:1px solid var(--mh-line);position:relative;overflow:hidden}
+body.modern-home .hub::before{content:"";position:absolute;inset:auto -10% -50% 30%;height:500px;background:radial-gradient(circle,rgba(93,114,255,.10),transparent 65%);pointer-events:none}
+body.modern-home .hub-grid{grid-template-columns:repeat(3,1fr);gap:12px}
+body.modern-home .service-card{min-height:190px;border:1px solid rgba(10,14,26,.09);border-radius:20px;background:#F8F9FC;padding:25px;text-align:left;transition:transform .28s,box-shadow .28s,border-color .28s,background .28s}
+body.modern-home .service-card:hover{transform:translateY(-4px);background:#fff;border-color:rgba(93,114,255,.25);box-shadow:0 20px 55px rgba(10,14,26,.09)}
+body.modern-home .service-card .ic{width:48px;height:48px;border-radius:14px;background:#fff;color:#5268F5;box-shadow:0 7px 22px rgba(10,14,26,.06);display:grid;place-items:center;margin-bottom:22px}
+body.modern-home .service-card h3{font-size:18px}
+body.modern-home .service-card p{font-size:13.5px;color:#667085;line-height:1.6;margin-top:8px}
+
+/* Generic content + footer polish */
+body.modern-home #about{background:#F0F2F7!important;border-top:1px solid rgba(10,14,26,.07);border-bottom:1px solid rgba(10,14,26,.07)}
+body.modern-home #contact{background:#080B12;color:#fff}
+body.modern-home #contact p,body.modern-home #contact .label{color:#8893A9!important}
+body.modern-home .contact-detail{border-color:rgba(255,255,255,.12)!important}
+body.modern-home footer{background:#080B12;color:#8993A7;border-top:1px solid rgba(255,255,255,.08)}
+body.modern-home footer a:hover{color:#fff}
+
+/* Scroll reveal upgraded from simple fade to directional motion */
+body.modern-home .rv{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .8s cubic-bezier(.2,.8,.2,1)}
+body.modern-home .rv.in{opacity:1;transform:none}
+body.modern-home .d1{transition-delay:.07s}.modern-home .d2{transition-delay:.14s}.modern-home .d3{transition-delay:.21s}
+
+/* pointer light injected by pe.js */
+.mh-pointer{position:fixed;left:0;top:0;width:280px;height:280px;border-radius:50%;pointer-events:none;z-index:1;background:radial-gradient(circle,rgba(93,114,255,.08),transparent 68%);transform:translate(-50%,-50%);opacity:0;transition:opacity .3s}
+body.modern-home:hover .mh-pointer{opacity:1}
+
+@keyframes mh-breathe{from{transform:scale(1) rotate(0deg)}to{transform:scale(1.08) rotate(2deg)}}
+@keyframes mh-float{0%,100%{translate:0 0}50%{translate:0 -12px}}
+
+@media (max-width:1050px){
+  body.modern-home .hero-grid{grid-template-columns:1fr;gap:30px}
+  body.modern-home .hero{padding-top:60px}
+  body.modern-home .hero h1{max-width:11ch}
+  body.modern-home .hero-visual{order:-1;max-width:600px;margin:0 auto}
+  body.modern-home .cat-row{grid-template-columns:1fr 1fr}
+}
+@media (max-width:860px){
+  body.modern-home .wrap{padding-left:20px;padding-right:20px}
+  body.modern-home section{padding:84px 0}
+  body.modern-home .header-inner{padding:12px 20px}
+  body.modern-home .strip-grid{grid-template-columns:1fr}
+  body.modern-home .strip{margin-top:-30px}
+  body.modern-home .brand-card{grid-template-columns:1fr;padding:38px 30px;min-height:0}
+  body.modern-home .brand-card.rev .brand-copy{order:0}
+  body.modern-home .brand-art{order:-1;min-height:270px}
+  body.modern-home .brand-art img{max-width:400px}
+  body.modern-home .hub-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){
+  body.modern-home .hero{min-height:auto;padding:52px 0 72px}
+  body.modern-home .hero h1{font-size:clamp(48px,15vw,70px)}
+  body.modern-home .hero-visual{aspect-ratio:1/.95}
+  body.modern-home .hero-chip{display:none}
+  body.modern-home .hero-stats{grid-template-columns:1fr 1fr;gap:20px;margin-top:42px}
+  body.modern-home .hero-stats div:last-child{grid-column:1/-1}
+  body.modern-home .cat-row,.modern-home .hub-grid{grid-template-columns:1fr}
+  body.modern-home .cat-tile:first-child{min-height:250px}
+  body.modern-home .sec-head h2{font-size:38px}
+  body.modern-home .brand-card{border-radius:22px;padding:28px 22px}
+  body.modern-home .brand-card .tag{font-size:34px}
+  .mh-pointer{display:none}
+}
+@media (prefers-reduced-motion:reduce){body.modern-home .hero::before,body.modern-home .hero-product-img.active{animation:none!important}body.modern-home .rv{opacity:1!important;transform:none!important;transition:none!important}.mh-pointer{display:none!important}}

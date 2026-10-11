@@ -140,7 +140,7 @@ test('P10.21 every automated-cover file named in the UAT matrix exists', () => {
 
 test('P10.19 release stamp is valid and the stamp script rejects bad versions', () => {
   const src = fs.readFileSync(path.join(ROOT, 'crm/release.js'), 'utf8');
-  const win = {}; new Function('window', 'location', 'document', src)(win, { pathname: '/' }, { querySelector: () => null });
+  const win = {}; new Function('window', src)(win);
   assert.match(win.PE_RELEASE.version, /^\d+\.\d+\.\d+/); assert.match(win.PE_RELEASE.date, /^\d{4}-\d{2}-\d{2}$/);
   const r = require('child_process').spawnSync('node', ['scripts/stamp-release.mjs', 'banana'], { cwd: ROOT });
   assert.notStrictEqual(r.status, 0);
