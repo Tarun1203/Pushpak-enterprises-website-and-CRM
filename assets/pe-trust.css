@@ -54,7 +54,7 @@ body.has-tabbar .pe-cc{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 .legal-table tbody th{font-weight:600}
 .legal-note{margin-top:34px;padding:16px;background:#fff;border:1px solid #E3E6EE;border-radius:12px;font-size:15px}
 .legal code{background:#EEF1F6;padding:1px 6px;border-radius:5px;font-size:13.5px}
-.btn-primary{display:inline-block;background:#1B3FD1;color:#fff;border:0;border-radius:10px;padding:12px 18px;font:700 15px Inter,system-ui,sans-serif;cursor:pointer;min-height:44px}
+.legal .btn-primary{display:inline-block;background:#1B3FD1;color:#fff;border:0;border-radius:10px;padding:12px 18px;font:700 15px Inter,system-ui,sans-serif;cursor:pointer;min-height:44px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 
 /* keyboard focus must always be visible (some components reset all styles) */

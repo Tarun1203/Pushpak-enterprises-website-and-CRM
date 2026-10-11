@@ -414,7 +414,8 @@
     $('.ui-av', btn).textContent = initials(id.name);
     $('.ui-who b', btn).textContent = id.name;
     $('.ui-who span', btn).textContent = id.role;
-    btn.setAttribute('aria-label', 'Account menu for ' + id.name + (id.role ? ', ' + id.role : ''));
+    btn.removeAttribute('aria-label'); // name comes from the visible name and role (keeps label and text in step)
+    btn.setAttribute('title', 'Account menu');
     var mh = $('.ui-user-menu .ui-mh');
     if (mh) {
       $('.ui-av', mh).textContent = initials(id.name);

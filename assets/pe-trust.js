@@ -93,7 +93,7 @@
   /* ---------- 2. footer links ---------- */
   function footerLinks() {
     $$('[data-cookie-settings]').forEach(function (b) { if (!b._pe) { b._pe = 1; b.addEventListener('click', openSettings); } });
-    if ($('footer a[href$="privacy.html"], .pe-legal-bar')) return;
+    if ($('footer a[href$="privacy.html"], .pe-legal-bar, [data-legal-links]')) return;
     var host = $('footer .foot-links') || $('footer .footer-inner') || $('footer');
     var html = '<a href="' + ROOT + 'privacy.html">Privacy</a><a href="' + ROOT + 'terms.html">Terms</a><a href="' + ROOT + 'cookies.html">Cookies</a><button type="button" class="linklike" data-cookie-settings>Cookie settings</button>';
     if (host) {
