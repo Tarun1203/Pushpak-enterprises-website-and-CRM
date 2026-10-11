@@ -21,31 +21,14 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('.github/workflows/automated-qa.yml')
           s = p.read_text()
-          old = '''          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add qa-results/bug-snapshot.json
-          git commit -m "[skip ci] Update automated QA bug snapshot" || true
-          git push origin HEAD:main
-          '''
-          new = '''          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add qa-results/bug-snapshot.json
-          git commit -m "[skip ci] Update automated QA bug snapshot" || true
-
-          # QA can finish while another workflow commit lands on main.
-          # Rebase the generated snapshot commit onto the latest main before pushing.
-          for attempt in 1 2 3; do
-            git fetch origin main
-            git rebase origin/main && git push origin HEAD:main && break
-            git rebase --abort || true
-            sleep $((attempt * 3))
-          done
-          '''
-          if old not in s:
-              raise SystemExit('Target QA push block not found')
-          p.write_text(s.replace(old, new, 1))
+          pattern = r'''(?ms)(\s+git config user\.name "github-actions\[bot\]"\n\s+git config user\.email "41898282\+github-actions\[bot\]@users\.noreply\.github\.com"\n\s+git add -f crm/bug-data\.json\n\s+if git diff --cached --quiet; then\n\s+echo "Bug snapshot unchanged"\n\s+else\n\s+git commit -m "\[skip ci\] Update automated QA bug snapshot"\n)(\s+git push\n\s+fi)'''
+          replacement = r'''\1\n            # QA can finish while another commit lands on main. Rebase before publishing the snapshot.\n            for attempt in 1 2 3; do\n              git fetch origin main\n              if git rebase origin/main && git push origin HEAD:main; then\n                break\n              fi\n              git rebase --abort || true\n              if [ "$attempt" -eq 3 ]; then exit 1; fi\n              sleep $((attempt * 3))\n            done\n          fi'''
+          if not re.search(pattern, s):
+              raise SystemExit('Target QA snapshot push block not found')
+          p.write_text(re.sub(pattern, replacement, s, count=1))
           PY
 
       - name: Commit workflow fix
