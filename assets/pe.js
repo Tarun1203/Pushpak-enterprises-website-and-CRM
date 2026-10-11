@@ -11,7 +11,7 @@
   ready(function () {
     var path = window.location.pathname.replace(/\\/g, '/');
     var isRootHome = path === '/' || /\/index\.html$/.test(path) && !/\/(makwell|flyvision|skevia)\/index\.html$/.test(path);
-    var brandMatch = path.match(/\/(makwell|flyvision|skevia)\/index\.html$/);
+    var brandMatch = path.match(/\/(makwell|flyvision|skevia)(?:\/index\.html)?\/?$/);
 
     // Modern homepage presentation layer. Existing markup, Firebase data and
     // support flows stay intact; this only adds a visual layer to the gateway.
@@ -48,12 +48,10 @@
       doc.head.appendChild(brandCss);
     }
 
-    // header gets a hairline + shadow once the page scrolls
     var header = doc.querySelector('header');
     function onScroll() { if (header) header.classList.toggle('scrolled', window.scrollY > 8); }
     onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
 
-    // reveal-on-scroll (falls back to visible when IntersectionObserver is missing)
     var items = doc.querySelectorAll('.rv');
     if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       var io = new IntersectionObserver(function (es) {
@@ -62,7 +60,6 @@
       items.forEach(function (el) { io.observe(el); });
     } else { items.forEach(function (el) { el.classList.add('in'); }); }
 
-    // hero product rotation (only when the page has hero images)
     var imgs = doc.querySelectorAll('.hero-product-img'), dots = doc.querySelectorAll('.hero-dots i');
     if (imgs.length > 1) {
       var cur = 0;
@@ -75,7 +72,6 @@
       dots.forEach(function (d, i) { d.addEventListener('click', function () { show(i); }); });
     }
 
-    // mobile tab bar: mark the section in view
     var tabs = doc.querySelectorAll('.tabbar a[data-sec]');
     if (tabs.length && 'IntersectionObserver' in window) {
       var map = {};
@@ -93,10 +89,6 @@
     doc.querySelectorAll('form[data-wizard]').forEach(wizard);
   });
 
-  // Step-by-step form. Children of the form marked .wiz-step (with data-label)
-  // become pages; a progress bar and Back / Next are added; the form's own
-  // submit button is shown only on the last page. Field ids and names are
-  // untouched, so the page's existing submit code keeps working.
   function wizard(form) {
     var steps = Array.prototype.slice.call(form.querySelectorAll(':scope > .wiz-step'));
     if (steps.length < 2) return;
