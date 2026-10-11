@@ -1292,6 +1292,21 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
+    // Store & service-center locator. Public business details only
+    // (name, address, business phone, hours, map position) that the
+    // website's "Find a service center or store" map shows to anyone.
+    // Never personal data. Head Office maintains it from the CRM.
+    // ---------------------------------------------------------------
+    match /publicLocations/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.type in ['servicecenter', 'store']
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120;
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // SLA rules — territory/service-type-aware thresholds, replacing
     // the fixed 24h/48h default. Staff-readable (so Warehouse/Service
     // Center understand what's being measured against), admin-only

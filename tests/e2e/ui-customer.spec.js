@@ -27,7 +27,7 @@ test('home: hero, brands, categories, support hub and footer are all there', asy
 test('home: every support tile opens the right sheet', async ({ page }) => {
   await openPage(page, origin, 'index.html');
   const cases = [['Book a service', '#book-overlay'], ['Check warranty', '#warranty-overlay'], ['Register product', '#register-overlay'], ['Track service', '#track-overlay'],
-    ['Find service center', '#service-modal-overlay'], ['Help & FAQs', '#service-modal-overlay'], ['Manuals', '#service-modal-overlay']];
+    ['Find service center', '#locator-overlay'], ['Help & FAQs', '#service-modal-overlay'], ['Manuals', '#service-modal-overlay']];
   for (const [name, sel] of cases) {
     await page.locator('.service-card', { hasText: name }).first().click();
     await expect(page.locator(sel), name).toBeVisible();

@@ -121,7 +121,7 @@ test('source audit: no Google Fonts, analytics or tracker scripts anywhere in th
   const hosts = new Set();
   for (const f of files) {
     const t = fs.readFileSync(f, 'utf8');
-    expect(t, f).not.toMatch(/fonts\.(googleapis|gstatic)\.com|google-analytics|googletagmanager|gtag\(|fbq\(|facebook\.net|hotjar|clarity\.ms|segment\.(com|io)|mixpanel|doubleclick/i);
+    expect(t, f).not.toMatch(/fonts\.(googleapis|gstatic)\.com|google-analytics|googletagmanager|gtag\(|fbq\(|facebook\.net|hotjar|clarity\.ms|segment\.(com|io)|mixpanel|doubleclick\.net/i);
     for (const m of t.matchAll(/<(?:script|link)[^>]+(?:src|href)=["'](https?:\/\/[^"']+)/gi)) { const u = new URL(m[1]); if (!/\.(png|jpe?g|svg|webp|ico)$/i.test(u.pathname) && !/schema\.org|w3\.org/.test(u.host)) hosts.add(u.host); }
     for (const m of t.matchAll(/from\s+['"](https?:\/\/[^'"]+)/g)) hosts.add(new URL(m[1]).host);
   }

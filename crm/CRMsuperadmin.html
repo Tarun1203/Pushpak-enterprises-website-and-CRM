@@ -1073,6 +1073,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   import {
     getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, limit, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { mountLocationsAdmin } from './locations-admin.js';
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
   import * as PStock from './productStock.js';
@@ -1180,6 +1181,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'centers', label: 'Service Centers', built: true },
       { id: 'technicians', label: 'Technicians', built: true },
       { id: 'pincodes', label: 'Pincode Master', built: true },
+      { id: 'locations', label: 'Store & Service Locations', built: true },
       { id: 'coverage', label: 'Coverage Analysis', built: true },
       { id: 'appointments', label: 'Appointments', built: true },
       { id: 'sla', label: 'SLA & Escalation', built: true },
@@ -1341,6 +1343,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'pincodes') {
       pageSub.textContent = 'PIN → City / Taluk / District / State — the territory hierarchy everything else resolves against';
       renderPincodeMaster();
+    } else if (id === 'locations') {
+      pageSub.textContent = 'What the public website\'s "Find service center" map shows';
+      mountLocationsAdmin(contentEl, { db, escapeHtml, fs: { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, serverTimestamp } });
     } else if (id === 'coverage') {
       pageSub.textContent = 'Overlapping Service Center coverage, and districts with unassigned pincodes';
       renderCoverageAnalysis();

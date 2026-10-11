@@ -1,0 +1,35 @@
+/* Find a service center or store */
+.loc-modal{max-width:760px}
+.loc-search label{display:block;font-weight:700;font-size:13px;margin:6px 0 6px;color:#2A3142}
+.loc-row{display:flex;gap:8px}
+.loc-row input{flex:1;min-width:0;min-height:46px}
+.loc-btn{min-height:46px;padding:10px 18px;border-radius:12px;border:2px solid #1B3FD1;background:#1B3FD1;color:#fff;font:700 14px Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.loc-btn-ghost{background:#fff;color:#1B3FD1}
+.loc-btn:disabled{opacity:.7;cursor:progress}
+.loc-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin:12px 0 4px}
+.loc-filter{display:flex;gap:6px;flex-wrap:wrap}
+.loc-filter button{min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid #C9CFDC;background:#fff;color:#0A0E1A;font:600 13.5px Inter,system-ui,sans-serif;cursor:pointer}
+.loc-filter button[aria-pressed="true"]{background:#0A0E1A;color:#fff;border-color:#0A0E1A}
+.loc-status{font-size:13.5px;color:#2A3142;margin:10px 0}
+.loc-map-wrap{margin:6px 0 14px}
+.loc-map{height:320px;border-radius:14px;border:1px solid #E3E6EE;overflow:hidden;z-index:0}
+.loc-legend{display:flex;gap:14px;font-size:12.5px;color:#2A3142;margin:8px 0 0}
+.loc-legend .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:2px solid #fff;box-shadow:0 0 0 1px #9AA3B5}
+.loc-legend .sc{background:#1B3FD1}.loc-legend .st{background:#C2410C}.loc-legend .me{background:#12804A}
+.loc-note{font-size:12.5px;color:#4A5366;margin:8px 0 0}
+.loc-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;max-height:46vh;overflow:auto}
+.loc-item{border:1px solid #E3E6EE;border-radius:14px;padding:14px 16px;background:#fff}
+.loc-head{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.loc-head h4{margin:0;font-size:16px;line-height:1.3}
+.loc-type{flex:none;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}
+.loc-servicecenter{background:#E8EDFF;color:#1B3FD1}
+.loc-store{background:#FFEDE3;color:#9A3412}
+.loc-addr,.loc-meta{margin:6px 0 0;font-size:13.5px;color:#2A3142}
+.loc-dist{margin:6px 0 0;font-size:13px;font-weight:700;color:#12804A}
+.loc-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.loc-act{display:inline-flex;align-items:center;min-height:40px;padding:8px 14px;border-radius:10px;border:1px solid #C9CFDC;background:#fff;color:#1B3FD1;font:700 13.5px Inter,system-ui,sans-serif;text-decoration:none;cursor:pointer}
+.loc-act:hover{border-color:#1B3FD1}
+.loc-foot{font-size:13.5px;color:#2A3142;margin:14px 0 0}
+.loc-foot .linklike{color:#1B3FD1}
+.leaflet-container a{color:#1B3FD1}
+@media (max-width:560px){.loc-row{flex-direction:column}.loc-map{height:260px}.loc-list{max-height:none}}

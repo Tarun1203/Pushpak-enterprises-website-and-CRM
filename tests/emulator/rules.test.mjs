@@ -240,3 +240,12 @@ runCases('Rules: public website and customer writes', [
   ['anon', 'set', 'siteContent/landing', { heroHeadline: 'Hacked' }, D], ['anon', 'set', 'productModels/m1', { modelNumber: 'X' }, D],
   ['sa', 'set', 'someUnknownCollection/x', { a: 1 }, D, 'deny by default']
 ]);
+
+runCases('Rules: store & service-center locator (public map)', [
+  ['anon', 'list', ['publicLocations'], null, A, 'the website map can list locations'],
+  ['anon', 'create', 'publicLocations/x1', { type: 'store', name: 'Shop' }, D, 'the public cannot add a location'],
+  ['sc1', 'create', 'publicLocations/x1', { type: 'servicecenter', name: 'Mine' }, D, 'a center cannot publish itself'],
+  ['sa', 'create', 'publicLocations/x1', { type: 'store', name: 'Pushpak Store' }, A, 'Head Office adds a store'],
+  ['sa', 'create', 'publicLocations/x2', { type: 'warehouse', name: 'X' }, D, 'only store / servicecenter'],
+  ['sa', 'create', 'publicLocations/x3', { type: 'store', name: '' }, D, 'a name is required']
+]);
