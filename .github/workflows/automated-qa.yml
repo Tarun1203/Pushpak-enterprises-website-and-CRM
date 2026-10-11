@@ -310,7 +310,17 @@ jobs:
             echo "Bug snapshot unchanged"
           else
             git commit -m "[skip ci] Update automated QA bug snapshot"
-            git push
+            # QA can finish while another workflow commit lands on main.
+            # Rebase the generated snapshot commit onto the latest main before pushing.
+            for attempt in 1 2 3; do
+              git fetch origin main
+              if git rebase origin/main && git push origin HEAD:main; then
+                break
+              fi
+              git rebase --abort || true
+              if [ "$attempt" -eq 3 ]; then exit 1; fi
+              sleep $((attempt * 3))
+            done
           fi
 
       - name: Fail workflow when QA fails
