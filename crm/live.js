@@ -13,6 +13,97 @@ const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* Live-alert UI is owned by this module so every CRM role gets the same
+   responsive behaviour without relying on page-specific CSS. */
+function installLiveStyles() {
+  if (document.getElementById('pe-live-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'pe-live-styles';
+  s.textContent = `
+    .ui-toasts {
+      position: fixed;
+      top: 76px;
+      right: 24px;
+      z-index: 10000;
+      width: min(390px, calc(100vw - 32px));
+      max-width: calc(100vw - 32px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .ui-toast {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid rgba(224,214,188,.95);
+      border-radius: 10px;
+      background: #fff;
+      color: #25292E;
+      box-shadow: 0 12px 34px rgba(15,24,40,.18);
+      pointer-events: auto;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      animation: pe-live-toast-in .22s ease-out both;
+    }
+    .ui-toast.out { animation: pe-live-toast-out .22s ease-in both; }
+    .ui-toast-ic {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      border-radius: 9px;
+      background: #EEF4FF;
+      color: #1C6FBA;
+    }
+    .ui-toast-ic svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .ui-toast-tx { min-width: 0; overflow: hidden; }
+    .ui-toast-tx b, .ui-toast-tx span { display: block; min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+    .ui-toast-tx b { font-size: 13px; line-height: 1.35; font-weight: 800; }
+    .ui-toast-tx span { margin-top: 2px; font-size: 12px; line-height: 1.4; color: #5B6475; }
+    .ui-toast-ac { display: flex; align-items: center; gap: 5px; flex: none; }
+    .ui-toast-ac button { min-width: 34px; min-height: 34px; border-radius: 7px; border: 1px solid #E3E6EE; background: #fff; color: #2A3142; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 8px; }
+    .ui-toast-ac .ui-toast-view { color: #fff; background: #1C6FBA; border-color: #1C6FBA; }
+    .ui-toast-ac .ui-toast-x { width: 34px; padding: 4px; font-size: 20px; line-height: 1; }
+    .ui-toast-ac button:focus-visible { outline: 3px solid rgba(47,91,255,.35); outline-offset: 2px; }
+    @keyframes pe-live-toast-in { from { opacity: 0; transform: translate3d(18px,-6px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+    @keyframes pe-live-toast-out { from { opacity: 1; transform: translate3d(0,0,0); } to { opacity: 0; transform: translate3d(18px,-6px,0); } }
+    @media (max-width: 600px) {
+      .ui-toasts {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+      }
+      .ui-toast {
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 9px;
+      }
+      .ui-toast-ic { width: 32px; height: 32px; }
+      .ui-toast-ic svg { width: 17px; height: 17px; }
+      .ui-toast-tx b { font-size: 12.5px; }
+      .ui-toast-tx span { font-size: 11.5px; }
+      .ui-toast-ac button { min-width: 32px; min-height: 32px; padding: 5px 7px; }
+      .ui-toast-ac .ui-toast-view { white-space: nowrap; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ui-toast, .ui-toast.out { animation: none; }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+installLiveStyles();
+
 const NICE = {
   new: 'New', assigned: 'Assigned', assigned_to_center: 'Sent to service center', accepted: 'Accepted', on_the_way: 'Technician on the way',
   at_customer: 'Technician at customer', in_progress: 'In progress', waiting_spare: 'Waiting for spare', completed: 'Completed', closed: 'Closed',
