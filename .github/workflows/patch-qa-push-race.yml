@@ -1,0 +1,61 @@
+name: Patch QA bug snapshot push race
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Automated Site QA push step
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/automated-qa.yml')
+          s = p.read_text()
+          old = '''          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add qa-results/bug-snapshot.json
+          git commit -m "[skip ci] Update automated QA bug snapshot" || true
+          git push origin HEAD:main
+          '''
+          new = '''          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add qa-results/bug-snapshot.json
+          git commit -m "[skip ci] Update automated QA bug snapshot" || true
+
+          # QA can finish while another workflow commit lands on main.
+          # Rebase the generated snapshot commit onto the latest main before pushing.
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main && git push origin HEAD:main && break
+            git rebase --abort || true
+            sleep $((attempt * 3))
+          done
+          '''
+          if old not in s:
+              raise SystemExit('Target QA push block not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+      - name: Commit workflow fix
+        run: |
+          git add .github/workflows/automated-qa.yml
+          git commit -m "Fix QA bug snapshot push race [skip ci]"
+          git push origin HEAD:main
+
+      - name: Remove one-time patch workflow
+        run: |
+          git rm .github/workflows/patch-qa-push-race.yml
+          git commit -m "Remove one-time QA push race patch [skip ci]"
+          git push origin HEAD:main
