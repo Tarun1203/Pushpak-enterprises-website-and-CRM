@@ -1,7 +1,8 @@
 // Phase 5 item 10 — regression gate. Reads every suite's results from
 // qa-results/json/*.json (Playwright JSON or the node:test summary), compares
 // them with tests/regression-baseline.json, and fails if any test failed, a
-// suite produced no results, or a suite now has FEWER tests than the
+// suite produced no results, every test in a suite was skipped, or a suite
+// now has FEWER tests than the
 // baseline (tests silently deleted or no longer discovered). Writes a single
 // pass/fail table to the GitHub run summary and qa-results/regression.md.
 //   node scripts/qa/regression-summary.mjs            check
@@ -61,6 +62,10 @@ for (const [id, cfg] of Object.entries(baseline.suites)) {
   const total = r.passed + r.failed + r.skipped;
   let verdict = r.failed ? '**FAIL**' : 'pass';
   if (total < cfg.minTests) { verdict = '**FEWER TESTS**'; problems.push(`${cfg.label || id}: ${total} tests, baseline is ${cfg.minTests} — tests were removed or are no longer found`); }
+  // Skipped tests count toward minTests above, so a suite whose every test
+  // skipped (e.g. QA_EMAIL/QA_PASSWORD/QA_ROLE secrets missing) would
+  // otherwise look green while testing nothing. Flag it as a problem.
+  else if (total > 0 && r.skipped === total) { verdict = '**ALL SKIPPED**'; problems.push(`${cfg.label || id}: all ${total} tests were skipped — nothing was actually tested (check the QA_EMAIL, QA_PASSWORD and QA_ROLE secrets for authenticated CRM suites)`); }
   if (r.failed) problems.push(...r.failures.slice(0, 5).map((f) => `${cfg.label || id}: ${f.name} — ${f.message}`));
   rows.push([cfg.label || id, r.passed + (r.flaky ? ` (${r.flaky} flaky)` : ''), r.failed, r.skipped, verdict]);
 }
