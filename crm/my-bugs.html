@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Bugs — Pushpak CRM</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="mobile.css">
+<script src="release.js"></script>
+<script src="resilience.js"></script>
+<style>
+:root{--ink:#25292E;--muted:#667085;--line:#E5E7EB;--paper:#F7F5EF;--card:#fff;--blue:#1C6FBA;--red:#B3261E}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,system-ui,sans-serif}.wrap{max-width:1180px;margin:auto;padding:28px 20px}.head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:22px}.head h1{margin:0;font-size:25px}.head p{margin:5px 0 0;color:var(--muted);font-size:13px}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 13px;font-weight:700;cursor:pointer}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px}.filters button.active{background:var(--ink);color:#fff;border-color:var(--ink)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:17px}.row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.title{font-weight:800;font-size:15px}.meta{font-size:11.5px;color:var(--muted);margin-top:6px}.pill{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:#EEF2F6;white-space:nowrap}.pill.critical,.pill.high{background:#FDE7E5;color:#9D1C15}.pill.fixed,.pill.closed,.pill.verified{background:#E5F4EA;color:#12663A}.desc{font-size:13px;line-height:1.55;margin-top:12px}.timeline{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}.event{padding:7px 0;border-bottom:1px dashed #eee;font-size:12px}.event:last-child{border-bottom:0}.event b{font-size:12px}.empty{padding:50px;text-align:center;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}.loading{color:var(--muted)}@media(max-width:760px){.grid{grid-template-columns:1fr}.head{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><div><h1>My Bugs</h1><p>Track bugs reported from your CRM account.</p></div><div><button class="btn" onclick="history.back()">Back</button> <button class="btn primary" id="report">🐞 Report Bug</button></div></div>
+  <div class="filters" id="filters"><button class="btn active" data-filter="all">All</button><button class="btn" data-filter="reported">Reported</button><button class="btn" data-filter="acknowledged">Acknowledged</button><button class="btn" data-filter="in_progress">In Progress</button><button class="btn" data-filter="fixed">Fixed</button><button class="btn" data-filter="retesting">Retesting</button><button class="btn" data-filter="verified">Verified</button><button class="btn" data-filter="closed">Closed</button></div>
+  <div id="list" class="grid"><div class="empty loading">Checking your session…</div></div>
+</div>
+<script type="module">
+import {initializeApp,getApps,getApp} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import {getAuth,onAuthStateChanged} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+import {getFirestore,collection,query,where,orderBy,onSnapshot} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+const config={apiKey:'AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY',authDomain:'makwell-websiteandcrm.firebaseapp.com',projectId:'makwell-websiteandcrm',storageBucket:'makwell-websiteandcrm.firebasestorage.app',messagingSenderId:'673518655103',appId:'1:673518655103:web:1805d10de3c63eca23914a',measurementId:'G-YLM91W3YF1'};
+const app=getApps().length?getApp():initializeApp(config),auth=getAuth(app),db=getFirestore(app);let rows=[],filter='all';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=v=>{if(!v)return '';const d=v.toDate?v.toDate():new Date(v);return isNaN(d)?'':d.toLocaleString()};
+function render(){const list=document.querySelector('#list');const data=filter==='all'?rows:rows.filter(x=>x.status===filter);if(!data.length){list.innerHTML='<div class="empty">No bugs found for this filter.</div>';return}list.innerHTML=data.map(b=>`<article class="card"><div class="row"><div><div class="title">${esc(b.title)}</div><div class="meta">${esc(b.id)} · ${esc(b.module||'CRM')} · ${esc(fmt(b.createdAt))}</div></div><span class="pill ${esc(b.severity||'')} ">${esc(b.status||'reported')}</span></div><div class="desc">${esc(b.description)}</div><div class="meta">Expected: ${esc(b.expectedResult||'Not provided')}<br>Actual: ${esc(b.actualResult||'Not provided')}</div><div class="timeline">${(b.events||[]).slice(-5).reverse().map(e=>`<div class="event"><b>${esc(e.status||e.type||'Update')}</b> · ${esc(fmt(e.createdAt))}${e.note?`<br>${esc(e.note)}`:''}</div>`).join('')}</div></article>`).join('')}
+document.querySelectorAll('#filters button').forEach(btn=>btn.addEventListener('click',()=>{filter=btn.dataset.filter;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('active',x===btn));render()}));
+document.querySelector('#report').addEventListener('click',()=>location.href='index.html?reportBug=1');
+onAuthStateChanged(auth,user=>{if(!user){location.href='login.html';return}const q=query(collection(db,'bugReports'),where('reporterUid','==',user.uid),orderBy('createdAt','desc'));onSnapshot(q,snap=>{rows=snap.docs.map(d=>({id:d.id,...d.data()}));render()},err=>{console.error(err);document.querySelector('#list').innerHTML='<div class="empty">Unable to load your bugs. Please contact an administrator.</div>'})});
+</script>
+</body>
+</html>
