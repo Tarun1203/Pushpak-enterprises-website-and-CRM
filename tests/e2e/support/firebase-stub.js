@@ -59,7 +59,7 @@ window.__stubPush = (coll, id, data, type = 'added') => {
 const AUTH = `
 const S = () => window.__STUB || {};
 const user = () => (S().role ? { uid: S().uid || 'u1', email: 'test@pe.test', getIdToken: async () => 't', getIdTokenResult: async () => ({ claims: { phone_number: '+919000000001' } }) } : null);
-export const getAuth = () => ({ get currentUser() { return user(); } });
+export const getAuth = () => ({ get currentUser() { return user(); }, signOut: async () => {} });
 export const onAuthStateChanged = (a, cb) => { setTimeout(() => cb(user()), 0); return () => {}; };
 export const onIdTokenChanged = onAuthStateChanged;
 export const signOut = async () => {}; export const signInWithEmailAndPassword = async () => ({ user: user() });
