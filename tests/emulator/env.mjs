@@ -112,6 +112,7 @@ export function seedDocs() {
     'serviceChargeRates/center_sc2_geyser_repair_flat': { scope: 'center', serviceCenterUid: 'sc2', amount: 350 },
     'changeRequests/ch1': { requestedByUid: 'wh', status: 'pending', kind: 'spare_price', targetId: 'sp1', payload: { price: 300 } },
     'changeRequests/ch2': { requestedByUid: 'sa', status: 'pending', kind: 'spare_price', targetId: 'sp1', payload: { price: 310 } },
+    'changeRequests/ch3': { requestedByUid: 'sc1', status: 'pending', kind: 'center_rate', payload: { rates: [{ category: 'Geyser', rateType: 'repair', bucket: null, amount: 400 }, { category: 'Iron Box', rateType: 'repair', bucket: null, amount: 150 }] } },
     'notifications/n1': { recipientType: 'uid', recipientValue: 't1', title: 'x', message: 'y', read: false },
     'notifications/n2': { recipientType: 'role', recipientValue: 'superadmin', title: 'x', message: 'y', read: false },
     'rmaRequests/rm1': { rmaId: 'PE-RMA-1', status: 'requested' },

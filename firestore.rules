@@ -330,7 +330,7 @@ service cloud.firestore {
         // reassign themselves or edit the customer/intake details.
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-              ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'closedByUid', 'closedAt',
+              ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'installationChecklist', 'closedByUid', 'closedAt',
                'beforePhotos', 'afterPhotos', 'serialNumberPhoto',
                // Warranty verdict, service charge and billing fields are
                // NOT here: the billOnClose_* Cloud Function sets them when
@@ -1272,7 +1272,17 @@ service cloud.firestore {
         && request.resource.data.status in ['approved', 'rejected']
         && resource.data.requestedByUid != request.auth.uid
         && request.resource.data.reviewedByUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote']);
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote'])
+          // A service center's rate request is decided line by line: Super
+          // Admin may keep only the approved lines (amounts possibly edited)
+          // in the payload and record each line's decision.
+          || (resource.data.kind == 'center_rate'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByUid', 'reviewedAt', 'reviewNote', 'payload', 'decisions'])
+              && request.resource.data.payload.keys().hasOnly(['rates'])
+              && request.resource.data.payload.rates is list
+              && request.resource.data.payload.rates.size() <= 200
+              && request.resource.data.get('decisions', []) is list
+              && request.resource.data.get('decisions', []).size() <= 200));
       // The requester may withdraw a request nobody has decided yet.
       allow delete: if isSuperAdmin()
         || (isSignedIn() && resource.data.requestedByUid == request.auth.uid && resource.data.status == 'pending');

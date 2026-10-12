@@ -7,7 +7,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { assignCodeIfMissing } = require('./codes');
 const { buildAuditEntries } = require('./audit');
 const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
-const { findCandidates, pickLeastLoaded } = require('./routing');
+const { findCandidates, pickLeastLoaded, findDirectTechnicians, NO_CENTER_REASONS } = require('./routing');
 const { rankTechnicians } = require('./technicianMatch');
 const Appointment = require('./appointment');
 const { checkTransition, checkSpareTransition } = require('./lifecycle');
@@ -200,6 +200,63 @@ async function loadCenters() {
   return centers;
 }
 
+async function openJobCount(uid) {
+  const snap = await db.collection('serviceJobs').where('technicianUid', '==', uid).limit(500).get();
+  return snap.docs.filter((d) => OPEN_TICKET_STATUSES.includes(d.get('status'))).length;
+}
+
+// No service center covers the area: hand the ticket straight to a
+// technician who covers it directly. Returns true when it was routed.
+async function routeToDirectTechnician(pubRef, ticket, pin, today, centerReason) {
+  if (!NO_CENTER_REASONS.includes(centerReason || 'no_match')) return false;
+  const techSnap = await db.collection('users').where('role', '==', 'technician').get();
+  const techs = techSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  const found = findDirectTechnicians(ticket, techs, pin, today);
+  if (!found.method) return false;
+  let counts = {};
+  if (found.candidates.length > 1) {
+    const entries = await Promise.all(found.candidates.map(async (t) => [t.uid, await openJobCount(t.uid)]));
+    counts = Object.fromEntries(entries);
+  }
+  const tech = pickLeastLoaded(found.candidates, counts);
+  const techName = tech.name || tech.email || '';
+  const productLabel = ticket.product || `${ticket.brand || ''} ${ticket.category || ''}`.trim() || '-';
+  const jobRef = db.collection('serviceJobs').doc(`route_${pubRef.id}`);
+  let done = false;
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(pubRef);
+    if (!fresh.exists || fresh.get('status') !== 'new' || fresh.get('routing')) return;
+    const routing = { status: 'routed', method: found.method, candidates: found.candidates.length, at: FieldValue.serverTimestamp() };
+    tx.set(jobRef, {
+      jobId: ticket.requestId || pubRef.id, requestId: ticket.requestId || pubRef.id,
+      technicianUid: tech.uid, technicianEmail: tech.email || '', technicianName: techName,
+      customerName: ticket.customerName || '', customerPhone: ticket.customerPhone || '',
+      address: ticket.address || '', city: ticket.city || '', pincode: ticket.pincode || '',
+      product: productLabel, brand: ticket.brand || '', category: ticket.category || '',
+      modelNo: ticket.modelNo || '', serialNumber: ticket.serialNumber || '', purchaseDate: ticket.purchaseDate || null,
+      linkedRegistrationId: ticket.linkedRegistrationId || null,
+      type: ticket.requestType === 'installation' ? 'installation' : 'service',
+      issue: ticket.issueDescription || '', status: 'assigned', sourceRequestId: pubRef.id, directTechnician: true, routing,
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+    });
+    tx.set(jobRef.collection('statusLog').doc(), {
+      status: 'assigned', note: `Routed directly to technician ${techName} (no service center covers this area)`,
+      changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+    });
+    tx.update(pubRef, { technicianUid: tech.uid, technicianName: techName, status: 'assigned', routing, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(pubRef.collection('statusLog').doc(), {
+      status: 'assigned', note: `Routed directly to technician ${techName} (${found.method === 'technician_pincode' ? 'pincode' : 'district'} match)`,
+      changedByEmail: 'system', createdAt: FieldValue.serverTimestamp()
+    });
+    tx.set(db.collection('notifications').doc(), {
+      recipientType: 'uid', recipientValue: tech.uid, title: 'New job assigned to you',
+      message: `${ticket.customerName || 'A customer'} - ${productLabel}`, read: false, createdAt: FieldValue.serverTimestamp()
+    });
+    done = true;
+  });
+  return done;
+}
+
 async function openTicketCount(uid) {
   const snap = await db.collection('centerRequests').where('serviceCenterUid', '==', uid).limit(500).get();
   return snap.docs.filter((d) => OPEN_TICKET_STATUSES.includes(d.get('status'))).length;
@@ -233,6 +290,7 @@ exports.routePublicServiceRequest = onDocumentCreated(
     }
 
     const pubRef = snap.ref;
+    if (!chosen && await routeToDirectTechnician(pubRef, ticket, pin, today, result.reason)) return;
     if (!chosen) {
       await pubRef.update({
         routing: {

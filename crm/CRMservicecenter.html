@@ -1381,8 +1381,46 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const scClosureSubmitBtn = document.getElementById('submit-sc-closure');
   let scClosureTypeFilter = 'all';
 
+
+  // Closure form adapts to the ticket type: an installation is closed with
+  // installation outcomes and a short checklist, not repair codes.
+  const CLOSURE_OPTIONS = {
+    repair: [['repaired', 'Repaired'], ['replaced', 'Part(s) Replaced'], ['no_fault_found', 'No Fault Found'], ['unable_to_repair', 'Unable to Repair — Escalated'], ['customer_cancelled', 'Customer Cancelled']],
+    installation: [['installed', 'Installed & working'], ['installed_demo', 'Installed + demo given to customer'], ['unable_to_install', 'Unable to install — escalated'], ['customer_cancelled', 'Customer Cancelled']]
+  };
+  const INSTALL_CHECKS = ['Mounted / placed securely', 'Water / power connection checked', 'Tested and working', 'Demo given to customer', 'Old unit / packing cleared'];
+  function setClosureMode(prefix, type) {
+    const inst = type === 'installation';
+    const form = document.getElementById(prefix + 'closure-form');
+    const sel = document.getElementById(prefix + 'closure-code');
+    sel.innerHTML = '<option value="">Select…</option>' + CLOSURE_OPTIONS[inst ? 'installation' : 'repair'].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    const h = form.closest('.modal').querySelector('h3');
+    if (!h.dataset.base) h.dataset.base = h.textContent;
+    h.textContent = inst ? 'Complete installation' : h.dataset.base;
+    const notes = document.getElementById(prefix + 'closure-notes'), parts = document.getElementById(prefix + 'closure-parts-notes');
+    const nl = notes.closest('.form-row').querySelector('label'), pl = parts.closest('.form-row').querySelector('label');
+    if (!nl.dataset.base) { nl.dataset.base = nl.textContent; notes.dataset.base = notes.placeholder; pl.dataset.base = pl.textContent; parts.dataset.base = parts.placeholder; }
+    nl.textContent = inst ? 'Installation details' : nl.dataset.base;
+    notes.placeholder = inst ? 'Where and how it was installed (e.g. bathroom wall, inlet/outlet connected, MCB point checked)' : notes.dataset.base;
+    pl.textContent = inst ? 'Materials used' : pl.dataset.base;
+    parts.placeholder = inst ? "Pipes, valves, brackets, wire used — or type 'None'" : parts.dataset.base;
+    let box = form.querySelector('.install-checklist');
+    if (!box) {
+      box = document.createElement('div'); box.className = 'form-row install-checklist';
+      box.innerHTML = '<label>Installation checklist</label>' + INSTALL_CHECKS.map((c, i) => `<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0;"><input type="checkbox" value="${c}" id="${prefix}inst-check-${i}"> ${c}</label>`).join('');
+      notes.closest('.form-row').insertAdjacentElement('afterend', box);
+    }
+    box.style.display = inst ? '' : 'none';
+    box.querySelectorAll('input').forEach((x) => { x.checked = false; });
+  }
+  function installChecklist(prefix) {
+    const box = document.getElementById(prefix + 'closure-form').querySelector('.install-checklist');
+    return box && box.style.display !== 'none' ? Array.from(box.querySelectorAll('input:checked')).map((x) => x.value) : null;
+  }
+
   async function openScClosureModal(jobDoc, typeFilter) {
     scClosureForm.reset();
+    setClosureMode('sc-', jobDoc.type);
     scClosureError.classList.remove('show');
     scClosureSuccess.classList.remove('show');
     scClosureSubmitBtn.disabled = false;
@@ -1424,7 +1462,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const notes = document.getElementById('sc-closure-notes').value.trim();
     const partsNotes = document.getElementById('sc-closure-parts-notes').value.trim();
     if (!closureCode || !notes || !partsNotes) {
-      scClosureError.textContent = 'Closure code, action taken, and parts used are all required — type "None" if no parts were used.';
+      scClosureError.textContent = 'Closure code, what was done, and parts / materials used are all required — type "None" if nothing was used.';
       scClosureError.classList.add('show');
       return;
     }
@@ -1450,11 +1488,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           job: { coll: 'centerRequests', id: jobId }
         });
       }
+      const checks = installChecklist('sc-');
       await updateDoc(doc(db, 'centerRequests', jobId), {
         status: 'completed',
         closureCode,
         actionTaken: notes,
         partsUsedNotes: partsNotes,
+        ...(checks ? { installationChecklist: checks } : {}),
         closedByUid: currentUser.uid,
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -4595,10 +4635,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // technician side: this center's own override, then Head Office's
   // default, then the flat (no-bucket) row as a fallback — never a
   // number the center types in themselves.
-  async function resolveServiceChargeRateForCenter(ticket) {
+  async function resolveServiceChargeRateForCenter(ticket, pick) {
     const rateType = ticket.type === 'installation' ? 'installation' : 'repair';
-    const category = ticket.category || 'Other';
-    const bucket = ticket.sizeBucket || null;
+    const category = (pick && pick.category) || ticket.category || 'Other';
+    const bucket = (pick && pick.bucket !== undefined ? pick.bucket : ticket.sizeBucket) || null;
     try {
       const centerRateSnap = await getDoc(doc(db, 'serviceChargeRates', rateCardKey('center', currentUser.uid, category, rateType, bucket)));
       if (centerRateSnap.exists()) return Number(centerRateSnap.data().amount) || 0;
@@ -4616,6 +4656,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return 0;
   }
 
+  // The rate card is per category and, for some categories, per size /
+  // model (e.g. 15 L, 25 L). A ticket raised without the size still needs
+  // the right row, so guess it from the product / model text and let the
+  // center confirm or change it in the billing form.
+  const normTxt = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  function inferSizeBucket(ticket, buckets) {
+    const hay = normTxt([ticket.product, ticket.modelNo, ticket.modelNumber, ticket.issue].join(' '));
+    if (!hay) return null;
+    const hits = buckets.filter((b) => normTxt(b) && hay.includes(normTxt(b)));
+    return hits.length ? hits.sort((a, b) => normTxt(b).length - normTxt(a).length)[0] : null;
+  }
+  function findCategoryName(names, cat) {
+    const n = normTxt(cat);
+    return names.find((x) => normTxt(x) === n) || null;
+  }
+
   async function openBillingModal(ticketId) {
     const ticket = billingTicketsCache.find(t => t.id === ticketId);
     if (!ticket) return;
@@ -4630,10 +4686,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     // to their wallet from the rate card — only resolve this center's
     // OWN claimable charge when that hasn't already happened (i.e. the
     // center closed this ticket itself, with no technician involved).
-    const centerServiceCharge = (!ticket.serviceCharge && info.inWarranty !== false)
-      ? await resolveServiceChargeRateForCenter(ticket)
-      : null;
-    billingContext = { ticket, info, centerServiceCharge };
+    const catNames = await getActiveCategoryNamesCache();
+    const catMeta = await getCategoryMetaCache();
+    const knownCat = findCategoryName(catNames, ticket.category);
+    const pick = { category: knownCat || null, bucket: ticket.sizeBucket || null };
+    const bucketsFor = (cat) => { const e = cat && catMeta.get(cat); return (e && e.sizeBuckets) || []; };
+    if (pick.category && !pick.bucket) pick.bucket = inferSizeBucket(ticket, bucketsFor(pick.category));
+    const wantsRate = !ticket.serviceCharge && info.inWarranty !== false;
+    const centerServiceCharge = wantsRate ? await resolveServiceChargeRateForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket }) : null;
+    billingContext = { ticket, info, centerServiceCharge, pick, missingPick: () => centerServiceCharge !== null && ((!knownCat && !pick.category) || (bucketsFor(pick.category).length > 0 && !pick.bucket)) };
     // The warranty check already gave a definite answer (matched
     // against the registered product/purchase date) in most cases —
     // "Bill as" only needs to ask the center when that check came back
@@ -4659,7 +4720,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       `}
       <div id="billing-in-warranty-fields" style="display:${isOutByDefault ? 'none' : 'block'};">
         ${centerServiceCharge !== null ? `
-          <div class="form-row"><label>Service charge (your rate card)</label><div>₹${centerServiceCharge}${centerServiceCharge === 0 ? ' — not set up yet for this category/type. Set it under Service Charge Rates first.' : ''}</div></div>
+          ${!knownCat ? `<div class="form-row"><label for="billing-rate-cat">Product category (for the rate card)</label>
+            <select id="billing-rate-cat"><option value="">Select…</option>${catNames.concat('Other').map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></div>` : ''}
+          <div class="form-row" id="billing-rate-bucket-row" style="display:${bucketsFor(pick.category).length ? '' : 'none'};"><label for="billing-rate-bucket">Size / model (for the rate card)</label>
+            <select id="billing-rate-bucket"><option value="">Select…</option>${bucketsFor(pick.category).map(b => `<option value="${escapeHtml(b)}"${b === pick.bucket ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('')}</select></div>
+          <div class="form-row"><label>Service charge (your rate card)</label><div id="billing-rate-amount"></div></div>
         ` : ''}
         <div class="form-row" style="font-size:12px;color:var(--stone);">Spare parts used on an in-warranty job aren't billed to Head Office per ticket — they come out of your Center Inventory, which you restock through Spare Requests. Only the service charge above is claimable.</div>
       </div>
@@ -4677,6 +4742,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
         <div class="form-row"><label>Payment reference (optional)</label><input type="text" id="billing-payment-ref"></div>
       </div>`;
+    const showRate = (amount) => {
+      const el = document.getElementById('billing-rate-amount'); if (!el) return;
+      const needsBucket = bucketsFor(pick.category).length && !pick.bucket;
+      el.textContent = !pick.category && !knownCat ? 'Choose the product category to see the rate.'
+        : needsBucket ? 'Choose the size / model to see the rate.'
+        : amount ? `₹${amount}` : '₹0 — no rate is set for this category / size / type yet. Set it under Service Charge Rates (Head Office default or your own).';
+    };
+    showRate(centerServiceCharge);
+    const refreshRate = async () => {
+      const amt = await resolveServiceChargeRateForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket });
+      billingContext.centerServiceCharge = amt; showRate(amt);
+    };
+    const catSel = document.getElementById('billing-rate-cat');
+    if (catSel) catSel.addEventListener('change', async () => {
+      pick.category = catSel.value || null; const bs = bucketsFor(pick.category);
+      pick.bucket = inferSizeBucket(ticket, bs);
+      document.getElementById('billing-rate-bucket').innerHTML = '<option value="">Select…</option>' + bs.map(b => `<option value="${escapeHtml(b)}"${b === pick.bucket ? ' selected' : ''}>${escapeHtml(b)}</option>`).join('');
+      document.getElementById('billing-rate-bucket-row').style.display = bs.length ? '' : 'none';
+      await refreshRate();
+    });
+    const bucketSel = document.getElementById('billing-rate-bucket');
+    if (bucketSel) bucketSel.addEventListener('change', async () => { pick.bucket = bucketSel.value || null; await refreshRate(); });
     document.getElementById('billing-warranty-override').addEventListener('change', (e) => {
       const isOut = e.target.value === 'out';
       document.getElementById('billing-customer-fields').style.display = isOut ? 'block' : 'none';
@@ -4693,6 +4780,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     billingSuccess.classList.remove('show');
     const { ticket, centerServiceCharge } = billingContext;
     const treatAsInWarranty = document.getElementById('billing-warranty-override').value === 'in';
+    if (treatAsInWarranty && billingContext.missingPick && billingContext.missingPick()) {
+      billingError.textContent = 'Choose the product category and size / model so the right service charge from the rate card is used.';
+      billingError.classList.add('show');
+      return;
+    }
     billingSubmitBtn.disabled = true;
     billingSubmitBtn.textContent = 'Saving…';
     try {
@@ -4708,7 +4800,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       }
       const ticketRef = doc(db, 'centerRequests', ticket.id);
       const beforeRejectedAt = ticket.billingRejected && ticket.billingRejected.at ? ticket.billingRejected.at.seconds : 0;
-      await updateDoc(ticketRef, { billingRequest: req, updatedAt: serverTimestamp() });
+      const upd = { billingRequest: req, updatedAt: serverTimestamp() };
+      const pk = billingContext.pick || {};
+      if (treatAsInWarranty && pk.category && pk.category !== ticket.category) upd.category = pk.category;
+      if (treatAsInWarranty && pk.bucket && pk.bucket !== ticket.sizeBucket) upd.sizeBucket = pk.bucket;
+      await updateDoc(ticketRef, upd);
       let outcome = null;
       for (let i = 0; i < 15 && !outcome; i++) {
         await new Promise(r => setTimeout(r, i < 4 ? 700 : 1500));

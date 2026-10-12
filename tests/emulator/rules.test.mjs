@@ -249,3 +249,12 @@ runCases('Rules: store & service-center locator (public map)', [
   ['sa', 'create', 'publicLocations/x2', { type: 'warehouse', name: 'X' }, D, 'only store / servicecenter'],
   ['sa', 'create', 'publicLocations/x3', { type: 'store', name: '' }, D, 'a name is required']
 ]);
+
+runCases('Rules: rate requests decided line by line; installation checklist', [
+  ['sa', 'update', 'changeRequests/ch3', { status: 'approved', reviewedByUid: 'sa', reviewedAt: ST, payload: { rates: [{ category: 'Geyser', rateType: 'repair', bucket: null, amount: 380 }] }, decisions: [{ decision: 'approved' }, { decision: 'rejected' }] }, A, 'Super Admin keeps only the approved lines'],
+  ['sa', 'update', 'changeRequests/ch1', { status: 'approved', reviewedByUid: 'sa', reviewedAt: ST, payload: { price: 1 } }, D, 'a spare price request cannot be edited while deciding'],
+  ['sc1', 'update', 'changeRequests/ch3', { status: 'approved', reviewedByUid: 'sc1', reviewedAt: ST, payload: { rates: [] } }, D, 'the center cannot decide its own request'],
+  ['sa', 'set', 'serviceChargeRates/center_sc1_geyser_repair_flat', { scope: 'center', serviceCenterUid: 'sc1', amount: 380 }, A, 'Super Admin applies an approved rate at once'],
+  ['sc1', 'set', 'serviceChargeRates/center_sc1_geyser_repair_flat', { scope: 'center', serviceCenterUid: 'sc1', amount: 999 }, D, 'a center still cannot set its own rate'],
+  ['t1', 'update', 'centerRequests/cr1', { installationChecklist: ['Tested and working'] }, A, 'the assigned technician records the installation checklist']
+]);

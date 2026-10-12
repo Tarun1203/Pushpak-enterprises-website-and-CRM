@@ -49,4 +49,27 @@ function pickLeastLoaded(candidates, openCounts) {
     ((openCounts[a.uid] || 0) - (openCounts[b.uid] || 0)) || (a.uid < b.uid ? -1 : 1))[0];
 }
 
-module.exports = { findCandidates, pickLeastLoaded, isContractExpired, BLOCKED_PROFILE_STATUSES };
+// Areas with no service center: a technician Head Office has given that
+// pincode / district directly (users.pincodesCovered / districtsCovered on a
+// technician account) can take the ticket themselves.
+// Reasons from findCandidates that mean "no center can take it here".
+const NO_CENTER_REASONS = ['no_center_covers_district', 'no_center_covers_pincode', 'pincode_not_in_master', 'brand_not_authorized', 'no_match'];
+function findDirectTechnicians(ticket, techs, pin, today) {
+  const pincode = String(ticket.pincode || '').trim();
+  if (!pincode) return { method: null, candidates: [] };
+  const brandId = lc(ticket.brand);
+  const usable = techs.filter((t) => !isContractExpired(t, today) && !t.accessDisabled && !t.disabledByAdmin
+    && !['suspended', 'terminated', 'inactive'].includes(lc(t.status))
+    && ((t.pincodesCovered || []).length || (t.districtsCovered || []).length));
+  const brandOk = (t) => !brandId || !(t.brandsAuthorized || []).length || (t.brandsAuthorized || []).map(lc).includes(brandId);
+  const byPin = usable.filter((t) => (t.pincodesCovered || []).includes(pincode) && brandOk(t));
+  if (byPin.length) return { method: 'technician_pincode', candidates: byPin };
+  const district = lc(pin && pin.district);
+  if (district && pin.active !== false) {
+    const byDistrict = usable.filter((t) => (t.districtsCovered || []).map(lc).includes(district) && brandOk(t));
+    if (byDistrict.length) return { method: 'technician_district', candidates: byDistrict };
+  }
+  return { method: null, candidates: [] };
+}
+
+module.exports = { findCandidates, pickLeastLoaded, isContractExpired, BLOCKED_PROFILE_STATUSES, findDirectTechnicians, NO_CENTER_REASONS };

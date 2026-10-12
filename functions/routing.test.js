@@ -53,3 +53,34 @@ test('least-loaded wins, uid breaks ties', () => {
   assert.strictEqual(pickLeastLoaded(list, { a: 3, b: 1, d: 1 }).uid, 'b');
   assert.strictEqual(pickLeastLoaded(list, {}).uid, 'a');
 });
+
+// ---- Areas with no service center: a technician who covers the area directly
+const { findDirectTechnicians, NO_CENTER_REASONS } = require('./routing');
+test('direct technician: pincode match wins, then district; brand and switched-off accounts respected', () => {
+  const techs = [
+    { uid: 't1', pincodesCovered: ['584128'], brandsAuthorized: [] },
+    { uid: 't2', districtsCovered: ['Raichur'], brandsAuthorized: ['makwell'] },
+    { uid: 't3', districtsCovered: ['Raichur'], brandsAuthorized: ['flyvision'] },
+    { uid: 't4', pincodesCovered: ['584128'], accessDisabled: true },
+    { uid: 't5', pincodesCovered: ['584128'], accountType: 'temporary', contractEndDate: '2020-01-01' },
+    { uid: 't6' } // no direct coverage: works only through a center
+  ];
+  const pin = { district: 'Raichur' };
+  let r = findDirectTechnicians({ pincode: '584128', brand: 'MakWell' }, techs, pin, '2026-10-12');
+  assert.strictEqual(r.method, 'technician_pincode');
+  assert.deepStrictEqual(r.candidates.map((t) => t.uid), ['t1']);
+  r = findDirectTechnicians({ pincode: '584101', brand: 'MakWell' }, techs, pin, '2026-10-12');
+  assert.strictEqual(r.method, 'technician_district');
+  assert.deepStrictEqual(r.candidates.map((t) => t.uid), ['t2']);
+  r = findDirectTechnicians({ pincode: '584101', brand: 'Skevia' }, techs, pin, '2026-10-12');
+  assert.strictEqual(r.method, null);
+  r = findDirectTechnicians({ pincode: '' }, techs, pin, '2026-10-12');
+  assert.strictEqual(r.method, null);
+  r = findDirectTechnicians({ pincode: '999999' }, techs, null, '2026-10-12');
+  assert.strictEqual(r.method, null);
+});
+test('direct technician is only a fallback when no center can take the ticket', () => {
+  assert.ok(NO_CENTER_REASONS.includes('no_center_covers_district'));
+  assert.ok(NO_CENTER_REASONS.includes('no_center_covers_pincode'));
+  assert.ok(!NO_CENTER_REASONS.includes('multiple_district_candidates'));
+});

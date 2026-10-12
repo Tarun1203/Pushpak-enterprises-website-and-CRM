@@ -1460,8 +1460,46 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return `PE-RT-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
   }
 
+
+  // Closure form adapts to the ticket type: an installation is closed with
+  // installation outcomes and a short checklist, not repair codes.
+  const CLOSURE_OPTIONS = {
+    repair: [['repaired', 'Repaired'], ['replaced', 'Part(s) Replaced'], ['no_fault_found', 'No Fault Found'], ['unable_to_repair', 'Unable to Repair — Escalated'], ['customer_cancelled', 'Customer Cancelled']],
+    installation: [['installed', 'Installed & working'], ['installed_demo', 'Installed + demo given to customer'], ['unable_to_install', 'Unable to install — escalated'], ['customer_cancelled', 'Customer Cancelled']]
+  };
+  const INSTALL_CHECKS = ['Mounted / placed securely', 'Water / power connection checked', 'Tested and working', 'Demo given to customer', 'Old unit / packing cleared'];
+  function setClosureMode(prefix, type) {
+    const inst = type === 'installation';
+    const form = document.getElementById(prefix + 'closure-form');
+    const sel = document.getElementById(prefix + 'closure-code');
+    sel.innerHTML = '<option value="">Select…</option>' + CLOSURE_OPTIONS[inst ? 'installation' : 'repair'].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    const h = form.closest('.modal').querySelector('h3');
+    if (!h.dataset.base) h.dataset.base = h.textContent;
+    h.textContent = inst ? 'Complete installation' : h.dataset.base;
+    const notes = document.getElementById(prefix + 'closure-notes'), parts = document.getElementById(prefix + 'closure-parts-notes');
+    const nl = notes.closest('.form-row').querySelector('label'), pl = parts.closest('.form-row').querySelector('label');
+    if (!nl.dataset.base) { nl.dataset.base = nl.textContent; notes.dataset.base = notes.placeholder; pl.dataset.base = pl.textContent; parts.dataset.base = parts.placeholder; }
+    nl.textContent = inst ? 'Installation details' : nl.dataset.base;
+    notes.placeholder = inst ? 'Where and how it was installed (e.g. bathroom wall, inlet/outlet connected, MCB point checked)' : notes.dataset.base;
+    pl.textContent = inst ? 'Materials used' : pl.dataset.base;
+    parts.placeholder = inst ? "Pipes, valves, brackets, wire used — or type 'None'" : parts.dataset.base;
+    let box = form.querySelector('.install-checklist');
+    if (!box) {
+      box = document.createElement('div'); box.className = 'form-row install-checklist';
+      box.innerHTML = '<label>Installation checklist</label>' + INSTALL_CHECKS.map((c, i) => `<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0;"><input type="checkbox" value="${c}" id="${prefix}inst-check-${i}"> ${c}</label>`).join('');
+      notes.closest('.form-row').insertAdjacentElement('afterend', box);
+    }
+    box.style.display = inst ? '' : 'none';
+    box.querySelectorAll('input').forEach((x) => { x.checked = false; });
+  }
+  function installChecklist(prefix) {
+    const box = document.getElementById(prefix + 'closure-form').querySelector('.install-checklist');
+    return box && box.style.display !== 'none' ? Array.from(box.querySelectorAll('input:checked')).map((x) => x.value) : null;
+  }
+
   async function openClosureModal(jobDoc) {
     closureForm.reset();
+    setClosureMode('', jobDoc.type);
     closureError.classList.remove('show');
     closureSuccess.classList.remove('show');
     closureSubmitBtn.disabled = false;
@@ -1503,7 +1541,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const notes = document.getElementById('closure-notes').value.trim();
     const partsNotes = document.getElementById('closure-parts-notes').value.trim();
     if (!closureCode || !notes || !partsNotes) {
-      closureError.textContent = 'Closure code, action taken, and parts used are all required — type "None" if no parts were used.';
+      closureError.textContent = 'Closure code, what was done, and parts / materials used are all required — type "None" if nothing was used.';
       closureError.classList.add('show');
       return;
     }
@@ -1537,11 +1575,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
           job: { coll: closureJobColl, id: jobId }
         });
       }
+      const checks = installChecklist('');
       await updateDoc(doc(db, closureJobColl, jobId), {
         status: 'completed',
         closureCode,
         actionTaken: notes,
         partsUsedNotes: partsNotes,
+        ...(checks ? { installationChecklist: checks } : {}),
         closedByUid: currentUser.uid,
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()

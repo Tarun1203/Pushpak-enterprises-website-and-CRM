@@ -251,7 +251,7 @@
         </div>
       </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center)</span></label>
         <div class="chip-list" id="new-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
           <select id="new-user-district-input" multiple size="6" style="flex:1;"></select>
@@ -354,7 +354,7 @@
         </div>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center)</span></label>
         <div class="chip-list" id="edit-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
           <select id="edit-user-district-input" multiple size="6" style="flex:1;"></select>
@@ -1074,6 +1074,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, limit, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { mountLocationsAdmin } from './locations-admin.js';
+  import { mountRateRequest } from './rate-approvals.js';
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
   import * as PStock from './productStock.js';
@@ -1666,7 +1667,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
-    document.getElementById('open-add-user').addEventListener('click', openAddUserModal);
+    document.getElementById('open-add-user').addEventListener('click', () => openAddUserModal());
     loadUsersTable();
   }
 
@@ -1979,7 +1980,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const addUserSuccess = document.getElementById('add-user-success');
   const submitBtn = document.getElementById('submit-add-user');
 
-  function openAddUserModal() {
+  function openAddUserModal(presetRole) {
     addUserForm.reset();
     addUserError.classList.remove('show');
     addUserSuccess.classList.remove('show');
@@ -2004,6 +2005,12 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     newUserCategoriesChip.set([]);
     setCheckedBrands('new-user-brand-cb', []);
     loadKnownLocations();
+    // Opened from a role's own screen (e.g. Service Centers): start with that role chosen.
+    if (typeof presetRole === 'string') {
+      const roleSel = document.getElementById('new-user-role');
+      roleSel.value = presetRole;
+      roleSel.dispatchEvent(new Event('change'));
+    }
     overlay.classList.add('show');
   }
   function closeAddUserModal() {
@@ -2015,8 +2022,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   document.getElementById('new-user-role').addEventListener('change', (e) => {
-    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
-    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
+    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
+    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
     document.getElementById('new-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -2061,8 +2068,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       // Write the role doc using the PRIMARY app's Firestore instance,
       // authenticated as the admin — so it passes the isAdmin() rule.
-      const districtsCovered = ['servicecenter', 'distributor', 'dealer'].includes(role) ? newUserDistrictsChip.get() : [];
-      const pincodesCovered = ['servicecenter', 'distributor', 'dealer'].includes(role) ? newUserPincodesChip.get() : [];
+      const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(role) ? newUserDistrictsChip.get() : [];
+      const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(role) ? newUserPincodesChip.get() : [];
       const brandsAuthorized = ['technician', 'servicecenter'].includes(role) ? getCheckedBrands('new-user-brand-cb') : [];
       const skills = role === 'technician' ? newUserSkills.get() : [];
       const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
@@ -2096,7 +2103,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       submitBtn.textContent = 'Create account';
       submitBtn.disabled = false;
       await runDistributorAutoLink();
-      loadUsersTable();
+      if (document.getElementById('users-tbody')) loadUsersTable();
+      if (document.getElementById('centers-tbody')) renderCentersOverview();
       initDashboardStats();
       setTimeout(closeAddUserModal, 1200);
     } catch (err) {
@@ -2151,8 +2159,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-account-type').value = data.accountType || 'permanent';
     document.getElementById('edit-user-contract-end').value = data.contractEndDate || '';
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', (data.accountType || 'permanent') !== 'temporary');
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(data.role));
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(data.role));
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(data.role));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(data.role));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
@@ -2182,8 +2190,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   editRoleSelect.addEventListener('change', (e) => {
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer'].includes(e.target.value));
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -2207,8 +2215,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     editSubmitBtn.disabled = true;
     editSubmitBtn.textContent = 'Saving…';
-    const districtsCovered = ['servicecenter', 'distributor', 'dealer'].includes(editRoleSelect.value) ? editUserDistrictsChip.get() : [];
-    const pincodesCovered = ['servicecenter', 'distributor', 'dealer'].includes(editRoleSelect.value) ? editUserPincodesChip.get() : [];
+    const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(editRoleSelect.value) ? editUserDistrictsChip.get() : [];
+    const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(editRoleSelect.value) ? editUserPincodesChip.get() : [];
     const brandsAuthorized = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? getCheckedBrands('edit-user-brand-cb') : [];
     const skills = editRoleSelect.value === 'technician' ? editUserSkills.get() : [];
     const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
@@ -4101,7 +4109,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   async function renderCentersOverview() {
     contentEl.innerHTML = `
       <div class="panel">
-        <div class="panel-header"><h2>All service centers</h2></div>
+        <div class="panel-header"><h2>All service centers</h2><button class="btn-primary" id="open-add-center">+ Add service center</button></div>
         <div class="panel-body" style="padding:0;">
           <table>
             <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Brands</th><th>Categories</th><th>Coverage</th><th>Requests</th><th>Technicians</th><th>Actions</th></tr></thead>
@@ -4109,6 +4117,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           </table>
         </div>
       </div>`;
+    document.getElementById('open-add-center').addEventListener('click', () => openAddUserModal('servicecenter'));
     const tbody = document.getElementById('centers-tbody');
     try {
       const usersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'servicecenter')));
@@ -6235,7 +6244,38 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     svcTicketActions.innerHTML = `
       <div style="margin-bottom:8px;"><b>${isReassign ? `Reassign — currently at ${escapeHtml(d.serviceCenterName) || 'a center'}` : 'Route to service center'}</b></div>
       <select id="svc-popup-center-select" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Select service center…</option>${options}</select>
-      <button class="btn-primary" id="svc-popup-route-btn">${isReassign ? 'Reassign' : 'Assign'}</button>`;
+      <button class="btn-primary" id="svc-popup-route-btn">${isReassign ? 'Reassign' : 'Assign'}</button>
+      ${isReassign ? '' : `<div style="margin:16px 0 8px;"><b>Or assign directly to a technician</b> <span style="font-size:12px;color:var(--stone);">— for areas with no service center</span></div>
+      <select id="svc-popup-tech-select" aria-label="Technician" style="border:1px solid var(--hairline);padding:8px 10px;border-radius:2px;font-size:13px;width:100%;margin-bottom:10px;"><option value="">Loading technicians…</option></select>
+      <button class="btn-secondary" id="svc-popup-tech-btn">Assign to technician</button>`}`;
+    if (!isReassign) {
+      getTechniciansCache().then((techs) => {
+        const pin = (d.pincode || '').trim();
+        const covers = (t) => (pin && (t.pincodesCovered || []).includes(pin)) ? 2 : (district && (t.districtsCovered || []).some(x => x.toLowerCase() === district)) ? 1 : 0;
+        const list = techs.filter(t => !t.suspended && !t.accessDisabled && !t.disabledByAdmin).sort((a, b) => covers(b) - covers(a) || String(a.name || a.email).localeCompare(String(b.name || b.email)));
+        const sel = document.getElementById('svc-popup-tech-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Select a technician…</option>' + list.map(t => {
+          const c = covers(t);
+          return `<option value="${escapeHtml(t.uid)}">${escapeHtml(t.name || t.email)}${c === 2 ? ' — ✓ covers this pincode' : c === 1 ? ' — ✓ covers this district' : ''}</option>`;
+        }).join('');
+      }).catch(() => {});
+      document.getElementById('svc-popup-tech-btn').addEventListener('click', async () => {
+        const sel = document.getElementById('svc-popup-tech-select');
+        if (!sel.value) { alert('Select a technician first.'); return; }
+        const tech = (await getTechniciansCache()).find(t => t.uid === sel.value);
+        const btn = document.getElementById('svc-popup-tech-btn'); btn.disabled = true;
+        try {
+          await routeRequestToTechnician({ ...d, id: docId }, tech);
+          svcTicketOverlay.classList.remove('show');
+          loadServiceOverview();
+        } catch (err) {
+          console.error('Assign to technician failed:', err);
+          alert('Could not assign this request. Check the console for details.');
+          btn.disabled = false;
+        }
+      });
+    }
     document.getElementById('svc-popup-route-btn').addEventListener('click', async () => {
       const select = document.getElementById('svc-popup-center-select');
       if (!select.value) { alert('Select a service center first.'); return; }
@@ -7754,6 +7794,13 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         </div>
       </div>
       <div class="panel" style="margin-bottom:24px;">
+        <div class="panel-header"><h2>Recently decided</h2></div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>Decided</th><th>Type</th><th>Request</th><th>Decision</th><th>Applied?</th></tr></thead>
+          <tbody id="appr-decided-tbody"><tr><td colspan="5" class="empty-row">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>Waiting elsewhere</h2></div>
         <div class="panel-body" id="appr-elsewhere">Loading…</div>
       </div>
@@ -7856,6 +7903,14 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         rows.forEach(d => {
           const dateStr = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '—';
           const kind = d.kind || (d.targetCollection === 'spareParts' ? 'spare_price' : '');
+          if (kind === 'center_rate') {
+            // One row per requested rate, each approved / rejected / edited on its own.
+            mountRateRequest(tbody4, d, {
+              db, escapeHtml, me: auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null,
+              fs: { doc, getDoc, setDoc, deleteDoc, updateDoc, serverTimestamp }, onDone: renderApprovalsOverview
+            });
+            return;
+          }
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td style="font-size:12px;color:var(--stone);white-space:nowrap;">${dateStr}</td>
@@ -7874,6 +7929,19 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           if (rjBtn) rjBtn.addEventListener('click', () => rejectChangeRequest(d));
         });
       }
+      try {
+        const decSnap = await getDocs(query(collection(db, 'changeRequests'), where('status', 'in', ['approved', 'rejected']), limit(60)));
+        const dec = []; decSnap.forEach(x => dec.push({ id: x.id, ...x.data() }));
+        dec.sort((a, b) => (b.reviewedAt?.seconds || 0) - (a.reviewedAt?.seconds || 0));
+        const tb = document.getElementById('appr-decided-tbody');
+        tb.innerHTML = dec.length ? dec.slice(0, 15).map(x => {
+          const k = x.kind || (x.targetCollection === 'spareParts' ? 'spare_price' : '');
+          const when = x.reviewedAt && x.reviewedAt.toDate ? x.reviewedAt.toDate().toLocaleString() : '—';
+          const lines = Array.isArray(x.decisions) ? x.decisions.map(l => `${l.category}${l.bucket ? ' ' + l.bucket : ''} ${l.rateType}: ${l.decision === 'approved' ? (l.amount === null ? 'removed' : '₹' + l.amount) : 'rejected'}`).join('; ') : (x.summary || '—');
+          const applied = x.status !== 'approved' ? '—' : x.applyError ? `<span style="color:var(--err);">Not applied: ${escapeHtml(x.applyError)}</span>` : (x.appliedAt || (k === 'center_rate' && Array.isArray(x.decisions))) ? 'Yes' : '<span style="color:var(--stone);">Waiting for the server</span>';
+          return `<tr><td style="font-size:12px;color:var(--stone);white-space:nowrap;">${escapeHtml(when)}</td><td style="font-size:12.5px;">${escapeHtml(KIND_LABEL[k] || k || '—')}</td><td style="font-size:12.5px;">${escapeHtml(lines)}</td><td><span class="status-pill ${x.status === 'approved' ? 'completed' : 'cancelled'}">${x.status === 'approved' ? 'Approved' : 'Rejected'}</span></td><td style="font-size:12.5px;">${applied}</td></tr>`;
+        }).join('') : '<tr><td colspan="5" class="empty-row">Nothing decided yet.</td></tr>';
+      } catch (e) { console.warn('Load decided requests failed:', e.message); }
       // Everything else that is waiting on someone, with where it's done.
       const [subClaims, verClaims, ordersD, ordersX, adds, rmas] = await Promise.all([
         getDocs(query(collection(db, 'claims'), where('status', '==', 'submitted'))),
@@ -8362,6 +8430,37 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // Assign button (fallback: no exact match, or an admin overriding
   // the city-level suggestion). Creates the real centerRequests doc
   // and marks the source request as routed.
+  // Areas with no service center: the website request becomes a technician
+  // job directly (serviceJobs), keeping the customer's ticket number.
+  async function routeRequestToTechnician(d, tech) {
+    const techName = tech.name || tech.email || '';
+    const productLabel = d.product || `${d.brand || ''} ${d.category || ''}`.trim() || '—';
+    const jobDocId = `route_${d.id}`;
+    await setDoc(doc(db, 'serviceJobs', jobDocId), {
+      jobId: d.requestId || d.id, requestId: d.requestId || d.id,
+      technicianUid: tech.uid, technicianEmail: tech.email || '', technicianName: techName,
+      customerName: d.customerName || '', customerPhone: d.customerPhone || '',
+      address: d.address || '', city: d.city || '', pincode: d.pincode || '',
+      product: productLabel, brand: d.brand || '', category: d.category || '',
+      modelNo: d.modelNo || '', serialNumber: d.serialNumber || d.serialNo || '', purchaseDate: d.purchaseDate || null,
+      linkedRegistrationId: d.linkedRegistrationId || null,
+      type: d.requestType === 'installation' ? 'installation' : 'service',
+      issue: d.issueDescription || '', status: 'assigned', sourceRequestId: d.id, directTechnician: true,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    });
+    await logTicketStatus('serviceJobs', jobDocId, 'assigned', `Assigned directly to ${techName}`);
+    await updateDoc(doc(db, 'publicServiceRequests', d.id), {
+      technicianUid: tech.uid, technicianName: techName, status: 'assigned', updatedAt: serverTimestamp()
+    });
+    await logTicketStatus('publicServiceRequests', d.id, 'assigned', `Assigned directly to technician ${techName}`);
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        recipientType: 'uid', recipientValue: tech.uid, title: 'New job assigned to you',
+        message: `${d.customerName || 'A customer'} — ${productLabel}`, read: false, createdAt: serverTimestamp()
+      });
+    } catch (notifErr) { console.warn('Notification write failed (non-blocking):', notifErr.message); }
+  }
+
   async function routeRequestToCenter(d, centerUid, centerName, productLabel) {
     const requestId = d.requestId || d.id;
     const newCenterReqRef = await addDoc(collection(db, 'centerRequests'), {
