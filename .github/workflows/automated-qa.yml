@@ -309,16 +309,19 @@ jobs:
           if git diff --cached --quiet; then
             echo "Bug snapshot unchanged"
           else
-            git commit -m "[skip ci] Update automated QA bug snapshot"
-            # This generated snapshot is derived data. If main advances while QA
-            # runs, prefer the latest QA's snapshot instead of rebasing a stale
-            # whole-file JSON update and repeatedly conflicting.
+            # Publish ONLY crm/bug-data.json on top of the latest main. Never commit
+            # this run's checkout: when QA re-runs an older commit, that tree is
+            # stale and committing it would silently revert newer work.
+            cp crm/bug-data.json "$RUNNER_TEMP/bug-data.json"
             pushed=false
             for attempt in 1 2 3 4 5; do
               git fetch origin main
-              git reset --soft origin/main
+              git reset --hard origin/main
+              cp "$RUNNER_TEMP/bug-data.json" crm/bug-data.json
               git add -f crm/bug-data.json
-              git commit -m "[skip ci] Update automated QA bug snapshot" --allow-empty
+              if git diff --cached --quiet; then pushed=true; echo "Bug snapshot already current"; break; fi
+              git commit -m "[skip ci] Update automated QA bug snapshot"
+              if [ "$(git diff --name-only HEAD~1 HEAD)" != "crm/bug-data.json" ]; then echo "::error::refusing to push a commit that touches more than the bug snapshot"; exit 1; fi
               if git push origin HEAD:main; then
                 pushed=true
                 break
