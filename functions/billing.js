@@ -55,6 +55,22 @@ function rateLookupKeys(ticket, centerUid) {
 }
 
 // amounts: { [docId]: amount } for whichever rate docs exist.
+// Who pays for this kind of job, as Head Office set it on the default rate
+// card row: 'warranty' (company in warranty, customer after — the default),
+// 'company' (always free to the customer, e.g. free installation / demo) or
+// 'customer' (always paid by the customer). Center overrides never carry it.
+const PAYERS = ['warranty', 'company', 'customer'];
+function pickPayer(keys, payers) {
+  for (const k of keys) if (Object.prototype.hasOwnProperty.call(payers, k) && PAYERS.includes(payers[k])) return payers[k];
+  return 'warranty';
+}
+// 'company' | 'customer' | null (not known yet)
+function whoPays(payer, inWarranty) {
+  if (payer === 'company') return 'company';
+  if (payer === 'customer') return 'customer';
+  return inWarranty === true ? 'company' : inWarranty === false ? 'customer' : null;
+}
+
 function pickRate(keys, amounts) {
   for (const k of keys) if (Object.prototype.hasOwnProperty.call(amounts, k)) return Number(amounts[k]) || 0;
   return 0;
@@ -133,21 +149,24 @@ function lockCheck(claim, items, kind) {
 // instead of trusted from the browser. verdict: true / false / null (the
 // server's own warranty check); rate: the center's rate-card amount.
 // req: { treatAs: 'in'|'out', sparePartsCost, otherCharges, serviceCharge, paymentMethod, paymentRef }
-function billingDecision(ticket, verdict, req, rate) {
+function billingDecision(ticket, verdict, req, rate, payer = 'warranty') {
   if (!['completed', 'verification', 'closed'].includes(ticket.status)) return { error: 'Bill a ticket only after it is completed.' };
   if (ticket.billingStatus) return { error: `Already billed (${ticket.billingStatus}).` };
   const money = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1000000 ? round2(n) : null; };
   if (req.treatAs === 'in') {
-    if (verdict === false) return { error: 'The warranty check says this product is out of warranty — bill the customer instead.' };
+    if (payer === 'customer') return { error: 'The rate card says the customer pays for this job — bill the customer instead.' };
+    if (verdict === false && payer !== 'company') return { error: 'The warranty check says this product is out of warranty — bill the customer instead.' };
     const techCredited = !!(ticket.serviceCharge && ticket.billingComputedAt);
     const claimable = techCredited ? 0 : (Number(rate) || 0);
     if (!techCredited && !(claimable > 0)) return { error: 'No service charge rate is set for this category/type — set it under Service Charge Rates first.' };
     return { update: {
-      warrantyStatus: 'in_warranty', billingType: 'claim', billingStatus: 'ready_to_claim', billingTotal: claimable,
+      warrantyStatus: verdict === false ? 'out_of_warranty' : 'in_warranty', billingType: 'claim', billingStatus: 'ready_to_claim', billingTotal: claimable,
+      billingPayer: payer === 'company' ? 'company' : 'warranty',
       serviceCharge: techCredited ? ticket.serviceCharge : claimable, sparePartsCost: 0, otherCharges: 0
     } };
   }
   if (req.treatAs === 'out') {
+    if (payer === 'company') return { error: 'The rate card says the company pays for this job (free to the customer) — claim it from Head Office instead.' };
     const spare = money(req.sparePartsCost), other = money(req.otherCharges), svc = money(req.serviceCharge);
     if (spare === null || other === null || svc === null) return { error: 'Amounts must be between 0 and 10,00,000.' };
     return { update: {
@@ -162,5 +181,5 @@ function billingDecision(ticket, verdict, req, rate) {
 
 module.exports = {
   CLAIM_TYPES, lockCheck, billingDecision,
-  computeClosureWarranty, rateCardKey, rateLookupKeys, pickRate, verifyWalletClaim, verifyTicketClaim
+  computeClosureWarranty, rateCardKey, rateLookupKeys, pickRate, pickPayer, whoPays, PAYERS, verifyWalletClaim, verifyTicketClaim
 };

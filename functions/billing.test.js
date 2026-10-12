@@ -76,3 +76,29 @@ test('center billing decision is checked on the server', () => {
   assert.match(B.billingDecision({ status: 'in_progress' }, true, { treatAs: 'in' }, 10).error, /completed/);
   assert.match(B.billingDecision(done, true, { treatAs: 'out', sparePartsCost: -1, otherCharges: 0, serviceCharge: 0 }, 0).error, /Amounts/);
 });
+
+// ---- Who pays (set per rate card row by Head Office) ----
+const B2 = require('./billing');
+test('who pays: rate-card row decides; default is the warranty', () => {
+  const keys = ['center_sc_geyser_installation_25l', 'default_geyser_installation_25l', 'center_sc_geyser_installation_flat', 'default_geyser_installation_flat'];
+  assert.strictEqual(B2.pickPayer(keys, {}), 'warranty');
+  assert.strictEqual(B2.pickPayer(keys, { default_geyser_installation_flat: 'company' }), 'company');
+  assert.strictEqual(B2.pickPayer(keys, { default_geyser_installation_25l: 'customer', default_geyser_installation_flat: 'company' }), 'customer');
+  assert.strictEqual(B2.pickPayer(keys, { default_geyser_installation_25l: 'nonsense' }), 'warranty');
+  assert.strictEqual(B2.whoPays('company', false), 'company');
+  assert.strictEqual(B2.whoPays('customer', true), 'customer');
+  assert.strictEqual(B2.whoPays('warranty', true), 'company');
+  assert.strictEqual(B2.whoPays('warranty', false), 'customer');
+  assert.strictEqual(B2.whoPays('warranty', null), null);
+});
+test('billing follows who pays: company-paid is claimed even out of warranty; customer-paid cannot be claimed', () => {
+  const t = { status: 'completed' };
+  let d = B2.billingDecision(t, false, { treatAs: 'in' }, 300, 'company');
+  assert.ok(!d.error); assert.strictEqual(d.update.billingType, 'claim'); assert.strictEqual(d.update.billingTotal, 300);
+  assert.strictEqual(d.update.warrantyStatus, 'out_of_warranty'); assert.strictEqual(d.update.billingPayer, 'company');
+  assert.match(B2.billingDecision(t, false, { treatAs: 'in' }, 300, 'warranty').error, /out of warranty/);
+  assert.match(B2.billingDecision(t, true, { treatAs: 'in' }, 300, 'customer').error, /customer pays/);
+  assert.match(B2.billingDecision(t, true, { treatAs: 'out', sparePartsCost: 0, otherCharges: 0, serviceCharge: 0 }, 300, 'company').error, /company pays/);
+  d = B2.billingDecision(t, true, { treatAs: 'out', sparePartsCost: 0, otherCharges: 0, serviceCharge: 250, paymentMethod: 'upi' }, 300, 'customer');
+  assert.strictEqual(d.update.billingType, 'customer'); assert.strictEqual(d.update.billingTotal, 250);
+});

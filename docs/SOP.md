@@ -36,6 +36,9 @@ Short, role by role. Screens are named as they appear in the CRM.
 ## Customer help (phone/WhatsApp)
 Ask for the card number or phone number; look up the registration in Customer 360; read out status and appointment; send the voucher text with the WhatsApp button.
 
+## Who pays (rate card)
+Warehouse → **Service Charge Rates**: under each rate there is **Who pays**. *As per warranty* (default) = Head Office pays in warranty, the customer after. *Company pays* = always free to the customer (e.g. Skevia demo / installation, or free installation on certain MakWell models — use the Size / Model rows set under Categories). *Customer pays* = the customer always pays. Service center billing and the technician's automatic credit follow this setting.
+
 ## Store & service-center finder (website map)
 Super Admin → Service Operations → **Store & Service Locations**. **Import service centers** copies name, phone, address and map position from each service center's full profile (new ones are shown only if the profile status is Active). **+ Add location** for stores. For the map pin, open the place in Google Maps on a computer and paste the full link from the address bar (or right-click the spot and copy the coordinates); short maps.app.goo.gl links carry no position. **Hide** takes a place off the website without deleting it. Public business details only — never a staff member's personal number.
 

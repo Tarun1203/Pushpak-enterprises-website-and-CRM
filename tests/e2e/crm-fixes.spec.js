@@ -172,3 +172,79 @@ test('6 + 7. Rejecting every line closes the request as rejected and writes no r
   const upd = w.find(([op, p]) => op === 'update' && p === 'changeRequests/cr2')[2];
   expect(upd).toMatchObject({ status: 'rejected', reviewNote: 'Too high for this area', payload: { rates: [] } });
 });
+
+test('who pays: Warehouse sets it per rate card row (e.g. free installation for some models) and it is saved', async ({ page }) => {
+  const data = sampleFor('warehouse');
+  data.productCategories = [{ id: 'c1', name: 'LED TV', sizeBuckets: ['Skevia 43"', 'MakWell 32"'] }];
+  data.serviceChargeRates = [{ id: 'default_led_tv_installation_skevia_43_', scope: 'default', amount: 400, payer: 'company' }];
+  await installFirebaseStub(page, { role: 'warehouse', uid: 'u1', data, profile: { role: 'warehouse', displayName: 'W', email: 'w@pe.test' } });
+  await page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(origin + '/crm/CRMwarehouse.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => { const a = document.getElementById('app'); return a && getComputedStyle(a).display !== 'none'; }, null, { timeout: 10000 });
+  await page.locator('.sidebar .nav-item', { hasText: /Service Charge Rates|Rate Card/ }).first().click();
+  const sel = (bucket, type) => page.locator(`.rate-card-payer[data-category="LED TV"][data-bucket='${bucket}'][data-type="${type}"]`);
+  await expect(sel('Skevia 43"', 'installation')).toHaveValue('company');
+  await expect(sel('MakWell 32"', 'installation')).toHaveValue('warranty');
+  await sel('MakWell 32"', 'installation').selectOption('customer');
+  await page.locator(`.rate-card-input[data-category="LED TV"][data-bucket='MakWell 32"'][data-type="installation"]`).fill('350');
+  await page.click('#save-rate-card');
+  await expect(page.locator('#rate-card-success')).toContainText('Saved');
+  const w = await writes(page);
+  expect(w.find(([op, p]) => op === 'set' && p === 'serviceChargeRates/default_led_tv_installation_makwell_32_')[2]).toMatchObject({ amount: 350, payer: 'customer', scope: 'default' });
+  expect(w.find(([op, p]) => op === 'set' && p === 'serviceChargeRates/default_led_tv_installation_skevia_43_')[2]).toMatchObject({ payer: 'company' });
+  expect(errors).toEqual([]);
+});
+
+function billingData(payer, purchaseDaysAgo, type) {
+  const data = sampleFor('servicecenter');
+  data.productCategories = [{ id: 'c1', name: 'LED TV', sizeBuckets: [] }];
+  data.serviceChargeRates = [{ id: `default_led_tv_${type}_flat`, scope: 'default', amount: 400, payer }];
+  data.productRegistrations = [{ id: 'r1', serialNumber: 'SKV43X1', purchaseDate: new Date(Date.now() - purchaseDaysAgo * 86400000).toISOString().slice(0, 10), warrantyMonths: 12 }];
+  data.centerRequests = [{ id: 'crP', requestId: 'PE-CR-20261012-0009-ServiceCenter', serviceCenterUid: 'u1', customerName: 'Guru', serialNumber: 'SKV43X1', product: 'Skevia 43 LED TV', category: 'LED TV', type, status: 'completed', closedAt: { __ms: Date.now() }, updatedAt: { __ms: Date.now() } }];
+  return data;
+}
+
+test('who pays in center billing: company-paid installation is claimed from Head Office even out of warranty', async ({ page }) => {
+  const errors = await openAs(page, 'servicecenter', billingData('company', 800, 'installation'));
+  await nav(page, 'Service Billing');
+  await page.locator('.billing-bill-btn').first().click();
+  await expect(page.locator('#billing-payer-note')).toContainText('company pays');
+  await expect(page.locator('#billing-billas-row')).toBeHidden();
+  await expect(page.locator('#billing-rate-amount')).toHaveText('₹400');
+  await expect(page.locator('#billing-customer-fields')).toBeHidden();
+  await page.click('#submit-billing');
+  await expect.poll(async () => (await writes(page)).some(([op, p, d]) => op === 'update' && p === 'centerRequests/crP' && d.billingRequest)).toBe(true);
+  expect((await writes(page)).find(([op, p, d]) => op === 'update' && p === 'centerRequests/crP' && d.billingRequest)[2].billingRequest.treatAs).toBe('in');
+  expect(errors).toEqual([]);
+});
+
+test('who pays in center billing: customer-paid job is billed to the customer even in warranty', async ({ page }) => {
+  await openAs(page, 'servicecenter', billingData('customer', 30, 'installation'));
+  await nav(page, 'Service Billing');
+  await page.locator('.billing-bill-btn').first().click();
+  await expect(page.locator('#billing-payer-note')).toContainText('customer pays');
+  await expect(page.locator('#billing-customer-fields')).toBeVisible();
+  await expect(page.locator('#billing-in-warranty-fields')).toBeHidden();
+});
+
+test('who pays in center billing: "as per warranty" keeps today\'s behaviour (no note)', async ({ page }) => {
+  await openAs(page, 'servicecenter', billingData('warranty', 30, 'service'));
+  await nav(page, 'Service Billing');
+  await page.locator('.billing-bill-btn').first().click();
+  await expect(page.locator('#billing-billas-row')).toBeVisible();
+  await expect(page.locator('#billing-payer-note')).toBeHidden();
+});
+
+test('center rate card shows Head Office\'s rate and who pays, also for sizes like 43" (quotes)', async ({ page }) => {
+  const data = sampleFor('servicecenter');
+  data.productCategories = [{ id: 'c1', name: 'LED TV', sizeBuckets: ['Skevia 43"'] }];
+  data.serviceChargeRates = [{ id: 'default_led_tv_installation_skevia_43_', scope: 'default', amount: 400, payer: 'company' },
+    { id: 'center_u1_led_tv_repair_skevia_43_', scope: 'center', serviceCenterUid: 'u1', amount: 275 }];
+  const errors = await openAs(page, 'servicecenter', data);
+  await page.locator('.sidebar .nav-item', { hasText: /Service Charge Rates/ }).first().click();
+  const row = page.locator('#rate-card-tbody tr', { hasText: 'Skevia 43"' });
+  await expect(row).toContainText('₹400 · company pays (free to customer)');
+  await expect(row.locator('.rate-card-input[data-type="repair"]')).toHaveValue('275');
+  expect(errors).toEqual([]);
+});

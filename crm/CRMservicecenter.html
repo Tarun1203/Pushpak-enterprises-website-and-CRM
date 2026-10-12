@@ -4286,15 +4286,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       defaultSnap.forEach(d => { byKey[d.id] = d.data(); });
       const overrideByKey = {};
       centerSnap.forEach(d => { overrideByKey[d.id] = d.data(); });
-      rows.forEach(row => {
-        RATE_CARD_TYPES.forEach(t => {
-          const def = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
-          const defCell = tbody.querySelector(`.rate-card-default[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
-          if (defCell) defCell.textContent = def && def.amount != null ? `₹${def.amount}` : 'Not set';
-          const ov = overrideByKey[rateCardKey('center', currentUser.uid, row.cat, t.key, row.bucket)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
-          if (ov && input) { input.value = ov.amount ?? ''; input.dataset.current = String(ov.amount ?? ''); }
-        });
+      // Look rows up by their own data, not a CSS selector (sizes like 43" contain quotes).
+      tbody.querySelectorAll('.rate-card-default').forEach(defCell => {
+        const { category, type } = defCell.dataset, bucket = defCell.dataset.bucket || null;
+        const def = byKey[rateCardKey('default', null, category, type, bucket)];
+        defCell.textContent = (def && def.amount != null ? `₹${def.amount}` : 'Not set') + (def && def.payer === 'company' ? ' · company pays (free to customer)' : def && def.payer === 'customer' ? ' · customer pays' : '');
+      });
+      tbody.querySelectorAll('.rate-card-input').forEach(input => {
+        const ov = overrideByKey[rateCardKey('center', currentUser.uid, input.dataset.category, input.dataset.type, input.dataset.bucket || null)];
+        if (ov) { input.value = ov.amount ?? ''; input.dataset.current = String(ov.amount ?? ''); }
       });
       // Show any rate change still waiting for Super Admin.
       try {
@@ -4672,6 +4672,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     return names.find((x) => normTxt(x) === n) || null;
   }
 
+  // Who pays for this job, as Head Office set it on the rate card row
+  // (Warehouse → Service Charge Rates): 'warranty' | 'company' | 'customer'.
+  async function resolvePayerForCenter(ticket, pick) {
+    const rateType = ticket.type === 'installation' ? 'installation' : 'repair';
+    const category = (pick && pick.category) || ticket.category || 'Other';
+    const bucket = (pick && pick.bucket !== undefined ? pick.bucket : ticket.sizeBucket) || null;
+    const keys = [rateCardKey('default', null, category, rateType, bucket)];
+    if (bucket) keys.push(rateCardKey('default', null, category, rateType, null));
+    for (const k of keys) {
+      try {
+        const snap = await getDoc(doc(db, 'serviceChargeRates', k));
+        if (snap.exists() && ['warranty', 'company', 'customer'].includes(snap.data().payer)) return snap.data().payer;
+      } catch (e) { /* use the warranty */ }
+    }
+    return 'warranty';
+  }
+
   async function openBillingModal(ticketId) {
     const ticket = billingTicketsCache.find(t => t.id === ticketId);
     if (!ticket) return;
@@ -4692,7 +4709,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const pick = { category: knownCat || null, bucket: ticket.sizeBucket || null };
     const bucketsFor = (cat) => { const e = cat && catMeta.get(cat); return (e && e.sizeBuckets) || []; };
     if (pick.category && !pick.bucket) pick.bucket = inferSizeBucket(ticket, bucketsFor(pick.category));
-    const wantsRate = !ticket.serviceCharge && info.inWarranty !== false;
+    let payer = await resolvePayerForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket });
+    const wantsRate = !ticket.serviceCharge && (info.inWarranty !== false || payer === 'company');
     const centerServiceCharge = wantsRate ? await resolveServiceChargeRateForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket }) : null;
     billingContext = { ticket, info, centerServiceCharge, pick, missingPick: () => centerServiceCharge !== null && ((!knownCat && !pick.category) || (bucketsFor(pick.category).length > 0 && !pick.bucket)) };
     // The warranty check already gave a definite answer (matched
@@ -4708,10 +4726,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       <div class="form-row"><label>Warranty</label><div><span class="status-pill ${escapeHtml(info.cls)}">${escapeHtml(info.label)}</span>${info.source ? ` <span style="font-size:11.5px;color:var(--stone);">(${escapeHtml(info.source)})</span>` : ''}</div></div>
       ${ticket.serviceCharge ? `<div class="form-row"><label>Service charge</label><div>₹${escapeHtml(ticket.serviceCharge)} — already auto-credited to the technician's wallet, not part of this claim</div></div>` : ''}
       ${isKnown ? `
-        <div class="form-row"><label>Bill as</label><div>${isOutByDefault ? 'Out-of-warranty — collect from customer' : 'In-warranty — claim to Head Office'}</div></div>
+        <div class="form-row" id="billing-billas-row"><label>Bill as</label><div>${isOutByDefault ? 'Out-of-warranty — collect from customer' : 'In-warranty — claim to Head Office'}</div></div>
         <input type="hidden" id="billing-warranty-override" value="${isOutByDefault ? 'out' : 'in'}">
       ` : `
-        <div class="form-row"><label>Bill as <span style="font-weight:400;color:var(--stone);">(warranty couldn't be determined automatically — choose manually)</span></label>
+        <div class="form-row" id="billing-billas-row"><label for="billing-warranty-override">Bill as <span style="font-weight:400;color:var(--stone);">(warranty couldn't be determined automatically — choose manually)</span></label>
           <select id="billing-warranty-override">
             <option value="in" ${info.inWarranty !== false ? 'selected' : ''}>In-warranty — claim to Head Office</option>
             <option value="out" ${info.inWarranty === false ? 'selected' : ''}>Out-of-warranty — collect from customer</option>
@@ -4742,6 +4760,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         </div>
         <div class="form-row"><label>Payment reference (optional)</label><input type="text" id="billing-payment-ref"></div>
       </div>`;
+    const billAs = document.getElementById('billing-warranty-override');
+    const billAsRow = document.getElementById('billing-billas-row');
+    const payerNote = document.createElement('div');
+    payerNote.id = 'billing-payer-note'; payerNote.className = 'form-row'; payerNote.style.fontSize = '13px';
+    billAsRow.insertAdjacentElement('afterend', payerNote);
+    const applyPayer = (p) => {
+      payer = p;
+      const fixed = p === 'company' ? 'in' : p === 'customer' ? 'out' : null;
+      if (fixed) billAs.value = fixed;
+      if (billAs.tagName === 'SELECT') billAs.disabled = !!fixed;
+      payerNote.innerHTML = p === 'company' ? '<b>Rate card: company pays</b> — free to the customer; claim it from Head Office.'
+        : p === 'customer' ? '<b>Rate card: customer pays</b> — collect from the customer.' : '';
+      payerNote.style.display = fixed ? '' : 'none';
+      billAsRow.style.display = fixed ? 'none' : '';
+      const isOut = billAs.value === 'out';
+      document.getElementById('billing-customer-fields').style.display = isOut ? 'block' : 'none';
+      document.getElementById('billing-in-warranty-fields').style.display = isOut ? 'none' : 'block';
+    };
+    applyPayer(payer);
     const showRate = (amount) => {
       const el = document.getElementById('billing-rate-amount'); if (!el) return;
       const needsBucket = bucketsFor(pick.category).length && !pick.bucket;
@@ -4753,6 +4790,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const refreshRate = async () => {
       const amt = await resolveServiceChargeRateForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket });
       billingContext.centerServiceCharge = amt; showRate(amt);
+      applyPayer(await resolvePayerForCenter(ticket, { category: pick.category || undefined, bucket: pick.bucket }));
     };
     const catSel = document.getElementById('billing-rate-cat');
     if (catSel) catSel.addEventListener('change', async () => {

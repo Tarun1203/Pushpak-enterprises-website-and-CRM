@@ -625,9 +625,9 @@ async function closureContext(ticketRef, ticket) {
   }
   const keys = Billing.rateLookupKeys(ticket, centerUid);
   const rateSnaps = await Promise.all(keys.map((k) => db.collection('serviceChargeRates').doc(k).get()));
-  const amounts = {};
-  rateSnaps.forEach((snap, i) => { if (snap.exists) amounts[keys[i]] = snap.get('amount'); });
-  return { reg, partNames, rate: Billing.pickRate(keys, amounts) };
+  const amounts = {}, payers = {};
+  rateSnaps.forEach((snap, i) => { if (snap.exists) { amounts[keys[i]] = snap.get('amount'); if (snap.get('payer')) payers[keys[i]] = snap.get('payer'); } });
+  return { reg, partNames, rate: Billing.pickRate(keys, amounts), payer: Billing.pickPayer(keys, payers) };
 }
 
 for (const coll of ['centerRequests', 'serviceJobs']) {
@@ -642,16 +642,19 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
       if (!after.closedByUid || after.closedByUid !== after.technicianUid) return; // center-closed: billing page handles it
       if (checkTransition(before, after, after.closedByUid)) return; // illegal completion, being reverted
       const ref = event.data.after.ref;
-      const { reg, partNames, rate } = await closureContext(ref, after);
+      const { reg, partNames, rate, payer } = await closureContext(ref, after);
       const verdict = Billing.computeClosureWarranty(reg, after, partNames);
+      const pays = Billing.whoPays(payer, verdict.inWarranty);
       const label = after.jobId || after.requestId || ref.id;
 
       await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
         if (!fresh.exists || fresh.get('status') !== 'completed' || fresh.get('billingComputedAt')) return;
         const update = { billingComputedAt: FieldValue.serverTimestamp() };
-        if (verdict.inWarranty === true) {
-          update.warrantyStatus = 'in_warranty';
+        if (verdict.inWarranty === true) update.warrantyStatus = 'in_warranty';
+        else if (verdict.inWarranty === false) update.warrantyStatus = 'out_of_warranty';
+        if (payer !== 'warranty') update.billingPayer = payer;
+        if (pays === 'company') {
           if (rate > 0) {
             update.serviceCharge = rate;
             if (coll === 'centerRequests') {
@@ -665,8 +668,6 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
               createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
             });
           }
-        } else if (verdict.inWarranty === false) {
-          update.warrantyStatus = 'out_of_warranty';
         }
         tx.update(ref, update);
         const ticketId = after.requestId || after.jobId;
@@ -811,11 +812,11 @@ exports.applyBillingRequest = onDocumentUpdated(
       await ref.update({ billingRejected: { reason: 'Only the ticket\'s service center can bill it.', at: FieldValue.serverTimestamp() } });
       return;
     }
-    const { reg, partNames, rate } = await closureContext(ref, after);
+    const { reg, partNames, rate, payer } = await closureContext(ref, after);
     const verdict = Billing.computeClosureWarranty(reg, after, partNames).inWarranty;
     await db.runTransaction(async (tx) => {
       const fresh = (await tx.get(ref)).data();
-      const decision = Billing.billingDecision(fresh, verdict, req, rate);
+      const decision = Billing.billingDecision(fresh, verdict, req, rate, payer);
       if (decision.error) {
         tx.update(ref, { billingRejected: { reason: decision.error, at: FieldValue.serverTimestamp() } });
         return;

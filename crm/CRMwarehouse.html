@@ -4483,7 +4483,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           <button class="btn-primary" id="save-rate-card">Save changes</button>
         </div>
         <div class="panel-body" style="padding:0;">
-          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Categories with size/model bundles (set under Categories) show one row per bundle.</div>
+          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">Categories with size/model bundles (set under Categories) show one row per bundle. <b>Who pays</b>: "as per warranty" = Head Office pays in warranty, the customer after; "Company pays" = always free to the customer (e.g. free installation / demo for a brand or model); "Customer pays" = the customer always pays (e.g. paid installation).</div>
           <table>
             <thead><tr><th>Product Category</th><th>Size / Model</th>${RATE_CARD_TYPES.map(t => `<th>${escapeHtml(t.label)} (₹)</th>`).join('')}</tr></thead>
             <tbody id="rate-card-tbody"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
@@ -4513,19 +4513,24 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ${RATE_CARD_TYPES.map(t => {
           const applies = t.key === 'repair' ? row.needsService : row.needsInstallation;
           if (!applies) return `<td style="color:var(--stone);">N/A</td>`;
-          return `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;"></td>`;
+          return `<td><input type="number" min="0" step="0.01" class="rate-card-input" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" aria-label="${escapeHtml(row.cat)} ${escapeHtml(row.bucket || '')} ${escapeHtml(t.label)} rate" style="width:110px;border:1px solid var(--hairline);padding:6px 8px;border-radius:2px;">
+            <select class="rate-card-payer" data-category="${escapeHtml(row.cat)}" data-bucket="${escapeHtml(row.bucket || '')}" data-type="${escapeHtml(t.key)}" aria-label="Who pays — ${escapeHtml(row.cat)} ${escapeHtml(row.bucket || '')} ${escapeHtml(t.label)}" style="display:block;margin-top:6px;font-size:12px;border:1px solid var(--hairline);padding:4px 6px;border-radius:2px;">
+              <option value="warranty">Who pays: as per warranty</option>
+              <option value="company">Company pays (free to customer)</option>
+              <option value="customer">Customer pays</option>
+            </select></td>`;
         }).join('')}
       </tr>`).join('');
     try {
       const snap = await getDocs(query(collection(db, 'serviceChargeRates'), where('scope', '==', 'default')));
       const byKey = {};
       snap.forEach(d => { byKey[d.id] = d.data(); });
-      rows.forEach(row => {
-        RATE_CARD_TYPES.forEach(t => {
-          const rec = byKey[rateCardKey('default', null, row.cat, t.key, row.bucket)];
-          const input = tbody.querySelector(`.rate-card-input[data-category="${escapeHtml(row.cat)}"][data-bucket="${escapeHtml(row.bucket || '')}"][data-type="${escapeHtml(t.key)}"]`);
-          if (rec && input) input.value = rec.amount ?? '';
-        });
+      // Look rows up by their own data, not a CSS selector (sizes like 43" contain quotes).
+      tbody.querySelectorAll('.rate-card-input').forEach(input => {
+        const rec = byKey[rateCardKey('default', null, input.dataset.category, input.dataset.type, input.dataset.bucket || null)];
+        if (rec) input.value = rec.amount ?? '';
+        const payerSel = input.parentElement.querySelector('.rate-card-payer');
+        if (payerSel) payerSel.value = rec && ['company', 'customer'].includes(rec.payer) ? rec.payer : 'warranty';
       });
     } catch (err) {
       console.error('Load rate card failed:', err);
@@ -4547,8 +4552,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
           const category = input.dataset.category;
           const bucket = input.dataset.bucket || null;
           const rateType = input.dataset.type;
+          const payerSel = input.parentElement.querySelector('.rate-card-payer');
+          const payer = payerSel ? payerSel.value : 'warranty';
           writes.push(setDoc(doc(db, 'serviceChargeRates', rateCardKey('default', null, category, rateType, bucket)), {
-            scope: 'default', category, type: rateType, bucket: bucket || null, amount,
+            scope: 'default', category, type: rateType, bucket: bucket || null, amount, payer,
             updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown',
             updatedAt: serverTimestamp()
           }, { merge: true }));
