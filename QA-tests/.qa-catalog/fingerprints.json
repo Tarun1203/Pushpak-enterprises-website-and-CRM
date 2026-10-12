@@ -1,0 +1,21 @@
+{
+  "404.html": "38a7a5f4d63b0239959d95bf217bf467ee679b3ae0ec4dc83fd806d056c24e18",
+  "cookies.html": "c6e048aefd412bea38b5d3a6a60c64e66fb54d1bb640e7f47e7b5e71b8134a65",
+  "crm/bug-tracker.html": "cec75d2ca689402dcbcdbccf50083b71165bae2c255a749afaa44b1618109bc9",
+  "crm/CRMareamanager.html": "e794ffdfc7c431ec8d0585e3c63f6865568b79e4acdb71197e67231aa7dfd2ec",
+  "crm/CRMdealer.html": "a72c3af0c88a0c5b06bd458a25bc242a7a8afb589c151fada62197fd130e3caa",
+  "crm/CRMdistributor.html": "4e897e25a26f7a7419549b4767cded8ce15a2685fdfe66830febab8f66f60124",
+  "crm/CRMservicecenter.html": "e26cd2af50db058aaef0cbd64d951565fa48dd7525a2bf30bbcc8033107e059c",
+  "crm/CRMsuperadmin.html": "4a1de4c13ea4fe31965a614aa71061990ab9a84dbd0120fc8134b1ab1b6e8165",
+  "crm/CRMtechnician.html": "af0389f69e4e57e5799d021287c236143871c4193e3041c34b26c138fc3f2230",
+  "crm/CRMwarehouse.html": "6895d80c5a8dcc3c72131e382297561d6deca923692933425aceb3fd79d1e308",
+  "crm/index.html": "1d848f21cf6e649435b8d73588c8121b91ef8c6d3e4f39a575b4e77950365c4e",
+  "crm/login.html": "a168708c98076c254b5b169d23e9347badd9a6598d251d0cdd1a9a9ddba06f2c",
+  "flyvision/index.html": "2475812400770f0facf9a538538cf02485cf22158ddb832bebdc9656472e5c62",
+  "index.html": "4b502ae1cc72327f69a23ec5027b54608e5f5416dfec20a5ec058a8fda596fe2",
+  "makwell/index.html": "0264c2c2b44c5e25a229a84255b1661d487a99c3d0ae33482f02eacb2741498f",
+  "portal.html": "e11ead14869d981419f0c716b353cf338b93b8f3c8e221ab2ef607a8ea17c965",
+  "skevia/index.html": "0f7372beadd9463b63c86f1a7c65212f4be28ac8698d2d24cd8e7afc5fb149d6",
+  "warranty/index.html": "ba6703c23a62bc19fdcd93c36a8c697be6c23a55afae6fab4814d683e0f9c534",
+  "warranty/verify.html": "e7453ae1951bf77c934c10a4634ad00daabcf814b16588bd32280a29e0815c54"
+}

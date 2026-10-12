@@ -1,0 +1,422 @@
+{
+  "version": 3,
+  "generatedAt": "2026-10-12T06:34:51.664Z",
+  "framework": "plain",
+  "devUrl": "http://localhost:8080",
+  "stack": {
+    "languages": [
+      "javascript"
+    ],
+    "runtime": "node",
+    "packageManager": null,
+    "buildTool": null,
+    "repoType": "single",
+    "uiLibraries": [],
+    "stateManagement": [],
+    "forms": [],
+    "validation": [],
+    "httpClient": [],
+    "styling": [],
+    "testFrameworks": [],
+    "e2eFrameworks": [
+      "playwright"
+    ],
+    "nodeVersion": null
+  },
+  "integrations": {
+    "github": {
+      "enabled": false,
+      "mcpServer": null
+    },
+    "jira": {
+      "enabled": false,
+      "mcpServer": null
+    },
+    "azureDevOps": {
+      "enabled": false,
+      "mcpServer": null
+    }
+  },
+  "settingsSnapshot": {
+    "authMode": "per-role",
+    "defaultRole": "anonymous",
+    "safeRun": "Firebase stub (tests/e2e/support/firebase-stub.js) or emulator only — never live makwell-websiteandcrm"
+  },
+  "auth": {
+    "mode": "per-role",
+    "defaultRole": "anonymous",
+    "credentialSource": "QA-tests/.qa-catalog/auth.local.json",
+    "rolesUsed": [
+      "anonymous",
+      "areamanager",
+      "customer",
+      "dealer",
+      "distributor",
+      "servicecenter",
+      "superadmin",
+      "technician",
+      "warehouse"
+    ],
+    "rolesConfigured": [
+      "anonymous"
+    ]
+  },
+  "routes": [
+    {
+      "path": "/404.html",
+      "sourceFile": "404.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T190-404-smoke"
+      ],
+      "fingerprint": "38a7a5f4d63b0239959d95bf217bf467ee679b3ae0ec4dc83fd806d056c24e18"
+    },
+    {
+      "path": "/cookies.html",
+      "sourceFile": "cookies.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T200-cookies-smoke"
+      ],
+      "fingerprint": "c6e048aefd412bea38b5d3a6a60c64e66fb54d1bb640e7f47e7b5e71b8134a65"
+    },
+    {
+      "path": "/crm/bug-tracker.html",
+      "sourceFile": "crm/bug-tracker.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T130-crm-bug-tracker-smoke"
+      ],
+      "fingerprint": "cec75d2ca689402dcbcdbccf50083b71165bae2c255a749afaa44b1618109bc9"
+    },
+    {
+      "path": "/crm/CRMareamanager.html",
+      "sourceFile": "crm/CRMareamanager.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "anonymous",
+        "areamanager"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T110-crm-areamanager-auth-guard",
+        "T111-crm-areamanager-login-routing-gap",
+        "T112-crm-areamanager-nav-sweep"
+      ],
+      "fingerprint": "e794ffdfc7c431ec8d0585e3c63f6865568b79e4acdb71197e67231aa7dfd2ec"
+    },
+    {
+      "path": "/crm/CRMdealer.html",
+      "sourceFile": "crm/CRMdealer.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "dealer"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T090-crm-crmdealer-access-guard",
+        "T091-crm-crmdealer-nav-sweep-as-dealer",
+        "T092-crm-crmdealer-place-trade-order-as-dealer",
+        "T093-crm-crmdealer-account-invoices-as-dealer"
+      ],
+      "fingerprint": "a72c3af0c88a0c5b06bd458a25bc242a7a8afb589c151fada62197fd130e3caa"
+    },
+    {
+      "path": "/crm/CRMdistributor.html",
+      "sourceFile": "crm/CRMdistributor.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "distributor"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T100-crm-distributor-access-guard",
+        "T101-crm-distributor-nav-sweep",
+        "T102-crm-distributor-place-order-to-head-office",
+        "T103-crm-distributor-incoming-dealer-orders"
+      ],
+      "fingerprint": "4e897e25a26f7a7419549b4767cded8ce15a2685fdfe66830febab8f66f60124"
+    },
+    {
+      "path": "/crm/CRMservicecenter.html",
+      "sourceFile": "crm/CRMservicecenter.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "servicecenter"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T060-crm-servicecenter-access-guard",
+        "T061-crm-servicecenter-nav-sweep",
+        "T062-crm-servicecenter-request-lifecycle",
+        "T063-crm-servicecenter-spare-requests-head-office",
+        "T064-crm-servicecenter-service-billing",
+        "T065-crm-servicecenter-destructive-cancel-and-defect-batch",
+        "T066-crm-servicecenter-inventory-dispatch-sendback",
+        "T067-crm-servicecenter-technicians-and-claims-forms",
+        "T068-crm-servicecenter-ratecard-and-profile"
+      ],
+      "fingerprint": "e26cd2af50db058aaef0cbd64d951565fa48dd7525a2bf30bbcc8033107e059c"
+    },
+    {
+      "path": "/crm/CRMsuperadmin.html",
+      "sourceFile": "crm/CRMsuperadmin.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "superadmin"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T050-crm-superadmin-auth-guard",
+        "T051-crm-superadmin-nav-sweep",
+        "T052-crm-superadmin-create-account-center-technician",
+        "T053-crm-superadmin-approvals-and-role-change",
+        "T054-crm-superadmin-destructive-suspend-technician",
+        "T055-crm-superadmin-service-ticket-routing",
+        "T056-crm-superadmin-pincode-sla-coverage",
+        "T057-crm-superadmin-catalog-category-product-warranty"
+      ],
+      "fingerprint": "4a1de4c13ea4fe31965a614aa71061990ab9a84dbd0120fc8134b1ab1b6e8165"
+    },
+    {
+      "path": "/crm/CRMtechnician.html",
+      "sourceFile": "crm/CRMtechnician.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "technician"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T080-crm-technician-guard-and-session",
+        "T081-crm-technician-nav-availability-profile",
+        "T082-crm-technician-log-job",
+        "T083-crm-technician-job-lifecycle"
+      ],
+      "fingerprint": "af0389f69e4e57e5799d021287c236143871c4193e3041c34b26c138fc3f2230"
+    },
+    {
+      "path": "/crm/CRMwarehouse.html",
+      "sourceFile": "crm/CRMwarehouse.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "anonymous",
+        "warehouse"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T070-crm-warehouse-auth-guard",
+        "T071-crm-warehouse-nav-sweep-as-warehouse",
+        "T072-crm-warehouse-dashboard-as-warehouse",
+        "T073-crm-warehouse-fulfil-spare-request-as-warehouse",
+        "T074-crm-warehouse-stock-adjustments-as-warehouse",
+        "T075-crm-warehouse-new-spare-request-modal",
+        "T076-crm-warehouse-destructive-withdraw-and-reassign",
+        "T078-crm-warehouse-local-purchase-returns-claims"
+      ],
+      "fingerprint": "6895d80c5a8dcc3c72131e382297561d6deca923692933425aceb3fd79d1e308"
+    },
+    {
+      "path": "/crm/index.html",
+      "sourceFile": "crm/index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T180-crm-index-smoke"
+      ],
+      "fingerprint": "1d848f21cf6e649435b8d73588c8121b91ef8c6d3e4f39a575b4e77950365c4e"
+    },
+    {
+      "path": "/crm/login.html",
+      "sourceFile": "crm/login.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T020-crm-login-role-redirects",
+        "T021-crm-login-form-validation",
+        "T022-crm-login-account-guards",
+        "T023-crm-login-session-and-deactivated-param",
+        "T024-crm-login-forgot-password-and-links"
+      ],
+      "fingerprint": "a168708c98076c254b5b169d23e9347badd9a6598d251d0cdd1a9a9ddba06f2c"
+    },
+    {
+      "path": "/flyvision/index.html",
+      "sourceFile": "flyvision/index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T150-flyvision-index-smoke"
+      ],
+      "fingerprint": "2475812400770f0facf9a538538cf02485cf22158ddb832bebdc9656472e5c62"
+    },
+    {
+      "path": "/index.html",
+      "sourceFile": "index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T010-index-register-product",
+        "T011-index-book-service",
+        "T012-index-enquiry-modal",
+        "T013-index-track-and-warranty",
+        "T014-index-service-locator",
+        "T015-index-page-render-and-navigation"
+      ],
+      "fingerprint": "4b502ae1cc72327f69a23ec5027b54608e5f5416dfec20a5ec058a8fda596fe2"
+    },
+    {
+      "path": "/makwell/index.html",
+      "sourceFile": "makwell/index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T140-makwell-index-smoke"
+      ],
+      "fingerprint": "0264c2c2b44c5e25a229a84255b1661d487a99c3d0ae33482f02eacb2741498f"
+    },
+    {
+      "path": "/portal.html",
+      "sourceFile": "portal.html",
+      "requiresAuth": true,
+      "rolesAllowed": [
+        "anonymous",
+        "customer"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T030-portal-auth-guards",
+        "T031-portal-signin-dashboard-as-customer",
+        "T032-portal-register-product-as-customer",
+        "T033-portal-register-product-validation",
+        "T034-portal-book-service-as-customer",
+        "T035-portal-support-and-history-as-customer"
+      ],
+      "fingerprint": "e11ead14869d981419f0c716b353cf338b93b8f3c8e221ab2ef607a8ea17c965"
+    },
+    {
+      "path": "/skevia/index.html",
+      "sourceFile": "skevia/index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T160-skevia-index-smoke"
+      ],
+      "fingerprint": "0f7372beadd9463b63c86f1a7c65212f4be28ac8698d2d24cd8e7afc5fb149d6"
+    },
+    {
+      "path": "/warranty/index.html",
+      "sourceFile": "warranty/index.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T170-warranty-index-smoke"
+      ],
+      "fingerprint": "ba6703c23a62bc19fdcd93c36a8c697be6c23a55afae6fab4814d683e0f9c534"
+    },
+    {
+      "path": "/warranty/verify.html",
+      "sourceFile": "warranty/verify.html",
+      "requiresAuth": false,
+      "rolesAllowed": [
+        "anonymous"
+      ],
+      "guards": [],
+      "httpMethods": [
+        "GET"
+      ],
+      "tasks": [
+        "T040-warranty-verify-valid-token-per-brand",
+        "T041-warranty-verify-token-states-and-tampering",
+        "T042-warranty-verify-param-injection-safety"
+      ],
+      "fingerprint": "e7453ae1951bf77c934c10a4634ad00daabcf814b16588bd32280a29e0815c54"
+    }
+  ]
+}

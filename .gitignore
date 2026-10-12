@@ -11,3 +11,6 @@ functions/node_modules/
 
 # QA tooling dependencies (root package.json)
 /node_modules/
+
+QA-tests/.qa-catalog/auth.local.json
+QA-tests/.qa-catalog/state/
