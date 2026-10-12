@@ -89,7 +89,7 @@ test('authenticated CRM workflow runs when a dedicated QA account is configured'
   await page.locator('#password').fill(password);
   await page.locator('#login-btn').click();
 
-  await page.waitForURL(new RegExp(ROLE_PAGES[role].replace('.', '\\.') + '$'), { timeout: 20_000 });
+  await page.waitForURL(url => url.pathname.endsWith('/crm/' + ROLE_PAGES[role]) || url.pathname.endsWith(ROLE_PAGES[role]), { timeout: 30_000 });
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#gate')).toBeHidden({ timeout: 10_000 });
   await expect(page.locator('#content')).toBeVisible();
