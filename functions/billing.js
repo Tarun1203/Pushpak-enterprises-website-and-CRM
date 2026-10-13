@@ -64,6 +64,15 @@ function pickPayer(keys, payers) {
   for (const k of keys) if (Object.prototype.hasOwnProperty.call(payers, k) && PAYERS.includes(payers[k])) return payers[k];
   return 'warranty';
 }
+// A brand-wide rule beats the rate card row: e.g. Skevia gives free
+// installation / demo and free service, whatever the warranty says.
+// Stored as serviceChargeRates/brandpayer_<brand>_<repair|installation>.
+function brandPayerKey(brand, rateType) {
+  return `brandpayer_${String(brand || '').toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${rateType === 'installation' ? 'installation' : 'repair'}`;
+}
+function pickPayerWithBrand(brandPayer, keys, payers) {
+  return PAYERS.includes(brandPayer) ? brandPayer : pickPayer(keys, payers);
+}
 // 'company' | 'customer' | null (not known yet)
 function whoPays(payer, inWarranty) {
   if (payer === 'company') return 'company';
@@ -181,5 +190,5 @@ function billingDecision(ticket, verdict, req, rate, payer = 'warranty') {
 
 module.exports = {
   CLAIM_TYPES, lockCheck, billingDecision,
-  computeClosureWarranty, rateCardKey, rateLookupKeys, pickRate, pickPayer, whoPays, PAYERS, verifyWalletClaim, verifyTicketClaim
+  computeClosureWarranty, rateCardKey, rateLookupKeys, pickRate, pickPayer, whoPays, PAYERS, brandPayerKey, pickPayerWithBrand, verifyWalletClaim, verifyTicketClaim
 };

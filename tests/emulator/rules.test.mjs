@@ -258,3 +258,10 @@ runCases('Rules: rate requests decided line by line; installation checklist', [
   ['sc1', 'set', 'serviceChargeRates/center_sc1_geyser_repair_flat', { scope: 'center', serviceCenterUid: 'sc1', amount: 999 }, D, 'a center still cannot set its own rate'],
   ['t1', 'update', 'centerRequests/cr1', { installationChecklist: ['Tested and working'] }, A, 'the assigned technician records the installation checklist']
 ]);
+
+runCases('Rules: brand-wide who-pays rules', [
+  ['wh', 'set', 'serviceChargeRates/brandpayer_skevia_installation', { scope: 'default', kind: 'brand_payer', brand: 'Skevia', type: 'installation', payer: 'company' }, A, 'Head Office sets a brand rule'],
+  ['sc1', 'set', 'serviceChargeRates/brandpayer_skevia_repair', { scope: 'default', kind: 'brand_payer', brand: 'Skevia', type: 'repair', payer: 'company' }, D, 'a center cannot'],
+  ['anon', 'get', 'serviceChargeRates/brandpayer_skevia_installation', null, A, 'the website can show "free installation"'],
+  ['anon', 'get', 'serviceChargeRates/default_geyser_repair_flat', null, D, 'rate amounts stay private']
+]);

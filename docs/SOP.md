@@ -39,6 +39,9 @@ Ask for the card number or phone number; look up the registration in Customer 36
 ## Who pays (rate card)
 Warehouse → **Service Charge Rates**: under each rate there is **Who pays**. *As per warranty* (default) = Head Office pays in warranty, the customer after. *Company pays* = always free to the customer (e.g. Skevia demo / installation, or free installation on certain MakWell models — use the Size / Model rows set under Categories). *Customer pays* = the customer always pays. Service center billing and the technician's automatic credit follow this setting.
 
+## Who pays — by brand
+Warehouse → Service Charge Rates → **Who pays — by brand**. For each brand choose, separately for Installation / Demo and for Repair / Service: **Company pays** (free to the customer; the center / technician claims it from Head Office), **Customer pays**, **As per warranty**, or **Use the rate card rows**. A brand rule beats the rate-card row. Example: Skevia → Company pays for both. The website's Book a Service form then tells the customer the visit is free.
+
 ## Store & service-center finder (website map)
 Super Admin → Service Operations → **Store & Service Locations**. **Import service centers** copies name, phone, address and map position from each service center's full profile (new ones are shown only if the profile status is Active). **+ Add location** for stores. For the map pin, open the place in Google Maps on a computer and paste the full link from the address bar (or right-click the spot and copy the coordinates); short maps.app.goo.gl links carry no position. **Hide** takes a place off the website without deleting it. Public business details only — never a staff member's personal number.
 

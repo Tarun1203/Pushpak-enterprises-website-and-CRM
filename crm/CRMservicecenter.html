@@ -4678,6 +4678,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     const rateType = ticket.type === 'installation' ? 'installation' : 'repair';
     const category = (pick && pick.category) || ticket.category || 'Other';
     const bucket = (pick && pick.bucket !== undefined ? pick.bucket : ticket.sizeBucket) || null;
+    resolvePayerForCenter.source = 'row';
+    // A brand-wide rule (e.g. Skevia: free installation / demo / service) beats the rate card row.
+    if (ticket.brand) {
+      try {
+        const b = await getDoc(doc(db, 'serviceChargeRates', `brandpayer_${String(ticket.brand).toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${rateType}`));
+        if (b.exists() && ['warranty', 'company', 'customer'].includes(b.data().payer)) { resolvePayerForCenter.source = 'brand'; return b.data().payer; }
+      } catch (e) { /* fall back to the rate card row */ }
+    }
     const keys = [rateCardKey('default', null, category, rateType, bucket)];
     if (bucket) keys.push(rateCardKey('default', null, category, rateType, null));
     for (const k of keys) {
@@ -4770,8 +4778,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       const fixed = p === 'company' ? 'in' : p === 'customer' ? 'out' : null;
       if (fixed) billAs.value = fixed;
       if (billAs.tagName === 'SELECT') billAs.disabled = !!fixed;
-      payerNote.innerHTML = p === 'company' ? '<b>Rate card: company pays</b> — free to the customer; claim it from Head Office.'
-        : p === 'customer' ? '<b>Rate card: customer pays</b> — collect from the customer.' : '';
+      const by = resolvePayerForCenter.source === 'brand' ? `${escapeHtml(ticket.brand)} rule` : 'Rate card';
+      payerNote.innerHTML = p === 'company' ? `<b>${by}: company pays</b> — free to the customer; claim it from Head Office.`
+        : p === 'customer' ? `<b>${by}: customer pays</b> — collect from the customer.` : '';
       payerNote.style.display = fixed ? '' : 'none';
       billAsRow.style.display = fixed ? 'none' : '';
       const isOut = billAs.value === 'out';

@@ -102,3 +102,16 @@ test('billing follows who pays: company-paid is claimed even out of warranty; cu
   d = B2.billingDecision(t, true, { treatAs: 'out', sparePartsCost: 0, otherCharges: 0, serviceCharge: 250, paymentMethod: 'upi' }, 300, 'customer');
   assert.strictEqual(d.update.billingType, 'customer'); assert.strictEqual(d.update.billingTotal, 250);
 });
+
+// ---- Who pays: a brand-wide rule (e.g. Skevia: free installation / demo / service)
+test('brand rule beats the rate card row; no brand rule falls back to the row', () => {
+  const B = require('./billing');
+  assert.strictEqual(B.brandPayerKey('Skevia', 'installation'), 'brandpayer_skevia_installation');
+  assert.strictEqual(B.brandPayerKey('MakWell', 'service'), 'brandpayer_makwell_repair');
+  const keys = ['default_geyser_installation_flat'];
+  assert.strictEqual(B.pickPayerWithBrand('company', keys, { default_geyser_installation_flat: 'customer' }), 'company');
+  assert.strictEqual(B.pickPayerWithBrand(null, keys, { default_geyser_installation_flat: 'customer' }), 'customer');
+  assert.strictEqual(B.pickPayerWithBrand('bogus', keys, {}), 'warranty');
+  // company pays even out of warranty
+  assert.strictEqual(B.whoPays(B.pickPayerWithBrand('company', keys, {}), false), 'company');
+});

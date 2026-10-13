@@ -4475,8 +4475,72 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     return meta;
   }
 
+
+  // Brand-wide "who pays" rules: serviceChargeRates/brandpayer_<brand>_<repair|installation>.
+  const brandPayerKey = (brand, type) => `brandpayer_${String(brand).toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${type}`;
+  async function loadBrandPayers() {
+    const tbody = document.getElementById('brand-payer-tbody');
+    if (!tbody) return;
+    let brands = [];
+    try {
+      const snap = await getDocs(collection(db, 'brands'));
+      snap.forEach(d => { const n = (d.data().name || d.id || '').trim(); if (n && d.data().status !== 'inactive') brands.push(n); });
+    } catch (e) { /* use the known brands */ }
+    if (!brands.length) brands = ['MakWell', 'Flyvision', 'Skevia'];
+    brands = Array.from(new Set(brands)).sort((a, b) => a.localeCompare(b));
+    const opt = (v, l) => `<option value="${v}">${l}</option>`;
+    const sel = (brand, type) => `<select class="brand-payer" data-brand="${escapeHtml(brand)}" data-type="${type}" aria-label="Who pays — ${escapeHtml(brand)} ${type === 'installation' ? 'installation / demo' : 'repair / service'}">
+      ${opt('', 'Use the rate card rows')}${opt('company', 'Company pays (free to customer)')}${opt('customer', 'Customer pays')}${opt('warranty', 'As per warranty')}</select>`;
+    tbody.innerHTML = brands.map(b => `<tr><td><b>${escapeHtml(b)}</b></td><td>${sel(b, 'installation')}</td><td>${sel(b, 'repair')}</td></tr>`).join('');
+    try {
+      const snaps = await Promise.all(Array.from(tbody.querySelectorAll('.brand-payer')).map(x => getDoc(doc(db, 'serviceChargeRates', brandPayerKey(x.dataset.brand, x.dataset.type)))));
+      tbody.querySelectorAll('.brand-payer').forEach((x, i) => {
+        const p = snaps[i].exists() ? snaps[i].data().payer : '';
+        x.value = ['company', 'customer', 'warranty'].includes(p) ? p : '';
+        x.dataset.current = x.value;
+      });
+    } catch (e) { console.warn('Could not load brand rules:', e.message); }
+    document.getElementById('save-brand-payer').onclick = async () => {
+      const btn = document.getElementById('save-brand-payer'), ok = document.getElementById('brand-payer-success'), er = document.getElementById('brand-payer-error');
+      ok.classList.remove('show'); er.classList.remove('show');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        let n = 0;
+        for (const x of tbody.querySelectorAll('.brand-payer')) {
+          if (x.value === (x.dataset.current || '')) continue;
+          const ref = doc(db, 'serviceChargeRates', brandPayerKey(x.dataset.brand, x.dataset.type));
+          if (!x.value) await deleteDoc(ref);
+          else await setDoc(ref, { scope: 'default', kind: 'brand_payer', brand: x.dataset.brand, type: x.dataset.type, payer: x.value,
+            updatedBy: auth.currentUser ? auth.currentUser.email : 'unknown', updatedAt: serverTimestamp() });
+          x.dataset.current = x.value; n++;
+        }
+        ok.textContent = n ? `Saved ${n} brand rule${n === 1 ? '' : 's'}. New billing follows them straight away.` : 'No changes.';
+        ok.classList.add('show');
+      } catch (e) {
+        console.error('Save brand rules failed:', e);
+        er.textContent = 'Could not save. Check console for details.'; er.classList.add('show');
+      }
+      btn.disabled = false; btn.textContent = 'Save brand rules';
+    };
+  }
+
   async function renderRateCard() {
     contentEl.innerHTML = `
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header">
+          <h2>Who pays — by brand</h2>
+          <button class="btn-primary" id="save-brand-payer">Save brand rules</button>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <div style="padding:12px 16px;font-size:12.5px;color:var(--stone);">A brand rule applies to every product of that brand and beats the rate card rows below. Example: Skevia gives free installation / demo and free service → set both to <b>Company pays</b>. Leave "Use the rate card rows" where there is no brand-wide rule.</div>
+          <table>
+            <thead><tr><th>Brand</th><th>Installation / Demo</th><th>Repair / Service</th></tr></thead>
+            <tbody id="brand-payer-tbody"><tr><td colspan="3" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="modal-success" id="brand-payer-success" style="margin:12px 16px;" role="status"></div>
+        <div class="modal-error" id="brand-payer-error" style="margin:12px 16px;" role="alert"></div>
+      </div>
       <div class="panel">
         <div class="panel-header">
           <h2>Default rates (used everywhere a service center hasn't set its own)</h2>
@@ -4492,6 +4556,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="modal-success" id="rate-card-success" style="margin:12px 16px;"></div>
         <div class="modal-error" id="rate-card-error" style="margin:12px 16px;"></div>
       </div>`;
+    loadBrandPayers();
     const tbody = document.getElementById('rate-card-tbody');
     const meta = await getCategoryMeta();
     const categories = Array.from(meta.keys()).sort((a, b) => a.localeCompare(b)).concat('Other');

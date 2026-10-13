@@ -624,10 +624,15 @@ async function closureContext(ticketRef, ticket) {
     centerUid = u.exists ? u.get('linkedServiceCenterUid') || null : null;
   }
   const keys = Billing.rateLookupKeys(ticket, centerUid);
-  const rateSnaps = await Promise.all(keys.map((k) => db.collection('serviceChargeRates').doc(k).get()));
+  const brandKey = ticket.brand ? Billing.brandPayerKey(ticket.brand, ticket.type === 'installation' ? 'installation' : 'repair') : null;
+  const [rateSnaps, brandSnap] = await Promise.all([
+    Promise.all(keys.map((k) => db.collection('serviceChargeRates').doc(k).get())),
+    brandKey ? db.collection('serviceChargeRates').doc(brandKey).get() : Promise.resolve(null)
+  ]);
   const amounts = {}, payers = {};
   rateSnaps.forEach((snap, i) => { if (snap.exists) { amounts[keys[i]] = snap.get('amount'); if (snap.get('payer')) payers[keys[i]] = snap.get('payer'); } });
-  return { reg, partNames, rate: Billing.pickRate(keys, amounts), payer: Billing.pickPayer(keys, payers) };
+  const brandPayer = brandSnap && brandSnap.exists ? brandSnap.get('payer') : null;
+  return { reg, partNames, rate: Billing.pickRate(keys, amounts), payer: Billing.pickPayerWithBrand(brandPayer, keys, payers) };
 }
 
 for (const coll of ['centerRequests', 'serviceJobs']) {

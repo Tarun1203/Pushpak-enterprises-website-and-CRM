@@ -1003,7 +1003,10 @@ service cloud.firestore {
       // own commercial term, so it's scoped the same way the writes
       // below already are. (isStaff() previously let any center read
       // every OTHER center's custom rate overrides.)
+      // A brand-wide "who pays" rule (brandpayer_*) is public, so the
+      // website can tell a customer up front that e.g. installation is free.
       allow read: if isAdmin()
+        || resource.data.get('kind', '') == 'brand_payer'
         || (isSignedIn() && resource.data.scope == 'default')
         || (isSignedIn() && resource.data.scope == 'center' && resource.data.serviceCenterUid == request.auth.uid);
       // Only Head Office writes rates directly. A center's own rate change

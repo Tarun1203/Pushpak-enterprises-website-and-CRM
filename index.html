@@ -340,6 +340,7 @@
               <option value="service">Repair / service</option>
             </select>
           </div>
+          <p id="book-payer-note" class="pe-payer-note" role="status" aria-live="polite" hidden></p>
           <div class="form-grid-2">
             <div class="form-row"><label>Brand</label>
               <select name="brand" data-sum="Brand" required>
@@ -964,6 +965,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
 
   bookCategory.addEventListener('change', updateBookIssueOptions);
   bookRequestType.addEventListener('change', updateBookIssueOptions);
+  // Tell the customer up front when the brand covers the visit (e.g. Skevia:
+  // free installation / demo and free service). Set by Head Office in the CRM.
+  const bookPayerNote = document.getElementById('book-payer-note');
+  async function updateBookPayerNote() {
+    const brand = bookForm.brand.value, type = bookRequestType.value;
+    bookPayerNote.hidden = true;
+    if (!brand || !type) return;
+    const key = `brandpayer_${brand.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${type === 'installation' ? 'installation' : 'repair'}`;
+    try {
+      const snap = await getDoc(doc(db, 'serviceChargeRates', key));
+      if (bookForm.brand.value !== brand || bookRequestType.value !== type) return;
+      const p = snap.exists() ? snap.data().payer : null;
+      const what = type === 'installation' ? 'Installation and demo' : 'Service';
+      if (p === 'company') { bookPayerNote.textContent = `${what} for ${brand} products is free — no charge to you.`; bookPayerNote.hidden = false; }
+      else if (p === 'customer') { bookPayerNote.textContent = `${what} for ${brand} products is chargeable. The technician will tell you the charge before starting.`; bookPayerNote.hidden = false; }
+    } catch (e) { /* no note */ }
+  }
+  bookRequestType.addEventListener('change', updateBookPayerNote);
+  bookForm.brand.addEventListener('change', updateBookPayerNote);
 
   function updateBookIssueOptions() {
     if (bookRequestType.value !== 'service') {

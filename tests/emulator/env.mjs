@@ -109,6 +109,7 @@ export function seedDocs() {
     'stockMovements/mv1': { type: 'transfer', technicianUid: 't1', quantity: 1, createdAt: past(1) },
     'spareParts/sp1': { name: 'Thermostat', price: 250 },
     'serviceChargeRates/default_geyser_repair_flat': { scope: 'default', amount: 300 },
+    'serviceChargeRates/brandpayer_skevia_installation': { scope: 'default', kind: 'brand_payer', brand: 'Skevia', type: 'installation', payer: 'company' },
     'serviceChargeRates/center_sc2_geyser_repair_flat': { scope: 'center', serviceCenterUid: 'sc2', amount: 350 },
     'changeRequests/ch1': { requestedByUid: 'wh', status: 'pending', kind: 'spare_price', targetId: 'sp1', payload: { price: 300 } },
     'changeRequests/ch2': { requestedByUid: 'sa', status: 'pending', kind: 'spare_price', targetId: 'sp1', payload: { price: 310 } },

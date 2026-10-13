@@ -248,3 +248,58 @@ test('center rate card shows Head Office\'s rate and who pays, also for sizes li
   await expect(row.locator('.rate-card-input[data-type="repair"]')).toHaveValue('275');
   expect(errors).toEqual([]);
 });
+
+test('Who pays by brand: Warehouse sets "Skevia: company pays" for installation / demo and service', async ({ page }) => {
+  const data = sampleFor('warehouse');
+  data.brands = [{ id: 'makwell', name: 'MakWell' }, { id: 'skevia', name: 'Skevia' }];
+  data.serviceChargeRates = [{ id: 'brandpayer_makwell_installation', scope: 'default', kind: 'brand_payer', payer: 'customer' }];
+  await installFirebaseStub(page, { role: 'warehouse', uid: 'u1', data, profile: { role: 'warehouse', displayName: 'W', email: 'w@pe.test' } });
+  await page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(origin + '/crm/CRMwarehouse.html', { waitUntil: 'load' });
+  await page.waitForFunction(() => { const a = document.getElementById('app'); return a && getComputedStyle(a).display !== 'none'; }, null, { timeout: 10000 });
+  await nav(page, 'Service Charge Rates');
+  const sk = page.locator('#brand-payer-tbody tr', { hasText: 'Skevia' });
+  await expect(page.locator('#brand-payer-tbody tr', { hasText: 'MakWell' }).locator('select[data-type=installation]')).toHaveValue('customer');
+  await sk.locator('select[data-type=installation]').selectOption('company');
+  await sk.locator('select[data-type=repair]').selectOption('company');
+  await page.click('#save-brand-payer');
+  await expect(page.locator('#brand-payer-success')).toContainText('Saved 2 brand rules');
+  const w = await writes(page);
+  expect(w.find(([op, p]) => op === 'set' && p === 'serviceChargeRates/brandpayer_skevia_installation')[2]).toMatchObject({ kind: 'brand_payer', brand: 'Skevia', type: 'installation', payer: 'company', scope: 'default' });
+  expect(w.find(([op, p]) => op === 'set' && p === 'serviceChargeRates/brandpayer_skevia_repair')[2]).toMatchObject({ payer: 'company' });
+  expect(errors).toEqual([]);
+});
+
+test('Who pays by brand: a Skevia installation out of warranty is still billed to the company (free to the customer)', async ({ page }) => {
+  const data = sampleFor('servicecenter');
+  data.productCategories = [{ id: 'c1', name: 'Smart TV' }];
+  data.serviceChargeRates = [{ id: 'default_smart_tv_installation_flat', scope: 'default', amount: 300, payer: 'customer' },
+    { id: 'brandpayer_skevia_installation', scope: 'default', kind: 'brand_payer', payer: 'company' }];
+  data.productRegistrations = [{ id: 'r1', serialNumber: 'SKV43', purchaseDate: '2023-01-01', warrantyMonths: 12 }];
+  data.centerRequests = [{ id: 'crS', requestId: 'PE-CR-20261013-0001-ServiceCenter', serviceCenterUid: 'u1', customerName: 'Guru', serialNumber: 'SKV43', brand: 'Skevia', product: 'Skevia 43 inch TV', category: 'Smart TV', type: 'installation', status: 'completed', closedAt: { __ms: Date.now() - 3600000 }, updatedAt: { __ms: Date.now() - 3600000 } }];
+  const errors = await openAs(page, 'servicecenter', data);
+  await nav(page, 'Service Billing');
+  await page.locator('.billing-bill-btn').first().click();
+  await expect(page.locator('#billing-payer-note')).toContainText('Skevia rule: company pays');
+  await expect(page.locator('#billing-warranty-override')).toHaveValue('in');
+  await expect(page.locator('#billing-rate-amount')).toHaveText('₹300');
+  expect(errors).toEqual([]);
+});
+
+test('Website booking tells the customer when the brand gives free installation / demo', async ({ page }) => {
+  await installFirebaseStub(page, { role: 'none', uid: 'u1', data: { serviceChargeRates: [{ id: 'brandpayer_skevia_installation', scope: 'default', kind: 'brand_payer', payer: 'company' }] } });
+  await page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
+  await page.addInitScript(() => localStorage.setItem('pe.consent', JSON.stringify({ v: 1, essential: true, analytics: false, preferences: false, at: new Date().toISOString() })));
+  await page.goto(origin + '/index.html#book-service', { waitUntil: 'load' });
+  await page.waitForTimeout(500);
+  const ov = page.locator('#book-overlay');
+  await expect(ov).toBeVisible();
+  const cont = ov.locator('button', { hasText: /continue without/i });
+  if (await cont.count()) await cont.first().click();
+  await page.selectOption('#book-request-type', 'installation');
+  await page.selectOption('#book-form select[name=brand]', 'Skevia');
+  await expect(page.locator('#book-payer-note')).toHaveText('Installation and demo for Skevia products is free — no charge to you.');
+  await page.selectOption('#book-form select[name=brand]', 'MakWell');
+  await expect(page.locator('#book-payer-note')).toBeHidden();
+});
