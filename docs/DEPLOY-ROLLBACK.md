@@ -4,7 +4,7 @@
 | Part | Where | How |
 |---|---|---|
 | Website + CRM pages | GitHub Pages (this repo, `main`) | Push to `main`; Pages publishes in about a minute |
-| Cloud Functions, Firestore rules, Storage rules | Firebase project `makwell-websiteandcrm` | `set FUNCTIONS_DISCOVERY_TIMEOUT=60` then `firebase deploy --only functions,firestore:rules,storage` |
+| Cloud Functions, Firestore rules, Storage rules | Firebase project `makwell-websiteandcrm` | `cd functions && npm install && cd ..`, then allow 60 s for loading — PowerShell: `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60` / Command Prompt: `set FUNCTIONS_DISCOVERY_TIMEOUT=60` — then `firebase deploy --only functions,firestore:rules,storage` |
 
 ## Release checklist
 1. All checks green on GitHub (Actions → Automated Site QA and CI). The go-live gate says GO or GO WITH KNOWN ISSUES (`node scripts/qa/go-live-gate.mjs`).
