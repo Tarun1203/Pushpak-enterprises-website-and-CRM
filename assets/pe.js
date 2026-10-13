@@ -46,6 +46,15 @@
       brandCss.rel = 'stylesheet';
       brandCss.href = '../assets/modern-brand.css';
       doc.head.appendChild(brandCss);
+
+      // MakWell: add the ScrollCraft cinematic story without changing the
+      // existing product/Firebase structure. Flyvision and Skevia remain untouched.
+      if (brandMatch[1] === 'makwell') {
+        var sc = doc.createElement('script');
+        sc.src = '../assets/scrollcraft-makwell.js';
+        sc.defer = true;
+        doc.head.appendChild(sc);
+      }
     }
 
     var header = doc.querySelector('header');
