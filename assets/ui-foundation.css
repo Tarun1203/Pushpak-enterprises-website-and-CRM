@@ -1,0 +1,110 @@
+/* Pushpak UI Foundation — Phase 1
+   Reusable design-system primitives. Presentation only; no Firebase/page logic. */
+:root {
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+  --ui-space-8: 32px;
+  --ui-space-10: 40px;
+  --ui-space-12: 48px;
+  --ui-space-16: 64px;
+  --ui-control-h: 44px;
+  --ui-focus-ring: 0 0 0 3px rgba(47,91,255,.22);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --card: #12192a;
+  --ink: #f5f7fb;
+  --ink-2: #d6dbea;
+  --muted: #9aa5bc;
+  --line: #273149;
+  --paper: var(--bg);
+  --paper-deep: #161e31;
+  --stone: var(--muted);
+  --hairline: var(--line);
+}
+
+html[data-theme="dark"] body { background: var(--bg); color: var(--ink); }
+html[data-theme="dark"] .acct,
+html[data-theme="dark"] .strip-item,
+html[data-theme="dark"] .cat-tile,
+html[data-theme="dark"] .service-card,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .site-footer,
+html[data-theme="dark"] .tabbar { background: var(--card); color: var(--ink); border-color: var(--line); }
+html[data-theme="dark"] header { background: rgba(11,16,32,.78); }
+html[data-theme="dark"] .hub { background: linear-gradient(180deg,#10172a,#0b1020); border-color: var(--line); }
+html[data-theme="dark"] .cat-tile p,
+html[data-theme="dark"] .service-card p,
+html[data-theme="dark"] .sec-head p { color: var(--muted); }
+
+.ui-control {
+  min-height: var(--ui-control-h);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  padding: 0 14px;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+}
+.ui-control:hover { border-color: var(--accent); }
+.ui-control:focus-visible { outline: 0; box-shadow: var(--ui-focus-ring); border-color: var(--accent); }
+
+.ui-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color .2s, background .2s, transform .2s;
+}
+.ui-icon-button:hover { border-color: var(--accent); background: rgba(47,91,255,.07); transform: translateY(-1px); }
+.ui-icon-button:focus-visible { outline: 0; box-shadow: var(--ui-focus-ring); }
+.ui-icon-button svg { width: 19px; height: 19px; }
+
+.ui-surface {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.ui-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.ui-status.success { color: var(--ok); background: rgba(18,128,74,.09); }
+.ui-status.warning { color: var(--warn); background: rgba(154,106,21,.09); }
+.ui-status.error { color: var(--err); background: rgba(179,38,30,.09); }
+.ui-status.info { color: var(--accent-deep); background: rgba(47,91,255,.09); }
+
+.ui-divider { height: 1px; width: 100%; background: var(--line); }
+.ui-muted { color: var(--muted); }
+.ui-kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
