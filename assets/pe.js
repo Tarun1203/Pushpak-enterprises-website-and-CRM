@@ -9,6 +9,33 @@
   function ready(fn) { if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', fn); else fn(); }
 
   ready(function () {
+    // Phase 1: load the shared UI foundation without changing existing page markup.
+    var foundationCss = doc.createElement('link');
+    foundationCss.rel = 'stylesheet';
+    foundationCss.href = (function () {
+      var p = window.location.pathname.replace(/\\/g, '/');
+      return /\/(makwell|flyvision|skevia)(?:\/|$)/.test(p) ? '../assets/ui-foundation.css' : 'assets/ui-foundation.css';
+    }());
+    doc.head.appendChild(foundationCss);
+
+    var foundationJs = doc.createElement('script');
+    foundationJs.src = foundationCss.href.replace('ui-foundation.css', 'ui-foundation.js');
+    foundationJs.defer = true;
+    doc.head.appendChild(foundationJs);
+
+    // Phase 1: expose the design-system theme control from the existing header.
+    var headerActions = doc.querySelector('.header-actions');
+    if (headerActions && !doc.querySelector('[data-theme-toggle]')) {
+      var themeButton = doc.createElement('button');
+      themeButton.type = 'button';
+      themeButton.className = 'ui-icon-button';
+      themeButton.setAttribute('data-theme-toggle', 'true');
+      themeButton.setAttribute('aria-label', 'Switch theme');
+      themeButton.setAttribute('aria-pressed', 'false');
+      themeButton.innerHTML = '<svg data-theme-icon="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg><svg data-theme-icon="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" hidden><path d="M20.4 14.6A8.5 8.5 0 0 1 9.4 3.6 8.5 8.5 0 1 0 20.4 14.6z"/></svg>';
+      headerActions.insertBefore(themeButton, headerActions.firstChild);
+    }
+
     var path = window.location.pathname.replace(/\\/g, '/');
     var isRootHome = path === '/' || /\/index\.html$/.test(path) && !/\/(makwell|flyvision|skevia)\/index\.html$/.test(path);
     var brandMatch = path.match(/\/(makwell|flyvision|skevia)(?:\/index\.html)?\/?$/);
