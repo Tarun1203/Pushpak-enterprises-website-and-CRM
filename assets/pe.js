@@ -1,6 +1,6 @@
 /* Pushpak Enterprises - public site behaviour (UI phases 1-5).
    Header shadow on scroll, reveal-on-scroll, hero rotation, mobile tab bar,
-   and the step-by-step form helper. Nothing here touches Firebase. */
+   motion system and the step-by-step form helper. Nothing here touches Firebase. */
 (function () {
   'use strict';
   var doc = document;
@@ -9,7 +9,7 @@
   function ready(fn) { if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', fn); else fn(); }
 
   ready(function () {
-    // Phase 1: load the shared UI foundation without changing existing page markup.
+    // Phase 1: shared UI foundation.
     var foundationCss = doc.createElement('link');
     foundationCss.rel = 'stylesheet';
     foundationCss.href = (function () {
@@ -23,7 +23,17 @@
     foundationJs.defer = true;
     doc.head.appendChild(foundationJs);
 
-    // Phase 1: expose the design-system theme control from the existing header.
+    // Phase 2: dependency-free motion system.
+    var motionCss = doc.createElement('link');
+    motionCss.rel = 'stylesheet';
+    motionCss.href = foundationCss.href.replace('ui-foundation.css', 'motion-system.css');
+    doc.head.appendChild(motionCss);
+    var motionJs = doc.createElement('script');
+    motionJs.src = foundationCss.href.replace('ui-foundation.css', 'motion-system.js');
+    motionJs.defer = true;
+    doc.head.appendChild(motionJs);
+
+    // Phase 1: theme control from the existing header.
     var headerActions = doc.querySelector('.header-actions');
     if (headerActions && !doc.querySelector('[data-theme-toggle]')) {
       var themeButton = doc.createElement('button');
@@ -40,8 +50,6 @@
     var isRootHome = path === '/' || /\/index\.html$/.test(path) && !/\/(makwell|flyvision|skevia)\/index\.html$/.test(path);
     var brandMatch = path.match(/\/(makwell|flyvision|skevia)(?:\/index\.html)?\/?$/);
 
-    // Modern homepage presentation layer. Existing markup, Firebase data and
-    // support flows stay intact; this only adds a visual layer to the gateway.
     if (isRootHome) {
       doc.body.classList.add('modern-home');
       var modernCss = doc.createElement('link');
@@ -66,16 +74,12 @@
       }
     }
 
-    // Shared modern brand presentation layer for MakWell, Flyvision and Skevia.
     if (brandMatch) {
       doc.body.classList.add('modern-brand');
       var brandCss = doc.createElement('link');
       brandCss.rel = 'stylesheet';
       brandCss.href = '../assets/modern-brand.css';
       doc.head.appendChild(brandCss);
-
-      // MakWell: add the ScrollCraft cinematic story without changing the
-      // existing product/Firebase structure. Flyvision and Skevia remain untouched.
       if (brandMatch[1] === 'makwell') {
         var sc = doc.createElement('script');
         sc.src = '../assets/scrollcraft-makwell.js';
@@ -130,9 +134,7 @@
     if (steps.length < 2) return;
     var submit = form.querySelector(':scope > button[type="submit"]');
     var bar = doc.createElement('ol'); bar.className = 'wiz-progress'; bar.setAttribute('aria-label', 'Progress');
-    steps.forEach(function (s, i) {
-      var li = doc.createElement('li'); li.dataset.n = String(i + 1); li.textContent = s.dataset.label || ('Step ' + (i + 1)); bar.appendChild(li);
-    });
+    steps.forEach(function (s, i) { var li = doc.createElement('li'); li.dataset.n = String(i + 1); li.textContent = s.dataset.label || ('Step ' + (i + 1)); bar.appendChild(li); });
     form.insertBefore(bar, form.firstChild);
     var nav = doc.createElement('div'); nav.className = 'wiz-nav';
     var back = doc.createElement('button'); back.type = 'button'; back.className = 'btn btn-secondary'; back.textContent = 'Back';
@@ -165,11 +167,7 @@
     }
     function valid() {
       var fields = steps[i].querySelectorAll('input,select,textarea');
-      for (var k = 0; k < fields.length; k++) {
-        var f = fields[k];
-        if (f.disabled || f.offsetParent === null) continue;
-        if (!f.checkValidity()) { f.reportValidity(); return false; }
-      }
+      for (var k = 0; k < fields.length; k++) { var f = fields[k]; if (f.disabled || f.offsetParent === null) continue; if (!f.checkValidity()) { f.reportValidity(); return false; } }
       return true;
     }
     next.addEventListener('click', function () { if (valid()) go(i + 1); });
