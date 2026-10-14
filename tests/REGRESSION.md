@@ -96,6 +96,8 @@ Locally, suites you did not run show as "no results" — that is expected.
 | A new ticket, registration, claim, enquiry or notification arrived but nothing told the person until they reloaded, and its details had no pop-up | `ui-live.spec.js` (alerts, View pop-up, own-records-only, safe refresh, phone) |
 | Clicking an item in a list (registration, ticket, claim ...) did nothing; no pop-up with that item's details | `ui-rows.spec.js` (row pop-up, no double pop-up, buttons/selection ignored) |
 | The row pop-up only repeated the row's own columns, with no extra information | `ui-rows.spec.js` (full record, warranty valid-until, role-scoped lookup, quiet fallback) |
+| No screen to switch an account off (needed a console edit); temporary passwords used Math.random | `crm-fixes.spec.js` (switch off / on with audit entry, never your own account) |
+| Report Bug / My Bugs had no Firestore rule, so every report was refused | rules tests (create as yourself, read your own, Head Office sees all) |
 | No way to say a brand's installation / demo / service is free (company paid) or customer paid, e.g. Skevia | `crm-fixes.spec.js` (Warehouse brand rules, center billing follows the brand rule even out of warranty, website tells the customer), `functions/billing.test.js`, rules tests |
 | No way to say who pays for installation / demo / service (e.g. Skevia free, some MakWell models free) | `crm-fixes.spec.js` (Warehouse sets who pays per rate card row; center billing and rate card follow it), `functions/billing.test.js` (company-paid claimed even out of warranty, customer-paid never claimed) |
 | No way to add a service center from the Service Centers screen | `crm-fixes.spec.js` (button opens the account form with Service Center chosen) |

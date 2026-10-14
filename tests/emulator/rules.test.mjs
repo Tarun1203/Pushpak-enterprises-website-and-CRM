@@ -265,3 +265,12 @@ runCases('Rules: brand-wide who-pays rules', [
   ['anon', 'get', 'serviceChargeRates/brandpayer_skevia_installation', null, A, 'the website can show "free installation"'],
   ['anon', 'get', 'serviceChargeRates/default_geyser_repair_flat', null, D, 'rate amounts stay private']
 ]);
+
+runCases('Rules: CRM bug reports (Report Bug / My Bugs)', [
+  ['t1', 'add', 'bugReports', { reporterUid: 't1', status: 'reported', title: 'Save button does nothing', description: 'x' }, A, 'any CRM user can report a bug'],
+  ['t1', 'add', 'bugReports', { reporterUid: 'sc1', status: 'reported', title: 'x' }, D, 'not in someone else\'s name'],
+  ['t1', 'add', 'bugReports', { reporterUid: 't1', status: 'fixed', title: 'x' }, D, 'starts as reported'],
+  ['anon', 'add', 'bugReports', { reporterUid: 'x', status: 'reported', title: 'x' }, D, 'signed-in only'],
+  ['t1', 'list', ['bugReports', ['reporterUid', '==', 't1']], null, A, 'My Bugs lists my own reports'],
+  ['t1', 'list', ['bugReports'], null, D, 'but not everyone\'s']
+]);

@@ -11,7 +11,7 @@
     },
     "rules_qa": {
       "label": "Firestore/Storage rules & roles (emulator)",
-      "minTests": 446
+      "minTests": 452
     },
     "workflow_qa": {
       "label": "Workflows (emulator, rules + functions)",

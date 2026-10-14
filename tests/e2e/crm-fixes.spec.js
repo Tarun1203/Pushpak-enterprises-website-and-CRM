@@ -303,3 +303,19 @@ test('Website booking tells the customer when the brand gives free installation 
   await page.selectOption('#book-form select[name=brand]', 'MakWell');
   await expect(page.locator('#book-payer-note')).toBeHidden();
 });
+
+test('Security: Super Admin can switch an account off and on (never their own)', async ({ page }) => {
+  const data = sampleFor('superadmin');
+  data.users = [{ id: 'u1', role: 'superadmin', name: 'Me', email: 't@pe.test' },
+    { id: 'tX', role: 'technician', name: 'Ravi', email: 'ravi@pe.test' },
+    { id: 'tY', role: 'technician', name: 'Off Tech', email: 'off@pe.test', disabledByAdmin: true }];
+  const errors = await openAs(page, 'superadmin', data);
+  await nav(page, 'Users & Access');
+  await expect(page.locator('#users-tbody tr', { hasText: 't@pe.test' }).locator('.switch-user-btn')).toHaveCount(0);
+  await expect(page.locator('#users-tbody tr', { hasText: 'off@pe.test' })).toContainText('Switched off');
+  await expect(page.locator('#users-tbody tr', { hasText: 'off@pe.test' }).locator('.switch-user-btn')).toHaveText('Switch on');
+  await page.locator('#users-tbody tr', { hasText: 'ravi@pe.test' }).locator('.switch-user-btn').click();
+  await expect.poll(async () => (await writes(page)).some(([op, p, d]) => op === 'update' && p === 'users/tX' && d.disabledByAdmin === true)).toBe(true);
+  expect((await writes(page)).some(([op, p, d]) => op === 'add' && p === 'auditLogs' && d.action === 'switched_off')).toBe(true);
+  expect(errors).toEqual([]);
+});

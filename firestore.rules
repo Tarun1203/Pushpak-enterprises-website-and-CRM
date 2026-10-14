@@ -1310,6 +1310,23 @@ service cloud.firestore {
     // website's "Find a service center or store" map shows to anyone.
     // Never personal data. Head Office maintains it from the CRM.
     // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+    // CRM "Report Bug" (crm/bug-reporter.js) and "My Bugs" (crm/my-bugs.html).
+    // Any signed-in CRM user files a report as themselves; they see their
+    // own reports, Head Office sees all and moves them along.
+    // ---------------------------------------------------------------
+    match /bugReports/{id} {
+      allow create: if isSignedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'reported'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
+        && request.resource.data.get('description', '').size() <= 5000;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterUid == request.auth.uid);
+      allow update: if isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
     match /publicLocations/{id} {
       allow read: if true;
       allow create, update: if isAdmin()

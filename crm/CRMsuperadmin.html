@@ -1686,12 +1686,35 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         tr.innerHTML = `
           <td>${escapeHtml(d.name || '—')}</td>
           <td>${escapeHtml(d.email || '—')}</td>
-          <td><span class="role-pill ${escapeHtml(d.role || '')}">${escapeHtml(d.role || 'unknown')}</span></td>
+          <td><span class="role-pill ${escapeHtml(d.role || '')}">${escapeHtml(d.role || 'unknown')}</span>${d.disabledByAdmin ? ' <span class="status-pill cancelled">Switched off</span>' : d.accessDisabled ? ' <span class="status-pill cancelled" title="Blocked by employment or center status">Blocked</span>' : ''}</td>
           <td style="color:var(--stone);font-size:12px;">${escapeHtml(docSnap.id)}</td>
-          <td><button class="btn-secondary edit-user-btn" data-uid="${escapeHtml(docSnap.id)}">Edit</button></td>`;
+          <td style="white-space:nowrap;"><button class="btn-secondary edit-user-btn" data-uid="${escapeHtml(docSnap.id)}">Edit</button>
+            ${auth.currentUser && auth.currentUser.uid === docSnap.id ? '' : `<button class="btn-secondary switch-user-btn" data-uid="${escapeHtml(docSnap.id)}">${d.disabledByAdmin ? 'Switch on' : 'Switch off'}</button>`}</td>`;
         tbody.appendChild(tr);
         tr.querySelector('.edit-user-btn').addEventListener('click', () => {
           openEditUserModal(docSnap.id, d);
+        });
+        const sw = tr.querySelector('.switch-user-btn');
+        if (sw) sw.addEventListener('click', async () => {
+          const off = !d.disabledByAdmin;
+          const who = d.name || d.email || docSnap.id;
+          if (!confirm(off ? `Switch off ${who}?\n\nThey will be signed out of the CRM and cannot sign in until switched on again. Their records are kept.` : `Switch ${who} back on?`)) return;
+          sw.disabled = true;
+          try {
+            await updateDoc(doc(db, 'users', docSnap.id), { disabledByAdmin: off, updatedAt: serverTimestamp() });
+            try {
+              await addDoc(collection(db, 'auditLogs'), {
+                entityType: 'user', entityId: docSnap.id, action: off ? 'switched_off' : 'switched_on',
+                performedBy: auth.currentUser ? auth.currentUser.email : 'unknown', performedByUid: auth.currentUser ? auth.currentUser.uid : '',
+                details: `${off ? 'Switched off' : 'Switched on'} ${d.email || docSnap.id}`, createdAt: serverTimestamp()
+              });
+            } catch (auditErr) { console.warn('Audit log write failed (non-blocking):', auditErr.message); }
+            loadUsersTable();
+          } catch (err) {
+            console.error('Switch account failed:', err);
+            alert('Could not change this account. Only a Super Admin can switch accounts off or on.');
+            sw.disabled = false;
+          }
         });
       });
     } catch (err) {
@@ -9570,7 +9593,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function generateTempPassword() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let pw = '';
-    for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    const rnd = crypto.getRandomValues(new Uint32Array(10)); // cryptographically random, not Math.random
+    for (let i = 0; i < 10; i++) pw += chars[rnd[i] % chars.length];
     return pw;
   }
 

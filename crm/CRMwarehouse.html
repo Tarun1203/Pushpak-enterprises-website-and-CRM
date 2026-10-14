@@ -2519,7 +2519,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   function generateTempPassword() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let pw = '';
-    for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    const rnd = crypto.getRandomValues(new Uint32Array(10)); // cryptographically random, not Math.random
+    for (let i = 0; i < 10; i++) pw += chars[rnd[i] % chars.length];
     return pw;
   }
 
