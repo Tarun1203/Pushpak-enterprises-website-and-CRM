@@ -19,3 +19,6 @@ functions/.env.*
 
 QA-tests/.qa-catalog/auth.local.json
 QA-tests/.qa-catalog/state/
+
+# Local test output (screenshots, videos, reports)
+/qa-results/
