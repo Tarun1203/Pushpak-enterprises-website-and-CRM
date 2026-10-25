@@ -10,7 +10,7 @@ const { computeIntakeWarranty, isPossibleDuplicate } = require('./intake');
 const { findCandidates, pickLeastLoaded, findDirectTechnicians, NO_CENTER_REASONS } = require('./routing');
 const { rankTechnicians } = require('./technicianMatch');
 const Appointment = require('./appointment');
-const { checkTransition, checkSpareTransition } = require('./lifecycle');
+const { checkTransition, checkSpareTransition, dispatchStockProblem } = require('./lifecycle');
 const Billing = require('./billing');
 const Feedback = require('./feedback');
 const ProfileGuard = require('./profileGuard');
@@ -22,6 +22,10 @@ const Rma = require('./rma');
 const Approvals = require('./approvals');
 const Lookup = require('./lookup');
 const Customer = require('./customer');
+const { districtFor } = require('./district');
+const CloseConfirm = require('./closeConfirm');
+const Messaging = require('./messaging');
+const Numbers = require('./numbers');
 
 initializeApp();
 const db = getFirestore();
@@ -536,14 +540,95 @@ for (const coll of ['centerRequests', 'serviceJobs']) {
       if (before.status === after.status) return;
       const actor = await db.collection('users').doc(event.authId).get();
       if (!actor.exists || ['superadmin', 'warehouse'].includes(actor.get('role'))) return;
-      const reason = checkTransition(before, after, event.authId);
-      if (!reason) return;
+      let reason = checkTransition(before, after, event.authId);
+      let confirmation = null, codeRef = null, codeUpdate = null;
+      if (!reason && after.status === 'completed') {
+        // Customer confirmation (closeConfirm.js): completion code or signature.
+        const id = event.params.docId;
+        codeRef = db.collection('closeCodes').doc(CloseConfirm.codeDocId(coll, id));
+        const [setting, code] = await Promise.all([db.collection('settings').doc('closeConfirmation').get(), codeRef.get()]);
+        const sig = after.customerSignature && typeof after.customerSignature.path === 'string' ? after.customerSignature.path : '';
+        const signatureOk = sig ? await signatureExists(sig) : false;
+        const out = CloseConfirm.decide({ required: setting.exists && setting.get('required') === true, coll, id, after, codeDoc: code.exists ? code.data() : null, signatureOk });
+        reason = out.reason || null; confirmation = out.record || null; codeUpdate = out.codeUpdate || null;
+      }
+      if (codeUpdate && codeRef) await codeRef.set(codeUpdate.usedAt ? { usedAt: Timestamp.fromMillis(codeUpdate.usedAt) } : codeUpdate, { merge: true });
+      if (!reason) {
+        if (confirmation) {
+          await event.data.after.ref.update({ customerConfirmation: { ...confirmation, at: FieldValue.serverTimestamp(), byUid: event.authId }, closeOtp: FieldValue.delete() });
+        }
+        return;
+      }
       await event.data.after.ref.update({
         status: before.status,
+        closeOtp: FieldValue.delete(),
         lifecycleRejected: { from: before.status, to: after.status, reason, at: FieldValue.serverTimestamp() }
       });
     }
   );
+}
+
+// Does the customer's signature image exist in Storage? (tests swap this out)
+async function signatureExists(path) {
+  if (CloseConfirm.deps && CloseConfirm.deps.signatureExists) return CloseConfirm.deps.signatureExists(path);
+  try {
+    const { getStorage } = require('firebase-admin/storage');
+    const [exists] = await getStorage().bucket().file(path).exists();
+    return exists;
+  } catch (e) { console.warn('signature check failed', e.message); return false; }
+}
+
+// The technician (or the ticket's service center) asks for a completion
+// code. It is shown in the customer's My Service portal and, when customer
+// messaging is switched on, sent by SMS / WhatsApp. Valid 24 hours, single use.
+exports.sendCloseCode = onCall({ region: REGION, maxInstances: 10 }, async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const { coll, id } = request.data || {};
+  if (!['centerRequests', 'serviceJobs'].includes(coll) || typeof id !== 'string' || !id || id.includes('/')) throw new HttpsError('invalid-argument', 'Unknown job.');
+  const [snap, me] = await Promise.all([db.collection(coll).doc(id).get(), db.collection('users').doc(uid).get()]);
+  if (!snap.exists) throw new HttpsError('not-found', 'Job not found.');
+  if (!me.exists || me.get('accessDisabled') === true) throw new HttpsError('permission-denied', 'Your account is switched off.');
+  const t = snap.data();
+  if (!CloseConfirm.canClose(t, uid) && !['superadmin', 'warehouse'].includes(me.get('role'))) throw new HttpsError('permission-denied', 'Only this job\'s technician or service center can send the code.');
+  if (!Messaging.phone91(t.customerPhone)) throw new HttpsError('failed-precondition', 'This job has no valid customer mobile number. Take the customer\'s signature instead.');
+  const ref = db.collection('closeCodes').doc(CloseConfirm.codeDocId(coll, id));
+  const prev = await ref.get();
+  if (prev.exists && prev.get('sentAt') && Date.now() - prev.get('sentAt').toMillis() < 60 * 1000) throw new HttpsError('resource-exhausted', 'A code was just sent. Wait a minute before sending another.');
+  const code = CloseConfirm.newCode();
+  const ticket = t.requestId || t.jobId || id;
+  const settings = (await db.collection('settings').doc('messaging').get()).data() || {};
+  const sent = await Messaging.send({ settings, authKey: process.env.MSG91_AUTHKEY, phone: t.customerPhone, event: 'closeCode', values: { code, ticket } });
+  await ref.set({ code, ticketId: ticket, coll, docId: id, customerPhone: String(t.customerPhone).replace(/\D/g, '').slice(-10), sentAt: FieldValue.serverTimestamp(),
+    expiresAtMs: Date.now() + CloseConfirm.CODE_TTL_MS, tries: 0, usedAt: null, sentVia: sent.status === 'sent' ? sent.channel : 'portal', requestedByUid: uid });
+  await logMessage(`closeCode_${coll}_${id}_${Date.now()}`, { event: 'closeCode', coll, docId: id, ticket, result: sent });
+  return { sentVia: sent.status === 'sent' ? sent.channel : 'portal', reason: sent.status === 'sent' ? null : sent.reason };
+});
+
+// Automatic customer messages (messaging.js): booking received, technician
+// assigned, visit scheduled, job completed. One log entry per event, so a
+// retried trigger never sends twice. Does nothing until switched on.
+async function logMessage(key, data) {
+  try { await db.collection('messageLog').doc(key.replace(/[^A-Za-z0-9_-]/g, '_')).create({ ...data, createdAt: FieldValue.serverTimestamp() }); return true; }
+  catch (e) { return false; }
+}
+for (const coll of ['publicServiceRequests', 'centerRequests', 'serviceJobs']) {
+  exports['messageCustomer_' + coll] = onDocumentWritten({ document: `${coll}/{docId}`, region: REGION }, async (event) => {
+    const ch = event.data;
+    if (!ch || !ch.after.exists) return;
+    const before = ch.before.exists ? ch.before.data() : null, after = ch.after.data();
+    // A center ticket made from a website request: the customer was already told at booking.
+    const list = Messaging.eventsFor(coll, event.params.docId, before, after).filter((m) => !(m.event === 'booking' && after.source !== 'public-site'));
+    if (!list.length) return;
+    const settings = (await db.collection('settings').doc('messaging').get()).data() || {};
+    if (!settings.enabled) return;
+    for (const m of list) {
+      const key = `${coll}_${event.params.docId}_${m.key}`;
+      if (!(await logMessage(key, { event: m.event, coll, docId: event.params.docId, ticket: m.values.ticket, result: { status: 'sending' } }))) continue;
+      const result = await Messaging.send({ settings, authKey: process.env.MSG91_AUTHKEY, phone: after.customerPhone, event: m.event, values: m.values });
+      await db.collection('messageLog').doc(key.replace(/[^A-Za-z0-9_-]/g, '_')).set({ result }, { merge: true });
+    }
+  });
 }
 
 // ---------------------------------------------------------------
@@ -587,13 +672,36 @@ exports.checkSparePipeline = onDocumentUpdatedWithAuthContext(
     const actor = await db.collection('users').doc(event.authId).get();
     if (!actor.exists) return; // the Cloud Functions' own writes
     const reason = checkSpareTransition(before, after);
-    if (!reason) return;
+    if (!reason) {
+      if (after.status === 'dispatched') await auditDispatchStock(event.data.after.ref, after);
+      return;
+    }
     await event.data.after.ref.update({
       status: before.status,
       pipelineRejected: { from: before.status, to: after.status, reason, at: FieldValue.serverTimestamp() }
     });
   }
 );
+
+// Dispatch audit: the stock movement for this request must exist and match
+// the quantity, and the warehouse shelf must not go negative. A problem is
+// recorded on the request (stockCheck) and Warehouse + Super Admin are told.
+async function auditDispatchStock(ref, req) {
+  const moves = await db.collection('stockMovements').where('sourceRequestId', '==', ref.id).get();
+  let moved = 0;
+  moves.forEach((m) => { if (m.get('type') === 'transfer') moved += Number(m.get('quantity')) || 0; });
+  let warehouseQty = null;
+  if (req.partId) { const inv = await db.collection('inventory').doc(`warehouse_${req.partId}`).get(); if (inv.exists) warehouseQty = Number(inv.get('quantity')); }
+  const problem = dispatchStockProblem({ partId: req.partId, dispatchedQty: req.dispatchedQty, quantity: req.quantity, moved, warehouseQty });
+  await ref.update({ stockCheck: problem ? { ...problem, moved, at: FieldValue.serverTimestamp() } : { status: 'ok', moved, at: FieldValue.serverTimestamp() } });
+  if (!problem) return;
+  const batch = db.batch();
+  ['warehouse', 'superadmin'].forEach((role) => batch.set(db.collection('notifications').doc(`stockcheck_${ref.id}_${role}`), {
+    recipientType: 'role', recipientValue: role, title: 'Spare dispatch: stock does not match',
+    message: `${req.requestId || ref.id}: ${problem.message}`, read: false, createdAt: FieldValue.serverTimestamp()
+  }));
+  await batch.commit();
+}
 
 // ---------------------------------------------------------------
 // Billing at closure. When a TECHNICIAN completes their own ticket, the
@@ -2348,7 +2456,8 @@ for (const [coll, field] of Object.entries(ID_FIELDS)) {
       const id = d[field];
       if (!id) return;
       const same = await db.collection(coll).where(field, '==', id).limit(5).get();
-      const others = same.docs.filter((x) => x.id !== event.params.docId).map((x) => x.id);
+      // A ticket moved to another center (Area Manager) keeps its number; the old copy is cancelled.
+      const others = same.docs.filter((x) => x.id !== event.params.docId && !(x.id === d.movedFromDocId)).map((x) => x.id);
       const badShape = !ID_SHAPE.test(String(id));
       if (!others.length && !badShape) return;
       const problem = others.length ? 'duplicate' : 'unexpected_format';
@@ -2376,12 +2485,19 @@ async function runEscalationSweep(nowMs) {
   };
   const pubs = await db.collection('publicServiceRequests').where('status', '==', 'new').get();
   for (const s of pubs.docs) await raise(s.ref, s.data(), Escalation.unrouted(s.data(), nowMs));
+  // SLA rules and the Area Managers of each district (told about breaches there).
+  const rules = (await db.collection('slaRules').get()).docs.map((d) => d.data());
+  const managers = (await db.collection('users').where('role', '==', 'areamanager').get()).docs.filter((u) => u.get('accessDisabled') !== true);
+  const managersOf = (district) => managers.filter((u) => (u.get('districtsCovered') || []).map((x) => String(x).trim().toLowerCase()).includes(String(district || '').trim().toLowerCase())).map((u) => u.id);
   for (const coll of ['centerRequests', 'serviceJobs']) {
-    for (const st of ['new', 'assigned', 'accepted', 'on_the_way', 'waiting_spare']) {
+    for (const st of Escalation.OPEN) {
       const snap = await db.collection(coll).where('status', '==', st).get();
       for (const s of snap.docs) {
-        const d = s.data();
-        await raise(s.ref, d, Escalation.unassigned(d, nowMs) || Escalation.missedAppointment(d, today) || Escalation.stuckOnSpare(d, nowMs));
+        let d = s.data();
+        const first = Escalation.unassigned(d, nowMs) || Escalation.missedAppointment(d, today) || Escalation.stuckOnSpare(d, nowMs);
+        await raise(s.ref, d, first);
+        if (first) d = (await s.ref.get()).data();
+        await raise(s.ref, d, Escalation.slaBreached(d, rules, nowMs, d.district ? managersOf(d.district) : []));
       }
     }
   }
@@ -2489,3 +2605,48 @@ for (const coll of Object.keys(Masters.KEYS)) {
     }
   );
 }
+
+
+// ---------------------------------------------------------------
+// Every ticket carries its district (from the pincode master, else the
+// handling center's profile) so Area Managers can see and act on the
+// tickets in their own districts. Written once, only when missing.
+// ---------------------------------------------------------------
+async function stampDistrict(event) {
+  const after = event.data && event.data.after;
+  if (!after || !after.exists) return;
+  const t = after.data();
+  if (t.district) return;
+  const pin = String(t.pincode || '').trim();
+  const [pinSnap, profSnap] = await Promise.all([
+    /^\d{6}$/.test(pin) ? db.collection('pincodes').doc(pin).get() : Promise.resolve(null),
+    t.serviceCenterUid ? db.collection('serviceCenterProfiles').doc(String(t.serviceCenterUid)).get() : Promise.resolve(null)
+  ]);
+  const d = districtFor(t, pinSnap && pinSnap.exists ? pinSnap.data() : null, profSnap && profSnap.exists ? profSnap.data() : null);
+  if (d) await after.ref.update({ district: d });
+}
+exports.stampDistrict_centerRequests = onDocumentWritten({ document: 'centerRequests/{id}', region: REGION }, stampDistrict);
+exports.stampDistrict_serviceJobs = onDocumentWritten({ document: 'serviceJobs/{id}', region: REGION }, stampDistrict);
+exports.stampDistrict_publicServiceRequests = onDocumentWritten({ document: 'publicServiceRequests/{id}', region: REGION }, stampDistrict);
+
+// Business numbers (request, job, claim, spare request) issued by the server
+// from the shared monthly counter (numbers.js), so two people can't be
+// handed the same number and nobody can choose their own.
+exports.issueNumber = onCall({ region: REGION, maxInstances: 20 }, async (request) => {
+  const uid = request.auth && request.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const kind = request.data && request.data.kind;
+  if (!Numbers.KINDS[kind]) throw new HttpsError('invalid-argument', 'Unknown number type.');
+  const me = await db.collection('users').doc(uid).get();
+  const role = me.exists ? me.get('role') : null;
+  if (!role || me.get('accessDisabled') === true || !Numbers.ALLOWED[kind].includes(role)) throw new HttpsError('permission-denied', 'Your account cannot create this.');
+  const now = Date.now();
+  const ref = db.collection('counters').doc(Numbers.counterId(kind, now));
+  const serial = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const next = (snap.exists ? Number(snap.get('value')) || 0 : 0) + 1;
+    tx.set(ref, { value: next });
+    return next;
+  });
+  return { number: Numbers.format(kind, serial, role, now) };
+});

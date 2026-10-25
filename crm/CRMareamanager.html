@@ -70,11 +70,30 @@
   .panel-header h2{font-size:15px;font-weight:700;}
   .panel-body{padding:22px;}
 
-  .coming-soon{
-    border:1px dashed var(--hairline);border-radius:2px;padding:60px 30px;text-align:center;color:var(--stone);
-  }
-  .coming-soon .big{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px;}
-  .coming-soon .small{font-size:13px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:0.03em;padding:10px 14px;border-bottom:1px solid var(--hairline);white-space:nowrap;}
+  td{padding:12px 14px;border-bottom:1px solid var(--hairline);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .empty-row{text-align:center;color:var(--stone);padding:32px;}
+  .btn-primary{background:var(--blue);color:#fff;font-weight:600;font-size:13px;padding:9px 16px;border:none;border-radius:2px;}
+  .btn-primary:disabled,.btn-secondary:disabled{opacity:0.6;cursor:default;}
+  .btn-secondary{background:transparent;border:1px solid var(--hairline);color:var(--ink);font-weight:600;font-size:13px;padding:8px 14px;border-radius:2px;}
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .status-pill.new,.status-pill.assigned{background:#DCEAF6;color:var(--blue-deep);}
+  .status-pill.completed{background:#D9EEE0;color:var(--ok);}
+  .status-pill.cancelled{background:#F6DCDC;color:var(--err);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,21,26,0.5);display:none;align-items:center;justify-content:center;z-index:50;padding:24px;}
+  .modal-overlay.show{display:flex;}
+  .modal{position:relative;background:var(--paper);width:100%;max-width:420px;max-height:calc(100vh - 48px);overflow-y:auto;border-radius:3px;padding:28px;}
+  .modal.modal-wide{max-width:640px;}
+  .modal h3{font-size:16px;font-weight:800;margin-bottom:14px;padding-right:30px;}
+  .modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:24px;line-height:1;color:var(--stone);}
+  .form-row{display:flex;flex-direction:column;gap:5px;margin-bottom:10px;}
+  .form-row label{font-size:12px;font-weight:600;color:var(--stone);}
+  .form-row select,.form-row input{border:1px solid var(--hairline);padding:10px 12px;font-size:13.5px;border-radius:2px;background:#fff;}
+  .nav-item{width:100%;background:none;border:none;text-align:left;}
+  .nav-item:focus-visible,.stat-card:focus-visible{outline:2px solid #fff;outline-offset:-2px;}
+  .content .stat-card:focus-visible{outline-color:var(--blue);}
 </style>
 <link rel="stylesheet" href="ui.css">
 <link rel="stylesheet" href="mobile.css">
@@ -124,7 +143,8 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { mountAreaManager } from "./areamanager.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -155,8 +175,10 @@
       window.location.href = 'login.html';
       return;
     }
+    let profile = null;
     try {
       const roleSnap = await getDoc(doc(db, 'users', user.uid));
+      profile = roleSnap.exists() ? roleSnap.data() : null;
       // Shared header (ui.js) shows who is signed in from this profile.
       window.PE_IDENTITY = Object.assign({ uid: user.uid, email: user.email || '', authName: user.displayName || '' }, roleSnap.exists() ? roleSnap.data() : {});
       window.dispatchEvent(new Event('pe-identity'));
@@ -173,7 +195,13 @@
     userEmailEl.textContent = user.email;
     gate.style.display = 'none';
     appEl.style.display = 'block';
-    renderDashboard();
+    area = mountAreaManager({
+      db, user, profile, contentEl, pageSub, escapeHtml,
+      fs: { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, serverTimestamp },
+      go: (id) => selectSection(id)
+    });
+    renderNav();
+    selectSection(location.hash.slice(1) || 'dashboard');
   });
 
   document.getElementById('logout-btn').addEventListener('click', async () => {
@@ -181,95 +209,56 @@
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "My Area", "items": [{"id": "servicecenters", "label": "Service Centers"}, {"id": "technicians", "label": "Technicians"}, {"id": "coverage", "label": "Coverage Areas"}]}, {"group": "Service", "items": [{"id": "servicerequests", "label": "Service Requests"}, {"id": "routing", "label": "Assignment & Routing"}, {"id": "sla", "label": "SLA & Escalation"}]}, {"group": "Inventory (Read-only)", "items": [{"id": "inventory", "label": "Inventory Overview"}, {"id": "spareparts", "label": "Spare Parts"}]}, {"group": "Approvals", "items": [{"id": "approvals-sc", "label": "Service Center Approvals"}, {"id": "approvals-onboarding", "label": "Onboarding Approvals"}]}, {"group": "Operations", "items": [{"id": "reports", "label": "Reports"}, {"id": "performance", "label": "Performance"}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [
+    { group: 'Overview', items: [{ id: 'dashboard', label: 'Dashboard' }] },
+    { group: 'My Area', items: [{ id: 'servicecenters', label: 'Service Centers' }, { id: 'technicians', label: 'Technicians' }, { id: 'coverage', label: 'Coverage Areas' }] },
+    { group: 'Service', items: [{ id: 'servicerequests', label: 'Service Requests' }, { id: 'routing', label: 'Assignment & Routing' }, { id: 'sla', label: 'SLA & Escalation' }] },
+    { group: 'Inventory (Read-only)', items: [{ id: 'inventory', label: 'Inventory Overview' }, { id: 'spareparts', label: 'Spare Parts' }] },
+    { group: 'Approvals', items: [{ id: 'approvals-sc', label: 'Service Center Approvals' }, { id: 'approvals-onboarding', label: 'Onboarding Approvals' }] },
+    { group: 'Operations', items: [{ id: 'reports', label: 'Reports' }, { id: 'performance', label: 'Performance' }, { id: 'profile', label: 'Profile' }] }
+  ];
+  const ITEMS = NAV.flatMap((g) => g.items);
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
   const pageSub = document.getElementById('page-sub');
   const contentEl = document.getElementById('content');
+  let area = null;
 
   function renderNav() {
     navContainer.innerHTML = '';
     NAV.forEach(group => {
-      const groupEl = document.createElement('div');
+      const groupEl = document.createElement('nav');
       groupEl.className = 'nav-group';
+      groupEl.setAttribute('aria-label', group.group);
       const label = document.createElement('div');
       label.className = 'nav-group-label';
       label.textContent = group.group;
       groupEl.appendChild(label);
       group.items.forEach(item => {
-        const el = document.createElement('div');
+        const el = document.createElement('button');
+        el.type = 'button';
         el.className = 'nav-item';
         el.dataset.id = item.id;
-        el.innerHTML = `<span>${escapeHtml(item.label)}</span>` + (!item.built ? '<span class="nav-badge">soon</span>' : '');
-        el.addEventListener('click', () => selectSection(item.id, item.label));
+        el.innerHTML = `<span>${escapeHtml(item.label)}</span>`;
+        el.addEventListener('click', () => selectSection(item.id));
         groupEl.appendChild(el);
       });
       navContainer.appendChild(groupEl);
     });
   }
 
-  function setActiveNav(id) {
+  function selectSection(id) {
+    const item = ITEMS.find((i) => i.id === id) || ITEMS[0];
     document.querySelectorAll('.nav-item').forEach(el => {
-      el.classList.toggle('active', el.dataset.id === id);
+      const on = el.dataset.id === item.id;
+      el.classList.toggle('active', on);
+      if (on) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     });
+    pageTitle.textContent = item.label;
+    try { history.replaceState(null, '', '#' + item.id); } catch (e) { /* preview */ }
+    if (area) area.show(item.id);
   }
-
-  function selectSection(id, label) {
-    setActiveNav(id);
-    pageTitle.textContent = label;
-    if (id === 'dashboard') {
-      pageSub.textContent = 'Welcome back';
-      renderDashboard();
-    } else {
-      pageSub.textContent = 'Not built yet';
-      renderComingSoon(label);
-    }
-  }
-
-  function renderComingSoon(label) {
-    contentEl.innerHTML = `
-      <div class="coming-soon">
-        <div class="big">${label} isn't built yet</div>
-        <div class="small">This module is on the roadmap — it'll be built out next, module by module.</div>
-      </div>`;
-  }
-
-  function renderDashboard() {
-    contentEl.innerHTML = `
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="label">Status</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Pending</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">This month</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-        <div class="stat-card">
-          <div class="label">Alerts</div>
-          <div class="value">—</div>
-          <div class="hint">Module not built yet</div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-header"><h2>Getting started</h2></div>
-        <div class="panel-body" style="font-size:13.5px;color:var(--stone);line-height:1.7;">
-          This is the Area Service Manager dashboard shell — signed in and role-verified. Sections in the
-          sidebar will fill in with working data module by module, same as the rest of the CRM.
-        </div>
-      </div>`;
-  }
-
-  renderNav();
-  setActiveNav('dashboard');
 </script>
 </body>
 </html>

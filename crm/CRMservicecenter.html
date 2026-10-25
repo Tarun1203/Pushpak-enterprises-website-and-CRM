@@ -862,6 +862,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { runStockOp, runStockOpOrThrow } from './stockOps.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+  import { mountCloseConfirm, serverVerdict } from './close-confirm.js';
+  import { serverNumber, useNumberServer } from './numbers.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -892,6 +895,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const auth = getAuth(app);
   const db = getFirestore(app);
   const storage = getStorage(app);
+  // Business numbers come from the server (falls back to this page's counter).
+  useNumberServer(httpsCallable(getFunctions(app, 'asia-south1'), 'issueNumber'));
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -1136,8 +1141,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // ---------------------------------------------------------------
 
   async function generateRequestId() {
-    const next = await nextMonthlySerial(`centerrequest-${currentYYYYMM()}`);
-    return `PE-CR-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+    return serverNumber('centerrequest', async () => {
+      const next = await nextMonthlySerial(`centerrequest-${currentYYYYMM()}`);
+      return `PE-CR-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+    });
   }
 
   async function renderCenterRequests(typeFilter, label) {
@@ -1376,6 +1383,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // and parts used recorded.
   const scClosureOverlay = document.getElementById('sc-closure-overlay');
   const scClosureForm = document.getElementById('sc-closure-form');
+  // Customer confirmation (completion code or signature), checked on the server.
+  const sendCloseCodeFn = httpsCallable(getFunctions(app, 'asia-south1'), 'sendCloseCode');
+  const scCloseConfirm = mountCloseConfirm(scClosureForm, document.getElementById('sc-closure-error'), {
+    prefix: 'sc-', db, fs: { doc, getDoc }, storage, st: { ref: storageRef, uploadBytes },
+    sendCode: (coll, id) => sendCloseCodeFn({ coll, id }).then((r) => r.data)
+  });
   const scClosureError = document.getElementById('sc-closure-error');
   const scClosureSuccess = document.getElementById('sc-closure-success');
   const scClosureSubmitBtn = document.getElementById('submit-sc-closure');
@@ -1428,6 +1441,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     scClosureTypeFilter = typeFilter;
     document.getElementById('sc-closure-job-id').value = jobDoc.id;
     document.getElementById('sc-closure-job-label').textContent = `${jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
+    scCloseConfirm.reset({ coll: 'centerRequests', id: jobDoc.id, customerName: jobDoc.customerName || '' });
     const linkedEl = document.getElementById('sc-closure-linked-parts');
     linkedEl.textContent = 'Checking linked spare requests…';
     try {
@@ -1477,8 +1491,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       qty: Number(document.getElementById(`sc-closure-partqty-${i}`).value) || 0
     })).filter(l => l.partId && l.qty > 0);
 
-    scClosureSubmitBtn.disabled = true;
-    scClosureSubmitBtn.textContent = 'Saving…';
+    let confirmFields;
+    try { scClosureSubmitBtn.disabled = true; scClosureSubmitBtn.textContent = 'Saving…'; confirmFields = await scCloseConfirm.fields(); }
+    catch (err) {
+      scClosureError.textContent = err && err.message && !/storage\//.test(err.message) ? err.message : 'The signature could not be uploaded. Check the connection and try again, or use the completion code.';
+      scClosureError.classList.add('show');
+      scClosureSubmitBtn.disabled = false; scClosureSubmitBtn.textContent = 'Mark Complete';
+      return;
+    }
     try {
       // Parts used come out of center stock on the server, which also
       // opens the defective return for each (sent in the monthly batch).
@@ -1495,11 +1515,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         actionTaken: notes,
         partsUsedNotes: partsNotes,
         ...(checks ? { installationChecklist: checks } : {}),
+        ...confirmFields,
         closedByUid: currentUser.uid,
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       await logTicketStatus('centerRequests', jobId, 'completed', `Closure code: ${closureCode}`);
+      // The server checks the customer's confirmation and may undo the completion.
+      const verdict = (Object.keys(confirmFields).length || scCloseConfirm.required) ? await serverVerdict({ doc, getDoc }, db, 'centerRequests', jobId) : null;
+      if (verdict) { const rej = new Error(verdict); rej.stockOp = true; throw rej; }
       scClosureSuccess.textContent = 'Completed.';
       scClosureSuccess.classList.add('show');
       scClosureSubmitBtn.textContent = 'Done';
@@ -1588,18 +1612,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   }
 
   async function generateSpareRequestId() {
-    const d = new Date();
-    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const counterRef = doc(db, 'counters', `sparerequest-${monthKey}`);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('sparerequest', async () => {
+      const d = new Date();
+      const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const counterRef = doc(db, 'counters', `sparerequest-${monthKey}`);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      return `PE-SR-${dateStr}-${String(next).padStart(4, '0')}-ServiceCenter`;
     });
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    return `PE-SR-${dateStr}-${String(next).padStart(4, '0')}-ServiceCenter`;
   }
 
   const spareReqOverlay = document.getElementById('spare-req-overlay');
@@ -4962,8 +4988,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   }
 
   async function generateClaimId() {
-    const next = await nextMonthlySerial(`claim-${currentYYYYMM()}`);
-    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+    return serverNumber('claim', async () => {
+      const next = await nextMonthlySerial(`claim-${currentYYYYMM()}`);
+      return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-ServiceCenter`;
+    });
   }
 
   async function renderCenterClaims() {

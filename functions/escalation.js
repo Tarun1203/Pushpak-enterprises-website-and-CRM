@@ -44,4 +44,26 @@ function stuckOnSpare(t, nowMs) {
   return { code: 'spare', title: 'Job waiting for a spare', message: `${label(t)} has been waiting for a spare part for ${LIMITS.waitingSpareDays}+ days.`, targets: [{ recipientType: 'role', recipientValue: 'warehouse' }, { recipientType: 'role', recipientValue: 'superadmin' }] };
 }
 
-module.exports = { LIMITS, unrouted, unassigned, missedAppointment, stuckOnSpare };
+// SLA (Super Admin > SLA & Escalation: slaRules). The most specific rule
+// wins: district, then service type, then 24 h due soon / 48 h breached.
+const SLA_DEFAULT = { dueSoonHours: 24, breachedHours: 48 };
+const OPEN = ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare', 'reassignment_required', 'reopened'];
+const low = (v) => String(v == null ? '' : v).trim().toLowerCase();
+function slaRuleFor(rules, district, type) {
+  const r = (rules || []).find((x) => x.matchType === 'district' && low(x.matchValue) === low(district))
+    || (rules || []).find((x) => x.matchType === 'servicetype' && low(x.matchValue) === low(type));
+  return { breachedHours: Number(r && r.breachedHours) || SLA_DEFAULT.breachedHours, name: r ? r.name || r.matchValue : 'Default' };
+}
+// Open past its SLA: tell Super Admin, the district's Area Managers and the center, once.
+function slaBreached(t, rules, nowMs, areaManagerUids = []) {
+  if (!t || !OPEN.includes(t.status) || t.escalation && t.escalation.sla) return null;
+  const since = ms(t.createdAt);
+  const r = slaRuleFor(rules, t.district, t.type);
+  if (!since || nowMs - since < r.breachedHours * HOUR) return null;
+  const targets = [{ recipientType: 'role', recipientValue: 'superadmin' }];
+  areaManagerUids.forEach((u) => targets.push({ recipientType: 'uid', recipientValue: u }));
+  if (t.serviceCenterUid) targets.push({ recipientType: 'uid', recipientValue: t.serviceCenterUid });
+  return { code: 'sla', title: 'SLA breached', message: `${label(t)} has been open for more than ${r.breachedHours} hours (${r.name} SLA).`, targets };
+}
+
+module.exports = { LIMITS, OPEN, SLA_DEFAULT, unrouted, unassigned, missedAppointment, stuckOnSpare, slaRuleFor, slaBreached };

@@ -289,7 +289,12 @@ test('P9.16 exceptions: stuck work is escalated once, to the right people', asyn
   set('centerRequests/eA', { requestId: 'eA', serviceCenterUid: 'gSC', status: 'new', createdAt: ts(30 * H) });
   set('centerRequests/eM', { requestId: 'PE-EM-1', serviceCenterUid: 'gSC', technicianUid: 'gT', status: 'accepted', scheduledDate: dayIso(-2), scheduledStartTime: '10:00', scheduledEndTime: '11:00' });
   set('serviceJobs/eS', { jobId: 'eS', technicianUid: 'gT', status: 'waiting_spare', updatedAt: ts(9 * 24 * H) });
-  set('centerRequests/eFine', { requestId: 'eFine', serviceCenterUid: 'gSC', technicianUid: 'gT', status: 'in_progress', createdAt: ts(500 * H) });
+  set('centerRequests/eFine', { requestId: 'eFine', serviceCenterUid: 'gSC', technicianUid: 'gT', status: 'in_progress', createdAt: ts(10 * H) });
+  // Open past its SLA (district rule: 72 h): Head Office, the district's Area Manager and the center are told.
+  set('slaRules/r1', { matchType: 'district', matchValue: 'Raichur', breachedHours: 72, dueSoonHours: 48, name: 'Raichur' });
+  set('users/eAM', { role: 'areamanager', districtsCovered: ['Raichur'] });
+  set('centerRequests/eSla', { requestId: 'eSla', serviceCenterUid: 'gSC', technicianUid: 'gT', status: 'in_progress', district: 'Raichur', createdAt: ts(80 * H) });
+  set('centerRequests/eSlaOk', { requestId: 'eSlaOk', serviceCenterUid: 'gSC', technicianUid: 'gT', status: 'in_progress', district: 'Raichur', createdAt: ts(60 * H) });
   const run = () => F.escalationSweep.handler({ scheduleTime: new Date(now).toISOString() });
   await run();
   const to = (title) => all('notifications', (d) => d.title === title).map((d) => d.recipientValue).sort();
@@ -299,6 +304,8 @@ test('P9.16 exceptions: stuck work is escalated once, to the right people', asyn
   ok(to('Job waiting for a spare').join() === 'superadmin,warehouse', 'stuck on a spare -> Warehouse and Head Office');
   ok(get('centerRequests/eM').appointmentMissed.date === dayIso(-2), 'missed appointment recorded on the ticket');
   ok(!get('publicServiceRequests/eOK').escalation && !get('centerRequests/eFine').escalation, 'healthy work is left alone');
+  ok(to('SLA breached').filter((u) => ['eAM', 'gSC', 'superadmin'].includes(u)).length >= 3 && get('centerRequests/eSla').escalation.sla, 'SLA breach -> Head Office, Area Manager, center');
+  ok(!get('centerRequests/eSlaOk').escalation, 'within the district SLA: left alone');
   const count = all('notifications').length;
   await run(); await run();
   ok(all('notifications').length === count, 'running the sweep again tells nobody twice');

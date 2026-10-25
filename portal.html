@@ -522,6 +522,19 @@ function timelineHtml(t, tr) {
   return `<ul class="timeline">${items}</ul>${bits.join('')}`;
 }
 
+// Completion code for a job being closed: the technician asks for it, the
+// customer reads it out only once the work is done (functions: sendCloseCode).
+async function loadCloseCodes() {
+  const list = $('list-services');
+  let box = $('close-codes');
+  if (!box) { box = document.createElement('div'); box.id = 'close-codes'; list.parentNode.insertBefore(box, list); }
+  try {
+    const snap = await getDocs(query(collection(db, 'closeCodes'), where('customerPhone', '==', me.phone10)));
+    const live = snap.docs.map((d) => d.data()).filter((c) => c.code && !c.usedAt && (!c.expiresAtMs || c.expiresAtMs > Date.now()) && (c.tries || 0) < 5);
+    box.innerHTML = live.map((c) => `<div class="notice" role="status" style="margin-bottom:12px;"><b>Completion code for ${esc(c.ticketId)}: <span style="font-size:1.4em;letter-spacing:4px;">${esc(c.code)}</span></b><br>Give this code to the technician only after the work is done and you are satisfied. It confirms the job is complete.</div>`).join('');
+  } catch (e) { box.innerHTML = ''; }
+}
+
 async function loadAll() {
   setMsg('app-msg', '');
   try {
@@ -542,6 +555,7 @@ async function loadAll() {
     const tickets = [...byId.values()].sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
     state.products = products; state.tickets = tickets; state.tracks = trackMap;
     renderHistory();
+    loadCloseCodes();
     $('sp-related').innerHTML = '<option value="">None</option>' + tickets.map((t) => `<option value="${esc(t.ticketId)}">${esc(t.ticketId)} — ${esc(t.category || 'Service')}</option>`).join('');
     loadSupport();
 

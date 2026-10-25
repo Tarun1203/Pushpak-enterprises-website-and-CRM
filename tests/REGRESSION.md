@@ -113,6 +113,13 @@ Locally, suites you did not run show as "no results" — that is expected.
 | Dark patterns: pre-ticked boxes, urgency or guilt wording, optional fields made required, a banner that hides the page | `trust-a11y.spec.js` (dark-pattern scan, optional enquiry fields, banner leaves room and sits under pop-ups) |
 | Keyboard and screen-reader gaps: no focus ring on cards, pop-ups with no dialog role or name, focus lost on close, unlabelled fields, images without alt | `trust-a11y.spec.js` (skip link, visible focus, dialog role/name/Tab trap/Esc/focus return, field names, alt text) |
 | Colour contrast or WCAG 2.2 AA violations on public pages, legal pages, banner, pop-ups and all CRM dashboards | `trust-a11y.spec.js` (axe-core, WCAG 2.0/2.1/2.2 A and AA) |
+| Area Manager portal was only a shell ("not built yet") | `areamanager.spec.js` (every screen built, ticket queries limited to own districts, route to a center or a direct technician, assign / move tickets, SLA and coverage gaps, center and technician approvals, no-district message), `tests/unit/areamanager.test.mjs`, `functions/district.test.js`, rules tests (own districts only, no billing, no widening own districts) |
+| A job could be closed without the customer confirming the work | `closing-messages.spec.js` (code or signature in the closure form, required setting), `functions/closeConfirm.test.js` (server checks the code / signature and undoes a bad completion; code sent only to the customer), `tests/unit/close-confirm.test.mjs`, rules tests |
+| No automatic SMS / WhatsApp to customers | `functions/messaging.test.js` (events, switched off by default, MSG91 requests, errors never thrown), `closing-messages.spec.js` (Super Admin settings), `tests/unit/messages-admin.test.mjs` |
+| Request, job, claim and spare numbers were made in the browser | `functions/closeConfirm.test.js` (issueNumber continues the shared counter, role checked), `functions/numbers.test.js` |
+| A spare could be marked dispatched without the stock leaving the warehouse | `functions/lifecycle.test.js` (dispatch audit), rules tests (only the server writes the audit) |
+| SLA rules were only shown, never acted on | `functions/phase9c.test.js` (breach after the district rule's hours tells Head Office, the district's Area Manager and the center, once) |
+| Warehouse Profile showed "not built yet" | `closing-messages.spec.js` |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.

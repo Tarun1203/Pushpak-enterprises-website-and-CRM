@@ -5,6 +5,7 @@ class Timestamp {
   constructor(ms) { this.ms = ms; }
   static now() { return new Timestamp(Date.now()); }
   static fromDate(d) { return new Timestamp(d.getTime()); }
+  static fromMillis(ms) { return new Timestamp(ms); }
   toMillis() { return this.ms; } toDate() { return new Date(this.ms); }
   get seconds() { return Math.floor(this.ms / 1000); }
 }
@@ -38,6 +39,7 @@ class DocRef {
   async get() { return new Snap(this); }
   async set(d, o) { applyWrite(this.path, d, o && o.merge ? 'merge' : 'set'); }
   async update(d) { applyWrite(this.path, d, 'update'); }
+  async create(d) { if (store.has(this.path)) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } applyWrite(this.path, d, 'set'); }
   async delete() { store.delete(this.path); }
   collection(name) { return new CollRef(this.path + '/' + name); }
 }

@@ -620,6 +620,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   import * as PStock from './productStock.js';
   import * as Rma from './rma.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+  import { serverNumber, useNumberServer } from './numbers.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -650,6 +652,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const auth = getAuth(app);
   const db = getFirestore(app);
   const storage = getStorage(app);
+  // Business numbers come from the server (falls back to this page's counter).
+  useNumberServer(httpsCallable(getFunctions(app, 'asia-south1'), 'issueNumber'));
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -688,7 +692,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     window.location.href = 'login.html';
   });
 
-  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "stock-requests", "label": "Spare Stock Requests", "built": true}, {"id": "my-change-requests", "label": "My Change Requests", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-due", "label": "Defectives Due", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}, {"id": "rma", "label": "RMA & Replacement", "built": true}, {"id": "brand-returns", "label": "Brand Returns", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile"}]}];
+  const NAV = [{"group": "Overview", "items": [{"id": "dashboard", "label": "Dashboard", "built": true}]}, {"group": "Stock Movement", "items": [{"id": "requests-new", "label": "New Requests", "built": true}, {"id": "requests-approved", "label": "Approved", "built": true}, {"id": "requests-picking", "label": "Picking", "built": true}, {"id": "requests-packing", "label": "Packing", "built": true}, {"id": "requests-dispatch", "label": "Dispatch", "built": true}, {"id": "requests-transit", "label": "In Transit", "built": true}, {"id": "requests-backorder", "label": "Back Order", "built": true}, {"id": "move-receive", "label": "Receive", "built": true}, {"id": "move-issue", "label": "Issue", "built": true}, {"id": "move-adjust", "label": "Adjustment", "built": true}, {"id": "move-history", "label": "Movement History", "built": true}]}, {"group": "Inventory", "items": [{"id": "inv-warehouse", "label": "Warehouse Stock", "built": true}, {"id": "inv-servicecenter", "label": "Service Center Stock", "built": true}, {"id": "inv-technician", "label": "Technician Stock", "built": true}, {"id": "inv-summary", "label": "Stock Summary", "built": true}, {"id": "inv-lowstock", "label": "Low / Out of Stock", "built": true}, {"id": "inv-damaged", "label": "Damaged / Returned", "built": true}]}, {"group": "Parts & Purchase", "items": [{"id": "spareparts", "label": "Spare Parts", "built": true}, {"id": "stock-requests", "label": "Spare Stock Requests", "built": true}, {"id": "my-change-requests", "label": "My Change Requests", "built": true}, {"id": "lp-new", "label": "New Requests", "built": true}, {"id": "lp-emergency", "label": "Emergency Purchase", "built": true}, {"id": "lp-invoice", "label": "Invoice Verification", "built": true}, {"id": "lp-claims", "label": "Claim Processing", "built": true}, {"id": "lp-history", "label": "Local Purchase History", "built": true}, {"id": "unclaimed-amounts", "label": "Unclaimed Amounts", "built": true}, {"id": "rate-card", "label": "Service Charge Rates", "built": true}, {"id": "claims-technician", "label": "Technician Claims", "built": true}, {"id": "claims-servicecenter", "label": "Service Center Claims", "built": true}, {"id": "claims-verification", "label": "Claims Verification", "built": true}, {"id": "claims-history", "label": "Claims History", "built": true}, {"id": "returns-due", "label": "Defectives Due", "built": true}, {"id": "returns-requests", "label": "Return Requests", "built": true}, {"id": "returns-intake", "label": "Returns", "built": true}, {"id": "returns-defective", "label": "Defective Parts", "built": true}, {"id": "returns-rejected", "label": "Rejected", "built": true}, {"id": "returns-refurbished", "label": "Refurbished", "built": true}, {"id": "returns-supplier", "label": "Supplier Returns", "built": true}, {"id": "returns-disposal", "label": "Disposal", "built": true}]}, {"group": "Finished Goods", "items": [{"id": "fg-stock", "label": "Stock & Receiving", "built": true}, {"id": "fg-serial", "label": "Serial Lookup", "built": true}, {"id": "rma", "label": "RMA & Replacement", "built": true}, {"id": "brand-returns", "label": "Brand Returns", "built": true}]}, {"group": "Dealers & Distributors", "items": [{"id": "trade-orders", "label": "Trade Orders", "built": true}, {"id": "trade-payments", "label": "Trade Payments", "built": true}, {"id": "trade-invoices", "label": "Trade Invoices", "built": true}, {"id": "trade-accounts", "label": "Credit & Accounts", "built": true}]}, {"group": "Operations", "items": [{"id": "servicevis", "label": "Service", "built": true}, {"id": "routing", "label": "Service Request Routing", "built": true}, {"id": "masterdata", "label": "Master Data", "built": true}, {"id": "reports", "label": "Reports", "built": true}, {"id": "auditlogs", "label": "Audit Logs", "built": true}, {"id": "profile", "label": "Profile", "built": true}]}];
 
   const navContainer = document.getElementById('nav-container');
   const pageTitle = document.getElementById('page-title');
@@ -837,10 +841,61 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'auditlogs') {
       pageSub.textContent = 'Every recorded change, company-wide';
       renderWhAuditLogs();
+    } else if (id === 'profile') {
+      pageSub.textContent = 'Your account and the warehouse address on dispatches';
+      renderWhProfile();
     } else {
       pageSub.textContent = 'Not built yet';
       renderComingSoon(label);
     }
+  }
+
+  // Warehouse profile: the signed-in person's own name and phone, and the
+  // warehouse address / contact used on dispatch paperwork.
+  async function renderWhProfile() {
+    const u = auth.currentUser;
+    contentEl.innerHTML = `
+      <div class="panel">
+        <div class="panel-header"><h2>My profile</h2></div>
+        <div class="panel-body" style="max-width:560px;">
+          <div class="form-row"><label for="whp-name">Your name</label><input type="text" id="whp-name" maxlength="100" autocomplete="name"></div>
+          <div class="form-row"><label for="whp-email">Email (sign-in)</label><input type="text" id="whp-email" disabled style="opacity:0.6;"></div>
+          <div class="form-row"><label for="whp-phone">Phone</label><input type="tel" id="whp-phone" maxlength="15" autocomplete="tel"></div>
+          <div class="form-row"><label for="whp-wname">Warehouse name</label><input type="text" id="whp-wname" maxlength="120" placeholder="e.g. Pushpak Enterprises Central Warehouse"></div>
+          <div class="form-row"><label for="whp-address">Warehouse address</label><textarea id="whp-address" rows="3" maxlength="400"></textarea></div>
+          <div class="form-row"><label for="whp-hours">Working hours</label><input type="text" id="whp-hours" maxlength="80" placeholder="e.g. Mon–Sat 9:30 am – 6:30 pm"></div>
+          <div class="modal-error" id="whp-error"></div>
+          <div class="modal-success" id="whp-success" role="status" aria-live="polite"></div>
+          <button type="button" class="btn-primary" id="whp-save" style="margin-top:8px;">Save changes</button>
+          <p style="font-size:12.5px;color:var(--stone);margin-top:14px;">To change your password, sign out and use "Forgot password?" on the sign-in page.</p>
+        </div>
+      </div>`;
+    if (!u) return;
+    const f = (id) => document.getElementById(id);
+    try {
+      const snap = await getDoc(doc(db, 'users', u.uid));
+      const d = snap.exists() ? snap.data() : {};
+      f('whp-name').value = d.name || ''; f('whp-email').value = u.email || ''; f('whp-phone').value = d.phone || '';
+      f('whp-wname').value = d.warehouseName || ''; f('whp-address').value = d.address || ''; f('whp-hours').value = d.workingHours || '';
+    } catch (err) { console.error('Load profile failed:', err); }
+    f('whp-save').addEventListener('click', async () => {
+      const btn = f('whp-save'), errEl = f('whp-error'), okEl = f('whp-success');
+      errEl.classList.remove('show'); okEl.classList.remove('show');
+      const phone = f('whp-phone').value.trim();
+      if (phone && !/^[0-9+ -]{7,15}$/.test(phone)) { errEl.textContent = 'Enter a valid phone number.'; errEl.classList.add('show'); return; }
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await setDoc(doc(db, 'users', u.uid), {
+          name: f('whp-name').value.trim(), phone,
+          warehouseName: f('whp-wname').value.trim(), address: f('whp-address').value.trim(), workingHours: f('whp-hours').value.trim()
+        }, { merge: true });
+        okEl.textContent = 'Saved.'; okEl.classList.add('show');
+      } catch (err) {
+        console.error('Save profile failed:', err);
+        errEl.textContent = 'Could not save. Check your connection and try again.'; errEl.classList.add('show');
+      }
+      btn.disabled = false; btn.textContent = 'Save changes';
+    });
   }
 
   // =================================================================
@@ -3069,7 +3124,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         ).join('');
         tr.innerHTML = `
           <td><a href="#" class="sr-open-link" style="font-size:12px;">${escapeHtml(d.requestId || d.id)}</a></td>
-          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || requesterLabel || d.sourceJobId)}` : escapeHtml(requesterLabel || '—')}${Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length ? `<div class="dup-flag" style="font-size:11.5px;color:var(--err);margin-top:2px;">Possible duplicate of ${escapeHtml(d.possibleDuplicateOf.join(', '))}</div>` : ''}</td>
+          <td>${d.sourceJobId ? `<span style="font-size:12px;color:var(--stone);">Job: </span>${escapeHtml(d.sourceJobLabel || requesterLabel || d.sourceJobId)}` : escapeHtml(requesterLabel || '—')}${Array.isArray(d.possibleDuplicateOf) && d.possibleDuplicateOf.length ? `<div class="dup-flag" style="font-size:11.5px;color:var(--err);margin-top:2px;">Possible duplicate of ${escapeHtml(d.possibleDuplicateOf.join(', '))}</div>` : ''}${d.stockCheck && d.stockCheck.status && d.stockCheck.status !== 'ok' ? `<div class="stock-flag" style="font-size:11.5px;color:var(--err);margin-top:2px;">Stock check: ${escapeHtml(d.stockCheck.message || d.stockCheck.status)}</div>` : ''}</td>
           <td>${escapeHtml(d.item) || '—'}</td>
           <td>${escapeHtml(d.quantity ?? '—')}</td>
           <td><span class="priority-tag ${escapeHtml(d.priority || 'normal')}">${(d.priority || 'normal').toUpperCase()}</span></td>
@@ -3687,8 +3742,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     });
   }
   async function generateRequestId() {
-    const serial = await nextMonthlySerial(`sparerequest-${currentYYYYMM()}`);
-    return `PE-SR-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-Warehouse`;
+    return serverNumber('sparerequest', async () => {
+      const serial = await nextMonthlySerial(`sparerequest-${currentYYYYMM()}`);
+      return `PE-SR-${todayYYYYMMDD()}-${String(serial).padStart(4, '0')}-Warehouse`;
+    });
   }
 
   const newRequestOverlay = document.getElementById('new-request-overlay');
@@ -4422,16 +4479,18 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   const CLAIM_STATUS_PILL_CLASS = { submitted: 'new', verified: 'low', settled: 'ok', rejected: 'backorder' };
 
   async function generateClaimId() {
-    const counterKey = `claim-${currentYYYYMM()}`;
-    const counterRef = doc(db, 'counters', counterKey);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('claim', async () => {
+      const counterKey = `claim-${currentYYYYMM()}`;
+      const counterRef = doc(db, 'counters', counterKey);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
     });
-    return `PE-CL-${todayYYYYMMDD()}-${String(next).padStart(4, '0')}-Warehouse`;
   }
 
   // ---------------------------------------------------------------

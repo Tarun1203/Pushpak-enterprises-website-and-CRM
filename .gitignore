@@ -9,6 +9,11 @@ crm/
 # Cloud Functions dependencies (installed locally / by the deploy)
 functions/node_modules/
 
+# Server secrets for the functions (e.g. MSG91_AUTHKEY). Never commit.
+functions/.env
+functions/.env.*
+!functions/.env.example
+
 # QA tooling dependencies (root package.json)
 /node_modules/
 

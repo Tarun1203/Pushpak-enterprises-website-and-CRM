@@ -72,4 +72,17 @@ function checkSpareTransition(before, after) {
   return null;
 }
 
-module.exports = { TRANSITIONS, CLOSURE_FIELDS, checkTransition, SPARE_TRANSITIONS, checkSpareTransition };
+// Server audit of a dispatch: did the stock really leave the warehouse?
+// moved: total quantity in stockMovements for this request; warehouseQty:
+// the warehouse shelf after the move (null when unknown). Returns a problem
+// code + message, or null when the stock matches.
+function dispatchStockProblem({ partId, dispatchedQty, quantity, moved, warehouseQty }) {
+  if (!partId) return null; // free-text item with no Spare Parts master record: nothing to check
+  const qty = Number(dispatchedQty || quantity) || 0;
+  if (!moved) return { status: 'no_stock_moved', message: 'Dispatched without moving warehouse stock.' };
+  if (qty && moved !== qty) return { status: 'qty_mismatch', message: `Dispatched ${qty} but stock moved for ${moved}.` };
+  if (typeof warehouseQty === 'number' && warehouseQty < 0) return { status: 'negative_stock', message: `Warehouse stock went below zero (${warehouseQty}).` };
+  return null;
+}
+
+module.exports = { TRANSITIONS, CLOSURE_FIELDS, checkTransition, SPARE_TRANSITIONS, checkSpareTransition, dispatchStockProblem };

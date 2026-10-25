@@ -237,6 +237,7 @@
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
           <option value="distributor">Distributor</option>
+          <option value="areamanager">Area Manager</option>
         </select>
       </div>
       <div class="form-row step-hidden" id="new-user-accounttype-row">
@@ -251,7 +252,7 @@
         </div>
       </div>
       <div class="form-row step-hidden" id="new-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center. For an Area Manager: the districts they manage)</span></label>
         <div class="chip-list" id="new-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
           <select id="new-user-district-input" multiple size="6" style="flex:1;"></select>
@@ -340,6 +341,7 @@
           <option value="technician">Technician</option>
           <option value="dealer">Dealer</option>
           <option value="distributor">Distributor</option>
+          <option value="areamanager">Area Manager</option>
         </select>
       </div>
       <div class="form-row step-hidden" id="edit-user-accounttype-row">
@@ -354,7 +356,7 @@
         </div>
       </div>
       <div class="form-row step-hidden" id="edit-user-districts-row">
-        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center)</span></label>
+        <label>Cities / districts covered <span class="hint">(hold Ctrl/Cmd to pick several, then Add. For a technician: only areas they serve directly, with no service center. For an Area Manager: the districts they manage)</span></label>
         <div class="chip-list" id="edit-user-districts-chips"></div>
         <div style="display:flex;gap:8px;">
           <select id="edit-user-district-input" multiple size="6" style="flex:1;"></select>
@@ -1074,6 +1076,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, getDocs, query, where, orderBy, limit, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getCountFromServer
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { mountLocationsAdmin } from './locations-admin.js';
+  import { mountMessagesAdmin } from './messages-admin.js';
+  import { serverNumber, useNumberServer } from './numbers.js';
   import { mountRateRequest } from './rate-approvals.js';
   import * as Trade from './tradeOrders.js';
   import * as Fin from './tradeFinance.js';
@@ -1113,6 +1117,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // Customer support replies go through the supportTicket Cloud Function.
   const supportTicketFn = httpsCallable(getFunctions(app, 'asia-south1'), 'supportTicket');
   const storage = getStorage(app);
+  // Business numbers come from the server (falls back to this page's counter).
+  useNumberServer(httpsCallable(getFunctions(app, 'asia-south1'), 'issueNumber'));
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -1186,6 +1192,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       { id: 'coverage', label: 'Coverage Analysis', built: true },
       { id: 'appointments', label: 'Appointments', built: true },
       { id: 'sla', label: 'SLA & Escalation', built: true },
+      { id: 'messages', label: 'Customer Messages & Closing', built: true },
     ]},
     { group: 'Inventory & Logistics', items: [
       { id: 'spareparts', label: 'Spare Parts', built: true },
@@ -1347,6 +1354,9 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     } else if (id === 'locations') {
       pageSub.textContent = 'What the public website\'s "Find service center" map shows';
       mountLocationsAdmin(contentEl, { db, escapeHtml, fs: { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, serverTimestamp } });
+    } else if (id === 'messages') {
+      pageSub.textContent = 'Customer confirmation when a job closes, and automatic SMS / WhatsApp to customers';
+      mountMessagesAdmin(contentEl, { db, escapeHtml, me: auth.currentUser, fs: { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit, serverTimestamp } });
     } else if (id === 'coverage') {
       pageSub.textContent = 'Overlapping Service Center coverage, and districts with unassigned pincodes';
       renderCoverageAnalysis();
@@ -2045,8 +2055,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('new-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   document.getElementById('new-user-role').addEventListener('change', (e) => {
-    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
-    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
+    document.getElementById('new-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(e.target.value));
+    document.getElementById('new-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(e.target.value));
     document.getElementById('new-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('new-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('new-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -2091,8 +2101,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
       // Write the role doc using the PRIMARY app's Firestore instance,
       // authenticated as the admin — so it passes the isAdmin() rule.
-      const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(role) ? newUserDistrictsChip.get() : [];
-      const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(role) ? newUserPincodesChip.get() : [];
+      const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(role) ? newUserDistrictsChip.get() : [];
+      const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(role) ? newUserPincodesChip.get() : [];
       const brandsAuthorized = ['technician', 'servicecenter'].includes(role) ? getCheckedBrands('new-user-brand-cb') : [];
       const skills = role === 'technician' ? newUserSkills.get() : [];
       const categoriesAuthorized = role === 'servicecenter' ? newUserCategoriesChip.get() : [];
@@ -2182,8 +2192,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-account-type').value = data.accountType || 'permanent';
     document.getElementById('edit-user-contract-end').value = data.contractEndDate || '';
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', (data.accountType || 'permanent') !== 'temporary');
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(data.role));
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(data.role));
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(data.role));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(data.role));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(data.role));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', data.role !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', data.role !== 'technician');
@@ -2213,8 +2223,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     document.getElementById('edit-user-contract-end-wrap').classList.toggle('step-hidden', e.target.value !== 'temporary');
   });
   editRoleSelect.addEventListener('change', (e) => {
-    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
-    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician'].includes(e.target.value));
+    document.getElementById('edit-user-districts-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(e.target.value));
+    document.getElementById('edit-user-pincodes-row').classList.toggle('step-hidden', !['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(e.target.value));
     document.getElementById('edit-user-brands-row').classList.toggle('step-hidden', !['technician', 'servicecenter'].includes(e.target.value));
     document.getElementById('edit-user-categories-row').classList.toggle('step-hidden', e.target.value !== 'servicecenter');
     document.getElementById('edit-user-skills-row').classList.toggle('step-hidden', e.target.value !== 'technician');
@@ -2238,8 +2248,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     editSubmitBtn.disabled = true;
     editSubmitBtn.textContent = 'Saving…';
-    const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(editRoleSelect.value) ? editUserDistrictsChip.get() : [];
-    const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician'].includes(editRoleSelect.value) ? editUserPincodesChip.get() : [];
+    const districtsCovered = ['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(editRoleSelect.value) ? editUserDistrictsChip.get() : [];
+    const pincodesCovered = ['servicecenter', 'distributor', 'dealer', 'technician', 'areamanager'].includes(editRoleSelect.value) ? editUserPincodesChip.get() : [];
     const brandsAuthorized = ['technician', 'servicecenter'].includes(editRoleSelect.value) ? getCheckedBrands('edit-user-brand-cb') : [];
     const skills = editRoleSelect.value === 'technician' ? editUserSkills.get() : [];
     const categoriesAuthorized = editRoleSelect.value === 'servicecenter' ? editUserCategoriesChip.get() : [];
@@ -3026,6 +3036,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
         <div class="panel-header">
           <h2>Pincode master</h2>
           <div style="display:flex;gap:8px;">
+            <button class="btn-secondary" id="backfill-districts" title="Area Managers see tickets by district. New tickets get it automatically; this fills it on open tickets raised before.">Fill districts on open tickets</button>
             <button class="btn-secondary" id="open-bulk-pincode">Bulk import</button>
             <button class="btn-primary" id="open-add-pincode">+ Add Pincode</button>
           </div>
@@ -3042,12 +3053,51 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       </div>`;
     document.getElementById('open-add-pincode').addEventListener('click', () => openPincodeModal(null));
     document.getElementById('open-bulk-pincode').addEventListener('click', openPincodeBulkModal);
+    document.getElementById('backfill-districts').addEventListener('click', backfillTicketDistricts);
     pincodeSearchTerm = '';
     document.getElementById('pincode-search').addEventListener('input', (e) => {
       pincodeSearchTerm = e.target.value.trim().toLowerCase();
       loadPincodeMaster();
     });
     loadPincodeMaster();
+  }
+
+  // Area Managers see tickets by `district`. The stampDistrict_* functions set
+  // it on every ticket written from now on; this fills it on open tickets
+  // raised before, from the pincode master (else the center's district).
+  async function backfillTicketDistricts() {
+    const btn = document.getElementById('backfill-districts');
+    if (!window.confirm('Fill in the district on every open ticket that has none, using the Pincode Master?')) return;
+    btn.disabled = true; btn.textContent = 'Filling…';
+    const OPEN_ST = ['new', 'assigned', 'assigned_to_center', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare', 'reassignment_required', 'reopened'];
+    let done = 0, missing = 0;
+    try {
+      const pins = new Map((await getPincodesCache(true)).map((p) => [p.id, p]));
+      const centerDistrict = new Map();
+      for (const coll of ['centerRequests', 'serviceJobs', 'publicServiceRequests']) {
+        const snap = await getDocs(query(collection(db, coll), where('status', 'in', OPEN_ST)));
+        for (const d of snap.docs) {
+          const t = d.data();
+          if (typeof t.district === 'string' && t.district.trim()) continue;
+          const pin = pins.get(String(t.pincode || '').trim());
+          let district = pin && pin.active !== false && pin.district ? String(pin.district).trim() : '';
+          if (!district && t.serviceCenterUid) {
+            if (!centerDistrict.has(t.serviceCenterUid)) {
+              const prof = await getDoc(doc(db, 'serviceCenterProfiles', t.serviceCenterUid));
+              centerDistrict.set(t.serviceCenterUid, prof.exists() ? String(prof.data().district || '').trim() : '');
+            }
+            district = centerDistrict.get(t.serviceCenterUid);
+          }
+          if (!district) { missing++; continue; }
+          await updateDoc(doc(db, coll, d.id), { district });
+          done++;
+        }
+      }
+      window.alert(`District filled on ${done} open ticket${done === 1 ? '' : 's'}.` + (missing ? `\n${missing} ticket${missing === 1 ? ' has' : 's have'} a pincode that is not in the Pincode Master — add those pincodes and run this again.` : ''));
+    } catch (e) {
+      console.error('Backfill districts failed:', e);
+      window.alert('Could not fill districts. Check your connection and try again.');
+    } finally { btn.disabled = false; btn.textContent = 'Fill districts on open tickets'; }
   }
 
   async function loadPincodeMaster() {
@@ -7288,18 +7338,20 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   // Same counters/runTransaction pattern as generateRmaId — a real,
   // sequential claim ID rather than the raw Firestore doc ID.
   async function generateClaimId() {
-    const d = new Date();
-    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const counterRef = doc(db, 'counters', `claim-${monthKey}`);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('claim', async () => {
+      const d = new Date();
+      const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const counterRef = doc(db, 'counters', `claim-${monthKey}`);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-SuperAdmin`;
     });
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-SuperAdmin`;
   }
 
   const finClaimOverlay = document.getElementById('fin-claim-overlay');

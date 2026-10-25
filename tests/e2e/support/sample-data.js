@@ -51,6 +51,20 @@ const SAMPLE = {
 function sampleFor(role) {
   const data = JSON.parse(JSON.stringify(SAMPLE));
   data.users[0] = { id: 'u1', role, name: 'Test ' + role, email: 'test@pe.test' };
+  if (role === 'areamanager') withArea(data);
+  return data;
+}
+// Area Manager: the signed-in user manages Raichur; tickets carry their
+// district (stamped server-side), centers have a profile with a district,
+// and the pincode master lists their pincodes (Sindhanur's has nobody).
+function withArea(data) {
+  data.users[0].districtsCovered = ['Raichur', 'Sindhanur'];
+  ['centerRequests', 'serviceJobs', 'publicServiceRequests'].forEach((c) => data[c].forEach((x) => { x.district = 'Raichur'; }));
+  data.centerRequests[0].createdAt = t(4); // past the 48 h SLA
+  data.serviceCenterProfiles = [0, 1, 2].map((i) => ({ id: 'servicecenter' + i, district: 'Raichur', displayName: LONG + ' ' + i, status: i === 2 ? 'PENDING_APPROVAL' : 'ACTIVE', serviceCenterCode: 'SC-RCR-00' + i }));
+  data.centerTechnicians.forEach((x, i) => { x.serviceCenterUid = 'servicecenter' + (i % 2); if (i === 3) x.employmentStatus = ''; });
+  data.centerRequests.forEach((x) => { x.serviceCenterUid = 'servicecenter0'; });
+  data.pincodes = [{ id: '584101', district: 'Raichur', area: 'Raichur Town' }, { id: '584199', district: 'Sindhanur', area: 'Remote village', active: true }];
   return data;
 }
 // The same data with an HTML/script payload appended to every free-text
@@ -68,6 +82,7 @@ function poison(v, key) {
 function hostileSampleFor(role) {
   const data = poison(sampleFor(role));
   data.users[0] = { id: 'u1', role, name: 'Test ' + role, email: 'test@pe.test' };
+  if (role === 'areamanager') data.users[0].districtsCovered = ['Raichur'];
   return data;
 }
 module.exports = { sampleFor, hostileSampleFor, XSS };

@@ -61,3 +61,12 @@ test('spare: back order can only retry as new; unchanged and unknown are ignored
   assert.strictEqual(checkSpareTransition({ status: 'weird' }, { status: 'approved' }), null);
   for (const targets of Object.values(SPARE_TRANSITIONS)) for (const x of targets) assert.ok(x in SPARE_TRANSITIONS, x);
 });
+
+test('dispatch audit: stock must move, match the quantity, and not go negative', () => {
+  const { dispatchStockProblem: P } = require('./lifecycle');
+  assert.strictEqual(P({ partId: null, dispatchedQty: 2, moved: 0 }), null, 'free-text item: nothing to check');
+  assert.strictEqual(P({ partId: 'sp1', dispatchedQty: 2, moved: 0 }).status, 'no_stock_moved');
+  assert.strictEqual(P({ partId: 'sp1', dispatchedQty: 2, moved: 3 }).status, 'qty_mismatch');
+  assert.strictEqual(P({ partId: 'sp1', quantity: 2, moved: 2, warehouseQty: -1 }).status, 'negative_stock');
+  assert.strictEqual(P({ partId: 'sp1', dispatchedQty: 2, moved: 2, warehouseQty: 4 }), null);
+});

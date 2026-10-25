@@ -451,6 +451,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, getDocs, query, where, orderBy, runTransaction, serverTimestamp, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { runStockOp, runStockOpOrThrow } from './stockOps.js';
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+  import { mountCloseConfirm } from './close-confirm.js';
+  import { serverNumber, useNumberServer } from './numbers.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCRqUdrKe2U2wF_4LI-6Yl7zdgmE5YhvQY",
@@ -481,6 +484,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const auth = getAuth(app);
   const db = getFirestore(app);
   const storage = getStorage(app);
+  // Business numbers come from the server (falls back to this page's counter).
+  useNumberServer(httpsCallable(getFunctions(app, 'asia-south1'), 'issueNumber'));
 
   const gate = document.getElementById('gate');
   const appEl = document.getElementById('app');
@@ -713,36 +718,40 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   let currentJobFilter = 'active'; // 'active' = assigned + in_progress
 
   async function generateJobId() {
-    const d = new Date();
-    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const counterRef = doc(db, 'counters', `servicejob-${monthKey}`);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('servicejob', async () => {
+      const d = new Date();
+      const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const counterRef = doc(db, 'counters', `servicejob-${monthKey}`);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      return `PE-JOB-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
     });
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    return `PE-JOB-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
   }
 
   // Uses the SAME shared counter key Warehouse's own spare request
   // creation uses (sparerequest-YYYYMM) so IDs stay globally
   // sequential regardless of which dashboard created the request.
   async function generateSpareRequestId() {
-    const d = new Date();
-    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const counterRef = doc(db, 'counters', `sparerequest-${monthKey}`);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('sparerequest', async () => {
+      const d = new Date();
+      const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const counterRef = doc(db, 'counters', `sparerequest-${monthKey}`);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      return `PE-SR-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
     });
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    return `PE-SR-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
   }
 
   const SPARE_REQ_STATUS_LABELS = {
@@ -1424,6 +1433,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   // no proof of what actually happened during the visit.
   const closureOverlay = document.getElementById('closure-overlay');
   const closureForm = document.getElementById('closure-form');
+  // Customer confirmation (completion code or signature), checked on the server.
+  const sendCloseCodeFn = httpsCallable(getFunctions(app, 'asia-south1'), 'sendCloseCode');
+  const closeConfirm = mountCloseConfirm(closureForm, document.getElementById('closure-error'), {
+    db, fs: { doc, getDoc }, storage, st: { ref: storageRef, uploadBytes },
+    sendCode: (coll, id) => sendCloseCodeFn({ coll, id }).then((r) => r.data)
+  });
   const closureError = document.getElementById('closure-error');
   const closureSuccess = document.getElementById('closure-success');
   const closureSubmitBtn = document.getElementById('submit-closure');
@@ -1507,6 +1522,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
     closureJobColl = jobDoc.coll || 'serviceJobs';
     document.getElementById('closure-job-id').value = jobDoc.id;
     document.getElementById('closure-job-label').textContent = `${jobDoc.jobId || jobDoc.requestId || jobDoc.id} — ${jobDoc.customerName || 'customer'}`;
+    closeConfirm.reset({ coll: closureJobColl, id: jobDoc.id, customerName: jobDoc.customerName || '' });
     const linkedEl = document.getElementById('closure-linked-parts');
     linkedEl.textContent = 'Checking linked spare requests…';
     await Promise.all([
@@ -1555,8 +1571,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
       qty: Number(document.getElementById(`closure-partqty-${i}`).value) || 0
     })).filter(l => l.partId && l.qty > 0);
 
-    closureSubmitBtn.disabled = true;
-    closureSubmitBtn.textContent = 'Saving…';
+    let confirmFields;
+    try { confirmFields = null; closureSubmitBtn.disabled = true; closureSubmitBtn.textContent = 'Saving…'; confirmFields = await closeConfirm.fields(); }
+    catch (err) {
+      closureError.textContent = err && err.message && !/storage\//.test(err.message) ? err.message : 'The signature could not be uploaded. Check the connection and try again, or use the completion code.';
+      closureError.classList.add('show');
+      closureSubmitBtn.disabled = false; closureSubmitBtn.textContent = 'Mark Complete';
+      return;
+    }
     try {
       const jobSnapForReturn = await getDoc(doc(db, closureJobColl, jobId));
       const jobData = jobSnapForReturn.exists() ? jobSnapForReturn.data() : {};
@@ -1582,13 +1604,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
         actionTaken: notes,
         partsUsedNotes: partsNotes,
         ...(checks ? { installationChecklist: checks } : {}),
+        ...confirmFields,
         closedByUid: currentUser.uid,
         closedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       await logTicketStatus(closureJobColl, jobId, 'completed', `Closure code: ${closureCode}`);
       const closureRejected = await lifecycleRejectionFor(closureJobColl, jobId, 'completed');
-      if (closureRejected) throw new Error(closureRejected);
+      if (closureRejected) { const rej = new Error(closureRejected); rej.stockOp = true; throw rej; }
 
       // Warranty verdict, service charge and the wallet credit are now
       // decided server-side (billOnClose_* Cloud Function) from the rate
@@ -2271,18 +2294,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/fireba
   const CLAIM_STATUS_LABELS_T = { submitted: 'Submitted', verified: 'Verified', settled: 'Settled', rejected: 'Rejected' };
 
   async function generateClaimId() {
-    const d = new Date();
-    const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const counterRef = doc(db, 'counters', `claim-${monthKey}`);
-    const next = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const n = (snap.exists() ? snap.data().value : 0) + 1;
-      if (snap.exists()) transaction.update(counterRef, { value: n });
-      else transaction.set(counterRef, { value: n });
-      return n;
+    return serverNumber('claim', async () => {
+      const d = new Date();
+      const monthKey = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const counterRef = doc(db, 'counters', `claim-${monthKey}`);
+      const next = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const n = (snap.exists() ? snap.data().value : 0) + 1;
+        if (snap.exists()) transaction.update(counterRef, { value: n });
+        else transaction.set(counterRef, { value: n });
+        return n;
+      });
+      const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
     });
-    const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    return `PE-CL-${dateStr}-${String(next).padStart(4, '0')}-Technician`;
   }
 
   async function renderTechnicianClaims() {

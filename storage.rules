@@ -121,6 +121,24 @@ service firebase.storage {
     }
 
     // ---------------------------------------------------------------
+    // Customer's signature taken on the technician's screen when a job is
+    // closed (checked by the checkLifecycle_* function). Only the job's
+    // technician or service center adds it; never overwritten.
+    // ---------------------------------------------------------------
+
+    match /closeSignatures/{coll}/{jobId}/{file} {
+      allow read: if isAdmin()
+        || (signedIn() && coll in ['centerRequests', 'serviceJobs']
+            && (firestore.get(/databases/(default)/documents/$(coll)/$(jobId)).data.get('serviceCenterUid', '') == request.auth.uid
+             || firestore.get(/databases/(default)/documents/$(coll)/$(jobId)).data.get('technicianUid', '') == request.auth.uid));
+      allow create: if resource == null && signedIn() && coll in ['centerRequests', 'serviceJobs']
+        && request.resource.size < 512 * 1024 && request.resource.contentType == 'image/png'
+        && (firestore.get(/databases/(default)/documents/$(coll)/$(jobId)).data.get('serviceCenterUid', '') == request.auth.uid
+         || firestore.get(/databases/(default)/documents/$(coll)/$(jobId)).data.get('technicianUid', '') == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
     // Service Center Master documents (licenses, agreements, ...) —
     // filed under the center's own uid. Only that center or an admin.
     // ---------------------------------------------------------------

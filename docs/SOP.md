@@ -23,7 +23,7 @@ Short, role by role. Screens are named as they appear in the CRM.
 2. Open job → Accept → Appointment → travel → At customer.
 3. Diagnose; photograph the serial number. Need a part? Request Spare (or draw from your center's stock).
 4. Use a part: Consume Spare (never guess the number). Finish the repair.
-5. Close: pick the outcome, write what you did, add photos. Show the customer the voucher; get their signature if they want a printout.
+5. Close: pick the outcome, write what you did, add photos. **Customer confirmation:** tap *Send code to customer*; the customer reads out the 4-digit code (from SMS / WhatsApp, or the My Service page on the website). No phone or no code? Switch to *Customer signature*, let them sign on your screen and type their name. If Head Office has made this required, the job will not close without it.
 6. No signal? The red banner says so. Do not keep tapping Save; wait for "Back online", then check the job before repeating.
 
 ## Warehouse
@@ -44,5 +44,18 @@ Warehouse → Service Charge Rates → **Who pays — by brand**. For each brand
 
 ## Store & service-center finder (website map)
 Super Admin → Service Operations → **Store & Service Locations**. **Import service centers** copies name, phone, address and map position from each service center's full profile (new ones are shown only if the profile status is Active). **+ Add location** for stores. For the map pin, open the place in Google Maps on a computer and paste the full link from the address bar (or right-click the spot and copy the coordinates); short maps.app.goo.gl links carry no position. **Hide** takes a place off the website without deleting it. Public business details only — never a staff member's personal number.
+
+## Area Service Manager
+Super Admin creates the account (Users → Add → role **Area Manager**) and lists the **districts** they manage. The manager then sees only those districts: service centers, technicians (roster and direct), coverage gaps, every ticket, SLA, stock (read-only), spare requests (read-only), approvals, reports and performance.
+1. **Assignment & Routing:** website requests nobody was matched to → *Route* → a service center, or straight to a technician for areas with no center. Tickets marked *Needs reassignment* are listed below.
+2. **Service Requests:** *Assign / reassign* a technician, or move the ticket to another service center (the old one is cancelled, the number stays the same).
+3. **SLA & Escalation:** late tickets first. Breaches are also sent to you automatically.
+4. **Approvals:** approve / reject / suspend centers in your districts; approve or reject new technicians.
+Tickets are matched to a district from the Pincode Master. After setting this up, Super Admin → Pincode Master → **Fill districts on open tickets** once.
+
+## Customer messages and closing (Super Admin)
+Service Operations → **Customer Messages & Closing**.
+- **Require the customer's confirmation to close a job:** switch on only after the latest functions are published.
+- **Automatic SMS / WhatsApp (MSG91):** sign up at msg91.com, register a template for each message (SMS: DLT; WhatsApp: Meta approval), paste each template ID here, switch the message on, then *Send messages*. The MSG91 auth key goes on the server (`functions/.env`, `MSG91_AUTHKEY=...`, then publish the functions) — never into the website or this screen. *Recent messages* shows what was sent, skipped or failed.
 
 See TROUBLESHOOTING.md when something does not work.

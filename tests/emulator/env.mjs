@@ -49,7 +49,9 @@ export const USERS = {
   tOff: { role: 'technician', name: 'Suspended Tech', linkedServiceCenterUid: 'sc1', accessDisabled: true },
   scOff: { role: 'servicecenter', name: 'Inactive Center', accessDisabled: true },
   saOff: { role: 'superadmin', name: 'Disabled Admin', accessDisabled: true },
-  cOff: { role: 'customer', name: 'Disabled Customer', phone10: '9000000003', accessDisabled: true }
+  cOff: { role: 'customer', name: 'Disabled Customer', phone10: '9000000003', accessDisabled: true },
+  // Area Service Manager for Raichur district only.
+  am1: { role: 'areamanager', name: 'Area Manager Raichur', districtsCovered: ['Raichur'] }
 };
 
 export function seedDocs() {
@@ -65,7 +67,19 @@ export function seedDocs() {
     'centerRequests/cr2': { requestId: 'PE-CR-2', serviceCenterUid: 'sc2', status: 'new', customerPhone: '9000000002' },
     'centerRequests/cr3': { requestId: 'PE-CR-3', serviceCenterUid: 'sc2', status: 'closed', customerPhone: '9000000002' },
     'centerTechnicians/ct1': { serviceCenterUid: 'sc1', technicianUid: 't1', name: 'Tech One', technicianCode: 'TC-0001', documents: [], leaveRecords: [] },
-    'serviceCenterProfiles/sc1': { status: 'ACTIVE', serviceCenterCode: 'SC-0001', displayName: 'Center One' },
+    'serviceCenterProfiles/sc1': { status: 'ACTIVE', serviceCenterCode: 'SC-0001', displayName: 'Center One', district: 'Raichur' },
+    'serviceCenterProfiles/scK': { status: 'PENDING_APPROVAL', displayName: 'Koppal Center', district: 'Koppal' },
+    // Area Manager tickets: one in their district (Raichur), one outside (Koppal).
+    'centerRequests/crA': { requestId: 'PE-CR-A', serviceCenterUid: 'sc1', status: 'new', district: 'Raichur', customerPhone: '9000000001' },
+    'centerRequests/crK': { requestId: 'PE-CR-K', serviceCenterUid: 'sc2', status: 'new', district: 'Koppal', customerPhone: '9000000002' },
+    'serviceJobs/jA': { jobId: 'PE-JOB-A', technicianUid: 't2', status: 'assigned', district: 'Raichur' },
+    'serviceJobs/jK': { jobId: 'PE-JOB-K', technicianUid: 't2', status: 'assigned', district: 'Koppal' },
+    'publicServiceRequests/PE-SVC-A': { requestId: 'PE-SVC-A', customerPhone: '9000000001', customerName: 'Asha', status: 'new', district: 'Raichur' },
+    'publicServiceRequests/PE-SVC-K': { requestId: 'PE-SVC-K', customerPhone: '9000000002', customerName: 'Ravi', status: 'new', district: 'Koppal' },
+    'closeCodes/centerRequests__cr1': { code: '1234', customerPhone: '9000000001', ticketId: 'PE-CR-1' },
+    'messageLog/m1': { event: 'booking', result: { status: 'skipped' } },
+    'spareRequests/sr1': { requestId: 'PE-SR-1', requestedByUid: 'sc1', status: 'dispatched', partId: 'sp1', quantity: 1 },
+    'centerTechnicians/ct2': { serviceCenterUid: 'sc2', technicianUid: 't2', name: 'Tech Two', employmentStatus: '' },
     'productRegistrations/r1': { registrationId: 'PE-REG-1', customerPhone: '9000000001', dealerUid: 'd1', serialNumber: 'SN-1', warrantyMonths: 12 },
     'productRegistrations/r2': { registrationId: 'PE-REG-2', customerPhone: '9000000002', serialNumber: 'SN-2', warrantyMonths: 12 },
     'publicServiceRequests/PE-SVC-1': { requestId: 'PE-SVC-1', customerPhone: '9000000001', customerName: 'Asha', status: 'new' },

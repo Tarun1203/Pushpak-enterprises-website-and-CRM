@@ -8,6 +8,7 @@ external script host appears that is not listed here, or if any analytics / adve
 | `www.gstatic.com` | Firebase JS SDK (Auth, Firestore, Storage, Functions, App) modules, version-pinned | all pages that talk to the backend (public site forms, My Account, CRM) | Browser/IP details as for any script download; the SDK then talks to Google Firebase with the data in the privacy policy | Yes - it is the backend |
 | `www.google.com` | reCAPTCHA (loaded by Firebase Phone Auth) | My Account sign-in only | Technical signals (IP, browser) handled by Google | Yes - protects SMS sign-in from abuse |
 | `tile.openstreetmap.org` | OpenStreetMap map images (tiles) for the service-center finder; Leaflet itself is self-hosted in `assets/vendor/leaflet/` (BSD-2) | Find service center, only after the visitor taps "Show map" | IP and map area viewed, under the OSMF privacy policy; no cookies | Optional - the list works without it |
+| MSG91 (server-side only, `control.msg91.com` / `api.msg91.com`) | SMS / WhatsApp service updates to customers, sent by the Cloud Functions (`functions/messaging.js`); never loaded in a browser | not a page script | Customer mobile number, ticket number, technician name, visit date/time, completion code | Optional - off until Head Office switches it on and the key is set |
 | GitHub Pages | Static hosting | whole site | IP / request in host logs | Yes - hosting |
 
 Removed in this audit: **Google Fonts** (`fonts.googleapis.com`, `fonts.gstatic.com`). Inter and Manrope are now served from

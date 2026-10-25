@@ -60,6 +60,24 @@ service cloud.firestore {
       return isSignedIn() && callerRole() == 'superadmin';
     }
 
+    // Area Service Manager: Super Admin powers inside their own districts
+    // (users/{uid}.districtsCovered). Tickets carry `district` (stamped by
+    // the stampDistrict_* functions); centers carry it on their profile.
+    function isAreaManager() {
+      return isSignedIn() && callerRole() == 'areamanager';
+    }
+    function myDistricts() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('districtsCovered', []);
+    }
+    function inMyArea(d) {
+      return isAreaManager() && d is string && d in myDistricts();
+    }
+    function centerInMyArea(centerUid) {
+      return isAreaManager() && centerUid is string
+        && exists(/databases/$(database)/documents/serviceCenterProfiles/$(centerUid))
+        && get(/databases/$(database)/documents/serviceCenterProfiles/$(centerUid)).data.get('district', '') in myDistricts();
+    }
+
     function isStaff() {
       // Any recognized internal role — used where dealers/technicians
       // should NOT have access but any office/field staff role should.
@@ -213,6 +231,7 @@ service cloud.firestore {
       // read their own user doc), so a dealer can't pull every
       // technician's and service center's contact/coverage details.
       allow read: if hasAuth() && (request.auth.uid == userId || isAdmin()
+        || (isAreaManager() && resource.data.role in ['servicecenter', 'technician'])
         || (isStaff() && (resource.data.role == 'technician' || resource.data.role == 'servicecenter'))
         || (isDistributor() && resource.data.role == 'dealer' && resource.data.get('distributorUid', '') == request.auth.uid));
       // Warehouse is isAdmin() too, but minting or touching a
@@ -270,18 +289,24 @@ service cloud.firestore {
       // distributor has no reason to read closed job history.
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
+        || inMyArea(resource.data.get('district', null))
         || (isDistributor() && resource.data.status in
             ['assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
       // A technician can't write the warranty verdict, charge or billing
       // fields on their own job — the billOnClose_serviceJobs function does.
       allow update: if isAdmin()
+        || (inMyArea(resource.data.get('district', null))
+            && request.resource.data.get('district', null) == resource.data.get('district', null)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'billingRequest', 'claimId', 'claimDocId', 'billingRejected', 'billingDecidedAt', 'sparePartsCost', 'otherCharges', 'customerPaymentMethod', 'customerPaymentRef', 'customerConfirmation']))
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck', 'customerConfirmation']));
       allow create: if isAdmin()
+        || (inMyArea(request.resource.data.get('district', null))
+            && !request.resource.data.keys().hasAny(['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'billingRequest', 'claimId', 'claimDocId', 'billingRejected', 'billingDecidedAt', 'sparePartsCost', 'otherCharges', 'customerPaymentMethod', 'customerPaymentRef', 'customerConfirmation']))
         || (isSignedIn() && request.resource.data.technicianUid == request.auth.uid
             && !request.resource.data.keys().hasAny(
-              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck']));
+              ['warrantyStatus', 'serviceCharge', 'billingType', 'billingStatus', 'billingTotal', 'billedAt', 'billingComputedAt', 'billingPayer', 'customerFeedback', 'lifecycleRejected', 'scheduleRejected', 'assignmentRejected', 'appointmentMissed', 'escalation', 'idCheck', 'customerConfirmation']));
       allow delete: if isAdmin();
 
       // Append-only status/progress log — every status change any
@@ -294,6 +319,7 @@ service cloud.firestore {
       // could read, or append entries to, ANY job's log).
       match /statusLog/{logId} {
         allow read, create: if isAdmin()
+          || inMyArea(get(/databases/$(database)/documents/serviceJobs/$(jobId)).data.get('district', null))
           || (isSignedIn() && get(/databases/$(database)/documents/serviceJobs/$(jobId)).data.technicianUid == request.auth.uid);
         allow update, delete: if isAdmin();
       }
@@ -310,11 +336,12 @@ service cloud.firestore {
       // readable by the roster technician it's assigned to, so their
       // own "My Jobs" page can see center-assigned work.
       allow read: if isAdmin()
+        || inMyArea(resource.data.get('district', null))
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid)
         || (isDistributor() && resource.data.status in
             ['new', 'assigned', 'accepted', 'on_the_way', 'at_customer', 'in_progress', 'waiting_spare']);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback',
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback', 'customerConfirmation',
             // Billing is decided by the server (billOnClose_* / applyBillingRequest) and
             // claim locking by checkClaim — a browser only files a billingRequest.
             'warrantyStatus', 'serviceCharge', 'sparePartsCost', 'otherCharges', 'billingTotal', 'billingType', 'billingStatus',
@@ -324,6 +351,8 @@ service cloud.firestore {
                 && request.resource.data.billingRequest.byUid == request.auth.uid
                 && request.resource.data.billingRequest.requestedAt == request.time))
         && (isAdmin()
+        || (inMyArea(resource.data.get('district', null))
+            && request.resource.data.get('district', null) == resource.data.get('district', null))
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         // The assigned technician may advance/close their own ticket,
         // but only touch the fields their own workflow writes — never
@@ -331,20 +360,24 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
               ['status', 'updatedAt', 'closureCode', 'actionTaken', 'partsUsedNotes', 'installationChecklist', 'closedByUid', 'closedAt',
+               // Customer confirmation offered at closing; checkLifecycle_* verifies it.
+               'closeOtp', 'customerSignature',
                'beforePhotos', 'afterPhotos', 'serialNumberPhoto',
                // Warranty verdict, service charge and billing fields are
                // NOT here: the billOnClose_* Cloud Function sets them when
                // a technician completes a ticket.
                ])));
       allow create: if (isAdmin()
+        || inMyArea(request.resource.data.get('district', null))
         || (isSignedIn() && request.resource.data.serviceCenterUid == request.auth.uid))
-        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback']);
+        && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'assignmentRejected', 'scheduleRejected', 'lifecycleRejected', 'appointmentMissed', 'escalation', 'idCheck', 'billingComputedAt', 'customerFeedback', 'customerConfirmation']);
       allow delete: if isAdmin();
 
       // Same append-only status/progress log as serviceJobs above —
       // scoped to the ticket's own service center and assigned technician.
       match /statusLog/{logId} {
         allow read, create: if isAdmin()
+          || inMyArea(get(/databases/$(database)/documents/centerRequests/$(reqId)).data.get('district', null))
           || (isSignedIn() && (
                 get(/databases/$(database)/documents/centerRequests/$(reqId)).data.serviceCenterUid == request.auth.uid
              || get(/databases/$(database)/documents/centerRequests/$(reqId)).data.technicianUid == request.auth.uid));
@@ -358,8 +391,12 @@ service cloud.firestore {
       // both query it by technicianUid) — previously only the owning
       // center and admins could, so neither could work for a technician.
       allow read: if isAdmin()
+        || centerInMyArea(resource.data.serviceCenterUid)
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid)
         || (isSignedIn() && resource.data.technicianUid == request.auth.uid);
+      // Area Manager: onboarding approval of technicians at centers in their districts.
+      allow update: if centerInMyArea(resource.data.serviceCenterUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['employmentStatus', 'onboardingApproval', 'updatedAt']);
       allow delete: if isAdmin()
         || (isSignedIn() && resource.data.serviceCenterUid == request.auth.uid);
       allow create: if (isAdmin()
@@ -533,6 +570,7 @@ service cloud.firestore {
       allow get: if isSignedIn()
         || (isCustomer() && resource.data.customerPhone == myPhone());
       allow list: if isAdmin()
+        || inMyArea(resource.data.get('district', null))
         || (isCustomer() && resource.data.customerPhone == myPhone());
       allow create: if requestId == request.resource.data.requestId
         && request.resource.data.keys().hasAll(['requestId', 'customerName', 'customerPhone', 'status', 'createdAt'])
@@ -551,12 +589,17 @@ service cloud.firestore {
         && request.resource.data.get('pincode', '').matches('^([0-9]{6})?$')
         && !request.resource.data.keys().hasAny(['intakeWarranty', 'possibleDuplicateOf', 'warrantyStatus', 'routing', 'serviceCenterUid', 'serviceCenterName']);
       allow update, delete: if isAdmin();
+      // An Area Manager routes the website requests in their own districts.
+      allow update: if inMyArea(resource.data.get('district', null))
+        && request.resource.data.get('district', null) == resource.data.get('district', null)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'serviceCenterUid', 'serviceCenterName', 'technicianUid', 'technicianName', 'routing', 'updatedAt']);
 
       // Status log — admin-only, same as the request itself before
       // it's routed to a Service Center or Technician (who then log
       // against their own serviceJobs/centerRequests doc instead).
       match /statusLog/{logId} {
-        allow read, create: if isAdmin();
+        allow read, create: if isAdmin()
+          || inMyArea(get(/databases/$(database)/documents/publicServiceRequests/$(requestId)).data.get('district', null));
         allow update, delete: if isAdmin();
       }
     }
@@ -580,7 +623,7 @@ service cloud.firestore {
       // ticket may list it.
       allow list: if isSignedIn()
         || (isCustomer() && resource.data.customerPhone == myPhone());
-      allow create, update: if isAdmin() || isStaff();
+      allow create, update: if isAdmin() || isStaff() || isAreaManager();
       allow delete: if isAdmin();
     }
 
@@ -589,6 +632,20 @@ service cloud.firestore {
     // trackSync_* Cloud Functions from the real ticket, so a browser can
     // never edit the history. Staff may read it; a customer reads only the
     // tickets carrying their own verified phone.
+    // Completion codes (sendCloseCode). Only the customer whose job it is
+    // can read theirs — in the My Service portal — never the technician.
+    match /closeCodes/{codeId} {
+      allow get, list: if isCustomer() && resource.data.customerPhone == myPhone();
+      allow write: if false;
+    }
+
+    // Log of automatic customer messages (SMS / WhatsApp), written by the
+    // functions. Head Office reads it on the Customer Messages screen.
+    match /messageLog/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /customerTracking/{ticketId} {
       allow get, list: if isStaff()
         || (isCustomer() && resource.data.customerPhone == myPhone());
@@ -798,6 +855,7 @@ service cloud.firestore {
 
     match /inventory/{invId} {
       allow read: if isAdmin()
+        || (resource.data.get('location', '') == 'servicecenter' && centerInMyArea(resource.data.serviceCenterUid))
         || (isSignedIn() && resource.data.location == 'technician' && resource.data.technicianUid == request.auth.uid)
         || (isSignedIn() && resource.data.location == 'servicecenter' && resource.data.serviceCenterUid == request.auth.uid);
       // Helper checks (inlined, since rules can't share functions across
@@ -831,7 +889,7 @@ service cloud.firestore {
     }
 
     match /technicianAvailability/{uid} {
-      allow read: if isStaff();
+      allow read: if isStaff() || isAreaManager();
       allow create: if isAdmin()
         || (isSignedIn() && request.auth.uid == uid && !('suspended' in request.resource.data));
       allow update: if isAdmin()
@@ -850,7 +908,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /spareParts/{partId} {
-      allow read: if isStaff();
+      allow read: if isStaff() || isAreaManager();
       allow create, delete: if isAdmin();
       // Warehouse edits everything except an existing part's price, which
       // goes through a change request that only Super Admin can approve.
@@ -916,6 +974,7 @@ service cloud.firestore {
       // every OTHER center's and technician's spare requests company-
       // wide — real UI queries are always scoped like this already.)
       allow read: if isAdmin()
+        || centerInMyArea(resource.data.get('requestedByUid', ''))
         || (isSignedIn() && resource.data.requestedByUid == request.auth.uid)
         || (isSignedIn() && resource.data.sourceJobCollection == 'centerRequests'
             && get(/databases/$(database)/documents/centerRequests/$(resource.data.sourceJobId)).data.technicianUid == request.auth.uid);
@@ -929,7 +988,7 @@ service cloud.firestore {
       // when a center/technician issues from its own shelf) — never
       // pre-dispatched or pre-received — with no dispatch/receipt fields
       // and a sane quantity.
-      allow create: if isAdmin()
+      allow create: if (isAdmin() && !request.resource.data.keys().hasAny(['stockCheck']))
         || (isSignedIn() && request.resource.data.requestedByUid == request.auth.uid
             && request.resource.data.get('status', '') in ['new', 'fulfilled_by_center']
             && !request.resource.data.keys().hasAny(['transport', 'dispatchedQty', 'receivedAt', 'consumedAt', 'consumedQty', 'pipelineRejected', 'possibleDuplicateOf', 'idCheck'])
@@ -941,7 +1000,8 @@ service cloud.firestore {
       // receipt themselves — but only that one transition (dispatched or
       // in-transit -> received), so they can't otherwise edit their own
       // request's status, quantity, item or transport details.
-      allow update: if isAdmin()
+      // `stockCheck` is the server's dispatch audit (checkSparePipeline) — nobody else writes it.
+      allow update: if (isAdmin() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stockCheck']))
         || (isStaff() && resource.data.requestedByUid == request.auth.uid
             && resource.data.status in ['dispatched', 'intransit']
             && request.resource.data.status == 'received'
@@ -1344,7 +1404,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------
 
     match /slaRules/{ruleId} {
-      allow read: if isStaff() || isDistributor();
+      allow read: if isStaff() || isDistributor() || isAreaManager();
       allow write: if isAdmin();
     }
 
@@ -1376,7 +1436,12 @@ service cloud.firestore {
 
     match /serviceCenterProfiles/{uid} {
       allow read: if isAdmin()
+        || inMyArea(resource.data.get('district', null))
         || (isSignedIn() && request.auth.uid == uid);
+      // An Area Manager approves / suspends the centers in their districts —
+      // only the status and the approval record, never the district itself.
+      allow update: if inMyArea(resource.data.get('district', null))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'approval', 'updatedAt']);
       // The Service Center Code (SC-0001 …) is issued by a Cloud Function
       // (functions/index.js), never by a client: a profile is created
       // without one, and once the function has set it, no client — the
