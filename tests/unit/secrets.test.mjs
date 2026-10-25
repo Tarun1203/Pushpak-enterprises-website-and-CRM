@@ -54,7 +54,9 @@ test('no private keys, service-account files or access tokens are committed', ()
 });
 
 test('no credential files (.env, service-account JSON, key files) are committed', () => {
-  const bad = FILES.map(rel).filter((r) => /(^|\/)\.env(\.|$)|serviceAccount.*\.json$|-firebase-adminsdk-.*\.json$|\.(pem|p12|pfx|key)$/i.test(r) && !/^tests\//.test(r));
+  // A `.env.example` template is allowed only while every value in it is empty.
+  const emptyTemplate = (r) => /(^|\/)\.env\.example$/.test(r) && fs.readFileSync(path.join(ROOT, r), 'utf8').split('\n').every((l) => !/^\s*[A-Z0-9_]+\s*=\s*\S/.test(l));
+  const bad = FILES.map(rel).filter((r) => /(^|\/)\.env(\.|$)|serviceAccount.*\.json$|-firebase-adminsdk-.*\.json$|\.(pem|p12|pfx|key)$/i.test(r) && !/^tests\//.test(r) && !emptyTemplate(r));
   assert.deepStrictEqual(bad, []);
 });
 
