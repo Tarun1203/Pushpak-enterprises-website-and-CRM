@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { waitForRoleDashboard } = require('./support/qa-login');
 
 const CRM_BASE = './crm/';
 
@@ -15,7 +16,7 @@ async function loginAsQa(page) {
   await page.locator('#email').fill(process.env.QA_EMAIL);
   await page.locator('#password').fill(process.env.QA_PASSWORD);
   await page.locator('#login-btn').click();
-  await page.waitForURL(/CRMservicecenter\.html$/, { timeout: 20_000 });
+  await waitForRoleDashboard(page, 'CRMservicecenter.html');
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#gate')).toBeHidden({ timeout: 10_000 });
 }

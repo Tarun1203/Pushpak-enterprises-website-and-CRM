@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { waitForRoleDashboard } = require('./support/qa-login');
 
 const CRM_BASE = './crm/';
 const ROLE_PAGES = {
@@ -89,7 +90,7 @@ test('authenticated CRM workflow runs when a dedicated QA account is configured'
   await page.locator('#password').fill(password);
   await page.locator('#login-btn').click();
 
-  await page.waitForURL(url => url.pathname.endsWith('/crm/' + ROLE_PAGES[role]) || url.pathname.endsWith(ROLE_PAGES[role]), { timeout: 30_000 });
+  await waitForRoleDashboard(page, ROLE_PAGES[role]);
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('#gate')).toBeHidden({ timeout: 10_000 });
   await expect(page.locator('#content')).toBeVisible();
