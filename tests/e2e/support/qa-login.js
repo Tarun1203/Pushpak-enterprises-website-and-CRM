@@ -53,12 +53,14 @@ async function waitForRoleDashboard(page, dashboardFile, { timeout = 15_000 } = 
     hint = 'Login succeeded but the dashboard gate sent the browser back to login.html: users/{uid}.role is not "servicecenter" or accessDisabled is set.';
   }
   for (const [re, text] of HINTS) if (re.test(error)) { hint = text; break; }
+  // One line on purpose: the CI regression gate and GitHub annotations keep
+  // only the first line of an error message.
   throw new Error(
-    `QA login did not reach ${dashboardFile} within ${Math.round(timeout / 1000)}s.\n` +
-    `  Ended on: ${where}\n` +
-    `  Login page error: ${error ? JSON.stringify(error) : '(none)'}\n` +
-    `  Login page status: ${status ? JSON.stringify(status) : '(none)'}\n` +
-    `  Likely fix: ${hint}`
+    `QA login failed: login page error ${error ? JSON.stringify(error) : '(none)'}` +
+    ` | status ${status ? JSON.stringify(status) : '(none)'}` +
+    ` | ended on ${where}` +
+    ` | likely fix: ${hint}` +
+    ` | (waited ${Math.round(timeout / 1000)}s for the role dashboard)`
   );
 }
 
