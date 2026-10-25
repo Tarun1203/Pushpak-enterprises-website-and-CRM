@@ -83,4 +83,4 @@ async function installFirebaseStub(page, stub = {}) {
   });
 }
 
-module.exports = { installFirebaseStub };
+module.exports = { installFirebaseStub, MODULES };

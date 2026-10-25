@@ -22,3 +22,7 @@ QA-tests/.qa-catalog/state/
 
 # Local test output (screenshots, videos, reports)
 /qa-results/
+
+# Local QA My App run output and Playwright scratch output
+/QA-tests/results/
+/test-results/
