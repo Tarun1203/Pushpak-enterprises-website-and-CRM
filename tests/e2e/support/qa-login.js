@@ -33,7 +33,9 @@ async function readText(page, selector) {
   }
 }
 
-async function waitForRoleDashboard(page, dashboardFile, { timeout = 30_000 } = {}) {
+// 15s: well under the 30s per-test limit, so the diagnosis below gets to run
+// (a successful sign-in redirects in a few seconds).
+async function waitForRoleDashboard(page, dashboardFile, { timeout = 15_000 } = {}) {
   try {
     await page.waitForURL((url) => url.pathname.endsWith('/' + dashboardFile), { timeout });
     return;
