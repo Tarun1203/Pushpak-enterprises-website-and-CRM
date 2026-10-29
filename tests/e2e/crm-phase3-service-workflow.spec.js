@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { waitForRoleDashboard } = require('./support/qa-login');
+const { revealModals } = require('./support/reveal-modals');
 
 const CRM_BASE = './crm/';
 
@@ -42,6 +43,7 @@ test('Phase 3 service request intake exposes required customer and issue fields'
 
 test('Phase 3 appointment booking requires a complete time window', async ({ page }) => {
   await loginAsQa(page);
+  await revealModals(page);
   await expect(page.locator('#req-schedule-form')).toBeAttached();
   await expect(page.locator('#req-schedule-date')).toHaveAttribute('required', '');
   await expect(page.locator('#req-schedule-start')).toHaveAttribute('required', '');
@@ -66,6 +68,7 @@ test('Phase 3 technician assignment controls exist and are scoped to Service Cen
 
 test('Phase 3 service center spare request form validates quantity', async ({ page }) => {
   await loginAsQa(page);
+  await revealModals(page);
   const form = page.locator('#spare-req-form');
   await expect(form).toBeAttached();
   await expect(page.locator('#spare-req-part')).toHaveAttribute('required', '');
@@ -77,6 +80,7 @@ test('Phase 3 service center spare request form validates quantity', async ({ pa
 
 test('Phase 3 service center closure requires code and action notes', async ({ page }) => {
   await loginAsQa(page);
+  await revealModals(page);
   await expect(page.locator('#sc-closure-form')).toBeAttached();
   await expect(page.locator('#sc-closure-code')).toHaveAttribute('required', '');
   await expect(page.locator('#sc-closure-notes')).toHaveAttribute('required', '');

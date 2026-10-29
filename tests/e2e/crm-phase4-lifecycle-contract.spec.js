@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { waitForRoleDashboard } = require('./support/qa-login');
+const { revealModals } = require('./support/reveal-modals');
 
 const CRM_BASE = './crm/';
 
@@ -61,6 +62,7 @@ test('Phase 4 exposes the complete service lifecycle surface', async ({ page }) 
 
 test('Phase 4 enforces request, appointment and closure validation boundaries', async ({ page }) => {
   await loginAsQa(page);
+  await revealModals(page);
 
   await expect(page.locator('#req-customer-name')).toHaveAttribute('required', '');
   await expect(page.locator('#req-customer-phone')).toHaveAttribute('required', '');
@@ -80,6 +82,7 @@ test('Phase 4 enforces request, appointment and closure validation boundaries', 
 
 test('Phase 4 spare consumption cannot accept zero quantity', async ({ page }) => {
   await loginAsQa(page);
+  await revealModals(page);
   for (const selector of ['#spare-req-qty', '#sc-closure-partqty-1', '#sc-closure-partqty-2', '#sc-closure-partqty-3']) {
     const field = page.locator(selector);
     if (await field.count()) {
