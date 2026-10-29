@@ -95,8 +95,11 @@ test('P10.2 access: suspended technician and inactive center stop working at onc
 test('P10.5 working hours, closures and daily capacity are enforced on appointments', async () => {
   store.clear();
   const MON = nextWeekday(1), TUE = nextWeekday(2), SUN = nextWeekday(0);
+  // The closure range runs Thursday -> the day after, derived from Thursday itself. Looking up the next Friday
+  // independently put the end before the start whenever the suite ran on a Thursday.
+  const THU = nextWeekday(4), FRI = new Date(Date.parse(THU + 'T00:00:00Z') + 864e5).toISOString().slice(0, 10);
   set('users/wC', { role: 'servicecenter', name: 'Center W' });
-  set('serviceCenterProfiles/wC', { status: 'ACTIVE', holidaysAndClosures: [{ date: nextWeekday(3), endDate: '', reason: 'Local festival' }, { date: nextWeekday(4), endDate: nextWeekday(5), reason: 'Stock taking' }] });
+  set('serviceCenterProfiles/wC', { status: 'ACTIVE', holidaysAndClosures: [{ date: nextWeekday(3), endDate: '', reason: 'Local festival' }, { date: THU, endDate: FRI, reason: 'Stock taking' }] });
   const sched = { mon: { working: true, start: '09:00', end: '18:00', breakStart: '13:00', breakEnd: '14:00' }, tue: { working: true, start: '10:00', end: '16:00' }, wed: { working: true, start: '09:00', end: '18:00' }, thu: { working: true, start: '09:00', end: '18:00' }, fri: { working: true, start: '09:00', end: '18:00' }, sat: { working: false }, sun: { working: false } };
   set('users/wT', { role: 'technician', name: 'Tech W', linkedServiceCenterUid: 'wC' });
   set('centerTechnicians/cw', { serviceCenterUid: 'wC', technicianUid: 'wT', name: 'Tech W', workingHours: sched, capacity: { maxJobsPerDay: 2 } });
@@ -118,7 +121,7 @@ test('P10.5 working hours, closures and daily capacity are enforced on appointme
   ok(/outside the technician's working hours \(10:00-16:00\)/.test(await book('wT', TUE, '09:00', '11:00')), 'Tuesday hours differ');
   ok(/doesn't work on Sundays/.test(await book('wT', SUN, '10:00', '11:00')), 'day off');
   ok(/closed on that date \(Local festival\)/.test(await book('wT', nextWeekday(3), '10:00', '11:00')), 'center closure (single day)');
-  ok(/closed on that date \(Stock taking\)/.test(await book('wT', nextWeekday(5), '10:00', '11:00')), 'center closure (range, last day)');
+  ok(/closed on that date \(Stock taking\)/.test(await book('wT', FRI, '10:00', '11:00')), 'center closure (range, last day)');
   // A cancelled job frees a capacity slot; a technician with holiday override works closures.
   set('centerRequests/wk1', { ...get('centerRequests/wk1'), status: 'cancelled' });
   ok(await book('wT', MON, '16:00', '17:00') === null, 'cancelled job no longer counts');
