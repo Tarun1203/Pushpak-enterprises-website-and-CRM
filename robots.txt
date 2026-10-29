@@ -1,0 +1,5 @@
+# Staff tool: keep the CRM out of search results. This is hygiene, not access control —
+# the CRM is protected by sign-in and Firestore rules. Every CRM page also carries a noindex tag.
+# Crawlers only read this file at the domain root (makwell.co once the custom domain is live).
+User-agent: *
+Disallow: /crm/
