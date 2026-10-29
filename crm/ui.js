@@ -520,6 +520,16 @@
       tr.title = tr.title || 'Click for details';
     });
   }
+  // Skeleton loaders: a list cell that says only "Loading…" is marked .is-loading and ui.css draws
+  // shimmer bars over it. The text stays in the page, so screen readers still announce it and the
+  // tests that wait for it to go away keep working. Re-checked on every refresh, so a cell that is
+  // reused for a result stops looking like a skeleton.
+  function tagLoading() {
+    $$('.content .empty-row').forEach(function (el) {
+      var loading = /^loading(…|\.\.\.)?$/i.test((el.textContent || '').trim());
+      if (el.classList.contains('is-loading') !== loading) el.classList.toggle('is-loading', loading);
+    });
+  }
   function headings(table) {
     var ths = $$('thead th', table);
     if (!ths.length) ths = $$('tr:first-child th', table);
@@ -568,7 +578,7 @@
   var scheduled = false;
   function refresh() {
     scheduled = false;
-    tagRows(); buildHeader(); crumb(); var um = $('.ui-user-menu'); if (um && um._sync) um._sync(); a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
+    tagRows(); tagLoading(); buildHeader(); crumb(); var um = $('.ui-user-menu'); if (um && um._sync) um._sync(); a11yNav(); a11yMisc(); addHero(); countUp(); syncBottom();
     if (!bottom && navItems().length) buildBottom();
   }
   function schedule() { if (!scheduled) { scheduled = true; requestAnimationFrame(refresh); } }
