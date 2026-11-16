@@ -122,9 +122,22 @@ test('deep link #find-service-center opens the finder; Esc closes and focus retu
   const tile = page.locator('.service-card', { hasText: 'Find service center' }).first();
   await tile.focus(); await page.keyboard.press('Enter');
   await expect(page.locator('#locator-overlay')).toBeVisible();
-  await expect(page.locator('#locator-overlay .modal')).toHaveAttribute('role', 'dialog');
+  // A native modal <dialog> (the browser gives it the dialog role, focus handling and Esc).
+  expect(await page.locator('#locator-overlay').evaluate((d) => d.tagName === 'DIALOG' && d.open && d.matches(':modal'))).toBe(true);
+  await expect(page.getByRole('dialog', { name: 'Find a service center or store' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(tile).toBeFocused();
+});
+
+test('a tap outside the finder closes it; a tap inside does not', async ({ page }) => {
+  await open(page);
+  const d = page.locator('#locator-overlay');
+  await expect(d).toBeVisible();
+  await page.click('#loc-status');
+  await expect(d).toBeVisible();
+  const box = await d.boundingBox();
+  await page.mouse.click(Math.max(2, box.x - 6), Math.max(2, box.y - 6));
+  await expect(d).toBeHidden();
 });
 
 test('accessible (axe, WCAG 2.2 AA) with the list and with the map, and fits a 360px phone', async ({ page }) => {
@@ -137,7 +150,7 @@ test('accessible (axe, WCAG 2.2 AA) with the list and with the map, and fits a 3
   expect(await runAxe(page, { exclude: [['.leaflet-tile-pane']] })).toEqual([]);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  const box = await page.locator('#locator-overlay .modal').boundingBox();
+  const box = await page.locator('#locator-overlay').boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(361);
 });
 

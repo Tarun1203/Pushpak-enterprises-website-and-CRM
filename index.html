@@ -410,8 +410,7 @@
 
 
 <!-- Find a service center or store (assets/locator.js) -->
-<div class="modal-overlay" id="locator-overlay">
-  <div class="modal modal-wide loc-modal">
+<dialog class="modal modal-wide loc-modal" id="locator-overlay" closedby="any" aria-labelledby="locator-title">
     <button type="button" class="modal-close" id="locator-close" aria-label="Close">&times;</button>
     <h3 id="locator-title">Find a service center or store</h3>
     <div class="modal-sub">Search by pincode or city, or use your location to see the nearest first.</div>
@@ -436,8 +435,7 @@
     </div>
     <ol id="loc-list" class="loc-list" aria-label="Locations"></ol>
     <p class="loc-foot">Can't find one near you? <button type="button" class="linklike" data-loc-enquiry>Send us an enquiry</button></p>
-  </div>
-</div>
+</dialog>
 
 <!-- Track Service modal -->
 <div class="modal-overlay" id="track-overlay">

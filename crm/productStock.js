@@ -138,7 +138,7 @@ export async function renderSerialLookup(el, { db }) {
     }
   };
   el.querySelector('#sl-go').addEventListener('click', go);
-  el.querySelector('#sl-serial').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  el.querySelector('#sl-serial').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) go(); });
 }
 
 // -----------------------------------------------------------------

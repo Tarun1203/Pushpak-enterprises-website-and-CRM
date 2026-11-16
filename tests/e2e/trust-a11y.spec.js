@@ -72,7 +72,8 @@ test('cookie banner: accept, choose-and-save, withdraw later from the footer, an
   await page.locator('footer [data-cookie-settings]').first().click();
   const dlg = page.locator('.pe-cc-dialog');
   await expect(dlg).toBeVisible();
-  await expect(dlg).toHaveAttribute('role', 'dialog');
+  expect(await dlg.evaluate((d) => d.tagName === 'DIALOG' && d.matches(':modal'))).toBe(true);
+  await expect(page.getByRole('dialog', { name: 'Cookie settings' })).toBeVisible();
   await expect(dlg.locator('#pe-cc-e')).toBeChecked(); await expect(dlg.locator('#pe-cc-e')).toBeDisabled();
   await expect(dlg.locator('#pe-cc-a')).toBeChecked();
   await dlg.locator('#pe-cc-a').uncheck();
@@ -211,7 +212,7 @@ test('forms: every field has a real label or name, and each label points at its 
   for (const name of ['Book a service', 'Register product', 'Track service', 'Check warranty', 'Find service center']) {
     await page.locator('.service-card', { hasText: name }).first().click();
     const bad = await page.evaluate(() => {
-      const ov = document.querySelector('.modal-overlay.show'); const out = [];
+      const ov = document.querySelector('.modal-overlay.show, dialog[open]'); const out = [];
       ov.querySelectorAll('input:not([type=hidden]),select,textarea').forEach((c) => { const nm = (c.labels && c.labels.length) || c.getAttribute('aria-label') || c.getAttribute('aria-labelledby'); if (!nm) out.push(c.name || c.id || c.type); });
       return out;
     });

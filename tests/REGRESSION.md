@@ -120,6 +120,7 @@ Locally, suites you did not run show as "no results" — that is expected.
 | A spare could be marked dispatched without the stock leaving the warehouse | `functions/lifecycle.test.js` (dispatch audit), rules tests (only the server writes the audit) |
 | SLA rules were only shown, never acted on | `functions/phase9c.test.js` (breach after the district rule's hours tells Head Office, the district's Area Manager and the center, once) |
 | Warehouse Profile showed "not built yet" | `closing-messages.spec.js` |
+| Pop-ups rebuilt as native browser dialogs (finder, cookie settings, Report Bug); Enter on Indian-language keyboards; stale page copies under assets/logos | `modern-web.spec.js`, `locator.spec.js` (tap outside, native modal), `trust-a11y.spec.js`, `browsers.spec.js` (Safari/Firefox fallback) |
 
 When you fix a new bug, add a test that fails without the fix, add a row here,
 and raise the baseline.

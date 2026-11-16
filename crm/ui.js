@@ -146,7 +146,7 @@
     cmdInput.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); selectRow(cmdSel + 1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); selectRow(cmdSel - 1); }
-      else if (e.key === 'Enter') { e.preventDefault(); pick(cmdSel); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (e.isComposing || e.keyCode === 229) return; pick(cmdSel); }
       else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
       else if (e.key === 'Tab') { e.preventDefault(); }
     });

@@ -1786,7 +1786,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
     }
     addBtnEl.addEventListener('click', addFromInput);
     inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); addFromInput(); }
+      // Skip the Enter that picks a word in a Kannada / Hindi / other language keyboard.
+      if (e.key === 'Enter') { e.preventDefault(); if (e.isComposing || e.keyCode === 229) return; addFromInput(); }
     });
     return {
       get: () => values,
@@ -8133,7 +8134,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
       loadCustomer360(phone);
     });
     document.getElementById('c360-phone-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); loadCustomer360(e.target.value.trim()); }
+      if (e.key === 'Enter') { e.preventDefault(); if (e.isComposing || e.keyCode === 229) return; loadCustomer360(e.target.value.trim()); }
     });
 
     const tbody = document.getElementById('custs-tbody');

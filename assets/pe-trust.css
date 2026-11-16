@@ -13,8 +13,9 @@ body.has-tabbar .pe-cc{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 .pe-cc-btn{flex:1 1 150px;min-height:44px;padding:10px 16px;border-radius:10px;border:2px solid #1B3FD1;background:#fff;color:#1B3FD1;font:700 14px Inter,system-ui,sans-serif;cursor:pointer}
 .pe-cc-btn:hover{background:#EEF2FF}
 .pe-cc-btn:focus-visible,.pe-cc a:focus-visible,.pe-cc input:focus-visible{outline:3px solid #0A0E1A;outline-offset:2px}
-.pe-cc-panel{position:fixed;inset:0;z-index:410;background:rgba(7,11,22,.6);display:flex;align-items:center;justify-content:center;padding:16px}
-.pe-cc-dialog{background:#fff;color:#0A0E1A;border-radius:16px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:22px;font:14px/1.5 Inter,system-ui,sans-serif}
+dialog.pe-cc-dialog{border:0;margin:auto;background:#fff;color:#0A0E1A;border-radius:16px;max-width:560px;width:calc(100% - 32px);box-sizing:border-box;max-height:90vh;overflow:auto;padding:22px;font:14px/1.5 Inter,system-ui,sans-serif}
+dialog.pe-cc-dialog:modal{overscroll-behavior:contain}
+dialog.pe-cc-dialog::backdrop{background:rgba(7,11,22,.6);overflow:hidden;overscroll-behavior:contain}
 .pe-cc-dialog h2{font:800 20px/1.25 Manrope,Inter,system-ui,sans-serif;margin:0 0 6px}
 .pe-cc-row{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-top:1px solid #E3E6EE}
 .pe-cc-row label{font-weight:700;display:block}

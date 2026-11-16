@@ -192,18 +192,28 @@ function nearMe() {
 
 export async function open() {
   const ov = $('#locator-overlay'); if (!ov) return;
-  ov.classList.add('show');
+  if (!ov.open) ov.showModal();
   $('#loc-status').textContent = 'Loading locations…';
   try { await load(); render(); } catch (e) {
     $('#loc-status').textContent = 'We could not load the list right now. Please try again, or send us an enquiry.';
   }
 }
-function close() { $('#locator-overlay').classList.remove('show'); }
+function close() { const ov = $('#locator-overlay'); if (ov && ov.open) ov.close(); }
+
+// closedby="any" closes the finder on a tap outside it. Safari does not
+// support closedby yet: there, press and release outside close it.
+function lightDismiss(d) {
+  if ('closedBy' in HTMLDialogElement.prototype) return;
+  const outside = (e) => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+  let down = false;
+  d.addEventListener('pointerdown', (e) => { down = outside(e); });
+  d.addEventListener('pointerup', (e) => { if (down && outside(e)) d.close(); });
+}
 
 function wire() {
   const ov = $('#locator-overlay'); if (!ov || ov._wired) return; ov._wired = true;
   $('#locator-close').addEventListener('click', close);
-  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  lightDismiss(ov);
   $('#loc-form').addEventListener('submit', (e) => { e.preventDefault(); state.q = $('#loc-q').value.trim(); render(); });
   $('#loc-near').addEventListener('click', nearMe);
   $('#loc-map-btn').addEventListener('click', () => showMap());

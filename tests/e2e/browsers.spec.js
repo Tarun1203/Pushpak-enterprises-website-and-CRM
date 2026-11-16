@@ -20,6 +20,26 @@ const noOverflow = async (page, what) => {
 };
 const blockOutside = (page) => page.route(/^https?:\/\//, (r) => (r.request().url().startsWith(origin) || /gstatic\.com\/firebasejs/.test(r.request().url()) ? r.fallback() : r.abort()));
 
+test('pop-ups are native dialogs: the cookie settings and the service-center finder open, close on Esc and on a tap outside (Safari uses the fallback)', async ({ page }) => {
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await installFirebaseStub(page, { role: 'none', uid: 'u1', data: { publicLocations: [] } });
+  await blockOutside(page);
+  await page.goto(origin + '/index.html', { waitUntil: 'load' });
+  await page.waitForTimeout(400);
+  await page.locator('.pe-cc [data-cc="choose"]').click();
+  await expect(page.locator('dialog.pe-cc-dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog.pe-cc-dialog')).toHaveCount(0);
+  await page.locator('.pe-cc [data-cc="reject"]').click();
+  const finder = page.locator('#locator-overlay');
+  await page.locator('.service-card', { hasText: 'Find service center' }).first().click();
+  await expect(finder).toBeVisible();
+  const box = await finder.boundingBox();
+  await page.mouse.click(Math.max(2, box.x - 6), Math.max(2, box.y - 6));
+  await expect(finder).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
 test('public home page opens with a title and no script errors', async ({ page }) => {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await blockOutside(page);

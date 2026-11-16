@@ -67,27 +67,38 @@
     padFor(); window.addEventListener('resize', padFor);
   }
   function openSettings() {
-    if ($('.pe-cc-panel')) return;
-    lastFocus = document.activeElement;
+    if ($('.pe-cc-dialog')) return;
     var c = current() || {};
-    var panel = el('div', { class: 'pe-cc-panel' });
     var base = ROOT;
-    panel.innerHTML = '<div class="pe-cc-dialog" role="dialog" aria-modal="true" aria-labelledby="pe-cc-t" aria-describedby="pe-cc-d"><h2 id="pe-cc-t">Cookie settings</h2><p id="pe-cc-d">You can change this at any time from "Cookie settings" in the footer. <a href="' + base + 'cookies.html">Read the Cookie Policy</a>.</p>' +
+    // Native modal <dialog>: the browser gives the backdrop, keeps focus inside,
+    // closes on Esc and returns focus to the button that opened it.
+    // closedby="any" also closes it on a tap outside (lightDismiss covers Safari).
+    var panel = el('dialog', { class: 'pe-cc-dialog', closedby: 'any', 'aria-labelledby': 'pe-cc-t', 'aria-describedby': 'pe-cc-d' });
+    panel.innerHTML = '<h2 id="pe-cc-t">Cookie settings</h2><p id="pe-cc-d">You can change this at any time from "Cookie settings" in the footer. <a href="' + base + 'cookies.html">Read the Cookie Policy</a>.</p>' +
       '<div class="pe-cc-row"><div><label for="pe-cc-e">Essential</label><span>Needed to sign in and keep the site secure. Always on.</span></div><input type="checkbox" id="pe-cc-e" checked disabled></div>' +
-      '<div class="pe-cc-row"><div><label for="pe-cc-a">Analytics</label><span>Not in use today. If we add it, it stays off unless you allow it.</span></div><input type="checkbox" id="pe-cc-a"' + (c.analytics ? ' checked' : '') + '></div>' +
+      '<div class="pe-cc-row"><div><label for="pe-cc-a">Analytics</label><span>Not in use today. If we add it, it stays off unless you allow it.</span></div><input type="checkbox" id="pe-cc-a" autofocus' + (c.analytics ? ' checked' : '') + '></div>' +
       '<div class="pe-cc-row"><div><label for="pe-cc-p">Preferences</label><span>Not in use today. For remembering optional settings, if added.</span></div><input type="checkbox" id="pe-cc-p"' + (c.preferences ? ' checked' : '') + '></div>' +
-      '<div class="pe-cc-actions"><button type="button" class="pe-cc-btn" data-p="reject">Reject optional</button><button type="button" class="pe-cc-btn" data-p="save">Save my choices</button><button type="button" class="pe-cc-btn" data-p="accept">Accept all</button></div></div>';
-    function close() { panel.remove(); if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus(); }
+      '<div class="pe-cc-actions"><button type="button" class="pe-cc-btn" data-p="reject">Reject optional</button><button type="button" class="pe-cc-btn" data-p="save">Save my choices</button><button type="button" class="pe-cc-btn" data-p="accept">Accept all</button></div>';
+    panel.addEventListener('close', function () { panel.remove(); });
     panel.addEventListener('click', function (e) {
-      if (e.target === panel) return close();
       var b = e.target.closest('[data-p]'); if (!b) return;
       var a = b.getAttribute('data-p');
       write({ analytics: a === 'accept' || (a === 'save' && $('#pe-cc-a', panel).checked), preferences: a === 'accept' || (a === 'save' && $('#pe-cc-p', panel).checked) });
-      closeBanner(); close();
+      closeBanner(); panel.close();
     });
-    panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } else trap(e, $('.pe-cc-dialog', panel)); });
     document.body.appendChild(panel);
-    $('#pe-cc-a', panel).focus();
+    lightDismiss(panel);
+    panel.showModal();
+  }
+
+  // Close a closedby="any" dialog on a tap outside it where the browser does
+  // not support closedby yet (Safari). Press and release must both be outside.
+  function lightDismiss(d) {
+    if ('closedBy' in HTMLDialogElement.prototype) return;
+    var outside = function (e) { var r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+    var down = false;
+    d.addEventListener('pointerdown', function (e) { down = outside(e); });
+    d.addEventListener('pointerup', function (e) { if (down && outside(e)) d.close(); });
   }
 
   /* ---------- 2. footer links ---------- */
@@ -147,8 +158,8 @@
     return m;
   }
   var openers = new WeakMap(), lastOutside = null;
-  document.addEventListener('focusin', function (e) { if (!e.target.closest || !e.target.closest('.modal-overlay.show,.pe-cc-panel')) lastOutside = e.target; }, true);
-  document.addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('a,button,[tabindex]'); if (t && !t.closest('.modal-overlay.show,.pe-cc-panel')) lastOutside = t; }, true);
+  document.addEventListener('focusin', function (e) { if (!e.target.closest || !e.target.closest('.modal-overlay.show,dialog[open]')) lastOutside = e.target; }, true);
+  document.addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('a,button,[tabindex]'); if (t && !t.closest('.modal-overlay.show,dialog[open]')) lastOutside = t; }, true);
   function onOverlay(ov) {
     var shown = ov.classList.contains('show') || ov.classList.contains('open') || getComputedStyle(ov).display !== 'none' && ov.offsetWidth > 0;
     if (shown && !ov._peOpen) {
